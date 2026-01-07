@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # --- Backend Services ---
+  yads-api:
+    build: .
+    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://yads:yads@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs:/app/logs
+      - .:/app
+    depends_on:
+      - db
+      - redis
+
+  yads-worker:
+    build: .
+    command: celery -A yads.worker worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://yads:yads@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs:/app/logs
+      - .:/app
+    depends_on:
+      - db
+      - redis
+
+  # --- Infrastructure ---
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=yads
+      - POSTGRES_PASSWORD=yads
+      - POSTGRES_DB=yads
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  postgres_data:

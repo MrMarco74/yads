@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YADS - Security Dashboard</title>
+    <link href="/static/css/main.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+      body {
+        background-color: #0b0f19; /* Very deep blue/black */
+        color: #e5e7eb;
+      }
+      /* Custom scrollbar for logs */
+      .log-container::-webkit-scrollbar {
+        width: 8px;
+      }
+      .log-container::-webkit-scrollbar-track {
+        background: #1f2937;
+      }
+      .log-container::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen font-sans antialiased">
+    <nav
+      class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50"
+    >
+      <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center">
+            <a href="/" class="flex-shrink-0 flex items-center gap-3">
+              <img src="/static/logo.jpg" alt="YADS Logo" class="h-10 w-auto rounded-lg shadow-lg shadow-cyan-500/20">
+              <span
+                class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-cyan-400"
+              >
+                YADS
+              </span>
+            </a>
+            <div class="hidden md:block">
+              <div class="ml-10 flex items-baseline space-x-4">
+                <a
+                  href="/"
+                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  >Dashboard</a
+                >
+                <a
+                  href="/logs"
+                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  >System Logs</a
+                >
+              </div>
+            </div>
+          </div>
+          <div>
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200 border border-green-700"
+            >
+              System Online
+            </span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="w-full mx-auto py-6 sm:px-6 lg:px-8">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "yads-ui",
+  "version": "1.0.0",
+  "description": "UI assets for YADS",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./yads/api/static/css/input.css -o ./yads/api/static/css/main.css --minify",
+    "watch:css": "tailwindcss -i ./yads/api/static/css/input.css -o ./yads/api/static/css/main.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}
