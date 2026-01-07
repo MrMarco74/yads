@@ -1,0 +1,19 @@
+import os
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "YADS - Yet Another DNS Scanner"
+    
+    # Database
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")
+    
+    # Redis / Celery
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    
+    # Scanner Configs
+    CHROME_BIN: str = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()

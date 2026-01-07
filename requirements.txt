@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+celery
+redis
+sqlmodel
+psycopg2-binary
+pydantic-settings
+requests
+dnspython
+playwright
+jinja2
+python-multipart
+aiofiles
+aiofiles
+ipwhois
+fpdf2
