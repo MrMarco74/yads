@@ -1,0 +1,66 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" hx-get="/dashboard/stats" hx-trigger="every 5s" hx-swap="outerHTML">
+    <div class="bg-gray-800/50 border border-indigo-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+        <div class="flex items-center gap-4">
+            <div class="p-3 bg-indigo-500/10 rounded-lg text-indigo-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">Active Targets</h3>
+                <p class="text-2xl font-bold text-white">{{ stats.active_targets }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-gray-800/50 border border-purple-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+        <div class="flex items-center gap-4">
+            <div class="p-3 bg-purple-500/10 rounded-lg text-purple-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">Total Scans</h3>
+                <p class="text-2xl font-bold text-white">{{ stats.total_scans }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gray-800/50 border border-emerald-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+        <div class="flex items-center gap-4">
+            <div class="p-3 bg-emerald-500/10 rounded-lg text-emerald-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">System Status</h3>
+                <p class="text-2xl font-bold text-white">Online</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Queue Stats -->
+    <div class="bg-gray-800/50 border {% if stats.queue_active %}border-green-500/20{% else %}border-yellow-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm relative group">
+        <div class="flex items-center gap-4">
+            <div class="p-3 {% if stats.queue_active %}bg-green-500/10 text-green-400{% else %}bg-yellow-500/10 text-yellow-400{% endif %} rounded-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">Queue Status</h3>
+                <div class="flex items-baseline gap-2">
+                    <p class="text-2xl font-bold text-white">{{ stats.queue_length }}</p>
+                    <span class="text-xs {% if stats.queue_active %}text-green-400{% else %}text-yellow-400{% endif %}">
+                        ({% if stats.queue_active %}Active{% else %}Paused{% endif %})
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        {% if stats.queue_active %}
+        <button hx-post="/queue/control" 
+                hx-vals='{"action": "stop"}'
+                hx-target="closest div.grid"
+                hx-swap="outerHTML"
+                class="absolute top-4 right-4 p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100" 
+                title="Emergency STOP (Purge Queue & Kill Tasks)">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </button>
+        {% endif %}
+    </div>
+</div>

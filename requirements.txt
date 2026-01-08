@@ -14,3 +14,5 @@ aiofiles
 aiofiles
 ipwhois
 fpdf2
+pandas
+openpyxl

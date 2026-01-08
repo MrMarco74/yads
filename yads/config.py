@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     
     # Scanner Configs
     CHROME_BIN: str = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
+    AUTO_QUEUE_SUBDOMAINS: bool = False
+    SCAN_QUEUE_RATE_LIMIT: str = "10/m"  # Example rate limit for Celery
     
     class Config:
         env_file = ".env"
