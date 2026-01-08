@@ -9,7 +9,8 @@ def configure_logging(service_name: str):
     """
     log_dir = os.getenv("LOG_DIR", "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "yads.log")
+    # Use service name for distinct log files to avoid locking issues
+    log_file = os.path.join(log_dir, f"{service_name}.log")
 
     # formatter = logging.Formatter(
     #     "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",

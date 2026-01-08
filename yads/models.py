@@ -65,3 +65,11 @@ class ChangeEvent(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     scan_result: ScanResult = Relationship(back_populates="change_events")
+
+class SystemConfig(SQLModel, table=True):
+    """
+    Stores runtime configuration settings.
+    """
+    key: str = Field(primary_key=True)
+    value: str # Stored as string, parsed as needed (JSON, bool, int)
+    description: Optional[str] = None

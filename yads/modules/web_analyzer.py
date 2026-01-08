@@ -8,10 +8,16 @@ from yads.modules.cve_lookup import lookup_cves
 
 import re
 
+import logging
+
 class WebAnalyzer(BaseScannerModule):
     @property
     def module_name(self) -> str:
         return "web_analyzer"
+        
+    def __init__(self, db_session=None):
+        super().__init__(db_session)
+        self.logger = logging.getLogger("yads.modules.web")
 
     def run_scan(self, target: str) -> Dict[str, Any]:
         """
@@ -39,6 +45,7 @@ class WebAnalyzer(BaseScannerModule):
         url = f"http://{target}" # Start with http, let it redirect to https
         
         # --- Stage 1: Fast Check ---
+        self.logger.info(f"Stage 1: Fast Header Check for {url}")
         try:
             resp = requests.get(url, timeout=10, allow_redirects=True)
             results["status_code"] = resp.status_code
@@ -49,6 +56,7 @@ class WebAnalyzer(BaseScannerModule):
             server = resp.headers.get("Server")
             if server:
                 results["tech_stack"].append(f"Server: {server}")
+                self.logger.info(f"Found Server header: {server}")
             
             x_powered = resp.headers.get("X-Powered-By")
             if x_powered:
@@ -81,6 +89,7 @@ class WebAnalyzer(BaseScannerModule):
         # --- Stage 2: Headless (Playwright) ---
         # Only run if Stage 1 succeeded (or logic dictates)
         if results["status_code"] is not None:
+             self.logger.info("Stage 2: Starting Headless Scan (Playwright)...")
              self._run_headless(url, results)
 
         return results
@@ -158,6 +167,7 @@ class WebAnalyzer(BaseScannerModule):
                 
                 page.screenshot(path=f"{screenshot_dir}/{screenshot_filename}")
                 results["screenshot_path"] = screenshot_filename
+                self.logger.info(f"Screenshot taken: {screenshot_filename}")
                 
                 # Check for JS redirects or meta refreshes that requests didn't catch
                 if page.url != url and page.url not in results["redirect_chain"]:

@@ -1,6 +1,6 @@
-<div id="target-list" class="grid grid-cols-1 gap-4"
-     hx-get="/dashboard/targets" 
-     hx-trigger="every 2s" 
+<div id="target-list" class="flex flex-col gap-6"
+     hx-get="/dashboard/targets?page={{ pagination.page if pagination else 1 }}" 
+     hx-trigger="every 5s" 
      hx-swap="outerHTML">
     
     {% if not targets %}
@@ -9,6 +9,7 @@
             <p class="text-sm text-gray-500">Add a domain on the right to get started.</p>
         </div>
     {% else %}
+        <div class="grid grid-cols-1 gap-4">
         {% for target in targets %}
         <div class="bg-gray-800/50 border border-gray-700 hover:border-indigo-500/50 rounded-xl p-6 transition-all duration-200 group relative overflow-hidden">
             
@@ -39,7 +40,7 @@
                         </p>
                     {% else %}
                         <p class="text-sm text-gray-500">ID: {{ target.id }} • <span class="text-green-400">Active</span></p>
-                        <!-- History (Only if not running, or always? Always is better context) -->
+                        <!-- History -->
                         <p class="text-xs text-gray-500 mt-1 flex gap-2">
                             {% if last_scans and last_scans.get(target.id) %}
                                 {% for mod, dt in last_scans.get(target.id).items() %}
@@ -72,5 +73,40 @@
              <a href="/targets/{{ target.id }}" class="absolute inset-0 z-0"></a>
         </div>
         {% endfor %}
+        </div>
+        
+        <!-- Pagination Controls -->
+         {% if pagination and pagination.total_pages > 1 %}
+        <div class="flex items-center justify-between bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div class="text-sm text-gray-400">
+                Showing <span class="font-medium text-white">{{ pagination.start_item }}</span> to <span class="font-medium text-white">{{ pagination.end_item }}</span> of <span class="font-medium text-white">{{ pagination.total_count }}</span>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <!-- Previous -->
+                <button 
+                    hx-get="/dashboard/targets?page={{ pagination.page - 1 }}" 
+                    hx-target="#target-list"
+                    hx-swap="outerHTML"
+                    {% if pagination.page <= 1 %}disabled{% endif %}
+                    class="px-3 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Previous
+                </button>
+                
+                <!-- Page Info -->
+                <span class="text-gray-400 text-sm">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+                
+                <!-- Next -->
+                 <button 
+                    hx-get="/dashboard/targets?page={{ pagination.page + 1 }}" 
+                    hx-target="#target-list"
+                    hx-swap="outerHTML"
+                    {% if pagination.page >= pagination.total_pages %}disabled{% endif %}
+                    class="px-3 py-1 rounded bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Next
+                </button>
+            </div>
+        </div>
+        {% endif %}
     {% endif %}
 </div>

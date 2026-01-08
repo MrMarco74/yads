@@ -4,7 +4,7 @@ services:
   # --- Backend Services ---
   yads-api:
     build: .
-    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     environment:
@@ -21,7 +21,7 @@ services:
 
   yads-worker:
     build: .
-    command: celery -A yads.worker worker --loglevel=info
+    command: celery -A yads.worker worker --loglevel=info --concurrency 10
     environment:
       - DATABASE_URL=postgresql://yads:yads@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
