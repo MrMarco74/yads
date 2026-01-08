@@ -37,6 +37,36 @@
                 </label>
             </div>
 
+            <!-- Web Request Delay -->
+            <div class="border-b border-gray-700/50 pb-6">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-white mb-1">Web Request Delay</h3>
+                    <p class="text-sm text-gray-400">Delay (in seconds) between requests to the same domain to avoid WAF blocking.</p>
+                </div>
+                <div class="flex items-center gap-4">
+                     <div class="relative w-full">
+                        <input type="number" name="web_request_delay" value="{{ web_request_delay }}" step="0.1" min="0" max="60"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="e.g. 2.0">
+                     </div>
+                </div>
+            </div>
+            
+             <!-- Web Request Timeout -->
+            <div class="border-b border-gray-700/50 pb-6">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-white mb-1">Web Request Timeout</h3>
+                    <p class="text-sm text-gray-400">Maximum time (in seconds) to wait for a web response (HTTP & Headless).</p>
+                </div>
+                <div class="flex items-center gap-4">
+                     <div class="relative w-full">
+                        <input type="number" name="web_request_timeout" value="{{ web_request_timeout }}" min="1" max="120"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="e.g. 10">
+                     </div>
+                </div>
+            </div>
+            
             <!-- Rate Limits -->
             <div class="border-b border-gray-700/50 pb-6">
                 <div class="mb-4">

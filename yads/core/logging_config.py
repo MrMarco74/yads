@@ -30,15 +30,23 @@ def configure_logging(service_name: str):
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    # File Handler (Shared)
+    # File Handler (Shared/Service Specific)
     file_handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5)
     file_handler.setFormatter(formatter)
     root_logger.addHandler(file_handler)
 
-    # Set specific loggers
-    logging.getLogger("uvicorn.access").handlers = root_logger.handlers
-    logging.getLogger("uvicorn.error").handlers = root_logger.handlers
+    # Separate Uvicorn Logging (only relevant for API)
+    # If we are in API context (usually implied by usage of uvicorn loggers)
+    uvicorn_log_file = os.path.join(log_dir, "uvicorn.log")
+    uv_file_handler = RotatingFileHandler(uvicorn_log_file, maxBytes=10*1024*1024, backupCount=5)
+    uv_file_handler.setFormatter(formatter)
     
+    for uv_name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+        uv_logger = logging.getLogger(uv_name)
+        uv_logger.handlers = [] # clear default stream handlers
+        uv_logger.addHandler(uv_file_handler)
+        uv_logger.propagate = False # Stop from going to root (yads-api.log)
+
     logger = logging.getLogger(service_name)
     logger.info(f"Logging initialized for {service_name}")
     return logger

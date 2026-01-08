@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # --- Backend Services ---
@@ -18,6 +18,8 @@ services:
     depends_on:
       - db
       - redis
+    networks:
+      - yads-net
 
   yads-worker:
     build: .
@@ -33,6 +35,10 @@ services:
     depends_on:
       - db
       - redis
+    networks:
+      - yads-net
+
+
 
   # --- Infrastructure ---
   db:
@@ -45,9 +51,18 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - yads-net
 
   redis:
     image: redis:7-alpine
+    networks:
+      - yads-net
 
 volumes:
   postgres_data:
+
+networks:
+  yads-net:
+    driver: bridge
+

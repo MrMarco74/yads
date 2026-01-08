@@ -77,24 +77,35 @@ class InfrastructureScanner(BaseScannerModule):
         # 4. Storage Bucket Check (AWS S3)
         # Check standard public bucket patterns
         import requests
+        import concurrent.futures
+        
         bucket_name = domain.split('.')[0] # e.g. "example" from "example.com"
         # Also try full domain
         candidates = [bucket_name, domain.replace('.', '-'), domain]
         
-        for cand in candidates:
+        def check_bucket(cand):
             s3_url = f"http://{cand}.s3.amazonaws.com"
             try:
                 resp = requests.head(s3_url, timeout=2)
                 if resp.status_code != 404:
                     # 403 means exists but private (still interesting), 200 means public!
                     status = "Public" if resp.status_code == 200 else "Protected"
-                    results["buckets"].append({
+                    return {
                         "url": s3_url,
                         "status": status,
                         "code": resp.status_code
-                    })
+                    }
             except:
                 pass
+            return None
+
+        # Run checks in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_cand = {executor.submit(check_bucket, c): c for c in candidates}
+            for future in concurrent.futures.as_completed(future_to_cand):
+                res = future.result()
+                if res:
+                    results["buckets"].append(res)
 
         return results
 
@@ -110,6 +121,7 @@ class InfrastructureScanner(BaseScannerModule):
             "bl.spamcop.net": "SpamCop"
         }
         
+        # Shared/Cached Resolver
         resolver = dns.resolver.Resolver()
         resolver.timeout = 2
         resolver.lifetime = 2
@@ -123,7 +135,6 @@ class InfrastructureScanner(BaseScannerModule):
             except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
                 continue
             except Exception as e:
-                # findings.append(f"Error checking {name}: {e}") # Optional: ignore errors to avoid noise
                 pass
                 
         return findings
