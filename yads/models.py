@@ -13,6 +13,9 @@ class Target(SQLModel, table=True):
     # Status Tracking
     scan_status: str = Field(default="idle") # idle, running, failed
     scan_progress: Optional[str] = Field(default=None) # e.g. "Running DNS Scanner..."
+    
+    # Tagging
+    tags: List[str] = Field(default=[], sa_column=Column(JSONB))
 
     
     # Relationships

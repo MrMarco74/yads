@@ -3,6 +3,7 @@ from sqlmodel import Session, create_engine, select
 from yads.models import ScanResult, Target
 from datetime import datetime
 import os
+import dns.resolver
 
 from yads.config import settings
 from yads.core.logging_config import configure_logging
@@ -63,17 +64,31 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
         # Update Status to Running
         try:
             target = session.get(Target, target_id)
-            if target:
-                target.scan_status = "running"
-                target.scan_progress = "Initializing scan..."
-                session.add(target)
-                session.commit()
+            if not target:
+                logger.warning(f"[Worker] Target {domain} (ID: {target_id}) not found in DB. Aborting scan.")
+                return
+
+            target.scan_status = "running"
+            target.scan_progress = "Initializing scan..."
+            session.add(target)
+            session.commit()
         except Exception as e:
-            print(f"[Worker] Failed to update start status: {e}")
+            logger.error(f"[Worker] Failed to update start status: {e}")
+            session.rollback()
+            # If we can't confirm target exists/status, safe to abort? 
+            # If it was a connection error, maybe. But if we proceed, we hit FK errors.
+            return
 
         # 1. Run DNS Scanner
         if "dns_scanner" in scan_types:
             try:
+                # Update Status explicitly
+                t = session.get(Target, target_id)
+                if t:
+                    t.scan_progress = "Running DNS Scanner..."
+                    session.add(t)
+                    session.commit()
+
                 dns = DNSScanner(db_session=session)
                 logger.info(f"[Worker] Step 1: Running {dns.module_name}...")
                 
@@ -97,9 +112,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {dns.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in DNS Scanner: {e}")
-            except Exception as e:
-                print(f"[Worker] Error in DNS Scanner: {e}")
+                logger.error(f"[Worker] Error in DNS Scanner: {e}")
+                session.rollback()
 
         # 2. Run Web Scanner
         if "web_analyzer" in scan_types:
@@ -125,7 +139,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {web.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in Web Analyzer: {e}")
+                logger.error(f"[Worker] Error in Web Analyzer: {e}")
+                session.rollback()
 
         # 3. Run Typosquat Scanner
         if "typosquat_scanner" in scan_types:
@@ -152,7 +167,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {ts.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in Typosquat Scanner: {e}")
+                logger.error(f"[Worker] Error in Typosquat Scanner: {e}")
+                session.rollback()
 
         # 4. Run Infrastructure Scanner
         if "infrastructure_scanner" in scan_types:
@@ -179,7 +195,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {inf.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in Infrastructure Scanner: {e}")
+                logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
+                session.rollback()
 
         # 5. Run Visual OSINT
         if "visual_osint" in scan_types:
@@ -206,9 +223,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {vis.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in Visual OSINT: {e}")
-            except Exception as e:
-                print(f"[Worker] Error in Visual OSINT: {e}")
+                logger.error(f"[Worker] Error in Visual OSINT: {e}")
+                session.rollback()
     
         # 6. Run SSL Scanner
         if "ssl_scanner" in scan_types:
@@ -276,7 +292,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 else:
                      print(f"[Worker] {ssl_mod.module_name} no change.")
             except Exception as e:
-                print(f"[Worker] Error in SSL Scanner: {e}")
+                logger.error(f"[Worker] Error in SSL Scanner: {e}")
+                session.rollback()
 
         # Subdomain Discovery & Auto-Queue Logic
         # We ALWAYS want to add discovered subdomains to the DB.
@@ -309,6 +326,10 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                  for entry in subs:
                      sub_domain = entry.get("subdomain")
                      if sub_domain and sub_domain != domain: # Avoid self-loop
+                         
+                         # Trust the scanner's verification (it already resolved IPs)
+                         resolves = True
+                         
                          # Check existence
                          existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
                          if not existing:
@@ -332,6 +353,7 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
 
         except Exception as e:
             logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
+            session.rollback()
 
         # Reset status
         try:
@@ -343,6 +365,7 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                  session.add(t)
                  session.commit()
         except Exception as e:
-             print(f"[Worker] Failed to update finish status: {e}")
+             logger.error(f"[Worker] Failed to update finish status: {e}")
+             session.rollback()
 
     logger.info(f"[Worker] Finished scan for {domain}")

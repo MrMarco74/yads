@@ -54,33 +54,56 @@ class TyposquatScanner(BaseScannerModule):
         """
         Main execution method.
         """
-        print(f"[{self.module_name}] Generating variations for {domain}...")
+        logger = logging.getLogger("yads.modules.typosquat")
+        logger.info(f"[{self.module_name}] Generating variations for {domain}...")
         variations = self._generate_variations(domain)
-        print(f"[{self.module_name}] Checking {len(variations)} variations...")
+        logger.info(f"[{self.module_name}] Checking {len(variations)} variations...")
 
         found_squats = []
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 1
-        resolver.lifetime = 1
+        
+        # Shared resolver for efficiency/caching
+        shared_resolver = dns.resolver.Resolver()
+        shared_resolver.timeout = 1.0
+        shared_resolver.lifetime = 1.0
 
-        # Limit to first 100 to avoid long scans in this demo/MVP
-        # In production, this should be async/parallelized
-        checked_count = 0
-        for variant in variations[:200]: 
+        import concurrent.futures
+
+        def check_variant(variant):
             try:
-                answers = resolver.resolve(variant, 'A')
+                # Use shared resolver
+                answers = shared_resolver.resolve(variant, 'A')
                 ips = [r.to_text() for r in answers]
-                found_squats.append({
+                return {
                     "domain": variant,
                     "ips": ips,
                     "type": "A_RECORD"
-                })
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
-                pass
-            except Exception as e:
-                # print(f"Error checking {variant}: {e}")
-                pass
-            checked_count += 1
+                }
+            except:
+                return None
+
+        # Increase limit to 2000 or all. With 50 threads, 2000 checks takes ~40s max (assuming 1s timeout worst case, but mostly minimal)
+        # Using the local dns-cache makes this blazing fast.
+        
+        scan_list = list(variations)
+        total_to_scan = len(scan_list)
+        
+        # Determine max variants to scan to keep it reasonable (e.g. 5000)
+        # 5000 * 50ms (average with cache/NXDOMAIN) / 50 threads = 5 seconds.
+        # But timeouts take 1s. If 90% exist? No, 99% won't exist. So they are fast NXDOMAINs.
+        # So we can easily scan ALL generated variations.
+        
+        logger.info(f"Starting parallel scan of {total_to_scan} targets...")
+        
+        checked_count = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+            future_to_url = {executor.submit(check_variant, var): var for var in scan_list}
+            for future in concurrent.futures.as_completed(future_to_url):
+                checked_count += 1
+                res = future.result()
+                if res:
+                    found_squats.append(res)
+        
+        logger.info(f"Typosquat scan complete. Found {len(found_squats)} active domains.")
         
         return {
             "scanned_count": checked_count,

@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Request, Form
+from fastapi import FastAPI, HTTPException, Depends, Request, Form, UploadFile, File, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
@@ -105,6 +105,194 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 
 # -- UI Routes --
 
+# -- Bulk Actions (Must be defined before generic {target_id} routes) --
+
+@app.post("/targets/bulk/scan", response_class=HTMLResponse)
+async def bulk_scan_targets(
+    request: Request,
+    scan_types: List[str] = Form(default=[]), 
+    session: Session = Depends(get_session)
+):
+    form = await request.form()
+    target_ids = form.getlist("target_ids") 
+    
+    if not target_ids:
+         return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+         
+    scan_types_selected = form.getlist("scan_types")
+    
+    valid_types = ["dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner"]
+    final_types = [t for t in scan_types_selected if t in valid_types]
+    if not final_types:
+        final_types = valid_types
+
+    count = 0
+    for tid_str in target_ids:
+        try:
+            tid = int(tid_str)
+            target = session.get(Target, tid)
+            if target:
+                target.scan_status = "queued"
+                session.add(target)
+                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types])
+                count += 1
+        except:
+            continue
+            
+    session.commit()
+            
+    return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)
+
+@app.post("/targets/import", response_class=HTMLResponse)
+async def bulk_import_targets(
+    request: Request,
+    file_upload: UploadFile = File(None),
+    session: Session = Depends(get_session)
+):
+    form = await request.form()
+    raw_text = form.get("targets_raw", "")
+    next_url = form.get("next", "/targets/table")
+    verify_dns = form.get("verify_dns") == "true"
+    
+    # Process File Upload if present
+    if file_upload and file_upload.filename:
+        try:
+            content = await file_upload.read()
+            # Try decoding as utf-8, fallback to latin-1
+            try:
+                decoded = content.decode("utf-8")
+            except:
+                decoded = content.decode("latin-1")
+            
+            raw_text += "\n" + decoded
+        except Exception as e:
+            logger.error(f"Failed to read uploaded file: {e}")
+    
+    if not raw_text.strip():
+        return RedirectResponse(url=f"{next_url}?msg=No+data+provided", status_code=303)
+        
+    # Split lines and process
+    # Use set to remove duplicates within the import batch immediately
+    lines = list(set([l.strip().lower() for l in raw_text.splitlines() if l.strip()]))
+    
+    imported_count = 0
+    duplicate_count = 0
+    skipped_dns_count = 0
+    
+    import dns.resolver  # Import here execution context
+    
+    for domain in lines:
+        # Basic cleanup - remove http/https if present and trailing slashes
+        domain = domain.replace("http://", "").replace("https://", "").split("/")[0]
+        domain = domain.strip().lower()
+
+        if not domain: continue
+        
+        # DNS Verification if enabled
+        if verify_dns:
+            try:
+                # Try resolving A record
+                dns.resolver.resolve(domain, 'A')
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
+                try:
+                    # Fallback to AAAA
+                     dns.resolver.resolve(domain, 'AAAA')
+                except:
+                     skipped_dns_count += 1
+                     continue
+            except Exception:
+                # Other DNS errors -> skip
+                skipped_dns_count += 1
+                continue
+        
+        # Check duplicate
+        existing = session.exec(select(Target).where(Target.domain == domain)).first()
+        if existing:
+            duplicate_count += 1
+            continue
+            
+        # Create
+        new_target = Target(domain=domain)
+        session.add(new_target)
+        imported_count += 1
+        
+    session.commit()
+    
+    msg = f"Imported+{imported_count}+targets"
+    if duplicate_count > 0:
+        msg += f"+({duplicate_count}+skipped+duplicates)"
+    if skipped_dns_count > 0:
+        msg += f"+({skipped_dns_count}+skipped+offline)"
+        
+    return RedirectResponse(url=f"{next_url}?msg={msg}", status_code=303)
+
+@app.post("/targets/bulk/delete", response_class=HTMLResponse)
+async def bulk_delete_targets(
+    request: Request,
+    target_ids: List[int] = Form(...),
+    session: Session = Depends(get_session)
+):
+    """
+    Deletes multiple targets and their associated data.
+    """
+    if not target_ids:
+        # Should probably return an error or just redirect
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+
+    # Convert to set for safety
+    ids_to_delete = set(target_ids)
+    
+    # 1. Delete Dependencies (ScanResults, ModuleStates)
+    # Using raw SQL for efficiency with list of IDs
+    ids_str = ",".join(map(str, ids_to_delete))
+    
+    # Check if empty (shouldn't be due to check above)
+    if ids_str:
+        # 1a. Revoke Active/Queued Tasks for these Targets
+        # This is tricky without task IDs stored in DB.
+        # We have to inspect active/reserved tasks and check args.
+        i = celery_app.control.inspect()
+        active = i.active() if i else None
+        reserved = i.reserved() if i else None
+        
+        tasks_to_revoke = []
+        
+        def check_tasks(task_list):
+            for worker_name, tasks in task_list.items():
+                for task in tasks:
+                    # task args is usually [target_id, domain, ...]
+                    args = task.get("args", [])
+                    if args and isinstance(args, list) and len(args) > 0:
+                        try:
+                            tid = int(args[0])
+                            if tid in ids_to_delete:
+                                tasks_to_revoke.append(task.get("id"))
+                        except:
+                            pass
+                            
+        if active: check_tasks(active)
+        if reserved: check_tasks(reserved)
+        
+        for tid_revoke in tasks_to_revoke:
+            celery_app.control.revoke(tid_revoke, terminate=True)
+            
+        # 1b. Delete Dependencies
+        session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({ids_str})"))
+        session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({ids_str})"))
+        
+        # 2. Delete Targets
+        session.exec(text(f"DELETE FROM target WHERE id IN ({ids_str})"))
+        
+        session.commit()
+    
+    count = len(ids_to_delete)
+    revoke_count = len(tasks_to_revoke) if 'tasks_to_revoke' in locals() else 0
+    msg = f"Deleted+{count}+targets"
+    if revoke_count > 0:
+        msg += f"+(Stopped+{revoke_count}+scans)"
+        
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
 @app.post("/targets/{target_id}/scan")
 async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session)):
     target = session.get(Target, target_id)
@@ -123,7 +311,11 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         # Fallback to all if none selected (or if triggered without form)
         selected_types = valid_types
 
-    # Trigger Celery Task
+    # Trigger Celery Task (and update status)
+    target.scan_status = "queued"
+    session.add(target)
+    session.commit()
+    
     celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types])
     
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
@@ -321,8 +513,8 @@ async def ui_add_target(request: Request, domain: str = Form(...), session: Sess
         session.commit()
         session.refresh(target)
         
-    # Always Trigger Scan (New or Existing)
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain])
+    # Always Trigger Scan (New or Existing) - DISABLED by user request (Import Only)
+    # celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain])
     
     # Return standard target list row fragment or redirect
     return await dashboard(request, session) 
@@ -355,24 +547,102 @@ async def delete_target(target_id: int, request: Request, session: Session = Dep
 # -- Table View & Bulk Actions --
 
 @app.get("/targets/table", response_class=HTMLResponse)
-async def view_target_table(request: Request, page: int = 1, limit: int = 20, session: Session = Depends(get_session)):
+async def view_target_table(
+    request: Request, 
+    page: int = 1, 
+    limit: int = 20, 
+    filter_online: str = "all",
+
+    filter_last_scan: str = "all",
+    filter_tag: Optional[str] = None,
+    session: Session = Depends(get_session)
+):
     """
     Renders a detailed table view of all targets with bulk actions.
-    Supports pagination.
+    Supports pagination and filtering (Online Status, Last Scan).
     """
+    from datetime import datetime, timedelta
+    from sqlmodel import or_, and_
+
+    # Base Query
+    query = select(Target)
+    
+    # -- Filter: Last Scan Time --
+    if filter_last_scan != "all":
+        if filter_last_scan == "never":
+            # Targets that utilize NO ScanResults
+            # We use a subquery to find all target_ids that HAVE results
+            sub_scanned = select(ScanResult.target_id).distinct()
+            query = query.where(Target.id.notin_(sub_scanned))
+        else:
+            cutoff = datetime.utcnow()
+            if filter_last_scan == "24h":
+                cutoff -= timedelta(hours=24)
+            elif filter_last_scan == "7d":
+                cutoff -= timedelta(days=7)
+            
+            # Subquery: Targets with at least one scan after cutoff
+            sub_recent = select(ScanResult.target_id).where(ScanResult.scanned_at >= cutoff).distinct()
+            query = query.where(Target.id.in_(sub_recent))
+
+    # -- Filter: Online Status --
+    if filter_online != "all":
+        # Define what "Online" means in terms of specific findings
+        # 1. Infrastructure Scanner: data->ip is present
+        # 2. Web Analyzer: data->status_code is > 0
+        
+        # Note: We use `text` for raw JSON/Cast operations compatible with PostgreSQL
+        online_criteria = or_(
+             and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
+             and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0"))
+        )
+        
+        sub_online = select(ScanResult.target_id).where(online_criteria).distinct()
+
+        if filter_online == "online":
+            query = query.where(Target.id.in_(sub_online))
+            
+        elif filter_online == "offline":
+             # Offline = Has been scanned (at least once) BUT is not in the "Online" list
+             # 1. Get all scanned IDs
+             sub_scanned = select(ScanResult.target_id).distinct()
+             
+             query = query.where(Target.id.in_(sub_scanned))
+             query = query.where(Target.id.notin_(sub_online))
+             
+        elif filter_online == "unknown":
+             # Unknown = Never Scanned (Same as Last Scan: Never)
+             sub_scanned = select(ScanResult.target_id).distinct()
+             query = query.where(Target.id.notin_(sub_scanned))
+
+    # -- Filter: Tags --
+    if filter_tag:
+        # JSONB Containment: tags contains [filter_tag]
+        # SQLAlchemy/pg dialect: .contains
+        # We need to perform cast or use specific operator
+        # For simple list of strings in JSONB, @> operator works
+        # SQLModel/SA: col(Target.tags).contains([filter_tag])
+        query = query.where(Target.tags.contains([filter_tag]))
+
+    # Calculate offset
+
     # Calculate offset
     offset = (page - 1) * limit
     
-    # Get Total Count
-    total_count = session.exec(select(func.count()).select_from(Target)).one()
+    # Get Total Count (Applying Filters)
+    # We use query.whereclause to count matching records
+    if query.whereclause is not None:
+        total_count = session.exec(select(func.count()).select_from(Target).where(query.whereclause)).one()
+    else:
+        total_count = session.exec(select(func.count()).select_from(Target)).one()
     
     # Fetch Paginated Targets
-    targets = session.exec(select(Target).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    targets = session.exec(query.order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
     
     # Calculate Total Pages
     total_pages = (total_count + limit - 1) // limit
     
-    # Prepare table rows with summary data to avoid complex Jinja logic
+    # Prepare table rows with summary data
     table_rows = []
     for t in targets:
         results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
@@ -383,26 +653,22 @@ async def view_target_table(request: Request, page: int = 1, limit: int = 20, se
         web = next((r for r in results if r.module_name == 'web_analyzer'), None)
         infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
         
-        # Online Status Logic
-        is_online = None # Unknown
+        # Online Status Logic (Mirroring the Filter Logic)
+        is_online = None 
         if infra or web:
-            # Check for IP
             has_ip = False
             if infra and infra.data and infra.data.get("ip"):
                 has_ip = True
             
-            # Check for HTTP
             has_http = False
             if web and web.data and web.data.get("status_code"):
                 code = web.data.get("status_code")
-                # Valid explicit response (even 403 or 500 means "online" server)
                 if isinstance(code, int) and code > 0:
                     has_http = True
             
             if has_ip or has_http:
                 is_online = True
             else:
-                 # If we have scans but no IP and no HTTP, likely offline
                 is_online = False
 
         row_data = {
@@ -414,16 +680,22 @@ async def view_target_table(request: Request, page: int = 1, limit: int = 20, se
             "ssl_expiry": ssl.data.get("notAfter") if (ssl and ssl.data and not ssl.data.get("error")) else None,
             "web_server": web.data.get("server_header") if (web and web.data) else None,
             "asn": infra.data.get("asn", {}).get("asn") if (infra and infra.data) else None,
+            "http_status": web.data.get("http_status") if (web and web.data) else None,
+            "https_status": web.data.get("https_status") if (web and web.data) else None,
+            "https_redirect": web.data.get("https_redirect") if (web and web.data) else None,
+            "wildcard_detected": dns.data.get("wildcard_detected") if (dns and dns.data) else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results]))
         }
         table_rows.append(row_data)
 
-        table_rows.append(row_data)
-
     return templates.TemplateResponse("target_table.html", {
         "request": request, 
         "rows": table_rows,
+        "filter_online": filter_online,
+        "filter_last_scan": filter_last_scan,
+        "filter_tag": filter_tag,
+        "unique_tags": get_unique_tags(session),
         "pagination": {
             "page": page,
             "limit": limit,
@@ -434,171 +706,7 @@ async def view_target_table(request: Request, page: int = 1, limit: int = 20, se
         }
     })
 
-@app.post("/targets/bulk/scan", response_class=HTMLResponse)
-async def bulk_scan_targets(
-    request: Request,
-    scan_types: List[str] = Form(default=[]), 
-    session: Session = Depends(get_session)
-):
-    form = await request.form()
-    target_ids = form.getlist("target_ids") 
-    
-    if not target_ids:
-         return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
-         
-    scan_types_selected = form.getlist("scan_types")
-    
-    valid_types = ["dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner"]
-    final_types = [t for t in scan_types_selected if t in valid_types]
-    if not final_types:
-        final_types = valid_types
 
-    count = 0
-    for tid_str in target_ids:
-        try:
-            tid = int(tid_str)
-            target = session.get(Target, tid)
-            if target:
-                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types])
-                count += 1
-        except:
-            continue
-            
-    return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)
-
-@app.post("/targets/import", response_class=HTMLResponse)
-async def bulk_import_targets(
-    request: Request,
-    session: Session = Depends(get_session)
-):
-    form = await request.form()
-    raw_text = form.get("targets_raw", "")
-    next_url = form.get("next", "/dashboard/targets")
-    verify_dns = form.get("verify_dns") == "true"
-    
-    if not raw_text:
-        return RedirectResponse(url=f"{next_url}?msg=No+data+provided", status_code=303)
-        
-    # Split lines and process
-    lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
-    
-    imported_count = 0
-    duplicate_count = 0
-    skipped_dns_count = 0
-    
-    import dns.resolver  # Import here execution context
-    
-    for domain in lines:
-        # Basic cleanup - remove http/https if present and trailing slashes
-        domain = domain.replace("http://", "").replace("https://", "").split("/")[0]
-        domain = domain.strip().lower()
-
-        if not domain: continue
-        
-        # DNS Verification if enabled
-        if verify_dns:
-            try:
-                # Try resolving A record
-                dns.resolver.resolve(domain, 'A')
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                try:
-                    # Fallback to AAAA
-                     dns.resolver.resolve(domain, 'AAAA')
-                except:
-                     skipped_dns_count += 1
-                     continue
-            except Exception:
-                # Other DNS errors -> skip
-                skipped_dns_count += 1
-                continue
-        
-        # Check duplicate
-        existing = session.exec(select(Target).where(Target.domain == domain)).first()
-        if existing:
-            duplicate_count += 1
-            continue
-            
-        # Create
-        new_target = Target(domain=domain)
-        session.add(new_target)
-        imported_count += 1
-        
-    session.commit()
-    
-    msg = f"Imported+{imported_count}+targets"
-    if duplicate_count > 0:
-        msg += f"+({duplicate_count}+skipped+duplicates)"
-    if skipped_dns_count > 0:
-        msg += f"+({skipped_dns_count}+skipped+offline)"
-        
-    return RedirectResponse(url=f"{next_url}?msg={msg}", status_code=303)
-
-@app.post("/targets/bulk/delete", response_class=HTMLResponse)
-async def bulk_delete_targets(
-    request: Request,
-    target_ids: List[int] = Form(...),
-    session: Session = Depends(get_session)
-):
-    """
-    Deletes multiple targets and their associated data.
-    """
-    if not target_ids:
-        # Should probably return an error or just redirect
-        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
-
-    # Convert to set for safety
-    ids_to_delete = set(target_ids)
-    
-    # 1. Delete Dependencies (ScanResults, ModuleStates)
-    # Using raw SQL for efficiency with list of IDs
-    ids_str = ",".join(map(str, ids_to_delete))
-    
-    # Check if empty (shouldn't be due to check above)
-    if ids_str:
-        # 1a. Revoke Active/Queued Tasks for these Targets
-        # This is tricky without task IDs stored in DB.
-        # We have to inspect active/reserved tasks and check args.
-        i = celery_app.control.inspect()
-        active = i.active() if i else None
-        reserved = i.reserved() if i else None
-        
-        tasks_to_revoke = []
-        
-        def check_tasks(task_list):
-            for worker_name, tasks in task_list.items():
-                for task in tasks:
-                    # task args is usually [target_id, domain, ...]
-                    args = task.get("args", [])
-                    if args and isinstance(args, list) and len(args) > 0:
-                        try:
-                            tid = int(args[0])
-                            if tid in ids_to_delete:
-                                tasks_to_revoke.append(task.get("id"))
-                        except:
-                            pass
-                            
-        if active: check_tasks(active)
-        if reserved: check_tasks(reserved)
-        
-        for tid_revoke in tasks_to_revoke:
-            celery_app.control.revoke(tid_revoke, terminate=True)
-            
-        # 1b. Delete Dependencies
-        session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({ids_str})"))
-        session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({ids_str})"))
-        
-        # 2. Delete Targets
-        session.exec(text(f"DELETE FROM target WHERE id IN ({ids_str})"))
-        
-        session.commit()
-    
-    count = len(ids_to_delete)
-    revoke_count = len(tasks_to_revoke) if 'tasks_to_revoke' in locals() else 0
-    msg = f"Deleted+{count}+targets"
-    if revoke_count > 0:
-        msg += f"+(Stopped+{revoke_count}+scans)"
-        
-    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 
 @app.post("/scans/stop-all")
@@ -1324,6 +1432,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     # Defaults
     auto_queue = settings.AUTO_QUEUE_SUBDOMAINS
     rate_limit = settings.SCAN_QUEUE_RATE_LIMIT
+    web_request_delay = 2.0
     worker_concurrency = 4 # Default if not set
     
     # Load from DB
@@ -1335,6 +1444,22 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     if rl_conf:
         rate_limit = rl_conf.value
 
+    # Web Timeout
+    web_request_timeout = settings.WEB_REQUEST_TIMEOUT
+    wt_conf = session.get(SystemConfig, "WEB_REQUEST_TIMEOUT")
+    if wt_conf:
+         try:
+             web_request_timeout = int(wt_conf.value)
+         except:
+             pass
+
+    wrd_conf = session.get(SystemConfig, "WEB_RATE_LIMIT_DELAY")
+    if wrd_conf:
+        try:
+            web_request_delay = float(wrd_conf.value)
+        except:
+             pass
+
     wc_conf = session.get(SystemConfig, "WORKER_CONCURRENCY")
     if wc_conf:
         try:
@@ -1345,7 +1470,10 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "auto_queue": auto_queue,
+        "auto_queue": auto_queue,
         "rate_limit": rate_limit,
+        "web_request_delay": web_request_delay,
+        "web_request_timeout": web_request_timeout,
         "worker_concurrency": worker_concurrency
     })
 
@@ -1353,7 +1481,9 @@ async def view_settings(request: Request, session: Session = Depends(get_session
 async def update_settings(
     request: Request, 
     auto_queue: bool = Form(False), 
-    rate_limit: str = Form(...),
+    rate_limit: str = Form(None),
+    web_request_delay: str = Form(None),
+    web_request_timeout: int = Form(None),
     worker_concurrency: int = Form(4),
     session: Session = Depends(get_session)
 ):
@@ -1397,6 +1527,29 @@ async def update_settings(
         except Exception:
              pass
 
+    # 3. Web Request Delay
+    if web_request_delay:
+        wrd_conf = session.get(SystemConfig, "WEB_RATE_LIMIT_DELAY")
+        if not wrd_conf:
+            wrd_conf = SystemConfig(key="WEB_RATE_LIMIT_DELAY", value=web_request_delay)
+            session.add(wrd_conf)
+        else:
+            wrd_conf.value = web_request_delay
+            session.add(wrd_conf)
+        session.commit()
+
+    # 4. Web Request Timeout
+    if web_request_timeout:
+        wt_conf = session.get(SystemConfig, "WEB_REQUEST_TIMEOUT")
+        if not wt_conf:
+             wt_conf = SystemConfig(key="WEB_REQUEST_TIMEOUT", value=str(web_request_timeout))
+             session.add(wt_conf)
+        else:
+             wt_conf.value = str(web_request_timeout)
+             session.add(wt_conf)
+        session.commit()
+
+
     # 2. Worker Concurrency (Autoscale)
     try:
         # Set min=max to force fixed concurrency
@@ -1413,9 +1566,28 @@ async def admin_reset(session: Session = Depends(get_session)):
     1. Purges Redis Queue
     2. Deletes DB Data (Targets, ScanResults, ModuleStates)
     """
-    # 1. Purge Queue
+    # 1. Purge & Kill Queue/Tasks
     try:
+        # Purge waiting tasks
         celery_app.control.purge()
+        
+        # Revoke Active & Reserved Tasks
+        i = celery_app.control.inspect()
+        if i:
+            active = i.active() or {}
+            reserved = i.reserved() or {}
+            
+            # Combine all task IDs
+            tasks_to_kill = []
+            for worker_tasks in [active, reserved]:
+                for worker, tasks in worker_tasks.items():
+                    for task in tasks:
+                         tasks_to_kill.append(task['id'])
+            
+            if tasks_to_kill:
+                celery_app.control.revoke(tasks_to_kill, terminate=True)
+                logger.warning(f"Reset: Revoked {len(tasks_to_kill)} active/reserved tasks.")
+                
     except Exception as e:
         logger.error(f"Failed to purge queue: {e}")
 
@@ -1534,6 +1706,222 @@ async def export_targets_excel(session: Session = Depends(get_session)):
         'Content-Disposition': 'attachment; filename="yads_targets_export.xlsx"'
     }
     return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# --- Visualizations ---
+
+@app.get("/api/visualizations/redirects")
+async def get_redirect_graph(domain: str = None, session: Session = Depends(get_session)):
+    """
+    Returns graph data (nodes, edges) for the Redirect Spiderweb visualization.
+    Optional: ?domain=example.com filter.
+    """
+    query = select(Target)
+    if domain:
+        # Filter by specific domain (exact match on target)
+        query = query.where(Target.domain == domain)
+        
+    targets = session.exec(query).all()
+    
+    nodes = {} # id -> {id, label, type, value(size)}
+    edges = []
+    
+    # Helper to get/create node
+    def get_or_create_node(url, node_type="unknown"):
+        # Simplify URL for label (remove protocol)
+        if not url: return "unknown"
+        label = url.replace("https://", "").replace("http://", "").rstrip('/')
+        node_id = label # Use label as ID for simplicity
+        
+        if node_id not in nodes:
+            nodes[node_id] = {
+                "id": node_id,
+                "label": label,
+                "group": node_type, # for vis-network styling
+                "value": 1, # size
+                "title": url # tooltip
+            }
+        else:
+            # Upgrade type if we find a landing page
+            if node_type == "landing" and nodes[node_id]["group"] != "landing":
+                 nodes[node_id]["group"] = "landing"
+                 
+        return node_id
+
+    for t in targets:
+        # Get latest Web Scan
+        scan = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name == "web_analyzer"
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        if not scan or not scan.data:
+            # Add orphan/unscanned target
+            get_or_create_node(t.domain, "source")
+            continue
+            
+        data = scan.data
+        chain = data.get("redirect_chain", [])
+        
+        # Start Node (The Target)
+        start_node = get_or_create_node(t.domain, "source")
+        
+        if not chain:
+            pass
+        else:
+            # Process Chain
+            prev_node = start_node
+            
+            for i, hop_url in enumerate(chain):
+                # Determine type
+                if i == len(chain) - 1:
+                    ntype = "landing" 
+                else:
+                    ntype = "redirector"
+                
+                curr_node = get_or_create_node(hop_url, ntype)
+                
+                # Add Edge
+                if prev_node != curr_node:
+                    edges.append({
+                        "from": prev_node,
+                        "to": curr_node,
+                        "arrows": "to"
+                    })
+                
+                # Increase size of current node (more incoming links = bigger)
+                nodes[curr_node]["value"] += 1
+                
+                prev_node = curr_node
+
+    return {
+        "nodes": list(nodes.values()),
+        "edges": edges
+    }
+
+@app.get("/visualizations/redirect-graph", response_class=HTMLResponse)
+async def view_redirect_graph(request: Request, session: Session = Depends(get_session)):
+    # Fetch all targets for the dropdown
+    targets = session.exec(select(Target.domain).order_by(Target.domain)).all()
+    return templates.TemplateResponse("redirect_graph.html", {"request": request, "domains": targets})
+
+# --- Analytics ---
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def view_analytics(request: Request, session: Session = Depends(get_session)):
+    # Fetch all targets for the dropdown
+    targets = session.exec(select(Target.domain, Target.id).order_by(Target.domain)).all()
+    # Convert Row objects/tuples to list of dicts or similar if needed, 
+    # but Jinja handles tuples fine (t.domain, t.id usually, but here it's explicit columns)
+    # The result is a list of Row objects which behave like named tuples
+    return templates.TemplateResponse("analytics.html", {"request": request, "targets": targets})
+
+@app.get("/api/stats/infrastructure")
+async def get_infrastructure_stats(target_id: Optional[int] = None, session: Session = Depends(get_session)):
+    """
+    Returns aggregated infrastructure stats:
+    - Cloud Provider distribution
+    - Server Locations (Country)
+    """
+    # Optimized SQL aggregation for JSONB fields
+    # PostgreSQL specific syntax for JSONB
+    
+    where_clause = "WHERE module_name='infrastructure_scanner'"
+    if target_id:
+        where_clause += f" AND target_id = {target_id}"
+
+    # 1. Cloud Providers
+    cp_query = text(f"SELECT data->>'cloud_provider', count(*) FROM scanresult {where_clause} GROUP BY 1")
+    cp_results = session.exec(cp_query).all()
+    
+    cloud_providers = {}
+    for provider, count in cp_results:
+        provider_name = provider if provider else "Unknown"
+        cloud_providers[provider_name] = count
+        
+    # 2. Countries
+    c_query = text(f"SELECT data->'asn'->>'country', count(*) FROM scanresult {where_clause} GROUP BY 1")
+    c_results = session.exec(c_query).all()
+    
+    countries = {}
+    for country, count in c_results:
+        country_code = country if country else "Unknown"
+        countries[country_code] = count
+        
+    return {
+        "cloud_providers": cloud_providers,
+        "countries": countries
+    }
+
+# --- Tagging API ---
+
+def get_unique_tags(session: Session) -> List[str]:
+    """Helper to fetch all unique tags from all targets."""
+    # This is a bit brute force for JSONB lists in pure SQLModel without proper func.unnest support easily accessible
+    # Raw SQL is best here
+    try:
+        query = text("SELECT DISTINCT jsonb_array_elements_text(tags) FROM target ORDER BY 1")
+        results = session.exec(query).all()
+        # We need r[0] because session.exec(text) returns Row objects
+        return [r[0] for r in results]
+    except Exception:
+        return []
+
+@app.get("/api/tags")
+async def list_tags(session: Session = Depends(get_session)):
+    return get_unique_tags(session)
+
+@app.post("/targets/{target_id}/tags")
+async def add_tag(target_id: int, tag: str = Body(..., embed=True), session: Session = Depends(get_session)):
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    
+    if tag not in target.tags:
+        # Create new list to ensure change tracking
+        new_tags = list(target.tags)
+        new_tags.append(tag)
+        target.tags = new_tags
+        session.add(target)
+        session.commit()
+    return target.tags
+
+@app.delete("/targets/{target_id}/tags/{tag}")
+async def remove_tag(target_id: int, tag: str, session: Session = Depends(get_session)):
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    
+    if tag in target.tags:
+        new_tags = list(target.tags)
+        new_tags.remove(tag)
+        target.tags = new_tags
+        session.add(target)
+        session.commit()
+    return target.tags
+
+@app.post("/targets/bulk/tag", response_class=RedirectResponse)
+async def bulk_add_tag(
+    target_ids: List[int] = Form(default=[]), 
+    tag: str = Form(...),
+    session: Session = Depends(get_session)
+):
+    if not target_ids:
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+
+    targets = session.exec(select(Target).where(Target.id.in_(target_ids))).all()
+    count = 0
+    for target in targets:
+        curr_tags = target.tags or []
+        if tag not in curr_tags:
+            new_tags = list(curr_tags)
+            new_tags.append(tag)
+            target.tags = new_tags
+            session.add(target)
+            count += 1
+    
+    session.commit()
+    return RedirectResponse(url=f"/targets/table?msg=Added tag '{tag}' to {count} targets", status_code=303)
 
 
 

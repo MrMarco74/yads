@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Redirect Spiderweb{% endblock %}
+
+{% block content %}
+<!-- Main Container: Flexbox Layout -->
+<!-- Break out of base.html padding with negative margins -->
+<div class="fixed inset-0 top-16 z-0 flex bg-gray-900 overflow-hidden">
+    
+    <!-- Sidebar: Controls -->
+    <div class="w-80 flex-shrink-0 bg-gray-900 border-r border-gray-800 p-6 flex flex-col z-20">
+        <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span>🕷️</span> Spiderweb
+        </h2>
+        
+        <!-- Domain Selector -->
+        <div class="mb-6">
+            <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
+            <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
+                <option value="" selected disabled>Choose a domain...</option>
+                {% if domains %}
+                    {% for d in domains %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="" disabled>No targets found</option>
+                {% endif %}
+            </select>
+            <p class="mt-2 text-xs text-gray-500">Pick a domain to analyze redirects.</p>
+        </div>
+
+        <!-- Legend -->
+        <div class="mb-6">
+            <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Legend</h3>
+            <div class="space-y-2 text-xs text-gray-300">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                    <span>Source Domain</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-orange-500"></span>
+                    <span>Redirector (Hop)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    <span>Landing Hub</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div id="stats" class="hidden mt-auto border-t border-gray-800 pt-4">
+             <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Statistics</h3>
+             <div class="flex justify-between text-sm text-gray-300 mb-1">
+                 <span>Nodes</span>
+                 <span id="node-count" class="font-mono text-white">0</span>
+             </div>
+             <div class="flex justify-between text-sm text-gray-300">
+                 <span>Connections</span>
+                 <span id="edge-count" class="font-mono text-white">0</span>
+             </div>
+        </div>
+        
+        <div id="loading" class="hidden mt-4 text-center text-sm font-bold text-indigo-400 animate-pulse">
+            Analyzing Network...
+        </div>
+    </div>
+
+    <!-- Main Area: Graph -->
+    <div class="flex-grow relative bg-gray-950">
+        <div id="mynetwork" class="w-full h-full"></div>
+        
+        <!-- Empty State Prompt -->
+        <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="text-center text-gray-600">
+                <p class="text-2xl font-bold mb-2">Select a Target</p>
+                <p class="text-sm">Choose a domain from the sidebar to visualize.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vis.js CDN -->
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('mynetwork');
+        const loading = document.getElementById('loading');
+        const stats = document.getElementById('stats');
+        const emptyPrompt = document.getElementById('empty-prompt');
+        const domSelect = document.getElementById('domain-select');
+        let network = null;
+
+        domSelect.addEventListener('change', function() {
+            const domain = this.value;
+            if (!domain) return;
+            
+            // UI Updates
+            loading.classList.remove('hidden');
+            stats.classList.add('hidden');
+            emptyPrompt.classList.add('hidden');
+            
+            // Destroy old network to clear canvas
+            if (network) {
+                network.destroy();
+                network = null;
+            }
+
+            // Fetch Data
+            fetch(`/api/visualizations/redirects?domain=${domain}`)
+                .then(response => response.json())
+                .then(data => {
+                    loading.classList.add('hidden');
+                    stats.classList.remove('hidden');
+                    
+                    document.getElementById('node-count').innerText = data.nodes.length;
+                    document.getElementById('edge-count').innerText = data.edges.length;
+                    
+                    if (data.nodes.length === 0) {
+                        alert("No redirect data found for this target.");
+                        emptyPrompt.classList.remove('hidden');
+                        return;
+                    }
+
+                    // Vis Data
+                    const nodes = new vis.DataSet(data.nodes);
+                    const edges = new vis.DataSet(data.edges);
+                    
+                     // Options
+                     const options = {
+                        nodes: {
+                            shape: 'dot',
+                            scaling: {
+                                min: 10,
+                                max: 30,
+                                label: { min: 8, max: 20 }
+                            },
+                            font: { size: 14, face: 'Ui-sans-serif', color: '#e5e7eb', strokeWidth: 2, strokeColor: '#1f2937' },
+                            borderWidth: 2,
+                            shadow: true
+                        },
+                        edges: {
+                            width: 1,
+                            color: { inherit: 'from', opacity: 0.6 },
+                            smooth: {
+                                type: 'curvedCW',
+                                roundness: 0.2
+                            },
+                            arrows: {
+                                to: { enabled: true, scaleFactor: 0.5 }
+                            },
+                            shadow: false
+                        },
+                        groups: {
+                            source: {
+                                color: { background: '#3b82f6', border: '#1d4ed8' }, // Blue
+                                value: 1
+                            },
+                            redirector: {
+                                color: { background: '#f97316', border: '#c2410c' }, // Orange
+                                value: 3
+                            },
+                            landing: {
+                                color: { background: '#22c55e', border: '#15803d' }, // Green
+                                value: 10
+                            },
+                            unknown: {
+                                 color: { background: '#6b7280', border: '#374151' } // Gray
+                            }
+                        },
+                        physics: {
+                            stabilization: true,
+                            solver: 'forceAtlas2Based',
+                            forceAtlas2Based: {
+                                gravitationalConstant: -50,
+                                centralGravity: 0.005,
+                                springLength: 200,
+                                springConstant: 0.08
+                            },
+                            maxVelocity: 50,
+                            minVelocity: 0.1,
+                            timestep: 0.35
+                        },
+                        interaction: {
+                            tooltipDelay: 200,
+                            hideEdgesOnDrag: true,
+                            hover: true
+                        }
+                    };
+                    
+                    network = new vis.Network(container, { nodes, edges }, options);
+                })
+                .catch(err => {
+                    console.error(err);
+                    loading.innerText = "Error: " + err;
+                    loading.classList.remove("text-indigo-400");
+                    loading.classList.add("text-red-500");
+                });
+        });
+    });
+</script>
+{% endblock %}
+

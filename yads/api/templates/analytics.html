@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Infrastructure Analytics</h1>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                Real-time analysis of collected target data.
+            </div>
+        </div>
+        
+        <!-- Target Filter -->
+        <div class="flex items-center gap-4">
+            <!-- Filter: Tag -->
+            <div class="flex items-center gap-2">
+                <label for="tag-select" class="text-sm font-medium text-gray-400">Filter by Tag:</label>
+                <select id="tag-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
+                    <option value="">All Tags</option>
+                    <!-- Populated dynamically via API if desired, but passing from backend is cleaner -->
+                </select>
+            </div>
+
+            <!-- Filter: Target -->
+            <div class="flex items-center gap-2">
+                <label for="target-select" class="text-sm font-medium text-gray-400">Filter by Target:</label>
+                <select id="target-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
+                    <option value="">All Targets</option>
+                    {% for t in targets %}
+                        <option value="{{ t.id }}">{{ t.domain }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- ... (No Data Message and Charts) ... -->
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    
+    // Global Chart Config for Dark Mode / Visibility
+    Chart.defaults.color = '#9ca3af'; // gray-400
+    Chart.defaults.borderColor = '#374151'; // gray-700
+    
+    let cloudChart = null;
+    let locationChart = null;
+
+    // Load Tags
+    try {
+        const resp = await fetch('/api/tags');
+        if (resp.ok) {
+            const tags = await resp.json();
+            const tagSelect = document.getElementById('tag-select');
+            tags.forEach(tag => {
+                const opt = document.createElement('option');
+                opt.value = tag;
+                opt.textContent = tag;
+                tagSelect.appendChild(opt);
+            });
+        }
+    } catch (e) { console.error("Failed to load tags", e); }
+
+
+    // Load Initial Data
+    await loadData();
+
+    // Filter Listeners
+    document.getElementById('target-select').addEventListener('change', (e) => {
+        // Clear Tag Select if Target is chosen (mutually exclusive specific filter)
+        if(e.target.value) document.getElementById('tag-select').value = "";
+        loadData(e.target.value, "");
+    });
+    
+    document.getElementById('tag-select').addEventListener('change', (e) => {
+        // Clear Target Select if Tag is chosen
+        if(e.target.value) document.getElementById('target-select').value = "";
+        loadData("", e.target.value);
+    });
+    
+    async function loadData(targetId = "", tag = "") {
+        try {
+            let url = '/api/stats/infrastructure';
+            const params = new URLSearchParams();
+            if (targetId) params.append('target_id', targetId);
+            if (tag) params.append('tag', tag);
+            
+            if (params.toString()) url += `?${params.toString()}`;
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("API request failed");
+            const data = await response.json();
+            
+            // Check if data is empty
+            const hasData = Object.keys(data.cloud_providers).length > 0 || Object.keys(data.countries).length > 0;
+            
+            if (!hasData) {
+                document.getElementById('charts-container').classList.add('hidden');
+                document.getElementById('no-data-msg').classList.remove('hidden');
+            } else {
+                document.getElementById('charts-container').classList.remove('hidden');
+                document.getElementById('no-data-msg').classList.add('hidden');
+                renderCharts(data);
+            }
+            
+        } catch (error) {
+            console.error("Failed to fetch analytics:", error);
+        }
+    }
+
+    function renderCharts(data) {
+        // ... (Charts rendering same as before) ...
+        // --- Cloud Provider Chart (Pie) ---
+        const cloudCtx = document.getElementById('cloudProviderChart').getContext('2d');
+        const cloudLabels = Object.keys(data.cloud_providers);
+        const cloudValues = Object.values(data.cloud_providers);
+        
+        if (cloudChart) cloudChart.destroy();
+        
+        cloudChart = new Chart(cloudCtx, {
+            type: 'doughnut',
+            data: {
+                labels: cloudLabels,
+                datasets: [{
+                    data: cloudValues,
+                    backgroundColor: [
+                        '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6366F1', '#EC4899', '#9CA3AF'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#e5e7eb' // white text for legend
+                        }
+                    }
+                }
+            }
+        });
+
+        // --- Location Chart (Bar) ---
+        const locCtx = document.getElementById('locationChart').getContext('2d');
+        // Sort by value desc and take top 10
+        const sortedLocs = Object.entries(data.countries)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+            
+        const locLabels = sortedLocs.map(x => x[0] || 'Unknown');
+        const locValues = sortedLocs.map(x => x[1]);
+
+        if (locationChart) locationChart.destroy();
+
+        locationChart = new Chart(locCtx, {
+            type: 'bar',
+            data: {
+                labels: locLabels,
+                datasets: [{
+                    label: 'Servers',
+                    data: locValues,
+                    backgroundColor: '#10B981',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)' // faint white grid
+                        },
+                        ticks: {
+                            color: '#9ca3af'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#9ca3af'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

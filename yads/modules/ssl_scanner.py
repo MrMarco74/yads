@@ -84,4 +84,70 @@ class SSLScanner(BaseScannerModule):
         except Exception as e:
             results["error"] = str(e)
 
+        # 3. Cipher Suite Enumeration (Greedy Strategy)
+        if not results.get("error"):
+            try:
+                results["ciphers"] = self._enumerate_ciphers(domain)
+            except Exception as e:
+                logger.error(f"Cipher enumeration failed: {e}")
+                results["ciphers"] = []
+
         return results
+
+    def _enumerate_ciphers(self, domain: str) -> List[Dict[str, str]]:
+        """
+        Enumerates supported cipher suites using a greedy strategy:
+        1. Connect and see what cipher is chosen.
+        2. Record it.
+        3. 'Ban' it by explicitly excluding it in the next handshake.
+        4. Repeat until handshake fails or no ciphers overlap.
+        """
+        found_ciphers = []
+        banned_ciphers = []
+        
+        # Limit iterations to avoid infinite loops
+        max_ciphers = 100 
+        
+        while len(found_ciphers) < max_ciphers:
+            try:
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                
+                # Construct cipher string: "ALL:!md5:!aNULL:!eNULL" + banned
+                # We start with ALL (or default) and subtract what we found.
+                # "ALL" might be too broad or deprecated depending on OpenSSL version, 
+                # but usually works for enumeration.
+                cipher_str = "ALL:COMPLEMENTOFALL" 
+                if banned_ciphers:
+                    cipher_str += ":!" + ":!".join(banned_ciphers)
+                
+                context.set_ciphers(cipher_str)
+                
+                with socket.create_connection((domain, 443), timeout=3.0) as sock:
+                    with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                        cipher_info = ssock.cipher()
+                        # cipher_info is tuple: ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)
+                        
+                        cipher_name = cipher_info[0]
+                        protocol_ver = cipher_info[1]
+                        
+                        if cipher_name in banned_ciphers:
+                            # Should not happen if logic works, but break to be safe
+                            break
+                            
+                        found_ciphers.append({
+                            "name": cipher_name,
+                            "version": protocol_ver,
+                            "bits": cipher_info[2]
+                        })
+                        banned_ciphers.append(cipher_name)
+                        
+            except (ssl.SSLError, socket.timeout, ConnectionRefusedError):
+                # Handshake failed -> No more ciphers supported (or connection issue)
+                break
+            except Exception as e:
+                logger.debug(f"Cipher check stopped/error: {e}")
+                break
+                
+        return found_ciphers

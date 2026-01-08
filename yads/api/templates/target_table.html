@@ -43,22 +43,32 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <form action="/targets/import" method="POST" class="p-6 space-y-4">
+            <form action="/targets/import" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Upload File (.txt, .csv)</label>
+                    <input type="file" name="file_upload" accept=".txt,.csv" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 border border-gray-700 rounded-lg cursor-pointer bg-gray-900 focus:outline-none">
+                </div>
+                
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div class="w-full border-t border-gray-700"></div>
+                    </div>
+                    <div class="relative flex justify-center">
+                        <span class="bg-gray-800 px-2 text-xs text-gray-500 uppercase">Or paste text</span>
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-sm font-medium text-gray-300 mb-2">Domains (one per line)</label>
-                    <textarea name="targets_raw" rows="10" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm placeholder-gray-600" placeholder="example.com&#10;sub.domain.org&#10;another-target.net"></textarea>
+                    <textarea name="targets_raw" rows="8" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm placeholder-gray-600" placeholder="example.com&#10;sub.domain.org&#10;another-target.net"></textarea>
                 </div>
-                <div class="flex items-center gap-2 mb-4">
-                    <input type="checkbox" id="verify_dns" name="verify_dns" value="true" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800">
-                    <label for="verify_dns" class="text-sm text-gray-300">Verify DNS records (A/AAAA) before importing</label>
-                </div>
-                <!-- DNS Verification Checkbox -->
+                
                 <div class="flex items-center gap-2 mb-4">
                     <input type="checkbox" id="verify_dns" name="verify_dns" value="true" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800">
                     <label for="verify_dns" class="text-sm text-gray-300">Verify DNS records (A/AAAA) before importing</label>
                 </div>
                 <!-- Hidden current URL to redirect back -->
-                <input type="hidden" name="next" value="/dashboard/targets">
+                <input type="hidden" name="next" value="/targets/table">
                 
                 <div class="flex justify-end gap-3 pt-2">
                     <button type="button" onclick="document.getElementById('import-modal').classList.add('hidden')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Cancel</button>
@@ -78,18 +88,128 @@
     </div>
     {% endif %}
 
+    <!-- Filter Bar -->
+    <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 flex flex-wrap items-center gap-4 mb-6">
+        <div class="text-sm font-medium text-gray-400">Filters:</div>
+        
+        <form action="/targets/table" method="GET" class="flex flex-wrap items-center gap-4 flex-1">
+            <!-- Filter: Online -->
+            <div class="relative">
+                <select name="filter_online" onchange="this.form.submit()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    <option value="all" {% if filter_online == 'all' %}selected{% endif %}>All Status</option>
+                    <option value="online" {% if filter_online == 'online' %}selected{% endif %}>Online Only</option>
+                    <option value="offline" {% if filter_online == 'offline' %}selected{% endif %}>Offline Only</option>
+                    <option value="unknown" {% if filter_online == 'unknown' %}selected{% endif %}>Unknown</option>
+                </select>
+            </div>
+
+            <!-- Filter: Last Scan -->
+            <div class="relative">
+                <select name="filter_last_scan" onchange="this.form.submit()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    <option value="all" {% if filter_last_scan == 'all' %}selected{% endif %}>Any Time</option>
+                    <option value="24h" {% if filter_last_scan == '24h' %}selected{% endif %}>Last 24 Hours</option>
+                    <option value="7d" {% if filter_last_scan == '7d' %}selected{% endif %}>Last 7 Days</option>
+                    <option value="never" {% if filter_last_scan == 'never' %}selected{% endif %}>Never Scanned</option>
+                </select>
+            </div>
+            
+            <!-- Filter: Tags -->
+            <div class="relative">
+                 <select name="filter_tag" onchange="this.form.submit()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
+                    <option value="" {% if not filter_tag %}selected{% endif %}>Values...</option>
+                    {% for tag in unique_tags %}
+                        <option value="{{ tag }}" {% if filter_tag == tag %}selected{% endif %}>{{ tag }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Hidden inputs to preserve page limit if using it -->
+            {% if pagination and pagination.limit != 20 %}
+                <input type="hidden" name="limit" value="{{ pagination.limit }}">
+            {% endif %}
+
+            <div class="ml-auto flex items-center gap-2">
+                 {% if filter_online != 'all' or filter_last_scan != 'all' or filter_tag %}
+                    <a href="/targets/table" class="text-xs text-red-400 hover:text-red-300 underline">Clear Filters</a>
+                 {% endif %}
+            </div>
+        </form>
+    </div>
+
     <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl overflow-hidden shadow-lg">
         <form id="bulk-form" action="/targets/bulk/scan" method="POST">
-            
-            <div class="overflow-x-auto">
+            <!-- Bulk Actions Bar -->
+            <div class="p-3 bg-gray-900/30 border-b border-gray-700/50 flex flex-wrap items-center gap-3">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">With Selected:</span>
+                
+                <!-- Scan Options Dropdown -->
+                <div class="relative">
+                    <button type="button" onclick="document.getElementById('scan-options-dropdown').classList.toggle('hidden')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5 border border-gray-600">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                        Options
+                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="scan-options-dropdown" class="hidden absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-600 rounded shadow-xl z-20 p-2">
+                        <div class="text-xs font-semibold text-gray-400 mb-2 px-1">Scan Types</div>
+                        <div class="space-y-1">
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="dns_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">DNS Scanner</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="web_analyzer" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Web Analyzer</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="typosquat_scanner" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Typosquatting</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="infrastructure_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Infrastructure</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="ssl_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">SSL Scanner</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="visual_osint" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Visual OSINT</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" formaction="/targets/bulk/scan" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Scan Now
+                </button>
+                
+                <div class="h-4 w-px bg-gray-700 mx-2"></div>
+                
+                <div class="flex items-center gap-2">
+                    <input type="text" name="tag" placeholder="New Tag..." 
+                           onkeydown="if(event.key === 'Enter'){ event.preventDefault(); document.getElementById('btn-bulk-tag').click(); }"
+                           class="bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 w-32">
+                    <button id="btn-bulk-tag" type="submit" formaction="/targets/bulk/tag" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                        Add Tag
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto min-h-[400px]"> <!-- Added min-h for dropdown space -->
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-gray-900/80 text-gray-400 text-xs uppercase font-semibold">
                         <tr>
                             <th class="p-4 w-10">
                                 <input type="checkbox" id="select-all" class="rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
                             </th>
-                            <th class="p-4">Domain</th>
+                            <th class="p-4 w-1/4">Domain</th> <!-- explicitly wider -->
                             <th class="p-4">Online</th>
+                            <th class="p-4">HTTP</th>
+                            <th class="p-4">HTTPS</th>
+                            <th class="p-4">Redir</th>
+                            <th class="p-4">Wildcard</th>
                             <th class="p-4">Status</th>
                             <th class="p-4">Last Scan</th>
                             <th class="p-4">DNS</th>
@@ -104,12 +224,41 @@
                             <td class="p-4">
                                 <input type="checkbox" name="target_ids" value="{{ row.target.id }}" class="target-checkbox rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
                             </td>
-                            <td class="p-4 font-medium text-white">
-                                <a href="/targets/{{ row.target.id }}" class="hover:text-indigo-400 flex items-center gap-2">
-                                    {{ row.target.domain }}
-                                    <svg class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                </a>
+                            <td class="p-4">
+                                <div class="flex flex-col gap-1">
+                                    <a href="/targets/{{ row.target.id }}" class="font-medium text-white hover:text-indigo-400 flex items-center gap-2">
+                                        {{ row.target.domain }}
+                                    </a>
+                                    
+                                    <!-- Tags Area -->
+                                    <div class="flex flex-wrap items-center gap-1.5" id="tags-area-{{ row.target.id }}">
+                                        {% for tag in row.target.tags %}
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700 text-gray-300 border border-gray-600 group-hover:border-gray-500">
+                                                {{ tag }}
+                                                <button type="button" onclick="removeTag({{ row.target.id }}, '{{ tag }}')" class="hover:text-red-400 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                                            </span>
+                                        {% endfor %}
+                                        
+                                        <!-- Add Tag Button -->
+                                        <div class="relative">
+                                            <button type="button" onclick="toggleTagInput({{ row.target.id }})" class="text-gray-500 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                            </button>
+                                            <!-- Simple Popover Input (Hidden by default) -->
+                                            <div id="tag-input-{{ row.target.id }}" class="hidden absolute left-0 bottom-full mb-1 z-10 w-32">
+                                                <input 
+                                                    type="text" 
+                                                    class="w-full bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500" 
+                                                    placeholder="Enter tag..."
+                                                    onkeydown="handleTagSubmit(event, {{ row.target.id }})"
+                                                    onblur="toggleTagInput({{ row.target.id }})" 
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
+                            <!-- ... Existing Columns ... -->
                             <td class="p-4">
                                 {% if row.is_online == True %}
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
@@ -127,6 +276,52 @@
                                 {% endif %}
                             </td>
                             <td class="p-4">
+                                {% if row.http_status %}
+                                    {% if row.http_status == 200 %}
+                                        <span class="text-xs font-bold text-green-400">200</span>
+                                    {% elif row.http_status > 0 and row.http_status < 400 %}
+                                        <span class="text-xs font-bold text-yellow-400">{{ row.http_status }}</span>
+                                    {% elif row.http_status == 0 %}
+                                        <span class="text-xs font-bold text-red-500">Fail</span>
+                                    {% else %}
+                                        <span class="text-xs font-bold text-red-400">{{ row.http_status }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-gray-600">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
+                                {% if row.https_status %}
+                                    {% if row.https_status == 200 %}
+                                        <span class="text-xs font-bold text-green-400">200</span>
+                                    {% elif row.https_status > 0 and row.https_status < 400 %}
+                                        <span class="text-xs font-bold text-yellow-400">{{ row.https_status }}</span>
+                                    {% elif row.https_status == 0 %}
+                                        <span class="text-xs font-bold text-red-500">Fail</span>
+                                    {% else %}
+                                        <span class="text-xs font-bold text-red-400">{{ row.https_status }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-gray-600">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
+                                {% if row.https_redirect %}
+                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                {% else %}
+                                    <span class="text-gray-600 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
+                                {% if row.wildcard_detected %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-900 text-purple-200">
+                                        Wildcard
+                                    </span>
+                                {% else %}
+                                    <span class="text-gray-600 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
                                 {% if row.target.scan_status == 'running' %}
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
                                         <span class="relative flex h-2 w-2">
@@ -134,6 +329,10 @@
                                           <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                                         </span>
                                         Scanning
+                                    </span>
+                                {% elif row.target.scan_status == 'queued' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+                                        Queued
                                     </span>
                                 {% elif row.target.scan_status == 'idle' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-600/50">
@@ -260,9 +459,64 @@
 </div>
 
 <script>
+    // Checkbox Logic
     document.getElementById('select-all').addEventListener('change', function(e) {
         const checkboxes = document.querySelectorAll('.target-checkbox');
         checkboxes.forEach(cb => cb.checked = e.target.checked);
     });
+
+    // Tagging Logic
+    async function removeTag(targetId, tag) {
+        if (!confirm(`Remove tag "${tag}"?`)) return;
+        try {
+            const response = await fetch(`/targets/${targetId}/tags/${tag}`, { method: 'DELETE' });
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert("Failed to remove tag.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error removing tag.");
+        }
+    }
+
+    function toggleTagInput(targetId) {
+        const inputDiv = document.getElementById(`tag-input-${targetId}`);
+        const input = inputDiv.querySelector('input');
+        
+        if (inputDiv.classList.contains('hidden')) {
+            // Show
+            inputDiv.classList.remove('hidden');
+            setTimeout(() => input.focus(), 50);
+        } else {
+            // Hide (give short delay to allow click/submit to register)
+            setTimeout(() => inputDiv.classList.add('hidden'), 200);
+        }
+    }
+    
+    async function handleTagSubmit(event, targetId) {
+        if (event.key === 'Enter') {
+            const tag = event.target.value.trim();
+            if (!tag) return;
+            
+            try {
+                const response = await fetch(`/targets/${targetId}/tags`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: tag })
+                });
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert("Failed to add tag.");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Error adding tag.");
+            }
+        }
+    }
 </script>
 {% endblock %}

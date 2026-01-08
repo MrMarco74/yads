@@ -3,6 +3,9 @@ import dns.reversename
 import os
 import requests
 import logging
+import time
+import random
+import uuid
 from typing import Any, Dict, List, Set
 
 from yads.core.base import BaseScannerModule
@@ -29,7 +32,17 @@ class DNSScanner(BaseScannerModule):
         record_types = ['A', 'AAAA', 'MX', 'TXT', 'SPF', 'DMARC', 'NS', 'CNAME', 'SRV', 'SOA']
         
         logger = logging.getLogger("yads.modules.dns")
+        logger = logging.getLogger("yads.modules.dns")
         logger.info(f"DNS Scanner started for {target}")
+
+        # 0. Wildcard Detection
+        wildcard_ips = self._detect_wildcard(target, resolver)
+        if wildcard_ips:
+            logger.warning(f"Wildcard DNS detected for {target}. IPs: {wildcard_ips}. Subdomains resolving to these IPs will be filtered.")
+            results["wildcard_detected"] = True
+        else:
+            results["wildcard_detected"] = False
+
 
         # 1. Fetch Records
         for rtype in record_types:
@@ -122,15 +135,30 @@ class DNSScanner(BaseScannerModule):
         
         verified_results = []
         
+        # Shared resolver for this scan to leverage cache across threads
+        # (Or use the global configured one if we had it, but here we create one per scan task)
+        # Actually better: Use one resolver for the whole thread pool
+        
+        shared_resolver = dns.resolver.Resolver()
+        shared_resolver.timeout = 2.0
+        shared_resolver.lifetime = 2.0
+        # If the container uses our local dns-cache at /etc/resolv.conf, this resolver will use it automatically.
+        
         def verify_domain(full_domain):
             try:
-                # Use a fresh resolver
-                t_resolver = dns.resolver.Resolver()
-                t_resolver.timeout = 2.0
-                t_resolver.lifetime = 2.0
-                # Resolve A record
-                answers = t_resolver.resolve(full_domain, 'A')
-                return {"subdomain": full_domain, "ips": [str(r) for r in answers]}
+                # Use the shared resolver instance which uses the system DNS (our cache)
+                # dnspython's Resolver is thread-safe for queries.
+                answers = shared_resolver.resolve(full_domain, 'A')
+                ips = [str(r) for r in answers]
+                
+                # Filter Wildcard matches
+                if wildcard_ips:
+                    # Check if ANY of the resolved IPs match any wildcard IP
+                    # Strict filtering: if it resolves to wildcard IP, ignore it.
+                    if any(ip in wildcard_ips for ip in ips):
+                         return None
+                
+                return {"subdomain": full_domain, "ips": ips}
             except:
                 return None
 
@@ -199,28 +227,89 @@ class DNSScanner(BaseScannerModule):
     def _fetch_ct_logs(self, domain: str) -> List[str]:
         """
         Queries crt.sh to find subdomains from Certificate Transparency logs.
+        Includes rate limiting, retries, and fallback to Hackertarget.
         """
         subs = set()
         url = f"https://crt.sh/?q=%.{domain}&output=json"
+        
+        # Robustness: Retry loop
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                # Rate Limiting: Jitter delay (2-5 seconds)
+                delay = random.uniform(2.0, 5.0)
+                logging.getLogger("yads.modules.dns").info(f"Waiting {delay:.2f}s before crt.sh query...")
+                time.sleep(delay)
+                
+                resp = requests.get(url, timeout=15, headers={'User-Agent': "Mozilla/5.0 (compatible; YADS/1.0)"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for entry in data:
+                        name_value = entry.get('name_value', '')
+                        for name in name_value.split('\n'):
+                            name = name.strip()
+                            if name.endswith(domain) and '*' not in name:
+                                 subs.add(name)
+                    return list(subs) # Success, return immediately
+                elif resp.status_code in [429, 502, 503, 504]:
+                     # Transient errors, retry
+                     wait = (attempt + 1) * 5
+                     logging.getLogger("yads.modules.dns").warning(f"crt.sh returned {resp.status_code}. Retrying in {wait}s...")
+                     time.sleep(wait)
+                     continue
+                else:
+                    break # Non-retriable error
+            except Exception as e:
+                logging.getLogger("yads.modules.dns").warning(f"crt.sh query failed (Attempt {attempt+1}): {e}")
+                time.sleep(2)
+        
+        # If we get here, crt.sh failed. Try Fallback.
+        logging.getLogger("yads.modules.dns").warning("crt.sh exhaustion/failure. Attempting Fallback: Hackertarget.")
+        return self._fetch_hackertarget(domain)
+
+    def _fetch_hackertarget(self, domain: str) -> List[str]:
+        """
+        Fallback source: Hackertarget API
+        """
+        subs = set()
+        url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
         try:
-            # Set a rigorous timeout as crt.sh can be slow
-            resp = requests.get(url, timeout=60, headers={'User-Agent': 'Mozilla/5.0 (compatible; YADS/1.0)'})
+            resp = requests.get(url, timeout=15)
             if resp.status_code == 200:
-                data = resp.json()
-                for entry in data:
-                    name_value = entry.get('name_value', '')
-                    # split by newlines as one cert can have multiple SANs
-                    for name in name_value.split('\n'):
-                        name = name.strip()
-                        # Only include if it ends with our target domain and isn't a wildcard
-                        if name.endswith(domain) and '*' not in name:
-                             subs.add(name)
+                lines = resp.text.splitlines()
+                for line in lines:
+                    # Format: hostname,ip
+                    parts = line.split(',')
+                    if len(parts) >= 1:
+                        hostname = parts[0].strip()
+                        if hostname.endswith(domain):
+                            subs.add(hostname)
+                logging.getLogger("yads.modules.dns").info(f"Hackertarget found {len(subs)} subdomains.")
         except Exception as e:
-            # crt.sh often times out or fails, just log and continue
-            import logging
-            logging.getLogger("yads.modules.dns").warning(f"CT Log query failed: {e}")
-            
+             logging.getLogger("yads.modules.dns").error(f"Hackertarget fallback failed: {e}")
+             
         return list(subs)
+
+
+    def _detect_wildcard(self, domain: str, resolver: dns.resolver.Resolver) -> Set[str]:
+        """
+        Detects if a wildcard record exists for the domain.
+        Returns a set of IPs that wildcard subdomains resolve to.
+        """
+        wildcard_ips = set()
+        try:
+            # Generate a random subdomain that definitely shouldn't exist
+            random_sub = f"{uuid.uuid4().hex[:8]}.{domain}"
+            answers = resolver.resolve(random_sub, 'A')
+            for r in answers:
+                wildcard_ips.add(str(r))
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            pass # No wildcard
+        except Exception:
+            pass # Error during check, assume no wildcard to be safe or maybe log it?
+            
+        return wildcard_ips
 
     def _is_dangling(self, cname_target: str) -> bool:
         """
@@ -234,3 +323,4 @@ class DNSScanner(BaseScannerModule):
         except Exception:
             # Other errors (timeout etc) don't necessarily mean dangling
             return False
+
