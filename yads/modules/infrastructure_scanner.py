@@ -1,6 +1,7 @@
 import socket
 import logging
 import dns.resolver
+import datetime
 from typing import Any, Dict, List
 from ipwhois import IPWhois
 
@@ -79,9 +80,18 @@ class InfrastructureScanner(BaseScannerModule):
         import requests
         import concurrent.futures
         
-        bucket_name = domain.split('.')[0] # e.g. "example" from "example.com"
-        # Also try full domain
-        candidates = [bucket_name, domain.replace('.', '-'), domain]
+        candidates = []
+        # 1. Full domain with dashes
+        candidates.append(domain.replace('.', '-'))
+        # 2. Full domain as is
+        candidates.append(domain)
+        # 3. Domain without TLD (if possible) -> specific enough
+        if '.' in domain:
+            no_tld = domain.rsplit('.', 1)[0]
+            candidates.append(no_tld.replace('.', '-'))
+            candidates.append(no_tld)
+        
+        candidates = list(set(candidates))
         
         def check_bucket(cand):
             s3_url = f"http://{cand}.s3.amazonaws.com"
@@ -106,6 +116,48 @@ class InfrastructureScanner(BaseScannerModule):
                 res = future.result()
                 if res:
                     results["buckets"].append(res)
+        
+        # 5. Whois & Expiration Monitor
+        results["whois"] = {}
+        try:
+            import whois
+            w = whois.whois(domain)
+            
+            # Format dates (handle list or single obj)
+            def fmt_date(d):
+                val = d
+                if isinstance(d, list):
+                     val = d[0] if d else None
+                
+                if not val:
+                    return None
+                    
+                if hasattr(val, 'strftime'):
+                    return val.strftime('%Y-%m-%d')
+                return str(val)
+
+            results["whois"] = {
+                "registrar": w.registrar,
+                "creation_date": fmt_date(w.creation_date),
+                "expiration_date": fmt_date(w.expiration_date),
+                "emails": w.emails if isinstance(w.emails, list) else [w.emails] if w.emails else [],
+                "name_servers": w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else []
+            }
+            
+            # Calculate Days to Expire
+            if w.expiration_date:
+                exp = w.expiration_date[0] if isinstance(w.expiration_date, list) else w.expiration_date
+                if hasattr(exp, 'date'):
+                    now = datetime.datetime.now().date()
+                    delta = (exp.date() - now).days
+                else:
+                    now = datetime.datetime.now()
+                    delta = (exp - now).days
+                results["whois"]["days_to_expire"] = delta
+
+        except Exception as e:
+            logger.error(f"Whois Error: {e}")
+            results["whois_error"] = str(e)
 
         return results
 
@@ -131,7 +183,18 @@ class InfrastructureScanner(BaseScannerModule):
             try:
                 resolver.resolve(query, 'A')
                 # If we get an answer, it's listed
-                findings.append(f"Listed in {name}")
+                
+                link = "#"
+                if "spamhaus" in dnsbl_domain:
+                    link = f"https://check.spamhaus.org/listed/?searchterm={ip}"
+                elif "spamcop" in dnsbl_domain:
+                    link = f"https://www.spamcop.net/w3m?action=checkblock&ip={ip}"
+                    
+                findings.append({
+                    "source": name, 
+                    "message": f"Listed in {name}",
+                    "link": link
+                })
             except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
                 continue
             except Exception as e:

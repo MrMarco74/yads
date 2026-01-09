@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Redirect Spiderweb{% endblock %}
+{% block title %}Network Relationships Graph{% endblock %}
 
 {% block content %}
 <!-- Main Container: Flexbox Layout -->
@@ -10,7 +10,7 @@
     <!-- Sidebar: Controls -->
     <div class="w-80 flex-shrink-0 bg-gray-900 border-r border-gray-800 p-6 flex flex-col z-20">
         <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <span>🕷️</span> Spiderweb
+            <span>🕸️</span> Network Graph
         </h2>
         
         <!-- Domain Selector -->
@@ -20,13 +20,13 @@
                 <option value="" selected disabled>Choose a domain...</option>
                 {% if domains %}
                     {% for d in domains %}
-                    <option value="{{ d }}">{{ d }}</option>
+                    <option value="{{ d.id }}">{{ d.domain }}</option>
                     {% endfor %}
                 {% else %}
                     <option value="" disabled>No targets found</option>
                 {% endif %}
             </select>
-            <p class="mt-2 text-xs text-gray-500">Pick a domain to analyze redirects.</p>
+            <p class="mt-2 text-xs text-gray-500">Pick a domain to see its infrastructure.</p>
         </div>
 
         <!-- Legend -->
@@ -35,15 +35,19 @@
             <div class="space-y-2 text-xs text-gray-300">
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-                    <span>Source Domain</span>
+                    <span>Target</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                    <span>Subdomain</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 rounded-full bg-orange-500"></span>
-                    <span>Redirector (Hop)</span>
+                    <span>IP Address</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
-                    <span>Landing Hub</span>
+                    <span class="w-3 h-3 rounded-full bg-cyan-500"></span>
+                    <span>Resources (MX, NS)</span>
                 </div>
             </div>
         </div>
@@ -55,10 +59,6 @@
                 <button onclick="loadGraph(null)" class="w-full px-3 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-600 rounded-lg shadow transition flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Show Full Network
-                </button>
-                <button onclick="findCentralHub()" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                    Find Central Hub
                 </button>
              </div>
         </div>
@@ -77,7 +77,7 @@
         </div>
         
         <div id="loading" class="hidden mt-4 text-center text-sm font-bold text-indigo-400 animate-pulse">
-            Analyzing Network...
+            Mapping Infrastructure...
         </div>
     </div>
 
@@ -89,7 +89,7 @@
         <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="text-center text-gray-600">
                 <p class="text-2xl font-bold mb-2">Select a Target</p>
-                <p class="text-sm">Choose a domain from the sidebar or visualize the full network.</p>
+                <p class="text-sm">Choose a domain to visualize its infrastructure map.</p>
             </div>
         </div>
     </div>
@@ -102,7 +102,7 @@
     let network = null;
     
     // Global access for button
-    window.loadGraph = function(domain) {
+    window.loadGraph = function(targetId) {
         const container = document.getElementById('mynetwork');
         const loading = document.getElementById('loading');
         const stats = document.getElementById('stats');
@@ -114,8 +114,8 @@
         stats.classList.add('hidden');
         emptyPrompt.classList.add('hidden');
         
-        // If domain is null (full network), reset the dropdown
-        if (!domain) {
+        // If targetId is null (full network), reset the dropdown
+        if (!targetId) {
             domSelect.value = "";
         }
         
@@ -126,9 +126,9 @@
         }
 
         // Build URL
-        let url = '/api/visualizations/redirects';
-        if (domain) {
-            url += `?domain=${encodeURIComponent(domain)}`;
+        let url = '/api/visualizations/network';
+        if (targetId) {
+            url += `?target_id=${targetId}`;
         }
 
         // Fetch Data
@@ -142,7 +142,7 @@
                 document.getElementById('edge-count').innerText = data.edges.length;
                 
                 if (data.nodes.length === 0) {
-                    alert("No data found.");
+                    alert("No data found (Run a DNS scan first!).");
                     emptyPrompt.classList.remove('hidden');
                     return;
                 }
@@ -168,38 +168,41 @@
                         width: 1,
                         color: { inherit: 'from', opacity: 0.6 },
                         smooth: {
-                            type: 'curvedCW',
-                            roundness: 0.2
+                            type: 'dynamic'
                         },
                         arrows: {
                             to: { enabled: true, scaleFactor: 0.5 }
                         },
-                        shadow: false
+                        font: { align: 'middle', size: 10, strokeWidth: 0, color: '#9ca3af', background: '#111827' }
                     },
                     groups: {
-                        source: {
+                        target: {
                             color: { background: '#3b82f6', border: '#1d4ed8' }, // Blue
-                            value: 1
+                            size: 30,
+                            font: { size: 18 }
                         },
-                        redirector: {
+                        subdomain: {
+                            color: { background: '#a855f7', border: '#7e22ce' }, // Purple
+                            size: 20
+                        },
+                        ip: {
                             color: { background: '#f97316', border: '#c2410c' }, // Orange
-                            value: 3
+                            shape: 'square',
+                            size: 15
                         },
-                        landing: {
-                            color: { background: '#22c55e', border: '#15803d' }, // Green
-                            value: 10
-                        },
-                        unknown: {
-                             color: { background: '#6b7280', border: '#374151' } // Gray
+                        resource: {
+                             color: { background: '#06b6d4', border: '#0891b2' }, // Cyan
+                             shape: 'diamond',
+                             size: 12
                         }
                     },
                     physics: {
                         stabilization: true,
                         solver: 'forceAtlas2Based',
                         forceAtlas2Based: {
-                            gravitationalConstant: -50,
-                            centralGravity: 0.005,
-                            springLength: 200,
+                            gravitationalConstant: -80,
+                            centralGravity: 0.003,
+                            springLength: 150,
                             springConstant: 0.08
                         },
                         maxVelocity: 50,
@@ -209,11 +212,22 @@
                     interaction: {
                         tooltipDelay: 200,
                         hideEdgesOnDrag: true,
-                        hover: true
+                        hover: true,
+                        navigationButtons: true,
+                        keyboard: true
                     }
                 };
                 
                 network = new vis.Network(container, { nodes, edges }, options);
+                
+                // Add click listener
+                network.on("click", function (params) {
+                    if (params.nodes.length > 0) {
+                         // Maybe show side panel details?
+                         // For now just console log
+                         console.log("Clicked node:", params.nodes[0]);
+                    }
+                });
             })
             .catch(err => {
                 console.error(err);
@@ -227,53 +241,10 @@
         // Dropdown listener
         const domSelect = document.getElementById('domain-select');
         domSelect.addEventListener('change', function() {
-            const domain = this.value;
-            if (!domain) return;
-            loadGraph(domain);
+            const targetId = this.value;
+            if (!targetId) return;
+            loadGraph(targetId);
         });
-
-        window.findCentralHub = async function() {
-            const loading = document.getElementById('loading');
-            loading.classList.remove('hidden');
-            loading.innerText = "Calculating Centrality...";
-            
-            try {
-                const resp = await fetch('/api/visualizations/redirects/centrality');
-                if (!resp.ok) throw new Error("API Error");
-                const data = await resp.json();
-                
-                loading.classList.add('hidden');
-                loading.innerText = "Analyzing Network..."; // Reset text
-                
-                if (data.error || data.message) {
-                    alert(data.error || data.message);
-                    return;
-                }
-                
-                // Highlight and Focus
-                const nodeId = data.node_id;
-                const stats = data.stats;
-                
-                alert(`🔍 Best Entrypoint Found!\n\nNode: ${nodeId}\n\nConnections: ${stats.total_connections}\n(In: ${stats.inbound}, Out: ${stats.outbound})`);
-                
-                if (network) {
-                    network.focus(nodeId, {
-                        scale: 1.5,
-                        animation: {
-                            duration: 1000,
-                            easingFunction: "easeInOutQuad"
-                        }
-                    });
-                    network.selectNodes([nodeId]);
-                }
-                
-            } catch (e) {
-                console.error(e);
-                loading.innerText = "Analysis Failed";
-                loading.classList.add("text-red-500");
-            }
-        };
     });
 </script>
 {% endblock %}
-

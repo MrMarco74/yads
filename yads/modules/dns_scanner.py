@@ -10,45 +10,58 @@ from typing import Any, Dict, List, Set
 
 from yads.core.base import BaseScannerModule
 
-class DNSScanner(BaseScannerModule):
+class DNSRecordScanner(BaseScannerModule):
     @property
     def module_name(self) -> str:
         return "dns_scanner"
 
     def run_scan(self, target: str) -> Dict[str, Any]:
-        """
-        Performs deep DNS analysis including Certificate Transparency log enumeration.
-        """
-        results = {
-            "records": {},
-            "dangling_cnames": [],
-            "nameservers": [],
-            "subdomains": []
-        }
+        logger = logging.getLogger("yads.modules.dns")
+        logger.info(f"DNS Record Scan started for {target}")
         
         resolver = dns.resolver.Resolver()
         resolver.timeout = 3.0
         resolver.lifetime = 5.0
-        record_types = ['A', 'AAAA', 'MX', 'TXT', 'SPF', 'DMARC', 'NS', 'CNAME', 'SRV', 'SOA']
         
-        logger = logging.getLogger("yads.modules.dns")
-        logger = logging.getLogger("yads.modules.dns")
-        logger.info(f"DNS Scanner started for {target}")
+        # Apply Custom DNS
+        custom_ns = self._get_custom_nameservers()
+        if custom_ns:
+            resolver.nameservers = custom_ns
+            logger.info(f"Using Custom DNS Servers: {custom_ns}")
+        
+        return self._scan_records(target, resolver, logger)
+
+    def _get_custom_nameservers(self) -> List[str]:
+        try:
+            from yads.models import SystemConfig
+            if self.db_session:
+                conf = self.db_session.get(SystemConfig, "CUSTOM_DNS_SERVERS")
+                if conf and conf.value:
+                    return [ip.strip() for ip in conf.value.split(',') if ip.strip()]
+        except Exception:
+            pass
+        return []
+
+    def _scan_records(self, target: str, resolver: dns.resolver.Resolver, logger: logging.Logger) -> Dict[str, Any]:
+        results = {
+            "records": {},
+            "dangling_cnames": [],
+            "nameservers": [],
+            "wildcard_detected": False
+        }
+        
+        record_types = ['A', 'AAAA', 'MX', 'TXT', 'SPF', 'DMARC', 'NS', 'CNAME', 'SRV', 'SOA']
 
         # 0. Wildcard Detection
         wildcard_ips = self._detect_wildcard(target, resolver)
         if wildcard_ips:
-            logger.warning(f"Wildcard DNS detected for {target}. IPs: {wildcard_ips}. Subdomains resolving to these IPs will be filtered.")
+            logger.warning(f"Wildcard DNS detected for {target}. IPs: {wildcard_ips}.")
             results["wildcard_detected"] = True
-        else:
-            results["wildcard_detected"] = False
-
-
+        
         # 1. Fetch Records
         for rtype in record_types:
             try:
-                logger.info(f"Querying {rtype} records...")
-                # Handle special cases for DMARC (needs _dmarc. prefix)
+                # Handle special cases for DMARC
                 query_target = f"_dmarc.{target}" if rtype == 'DMARC' else target
                 
                 answers = resolver.resolve(query_target, rtype)
@@ -61,33 +74,132 @@ class DNSScanner(BaseScannerModule):
                 if rtype == 'CNAME':
                     for cname_val in answers:
                         cname_str = str(cname_val).rstrip('.')
+                        
+                        # 1. Check Dangling
                         if self._is_dangling(cname_str):
                             results["dangling_cnames"].append(cname_str)
                             logger.info(f"Possible dangling CNAME found: {cname_str}")
+
+                        # 2. Check Takeover
+                        takeover = self._check_takeover(cname_str)
+                        if takeover:
+                            if "takeover_risks" not in results:
+                                results["takeover_risks"] = []
+                            # Add subdomain context if we knew it (here we are scanning target itself)
+                            takeover["subdomain"] = target # The record we are querying IS the target here
+                            results["takeover_risks"].append(takeover)
+                            logger.warning(f"Takeover Risk detected! {target} -> {cname_str} ({takeover['provider']})")
                             
             except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
                 continue
             except Exception as e:
-                results["records"][rtype] = f"Error: {str(e)}"
+                pass # Silent ignore for standard record missing
 
-        # 1b. SPF fallback
+        # 1b. SPF fallback (from TXT)
         if 'TXT' in results["records"] and isinstance(results["records"]['TXT'], list):
             spf_records = [r for r in results["records"]['TXT'] if "v=spf1" in r]
             if spf_records:
                 if 'SPF' not in results["records"] or not results["records"]['SPF']:
                     results["records"]['SPF'] = spf_records
+                    
+        return results
+    
+    def _detect_wildcard(self, domain: str, resolver: dns.resolver.Resolver) -> Set[str]:
+        wildcard_ips = set()
+        try:
+            random_sub = f"{uuid.uuid4().hex[:8]}.{domain}"
+            answers = resolver.resolve(random_sub, 'A')
+            for r in answers:
+                wildcard_ips.add(str(r))
+        except:
+            pass
+        return wildcard_ips
 
+    def _check_takeover(self, cname: str) -> Dict[str, str]:
+        """
+        Checks if a CNAME points to a known cloud provider and if the resource is unclaimed.
+        """
+        signatures = {
+            "github.io": {"provider": "GitHub Pages", "fingerprint": "There isn't a GitHub Pages site here."},
+            "herokuapp.com": {"provider": "Heroku", "fingerprint": "Heroku | No such app"},
+            "s3.amazonaws.com": {"provider": "AWS S3", "fingerprint": "NoSuchBucket"},
+            "azurewebsites.net": {"provider": "Azure", "fingerprint": "404 Web Site not found"},
+            "bitbucket.org": {"provider": "Bitbucket", "fingerprint": "Repository not found"},
+            "unbouncepages.com": {"provider": "Unbounce", "fingerprint": "The requested URL was not found on this server."},
+            "ghs.google.com": {"provider": "Google Cloud", "fingerprint": "404. That’s an error."},
+            "pantheonsite.io": {"provider": "Pantheon", "fingerprint": "404 Not Found"},
+            "readme.io": {"provider": "Readme.io", "fingerprint": "Project doesnt exist... yet!"},
+            "myshopify.com": {"provider": "Shopify", "fingerprint": "Sorry, this shop is currently unavailable."}
+        }
+
+        try:
+            for domain, sig in signatures.items():
+                if domain in cname:
+                    # Potential match, verify fingerprint
+                    # We presume http unless it handles https well. most takeover checks are http.
+                    try:
+                        resp = requests.get(f"http://{cname}", timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+                        if sig["fingerprint"] in resp.text:
+                            return {"provider": sig["provider"], "cname": cname, "status": "VULNERABLE"}
+                    except:
+                        pass
+        except:
+            pass
+        return None
+
+    def _is_dangling(self, cname_target: str) -> bool:
+        try:
+            dns.resolver.resolve(cname_target, 'A')
+            return False
+        except dns.resolver.NXDOMAIN:
+            return True
+        except:
+            return False
+
+class SubdomainScanner(DNSRecordScanner):
+    def __init__(self, db_session, use_ct_logs=True):
+        super().__init__(db_session)
+        self.use_ct_logs = use_ct_logs
+
+    @property
+    def module_name(self) -> str:
+        return "subdomain_scanner"
+
+    def run_scan(self, target: str) -> Dict[str, Any]:
+        """
+        Performs deep DNS analysis: Records + Subdomain Enumeration.
+        """
+        logger = logging.getLogger("yads.modules.subdomain")
+        logger.info(f"Subdomain Scanner started for {target}")
+        
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = 3.0 
+        
+        # Apply Custom DNS (Main Resolver)
+        custom_ns = self._get_custom_nameservers()
+        if custom_ns:
+            resolver.nameservers = custom_ns
+            logger.info(f"Using Custom DNS Servers: {custom_ns}")
+
+        # 1. Scan Records first (Inherited logic reused manually or called)
+        # We can call the helper
+        results = self._scan_records(target, resolver, logger)
+        
+        # Initialize Subdomain specific fields
+        results["subdomains"] = []
+        results["reverse_dns"] = {}
+        
+        # Check Wildcard again for usage in enumeration (fetched in scan_records but not returned directly)
+        # We can re-detect or modify _scan_records to return it. 
+        # For simplicity, re-detect or rely on results["wildcard_detected"] but need IPs.
+        wildcard_ips = self._detect_wildcard(target, resolver)
+        
         # 2. Enhanced Subdomain Enumeration
         logger.info("Starting enhanced subdomain enumeration...")
         
         # A. Wordlist Enumeration
-        found_subs_set = set() # Store plain subdomains here (e.g., 'www.example.com')
-        
-        # Load Wordlist (Unlimited)
         wordlist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "wordlists", "subdomains.txt")
         subs_to_scan = []
-        
-        # Default list
         defaults = [
             'www', 'mail', 'blog', 'dev', 'api', 'test', 'remote', 'vpn', 'stage', 'staging',
             'shop', 'cloud', 'portal', 'secure', 'admin', 'auth', 'm', 'mobile'
@@ -96,131 +208,122 @@ class DNSScanner(BaseScannerModule):
         if os.path.exists(wordlist_path):
             try:
                 with open(wordlist_path, 'r') as f:
-                    # No limit, read all
                     subs_to_scan = [line.strip() for line in f.read().splitlines() if line.strip()]
-                # Add defaults
                 for d in defaults:
                     if d not in subs_to_scan:
                         subs_to_scan.append(d)
-                logger.info(f"Loaded {len(subs_to_scan)} potential subdomains from wordlist.")
-            except Exception as e:
-                logger.error(f"Failed to load wordlist: {e}")
+            except:
                 subs_to_scan = defaults
         else:
             subs_to_scan = defaults
 
-        # Filter duplicates in scan list
         subs_to_scan = list(set(subs_to_scan))
 
         # B. Certificate Transparency (CRT.sh)
-        logger.info("Querying crt.sh for CT logs...")
-        ct_subs = self._fetch_ct_logs(target)
-        logger.info(f"Retrieved {len(ct_subs)} unique subdomains from CT logs.")
-        
-        # Add found CT subs directly to candidacy for IP resolution
-        # Note: CT logs give full domains (e.g., 'test.target.com')
+        # ONLY if enabled
+        ct_subs = []
+        if self.use_ct_logs:
+            ct_subs = self._fetch_ct_logs(target)
+        else:
+            logger.info("Skipping CRT.sh (CT Logs) as SSL Scanner/CT is disabled.")
+            
         potential_full_domains = set(ct_subs)
         
-        # Create full domains from wordlist
         for sub in subs_to_scan:
             if sub == '@':
                 potential_full_domains.add(target)
             else:
                 potential_full_domains.add(f"{sub}.{target}")
                 
-        logger.info(f"Total unique candidates to verify: {len(potential_full_domains)}")
-
-        # C. Parallel Verification (Resolve IPs)
+        # C. Parallel Verification
         import concurrent.futures
-        
         verified_results = []
-        
-        # Shared resolver for this scan to leverage cache across threads
-        # (Or use the global configured one if we had it, but here we create one per scan task)
-        # Actually better: Use one resolver for the whole thread pool
-        
         shared_resolver = dns.resolver.Resolver()
-        shared_resolver.timeout = 2.0
-        shared_resolver.lifetime = 2.0
-        # If the container uses our local dns-cache at /etc/resolv.conf, this resolver will use it automatically.
+        if custom_ns:
+            shared_resolver.nameservers = custom_ns
         
         def verify_domain(full_domain):
             try:
-                # Use the shared resolver instance which uses the system DNS (our cache)
-                # dnspython's Resolver is thread-safe for queries.
                 answers = shared_resolver.resolve(full_domain, 'A')
                 ips = [str(r) for r in answers]
-                
-                # Filter Wildcard matches
                 if wildcard_ips:
-                    # Check if ANY of the resolved IPs match any wildcard IP
-                    # Strict filtering: if it resolves to wildcard IP, ignore it.
                     if any(ip in wildcard_ips for ip in ips):
                          return None
-                
                 return {"subdomain": full_domain, "ips": ips}
-            except:
+            except dns.resolver.NoAnswer:
+                # Domain exists (e.g. only has SOA/NS/AAAA) but no A record
+                return {"subdomain": full_domain, "ips": []}
+            except (dns.resolver.NXDOMAIN, dns.exception.Timeout):
+                return None
+            except Exception:
                 return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_sub = {executor.submit(verify_domain, sub): sub for sub in potential_full_domains}
-            completed = 0
             for future in concurrent.futures.as_completed(future_to_sub):
-                completed += 1
-                if completed % 100 == 0:
-                    logger.info(f"Verified {completed}/{len(potential_full_domains)}...")
-                
                 res = future.result()
                 if res:
                     verified_results.append(res)
 
-        logger.info(f"Verification complete. Found {len(verified_results)} active subdomains.")
-        
-        # Sort by subdomain name
         verified_results.sort(key=lambda x: x['subdomain'])
         results["subdomains"] = verified_results
 
-        # 3. Reverse DNS (keep existing logic)
-        # Flatten IPs from subdomains into a set to reverse scan all interesting IPs
+        # 2b. Check Takeovers on Discovered Subdomains
+        logger.info("Checking subdomains for takeover risks...")
+        if "takeover_risks" not in results:
+            results["takeover_risks"] = []
+            
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            # Helper to check a single sub
+            def check_sub_cname(sub_entry):
+                sub_domain = sub_entry['subdomain']
+                try:
+                    cname_answers = shared_resolver.resolve(sub_domain, 'CNAME')
+                    for cname_val in cname_answers:
+                        cname_str = str(cname_val).rstrip('.')
+                        risk = self._check_takeover(cname_str)
+                        if risk:
+                            risk["subdomain"] = sub_domain
+                            return risk
+                except:
+                    pass
+                return None
+
+            future_to_cname = {executor.submit(check_sub_cname, sub): sub for sub in verified_results}
+            for future in concurrent.futures.as_completed(future_to_cname):
+                res = future.result()
+                if res:
+                    results["takeover_risks"].append(res)
+                    logger.warning(f"Takeover Risk detected on subdomain! {res['subdomain']} -> {res['cname']} ({res['provider']})")
+
+        # 3. Reverse DNS
         all_ips = set()
         if 'A' in results["records"] and results["records"]['A']:
              all_ips.update(results["records"]['A'])
-        
         for sub in verified_results:
             all_ips.update(sub.get('ips', []))
             
-        results["reverse_dns"] = {}
-        # Limit reverse DNS to avoid taking forever if hundreds of IPs
-        # maybe top 20 or just do all? 500 IPs is okay-ish.
         if len(all_ips) > 0:
-            logger.info("Starting Reverse DNS checks...")
-            
-        for i, ip in enumerate(all_ips):
-            if i > 200: break # Hard cap to prevent timeout
-            
-            entry = {"hostnames": [], "verified": False}
-            try:
-                # 1. Reverse
-                rev_name = dns.reversename.from_address(ip)
-                ptr_answers = resolver.resolve(rev_name, "PTR")
-                hostnames = [str(r).rstrip('.') for r in ptr_answers]
-                entry["hostnames"] = hostnames
-                
-                # 2. Forward verify
-                for hostname in hostnames:
-                    try:
-                        fwd_answers = resolver.resolve(hostname, "A")
-                        fwd_ips = [str(r) for r in fwd_answers]
-                        if ip in fwd_ips:
-                            entry["verified"] = True
-                            break
-                    except:
-                        continue
-            except:
-                pass # Silent fail for PTR
-            
-            if entry["hostnames"]:
-                results["reverse_dns"][ip] = entry
+            for i, ip in enumerate(all_ips):
+                if i > 200: break
+                entry = {"hostnames": [], "verified": False}
+                try:
+                    rev_name = dns.reversename.from_address(ip)
+                    ptr_answers = resolver.resolve(rev_name, "PTR")
+                    hostnames = [str(r).rstrip('.') for r in ptr_answers]
+                    entry["hostnames"] = hostnames
+                    for hostname in hostnames:
+                        try:
+                            fwd_answers = resolver.resolve(hostname, "A")
+                            if ip in [str(r) for r in fwd_answers]:
+                                entry["verified"] = True
+                                break
+                        except:
+                            continue
+                except:
+                    pass
+                if entry["hostnames"]:
+                    results["reverse_dns"][ip] = entry
 
         return results
 

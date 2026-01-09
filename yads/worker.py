@@ -7,7 +7,7 @@ import dns.resolver
 
 from yads.config import settings
 from yads.core.logging_config import configure_logging
-from yads.modules.dns_scanner import DNSScanner
+from yads.modules.dns_scanner import SubdomainScanner, DNSRecordScanner
 from yads.modules.web_analyzer import WebAnalyzer
 from yads.modules.visual_osint import VisualOSINT
 
@@ -48,6 +48,8 @@ class LogCapture:
         return self.log_stream.getvalue()
 
 
+import socket
+
 @celery_app.task(name="yads.worker.run_all_scans")
 def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
     """
@@ -56,10 +58,18 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
     If scan_types is None, runs all available scanners.
     """
     if scan_types is None:
-        scan_types = ["dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner"]
+        # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
+        scan_types = ["subdomain_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
-    
+
+    def check_port(host, port, timeout=2):
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except:
+            return False
+
     with Session(engine) as session:
         # Update Status to Running
         try:
@@ -75,74 +85,115 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
         except Exception as e:
             logger.error(f"[Worker] Failed to update start status: {e}")
             session.rollback()
-            # If we can't confirm target exists/status, safe to abort? 
-            # If it was a connection error, maybe. But if we proceed, we hit FK errors.
             return
 
-        # 1. Run DNS Scanner
-        if "dns_scanner" in scan_types:
+        # Pre-check web availability to skip heavy web scans if offline
+        has_http = False
+        has_https = False
+        
+        # Only perform checks if web modules are requested
+        if any(x in scan_types for x in ["web_analyzer", "visual_osint", "ssl_scanner"]):
+            logger.info(f"[Worker] Pre-checking web ports for {domain}...")
+            has_http = check_port(domain, 80)
+            has_https = check_port(domain, 443)
+            logger.info(f"[Worker] Web Pre-check: HTTP={has_http}, HTTPS={has_https}")
+
+        # 1. Run Subdomain Scanner (Heavy)
+        # Replaces old "dns_scanner" logic for full enumeration
+        if "subdomain_scanner" in scan_types:
             try:
-                # Update Status explicitly
                 t = session.get(Target, target_id)
                 if t:
-                    t.scan_progress = "Running DNS Scanner..."
+                    t.scan_progress = "Running Subdomain Scanner..."
                     session.add(t)
                     session.commit()
 
-                dns = DNSScanner(db_session=session)
-                logger.info(f"[Worker] Step 1: Running {dns.module_name}...")
+                from yads.modules.dns_scanner import SubdomainScanner
+                # Only use crt.sh if SSL Scanner is also selected (per user request)
+                use_ct = "ssl_scanner" in scan_types
+                sub_scan = SubdomainScanner(db_session=session, use_ct_logs=use_ct)
+                logger.info(f"[Worker] Running {sub_scan.module_name} (CRT.sh: {use_ct})...")
                 
                 with LogCapture() as logs:
-                    logger.info(f"Starting {dns.module_name} for {domain}")
-                    result = dns.process(target_id, domain)
+                    logger.info(f"Starting {sub_scan.module_name} for {domain}")
+                    result = sub_scan.process(target_id, domain)
                     captured_logs = logs.get_logs()
                 
                 if result:
-                    print(f"[Worker] {dns.module_name} found changes/new data.")
-                    # Update the ScanResult with logs if it was created/returned
-                    # Note: process() returns the ScanResult object (or ModuleState if no change? Access pattern differs)
-                    # The scan modules usually commit inside process(). We need to fetch the last Result.
-                    # Ideally process() should return the Result object.
-                    # Looking at dns_scanner.py, process() returns the ScanResult or None.
+                    print(f"[Worker] {sub_scan.module_name} found changes/new data.")
                     if isinstance(result, object) and hasattr(result, 'log_content'):
                          result.log_content = captured_logs
                          session.add(result)
                          session.commit()
-
                 else:
-                     print(f"[Worker] {dns.module_name} no change.")
+                     print(f"[Worker] {sub_scan.module_name} no change.")
             except Exception as e:
-                logger.error(f"[Worker] Error in DNS Scanner: {e}")
+                logger.error(f"[Worker] Error in Subdomain Scanner: {e}")
                 session.rollback()
 
-        # 2. Run Web Scanner
-        if "web_analyzer" in scan_types:
+        # 1b. Run DNS Record Scanner (Light)
+        if "dns_scanner" in scan_types:
             try:
                 t = session.get(Target, target_id)
                 if t:
-                    t.scan_progress = "Running Web Analyzer..."
+                    t.scan_progress = "Running DNS Record Scanner..."
                     session.add(t)
                     session.commit()
 
-                web = WebAnalyzer(db_session=session)
-                logger.info(f"[Worker] Step 2: Running {web.module_name}...")
+                from yads.modules.dns_scanner import DNSRecordScanner
+                dns_scan = DNSRecordScanner(db_session=session)
+                logger.info(f"[Worker] Running {dns_scan.module_name}...")
+                
                 with LogCapture() as logs:
-                    logger.info(f"Starting {web.module_name} for {domain}")
-                    result = web.process(target_id, domain)
+                    logger.info(f"Starting {dns_scan.module_name} for {domain}")
+                    result = dns_scan.process(target_id, domain)
                     captured_logs = logs.get_logs()
                 
                 if result and hasattr(result, 'log_content'):
                      result.log_content = captured_logs
                      session.add(result)
                      session.commit()
-                     print(f"[Worker] {web.module_name} found changes/new data.")
-                else:
-                     print(f"[Worker] {web.module_name} no change.")
             except Exception as e:
-                logger.error(f"[Worker] Error in Web Analyzer: {e}")
+                logger.error(f"[Worker] Error in DNS Record Scanner: {e}")
                 session.rollback()
 
-        # 3. Run Typosquat Scanner
+        # 2. Run Web Scanner
+        # Dependency: CVE Scanner requires Web Analyzer
+        if "cve_scanner" in scan_types and "web_analyzer" not in scan_types:
+             logger.info("[Worker] Auto-enabling Web Analyzer for CVE Scanner dependency.")
+             scan_types.append("web_analyzer")
+
+        if "web_analyzer" in scan_types:
+            if not (has_http or has_https):
+                logger.info("[Worker] Skipping Web Analyzer: Port 80/443 closed (Optimization).")
+            else:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Web Analyzer..."
+                        session.add(t)
+                        session.commit()
+
+                    enable_cves = "cve_scanner" in scan_types
+                    web = WebAnalyzer(db_session=session, enable_cves=enable_cves)
+                    logger.info(f"[Worker] Step 2: Running {web.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {web.module_name} for {domain}")
+                        result = web.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {web.module_name} found changes/new data.")
+                    else:
+                        print(f"[Worker] {web.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Web Analyzer: {e}")
+                    session.rollback()
+
+        # 3. Run Typosquat Scanner (Independent of Web)
         if "typosquat_scanner" in scan_types:
             try:
                 t = session.get(Target, target_id)
@@ -170,7 +221,7 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                 logger.error(f"[Worker] Error in Typosquat Scanner: {e}")
                 session.rollback()
 
-        # 4. Run Infrastructure Scanner
+        # 4. Run Infrastructure Scanner (Independent)
         if "infrastructure_scanner" in scan_types:
             try:
                 t = session.get(Target, target_id)
@@ -200,104 +251,251 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
 
         # 5. Run Visual OSINT
         if "visual_osint" in scan_types:
+            if not (has_http or has_https):
+                logger.info("[Worker] Skipping Visual OSINT: Port 80/443 closed (Optimization).")
+            else:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Visual OSINT..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.visual_osint import VisualOSINT
+                    vis = VisualOSINT(db_session=session)
+                    logger.info(f"[Worker] Step 5: Running {vis.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {vis.module_name} for {domain}")
+                        result = vis.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {vis.module_name} found changes/new data.")
+                    else:
+                        print(f"[Worker] {vis.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Visual OSINT: {e}")
+                    session.rollback()
+
+        # 5b. Run Wayback Scanner (Archive)
+        if "wayback_scanner" in scan_types:
             try:
                 t = session.get(Target, target_id)
                 if t:
-                    t.scan_progress = "Running Visual OSINT..."
+                    t.scan_progress = "Checking Wayback Machine..."
                     session.add(t)
                     session.commit()
 
-                from yads.modules.visual_osint import VisualOSINT
-                vis = VisualOSINT(db_session=session)
-                logger.info(f"[Worker] Step 5: Running {vis.module_name}...")
+                from yads.modules.wayback_scanner import WaybackScanner
+                wb = WaybackScanner(db_session=session)
+                logger.info(f"[Worker] Step 5b: Running {wb.module_name}...")
                 with LogCapture() as logs:
-                    logger.info(f"Starting {vis.module_name} for {domain}")
-                    result = vis.process(target_id, domain)
+                    logger.info(f"Starting {wb.module_name} for {domain}")
+                    result = wb.process(target_id, domain)
                     captured_logs = logs.get_logs()
                 
                 if result and hasattr(result, 'log_content'):
                      result.log_content = captured_logs
                      session.add(result)
                      session.commit()
-                     print(f"[Worker] {vis.module_name} found changes/new data.")
-                else:
-                     print(f"[Worker] {vis.module_name} no change.")
+                     print(f"[Worker] {wb.module_name} found changes/new data.")
             except Exception as e:
-                logger.error(f"[Worker] Error in Visual OSINT: {e}")
+                logger.error(f"[Worker] Error in Wayback Scanner: {e}")
                 session.rollback()
     
         # 6. Run SSL Scanner
         if "ssl_scanner" in scan_types:
+            if not has_https: # Strict check for SSL
+                # Optimization: if port 443 closed, likely no SSL to scan.
+                # NOTE: Some SSL might be on 8443, etc. but scanner currently defaults to 443.
+                logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
+            else:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running SSL Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.ssl_scanner import SSLScanner
+                    ssl_mod = SSLScanner(db_session=session)
+                    logger.info(f"[Worker] Step 6: Running {ssl_mod.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ssl_mod.module_name} for {domain}")
+                        result = ssl_mod.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                         result.log_content = captured_logs
+                         session.add(result)
+                         
+                         # Check for extracted domains from SSL Certificates
+                         if result.data and "extracted_domains" in result.data:
+                             extracted = result.data["extracted_domains"]
+                             new_found = 0
+                             import dns.resolver
+                             
+                             for edomain in extracted:
+                                 edomain = edomain.strip().lower()
+                                 if not edomain: continue
+                                 
+                                 # Verify DNS first (Active Check)
+                                 # We only add if it resolves, per user preference
+                                 resolves = False
+                                 try:
+                                     dns.resolver.resolve(edomain, 'A')
+                                     resolves = True
+                                 except:
+                                     try:
+                                         dns.resolver.resolve(edomain, 'AAAA')
+                                         resolves = True
+                                     except:
+                                         resolves = False
+                                 
+                                 if resolves:
+                                     # Check DB existence
+                                     existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
+                                     if not existing_t:
+                                         new_target = Target(domain=edomain)
+                                         session.add(new_target)
+                                         session.commit() # Commit to get ID
+                                         session.refresh(new_target)
+                                         new_found += 1
+                                         print(f"[Worker] Discovered and added new target from SSL: {edomain}")
+                             
+                             if new_found > 0:
+                                 print(f"[Worker] SSL Discovery added {new_found} new targets.")
+
+                         session.commit()
+                         print(f"[Worker] {ssl_mod.module_name} found changes/new data.")
+                    else:
+                         print(f"[Worker] {ssl_mod.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in SSL Scanner: {e}")
+                    session.rollback()
+
+        # 7. Run Slow Crawler
+        if "crawler" in scan_types:
+            if not has_http and not has_https:
+                logger.info("[Worker] Skipping Crawler: Port 80/443 closed (Optimization).")
+            else:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Site Crawler..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.crawler import Crawler
+                    crawl = Crawler(db_session=session)
+                    logger.info(f"[Worker] Step 7: Running {crawl.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {crawl.module_name} for {domain}")
+                        result = crawl.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                         result.log_content = captured_logs
+                         session.add(result)
+                         session.commit()
+                         print(f"[Worker] {crawl.module_name} found changes/new data.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Crawler: {e}")
+                    session.rollback()
+
+        # 8. Run Wayback Scanner
+        if "wayback_scanner" in scan_types:
             try:
                 t = session.get(Target, target_id)
                 if t:
-                    t.scan_progress = "Running SSL Scanner..."
+                    t.scan_progress = "Running Wayback Machine..."
                     session.add(t)
                     session.commit()
 
-                from yads.modules.ssl_scanner import SSLScanner
-                ssl_mod = SSLScanner(db_session=session)
-                logger.info(f"[Worker] Step 6: Running {ssl_mod.module_name}...")
+                from yads.modules.wayback_scanner import WaybackScanner
+                wb_scan = WaybackScanner(db_session=session)
+                logger.info(f"[Worker] Step 8: Running {wb_scan.module_name}...")
                 with LogCapture() as logs:
-                    logger.info(f"Starting {ssl_mod.module_name} for {domain}")
-                    result = ssl_mod.process(target_id, domain)
+                    logger.info(f"Starting {wb_scan.module_name} for {domain}")
+                    result = wb_scan.process(target_id, domain)
+                    captured_logs = logs.get_logs()
+                
+                if result: 
+                    # Note: process() now returns result even if unchanged, so we can save logs
+                    if isinstance(result, object) and hasattr(result, 'log_content'):
+                         result.log_content = captured_logs
+                         session.add(result)
+                         session.commit()
+                    print(f"[Worker] {wb_scan.module_name} finished.")
+            except Exception as e:
+                logger.error(f"[Worker] Error in Wayback Scanner: {e}")
+                session.rollback()
+
+        # 9. Run Content Discovery (Fuzzing)
+        if "content_discovery" in scan_types:
+            if not (has_http or has_https):
+                logger.info("[Worker] Skipping Content Discovery: Port 80/443 closed.")
+            else:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Content Discovery (Fuzzing)..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.content_discovery import ContentDiscoveryScanner
+                    cd_scan = ContentDiscoveryScanner(db_session=session)
+                    logger.info(f"[Worker] Step 9: Running {cd_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {cd_scan.module_name} for {domain}")
+                        result = cd_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {cd_scan.module_name} found changes/new data.")
+                    else:
+                        print(f"[Worker] {cd_scan.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Content Discovery: {e}")
+                    session.rollback()
+
+        # 10. Run TLD Scanner
+        if "tld_scanner" in scan_types:
+            try:
+                t = session.get(Target, target_id)
+                if t:
+                    t.scan_progress = "Running TLD Scanner..."
+                    session.add(t)
+                    session.commit()
+
+                from yads.modules.tld_scanner import TLDScanner
+                tld_scan = TLDScanner(db_session=session)
+                logger.info(f"[Worker] Step 10: Running {tld_scan.module_name}...")
+                with LogCapture() as logs:
+                    logger.info(f"Starting {tld_scan.module_name} for {domain}")
+                    result = tld_scan.process(target_id, domain)
                     captured_logs = logs.get_logs()
                 
                 if result and hasattr(result, 'log_content'):
-                     result.log_content = captured_logs
-                     session.add(result)
-                     
-                     # Check for extracted domains from SSL Certificates
-                     if result.data and "extracted_domains" in result.data:
-                         extracted = result.data["extracted_domains"]
-                         new_found = 0
-                         import dns.resolver
-                         
-                         for edomain in extracted:
-                             edomain = edomain.strip().lower()
-                             if not edomain: continue
-                             
-                             # Verify DNS first (Active Check)
-                             # We only add if it resolves, per user preference
-                             resolves = False
-                             try:
-                                 dns.resolver.resolve(edomain, 'A')
-                                 resolves = True
-                             except:
-                                 try:
-                                     dns.resolver.resolve(edomain, 'AAAA')
-                                     resolves = True
-                                 except:
-                                     resolves = False
-                             
-                             if resolves:
-                                 # Check DB existence
-                                 existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
-                                 if not existing_t:
-                                     new_target = Target(domain=edomain)
-                                     session.add(new_target)
-                                     session.commit() # Commit to get ID
-                                     session.refresh(new_target)
-                                     
-                                     # Optionally trigger scan?
-                                     # celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain])
-                                     new_found += 1
-                                     print(f"[Worker] Discovered and added new target from SSL: {edomain}")
-                         
-                         if new_found > 0:
-                             print(f"[Worker] SSL Discovery added {new_found} new targets.")
-
-                     session.commit()
-                     print(f"[Worker] {ssl_mod.module_name} found changes/new data.")
+                    result.log_content = captured_logs
+                    session.add(result)
+                    session.commit()
+                    print(f"[Worker] {tld_scan.module_name} finished.")
                 else:
-                     print(f"[Worker] {ssl_mod.module_name} no change.")
+                    print(f"[Worker] {tld_scan.module_name} finished.")
+
             except Exception as e:
-                logger.error(f"[Worker] Error in SSL Scanner: {e}")
+                logger.error(f"[Worker] Error in TLD Scanner: {e}")
                 session.rollback()
 
         # Subdomain Discovery & Auto-Queue Logic
-        # We ALWAYS want to add discovered subdomains to the DB.
-        # We ONLY queue them for scanning if AUTO_QUEUE_SUBDOMAINS is enabled.
+        # Updated to check 'subdomain_scanner' result as the primary source of subdomains
         
         auto_queue_enabled = settings.AUTO_QUEUE_SUBDOMAINS
         try:
@@ -309,16 +507,24 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
             pass
 
         try:
-             # Check for DNS results from this run
+             # Check for Subdomain Scanner results first
              from yads.models import ScanResult
-             dns_res = session.exec(select(ScanResult).where(
+             
+             # Prioritize 'subdomain_scanner' if present
+             sub_res = session.exec(select(ScanResult).where(
                  ScanResult.target_id == target_id,
-                 ScanResult.module_name == "dns_scanner"
+                 ScanResult.module_name == "subdomain_scanner"
              ).order_by(ScanResult.scanned_at.desc())).first()
+             
+             # Fallback to legacy 'dns_scanner' if subdomain_scanner didn't run effectively
+             if not sub_res:
+                 sub_res = session.exec(select(ScanResult).where(
+                     ScanResult.target_id == target_id,
+                     ScanResult.module_name == "dns_scanner"
+                 ).order_by(ScanResult.scanned_at.desc())).first()
 
-             if dns_res and dns_res.data and "subdomains" in dns_res.data:
-                 subs = dns_res.data["subdomains"]
-                 # Format: [{"subdomain": "foo.example.com", "ips": [...]}, ...]
+             if sub_res and sub_res.data and "subdomains" in sub_res.data:
+                 subs = sub_res.data["subdomains"]
                  
                  new_targets_count = 0
                  queued_count = 0
@@ -327,7 +533,6 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                      sub_domain = entry.get("subdomain")
                      if sub_domain and sub_domain != domain: # Avoid self-loop
                          
-                         # Trust the scanner's verification (it already resolved IPs)
                          resolves = True
                          
                          # Check existence
@@ -357,7 +562,6 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
 
         # Reset status
         try:
-             # Refresh session or re-fetch?
              t = session.get(Target, target_id)
              if t:
                  t.scan_status = "idle"
