@@ -16,3 +16,6 @@ ipwhois
 fpdf2
 pandas
 openpyxl
+python-whois
+Pillow
+imagehash

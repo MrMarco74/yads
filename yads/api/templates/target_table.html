@@ -123,13 +123,30 @@
                 </select>
             </div>
             
+            {% if filter_server %}
+            <div class="flex items-center gap-1.5 px-3 py-1 bg-indigo-900/50 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium">
+                <span>Server: {{ filter_server }}</span>
+                <a href="?filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or '' }}&filter_asn={{ filter_asn or '' }}" class="hover:text-white ml-1">&times;</a>
+            </div>
+            <input type="hidden" name="filter_server" value="{{ filter_server }}">
+            {% endif %}
+
+            {% if filter_asn %}
+            <div class="flex items-center gap-1.5 px-3 py-1 bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium">
+                <span>ASN: {{ filter_asn }}</span>
+                <a href="?filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or '' }}&filter_server={{ filter_server or '' }}" class="hover:text-white ml-1">&times;</a>
+            </div>
+            <input type="hidden" name="filter_asn" value="{{ filter_asn }}">
+            {% endif %}
+
+            
             <!-- Hidden inputs to preserve page limit if using it -->
             {% if pagination and pagination.limit != 20 %}
                 <input type="hidden" name="limit" value="{{ pagination.limit }}">
             {% endif %}
 
             <div class="ml-auto flex items-center gap-2">
-                 {% if filter_online != 'all' or filter_last_scan != 'all' or filter_tag %}
+                 {% if filter_online != 'all' or filter_last_scan != 'all' or filter_tag or filter_server or filter_asn %}
                     <a href="/targets/table" class="text-xs text-red-400 hover:text-red-300 underline">Clear Filters</a>
                  {% endif %}
             </div>
@@ -153,8 +170,12 @@
                         <div class="text-xs font-semibold text-gray-400 mb-2 px-1">Scan Types</div>
                         <div class="space-y-1">
                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="dns_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">DNS Scanner</span>
+                                <input type="checkbox" name="scan_types" value="subdomain_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Subdomain Recon</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="dns_scanner" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">DNS Records (Simple)</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="web_analyzer" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
@@ -163,6 +184,10 @@
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="typosquat_scanner" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-gray-200">Typosquatting</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cve_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">CVE Scanner</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="infrastructure_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
@@ -175,6 +200,18 @@
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="visual_osint" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-gray-200">Visual OSINT</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="wayback_scanner" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Wayback Machine</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="crawler" checked class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">Site Crawler</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="tld_scanner" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-200">TLD Scanner</span>
                             </label>
                         </div>
                     </div>
@@ -210,11 +247,16 @@
                             <th class="p-4">HTTPS</th>
                             <th class="p-4">Redir</th>
                             <th class="p-4">Wildcard</th>
+                            <th class="p-4">TLDs</th>
                             <th class="p-4">Status</th>
                             <th class="p-4">Last Scan</th>
                             <th class="p-4">DNS</th>
                             <th class="p-4">SSL Cert</th>
+                            <th class="p-4">Cipher Compliance</th>
                             <th class="p-4">Server / ASN</th>
+                            <th class="p-4">Secrets</th>
+                            <th class="p-4">CVEs</th>
+                            <th class="p-4">Takeover</th>
                             <th class="p-4 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -322,6 +364,29 @@
                                 {% endif %}
                             </td>
                             <td class="p-4">
+                                {% if row.tld_stats %}
+                                    <div class="flex items-center gap-2">
+                                        {% if row.tld_stats.free_count > 0 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-900/50 text-orange-300 border border-orange-700/50" title="{{ row.tld_stats.free_count }} Unregistered TLDs">
+                                                {{ row.tld_stats.free_count }}
+                                            </span>
+                                        {% endif %}
+                                        
+                                        {% if row.tld_stats.registered_count_diff_owner > 0 %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-300 border border-red-700/50" title="{{ row.tld_stats.registered_count_diff_owner }} Registered (Different Owner)">
+                                                {{ row.tld_stats.registered_count_diff_owner }}
+                                            </span>
+                                        {% endif %}
+                                        
+                                        {% if row.tld_stats.free_count == 0 and row.tld_stats.registered_count_diff_owner == 0 %}
+                                            <span class="text-gray-500 text-xs">0 / 0</span>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-gray-600 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4">
                                 {% if row.target.scan_status == 'running' %}
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
                                         <span class="relative flex h-2 w-2">
@@ -374,14 +439,84 @@
                                 </div>
                             </td>
                             <td class="p-4">
+                                <div class="flex items-center gap-4">
+                                    <div class="flex items-center gap-1.5" title="Compliant Ciphers">
+                                        <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                        <span class="text-sm font-bold font-mono text-green-400">{{ row.cipher_compliant }}</span>
+                                    </div>
+                                    <div class="bg-gray-700 h-5 w-px"></div>
+                                    <div class="flex items-center gap-1.5" title="Non-Compliant Ciphers">
+                                        <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        <span class="text-sm font-bold font-mono text-red-400">{{ row.cipher_non_compliant }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="p-4">
                                 <div class="flex flex-col gap-1">
                                     {% if row.web_server %}
-                                        <span class="text-white text-xs">{{ row.web_server }}</span>
+                                        <a href="?filter_server={{ row.web_server }}&filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or ''}}" class="text-white text-sm font-medium hover:text-indigo-400 hover:underline transition-colors" title="Filter by Server">{{ row.web_server }}</a>
                                     {% endif %}
                                     {% if row.asn %}
-                                        <span class="text-[10px] text-gray-500">ASN: {{ row.asn }}</span>
+                                        <a href="?filter_asn={{ row.asn }}&filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or ''}}" class="text-xs text-gray-500 hover:text-gray-300 hover:underline transition-colors block" title="Filter by ASN">ASN: {{ row.asn }}</a>
                                     {% endif %}
                                 </div>
+                            </td>
+                            <td class="p-4">
+                                <div class="flex flex-col gap-1.5 min-w-[60px]">
+                                    {% if row.secrets_count > 0 %}
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-900/80 text-pink-200 border border-pink-500/50 shadow-sm shadow-pink-900/50 animate-pulse">
+                                            FOUND: {{ row.secrets_count }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-gray-600 text-xs">-</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                <div class="flex flex-col gap-1.5 min-w-[80px]">
+                                    {% if row.cve_stats and (row.cve_stats.critical > 0 or row.cve_stats.high > 0 or row.cve_stats.medium > 0 or row.cve_stats.low > 0) %}
+                                        {% if row.cve_stats.critical > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/80 text-white border border-red-500 shadow-sm shadow-red-900/50">
+                                                CRIT: {{ row.cve_stats.critical }}
+                                            </span>
+                                        {% endif %}
+                                        {% if row.cve_stats.high > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-900/80 text-orange-200 border border-orange-500/50">
+                                                HIGH: {{ row.cve_stats.high }}
+                                            </span>
+                                        {% endif %}
+                                         {% if row.cve_stats.medium > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-600/30">
+                                                MED: {{ row.cve_stats.medium }}
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-gray-600 text-xs">-</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                {% if row.takeover_risks %}
+                                    <div class="relative group">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-400 border border-red-500/30 animate-pulse cursor-help">
+                                            {{ row.takeover_risks|length }} Risk(s)
+                                        </span>
+                                        <!-- Tooltip -->
+                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-gray-900 border border-gray-700 rounded-lg p-2 shadow-xl z-50">
+                                            <p class="text-xs font-bold text-gray-300 mb-1">Potential Takeovers:</p>
+                                            <ul class="space-y-1">
+                                                {% for risk in row.takeover_risks %}
+                                                <li class="text-[10px] text-gray-400">
+                                                    <span class="text-red-400 font-mono">{{ risk.subdomain or row.target.domain }}</span> 
+                                                    &rarr; {{ risk.provider }}
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <span class="text-gray-600 text-xs">-</span>
+                                {% endif %}
                             </td>
 
                             <td class="p-4 text-right">

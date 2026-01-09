@@ -11,6 +11,14 @@
             </div>
         </div>
         
+        <!-- Actions -->
+        <div class="flex items-center gap-4">
+             <button onclick="runBestEntrypointAnalysis()" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-900 shadow-lg flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                Find Best Entrypoint
+            </button>
+        </div>
+
         <!-- Target Filter -->
         <div class="flex items-center gap-4">
             <!-- Filter: Tag -->
@@ -35,20 +43,183 @@
         </div>
     </div>
 
-    <!-- ... (No Data Message and Charts) ... -->
+    <!-- No Data Message -->
+    <div id="no-data-msg" class="hidden flex flex-col items-center justify-center py-16 text-gray-500">
+        <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        <p class="text-lg font-medium">No analytics data available.</p>
+        <p class="text-sm">Run scan modules (Infrastructure, Visual) to populate this view.</p>
+    </div>
 
-<!-- Chart.js -->
+    <!-- Charts Grid -->
+    <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
+        
+        <!-- Vulnerability Profile -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg lg:col-span-2">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Security Posture (CVEs)
+            </h3>
+            <div class="relative h-48">
+                <canvas id="vulnChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tech Stack Chart -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+             <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                Web Server Technology
+            </h3>
+            <div class="relative h-64">
+                <canvas id="techStackChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Cloud Provider Chart -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                Cloud Providers
+            </h3>
+            <div class="relative h-64">
+                <canvas id="cloudProviderChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Status Code Chart -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Status Code Health
+            </h3>
+            <div class="relative h-64">
+                <canvas id="locationChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Critical Risk Feed -->
+        <div class="bg-red-900/10 border border-red-500/20 rounded-xl p-6 shadow-lg lg:col-span-2">
+            <h3 class="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Critical Risk Feed
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                        <tr>
+                            <th class="px-4 py-2">Severity</th>
+                            <th class="px-4 py-2">Type</th>
+                            <th class="px-4 py-2">Issue</th>
+                            <th class="px-4 py-2">Details</th>
+                             <th class="px-4 py-2 text-right">Target</th>
+                        </tr>
+                    </thead>
+                    <tbody id="risk-feed-body" class="divide-y divide-gray-800">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Health Section -->
+    <div id="security-health-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+        <!-- SSL Expiry -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                SSL Expiry Timeline
+            </h3>
+            <div class="relative h-64">
+                <canvas id="sslChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Reputation Monitor -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                Reputation Monitor
+            </h3>
+            <div id="reputation-list" class="h-64 overflow-y-auto pr-2 space-y-3">
+                <!-- Populated by JS -->
+                <div class="text-gray-500 text-sm text-center py-12">No blacklisted IPs found.</div>
+            </div>
+        </div>
+
+        <!-- Open Buckets -->
+        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                Open Bucket Alerts
+            </h3>
+            <div id="buckets-list" class="h-64 overflow-y-auto pr-2 space-y-3">
+                <!-- Populated by JS -->
+                <div class="text-gray-500 text-sm text-center py-12">No public buckets detected.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Map -->
+    <div id="global-map-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Global Server Map
+        </h3>
+        <div id="geoChart" class="w-full h-96 rounded-lg overflow-hidden"></div>
+    </div>
+
+<!-- Analysis Modal -->
+<div id="analysis-modal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-gray-900/80 backdrop-blur-sm">
+    <div class="relative p-4 w-full max-w-2xl h-full md:h-auto mx-auto mt-20">
+        <div class="relative bg-gray-800 rounded-lg shadow-2xl border border-gray-700">
+            <div class="flex justify-between items-start p-4 rounded-t border-b border-gray-700">
+                <h3 class="text-xl font-semibold text-white">
+                    🎯 Recommended Entrypoint Analysis
+                </h3>
+                <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-700 hover:text-white rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" onclick="document.getElementById('analysis-modal').classList.add('hidden')">
+                    <svg aria-hidden="true" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-6">
+                <!-- Result Container -->
+                <div id="analysis-result" class="text-gray-300">
+                    <div class="animate-pulse flex space-x-4">
+                        <div class="flex-1 space-y-4 py-1">
+                            <div class="h-4 bg-gray-700 rounded w-3/4"></div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-700 rounded"></div>
+                                <div class="h-4 bg-gray-700 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Google Charts -->
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     
     // Global Chart Config for Dark Mode / Visibility
-    Chart.defaults.color = '#9ca3af'; // gray-400
-    Chart.defaults.borderColor = '#374151'; // gray-700
+    Chart.defaults.color = '#9ca3af'; 
+    Chart.defaults.borderColor = '#374151'; 
+
+    // Google GeoChart Logic - Initialization moved to top
+    let isGoogleLoaded = false;
+    google.charts.load('current', {
+        'packages': ['geochart']
+    });
+    google.charts.setOnLoadCallback(() => { isGoogleLoaded = true; });
     
     let cloudChart = null;
-    let locationChart = null;
+    let locationChart = null; // Renamed to Status Code Chart actually in previous step, ensuring variable names consistent
 
     // Load Tags
     try {
@@ -71,13 +242,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Filter Listeners
     document.getElementById('target-select').addEventListener('change', (e) => {
-        // Clear Tag Select if Target is chosen (mutually exclusive specific filter)
         if(e.target.value) document.getElementById('tag-select').value = "";
         loadData(e.target.value, "");
     });
     
     document.getElementById('tag-select').addEventListener('change', (e) => {
-        // Clear Target Select if Tag is chosen
         if(e.target.value) document.getElementById('target-select').value = "";
         loadData("", e.target.value);
     });
@@ -100,20 +269,238 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (!hasData) {
                 document.getElementById('charts-container').classList.add('hidden');
+                // document.getElementById('global-map-container').classList.add('hidden'); // keep map hidden if no data?
                 document.getElementById('no-data-msg').classList.remove('hidden');
             } else {
                 document.getElementById('charts-container').classList.remove('hidden');
+                document.getElementById('global-map-container').classList.remove('hidden'); 
                 document.getElementById('no-data-msg').classList.add('hidden');
                 renderCharts(data);
+                renderMap(data.countries);
             }
+
+            // Load Security Data concurrently
+            loadSecurityRisks();
             
         } catch (error) {
             console.error("Failed to fetch analytics:", error);
         }
     }
 
+    async function loadSecurityRisks() {
+        try {
+            const resp = await fetch('/api/stats/security-risks');
+            if(resp.ok) {
+                const data = await resp.json();
+                
+                // Show container if we have any data relevant to security
+                // Or just always show? Let's show.
+                document.getElementById('security-health-container').classList.remove('hidden');
+                
+                renderSecurityCharts(data);
+            }
+        } catch(e) { console.error("Sec stats error", e); }
+    }
+
+    let sslChart = null;
+
+    function renderSecurityCharts(data) {
+        // --- SSL Expiry (Bar) ---
+        const sslCtx = document.getElementById('sslChart').getContext('2d');
+        const sslData = data.ssl_timeline || [];
+        
+        // Take top 10 soonest
+        const topSSL = sslData.slice(0, 10);
+        const labels = topSSL.map(i => i.target);
+        const values = topSSL.map(i => i.days_left);
+        const colors = topSSL.map(i => {
+           if (i.days_left < 7) return '#EF4444';
+           if (i.days_left < 30) return '#F59E0B'; 
+           return '#10B981';
+        });
+
+        if (sslChart) sslChart.destroy();
+        sslChart = new Chart(sslCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Days to Expiry',
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#9ca3af' } },
+                    y: { grid: { display: false }, ticks: { color: '#e5e7eb' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // --- Reputation List ---
+        const repList = document.getElementById('reputation-list');
+        repList.innerHTML = '';
+        if (data.reputation_issues && data.reputation_issues.length > 0) {
+            data.reputation_issues.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-red-900/20 border border-red-500/30 rounded flex justify-between items-center';
+                
+                let issuesHtml = '';
+                if (Array.isArray(item.issues)) {
+                    item.issues.forEach(issue => {
+                         if (typeof issue === 'object' && issue !== null && issue.link) {
+                              issuesHtml += `<a href="${issue.link}" target="_blank" class="hover:underline hover:text-red-200 cursor-pointer flex items-center gap-1 justify-end">${issue.message} <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`;
+                         } else {
+                              issuesHtml += `<div>${issue}</div>`;
+                         }
+                    });
+                } else {
+                     issuesHtml = item.issues; // Fallback
+                }
+
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-white text-sm">${item.target}</div>
+                        <div class="text-xs text-red-300">${item.ip}</div>
+                    </div>
+                    <div class="text-right text-xs text-red-400 space-y-1">
+                        ${issuesHtml}
+                    </div>
+                `;
+                repList.appendChild(div);
+            });
+        } else {
+             repList.innerHTML = '<div class="text-gray-500 text-sm text-center py-12 flex flex-col items-center"><svg class="w-8 h-8 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>Clean Reputation</div>';
+        }
+
+        // --- Open Buckets List ---
+        const bucketList = document.getElementById('buckets-list');
+        bucketList.innerHTML = '';
+        if (data.open_buckets && data.open_buckets.length > 0) {
+            data.open_buckets.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-yellow-900/20 border border-yellow-500/30 rounded flex justify-between items-center';
+                div.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="font-bold text-white text-sm truncate w-32 md:w-40" title="${item.target}">${item.target}</div>
+                        <a href="${item.url}" target="_blank" class="text-xs text-yellow-300 hover:underline truncate block" title="${item.url}">${item.url}</a>
+                    </div>
+                    <span class="px-2 py-0.5 rounded bg-yellow-900 text-yellow-200 text-xs font-bold border border-yellow-600">
+                        PUBLIC
+                    </span>
+                `;
+                bucketList.appendChild(div);
+            });
+        } else {
+            bucketList.innerHTML = '<div class="text-gray-500 text-sm text-center py-12 flex flex-col items-center"><svg class="w-8 h-8 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>No Open Buckets</div>';
+        }
+    }
+
+    // Google GeoChart Logic initialization moved to top of file
+
+
+    function renderMap(countryData) {
+        if (!isGoogleLoaded) {
+            // Retry if google lib not ready
+            setTimeout(() => renderMap(countryData), 500);
+            return;
+        }
+
+        const container = document.getElementById('geoChart');
+        if(!container) return;
+
+        const chart = new google.visualization.GeoChart(container);
+        
+        // Convert dict to array
+        const dataArray = [['Country', 'Servers']];
+        for (const [code, count] of Object.entries(countryData)) {
+             // Handle "Unknown" or None
+             if (code && code !== 'Unknown') {
+                 dataArray.push([code, count]);
+             }
+        }
+
+        const data = google.visualization.arrayToDataTable(dataArray);
+
+        const options = {
+            backgroundColor: 'transparent',
+            colorAxis: {colors: ['#3b82f6', '#1d4ed8']}, // Light blue to dark blue
+            datalessRegionColor: '#374151', // Gray 700
+            defaultColor: '#1f2937',        // Gray 800
+            legend: 'none'
+        };
+
+        chart.draw(data, options);
+    }
+
+    // Best Entrypoint Logic
+    window.runBestEntrypointAnalysis = async function() {
+        const modal = document.getElementById('analysis-modal');
+        const resultDiv = document.getElementById('analysis-result');
+        
+        modal.classList.remove('hidden');
+        resultDiv.innerHTML = '<div class="flex items-center justify-center p-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><span class="ml-3 text-white">Analyzing targets...</span></div>';
+        
+        try {
+            const resp = await fetch('/api/stats/best-entrypoint');
+            const data = await resp.json();
+            
+            if (data.message || data.error) {
+                resultDiv.innerHTML = `<p class="text-yellow-400 bg-yellow-900/20 p-4 rounded border border-yellow-700">${data.message || data.error}</p>`;
+                return;
+            }
+            
+            const best = data.best_target;
+            
+            let html = `
+                <div class="bg-gradient-to-r from-emerald-900/50 to-teal-900/50 p-6 rounded-xl border border-emerald-700/50 mb-6">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="text-sm font-semibold text-emerald-400 uppercase tracking-widest mb-1">Top Recommendation</h4>
+                            <h2 class="text-3xl font-bold text-white mb-2">${best.target}</h2>
+                            <p class="text-emerald-200">Total Score: <span class="font-mono font-bold text-xl">${best.score}</span></p>
+                        </div>
+                        <a href="/targets/${best.target_id}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow transition">View Target</a>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h5 class="font-semibold text-white mb-2">Why this target?</h5>
+                        <ul class="space-y-1">
+                            ${best.reasons.map(r => `<li class="flex items-center text-sm text-gray-300"><svg class="w-4 h-4 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                
+                <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-3">Runner Ups</h4>
+                <div class="space-y-3">
+                    ${data.all_scores.slice(1).map((item, idx) => `
+                        <div class="flex items-center justify-between p-3 bg-gray-700/30 rounded border border-gray-700">
+                             <div class="flex items-center gap-3">
+                                <span class="text-gray-500 font-mono">#${idx + 2}</span>
+                                <span class="text-white font-medium">${item.target}</span>
+                             </div>
+                             <div class="text-right">
+                                <span class="text-indigo-400 font-bold">${item.score} pts</span>
+                             </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            resultDiv.innerHTML = html;
+            
+        } catch (e) {
+            console.error("Analysis failed", e);
+            resultDiv.innerHTML = `<p class="text-red-400">Analysis failed: ${e.message}</p>`;
+        }
+    };
+
     function renderCharts(data) {
-        // ... (Charts rendering same as before) ...
         // --- Cloud Provider Chart (Pie) ---
         const cloudCtx = document.getElementById('cloudProviderChart').getContext('2d');
         const cloudLabels = Object.keys(data.cloud_providers);
@@ -147,26 +534,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // --- Location Chart (Bar) ---
-        const locCtx = document.getElementById('locationChart').getContext('2d');
-        // Sort by value desc and take top 10
-        const sortedLocs = Object.entries(data.countries)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
-            
-        const locLabels = sortedLocs.map(x => x[0] || 'Unknown');
-        const locValues = sortedLocs.map(x => x[1]);
+        // --- Status Code Health (Bar) ---
+        const scCtx = document.getElementById('locationChart').getContext('2d');
+        // Replace Location with Status Code Distribution
+        const scLabels = Object.keys(data.status_codes || {});
+        const scValues = Object.values(data.status_codes || {});
+
+        const scColors = scLabels.map(code => {
+             if (code.startsWith('2')) return '#10B981'; // Green
+             if (code.startsWith('3')) return '#3B82F6'; // Blue
+             if (code.startsWith('4')) return '#F59E0B'; // Orange
+             if (code.startsWith('5')) return '#EF4444'; // Red
+             return '#9CA3AF';
+        });
 
         if (locationChart) locationChart.destroy();
 
-        locationChart = new Chart(locCtx, {
+        locationChart = new Chart(scCtx, {
             type: 'bar',
             data: {
-                labels: locLabels,
+                labels: scLabels,
                 datasets: [{
-                    label: 'Servers',
-                    data: locValues,
-                    backgroundColor: '#10B981',
+                    label: 'Count',
+                    data: scValues,
+                    backgroundColor: scColors,
                     borderRadius: 4
                 }]
             },
@@ -176,30 +567,134 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)' // faint white grid
-                        },
-                        ticks: {
-                            color: '#9ca3af'
-                        }
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        ticks: { color: '#9ca3af' }
                     },
                     x: {
-                        grid: {
-                            display: false
-                        },
-                        ticks: {
-                            color: '#9ca3af'
-                        }
+                        grid: { display: false },
+                        ticks: { color: '#9ca3af' }
                     }
                 },
                 plugins: {
-                    legend: {
-                        display: false
-                    }
+                    legend: { display: false },
+                    title: { display: true, text: 'Status Code Distribution', color: '#e5e7eb' }
                 }
             }
         });
+
+        // --- Vulnerability Chart (Bar Horizontal) ---
+        const vulnCtx = document.getElementById('vulnChart').getContext('2d');
+        const vStats = data.vuln_stats || {critical:0, high:0, medium:0, low:0};
+        
+        // Destroy existing if needed (not tracked globally currently but simple enough)
+        // Note: Chart.js re-render on same canvas usually needs destroy. 
+        // I'll grab the instance if exists attached to canvas or let it override.
+        let vChart = Chart.getChart(vulnCtx);
+        if (vChart) vChart.destroy();
+        
+        new Chart(vulnCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low'],
+                datasets: [{
+                    label: 'Vulnerabilities',
+                    data: [vStats.critical, vStats.high, vStats.medium, vStats.low],
+                    backgroundColor: ['#EF4444', '#F97316', '#EAB308', '#3B82F6'],
+                    borderRadius: 4,
+                    barThickness: 20
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#9ca3af' }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#fff', font: { weight: 'bold' } }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // --- Tech Stack Chart (Bar - Top 10) ---
+        const techCtx = document.getElementById('techStackChart').getContext('2d');
+        // Sort and slice top 10
+        const techEntries = Object.entries(data.tech_stack || {})
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 10);
+            
+        const techLabels = techEntries.map(e => e[0]);
+        const techValues = techEntries.map(e => e[1]);
+        
+        let tChart = Chart.getChart(techCtx);
+        if (tChart) tChart.destroy();
+        
+        new Chart(techCtx, {
+            type: 'bar',
+            data: {
+                labels: techLabels,
+                datasets: [{
+                    label: 'Detected',
+                    data: techValues,
+                    backgroundColor: '#8B5CF6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y', // Horizontal Bar for better readable labels
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                     x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#9ca3af' } },
+                     y: { grid: { display: false }, ticks: { color: '#e5e7eb' } }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // --- Risk Feed ---
+        const feedBody = document.getElementById('risk-feed-body');
+        feedBody.innerHTML = '';
+        
+        if (data.risk_feed && data.risk_feed.length > 0) {
+            data.risk_feed.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                
+                let badgeClass = 'bg-gray-700 text-gray-300';
+                if(item.severity === 'Critical') badgeClass = 'bg-red-900/50 text-red-200 border border-red-500/30';
+                if(item.severity === 'High') badgeClass = 'bg-orange-900/50 text-orange-200 border border-orange-500/30';
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded textxs font-bold ${badgeClass}">
+                            ${item.severity}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-white font-medium">${item.type}</td>
+                    <td class="px-4 py-3 text-indigo-300 font-mono text-xs">${item.title}</td>
+                    <td class="px-4 py-3 text-gray-500 text-xs">${item.desc}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="/targets/${item.target_id}" class="text-blue-400 hover:text-blue-300 text-xs hover:underline">View Target &rarr;</a>
+                    </td>
+                `;
+                feedBody.appendChild(tr);
+            });
+        } else {
+            feedBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No critical risks detected. Good job!</td></tr>';
+        }
+
     }
+    
+    // I will return early here and perform sequential edits to avoid wiping code.
 });
 </script>
 {% endblock %}

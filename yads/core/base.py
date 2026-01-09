@@ -88,16 +88,34 @@ class BaseScannerModule(abc.ABC):
             state.last_scanned_at = current_time
             self.db.add(state)
             
-            # Save Result (and potentially generate diffs)
+            # Save Result
             result = self._save_result(target_id, raw_data, new_hash, current_time)
             self.db.commit()
             return result
         else:
-            # NO CHANGE
+            # NO CHANGE IN DATA
+            # But we still want to update the 'last_scanned_at' and potentially return the object so logs can be attached
             state.last_scanned_at = current_time
             self.db.add(state)
+            
+            # We need to return a result object so the worker can attach logs.
+            # We'll fetch the *latest* result for this module/target to attach logs to it, 
+            # OR create a new "no-change" result.
+            # Strategy: Create a new result entry even if identical? No, that fills DB.
+            # Strategy: Return an object that has 'log_content' attribute but isn't a DB model?
+            # Strategy: Update the *existing* latest result's logs?
+            
+            # Let's try to fetch the most recent result and update its logs/timestamp?
+            # actually, usually we want a record that the scan ran.
+            # For now, let's just create a new result even if content is same, for debugging purposes?
+            # Or better: MODIFY logic in worker.py.
+            # But for now, let's just return key data so worker is happy.
+            
+            # Use _save_result to force saving an entry even if duplicate data (for now, to fix log visibility)
+            # This is acceptable for debugging.
+            result = self._save_result(target_id, raw_data, new_hash, current_time)
             self.db.commit()
-            return None
+            return result
 
     def _save_result(self, target_id: int, data: Dict, result_hash: str, timestamp: datetime) -> ScanResult:
         result = ScanResult(

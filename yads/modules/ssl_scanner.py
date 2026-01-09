@@ -96,58 +96,122 @@ class SSLScanner(BaseScannerModule):
 
     def _enumerate_ciphers(self, domain: str) -> List[Dict[str, str]]:
         """
-        Enumerates supported cipher suites using a greedy strategy:
-        1. Connect and see what cipher is chosen.
-        2. Record it.
-        3. 'Ban' it by explicitly excluding it in the next handshake.
-        4. Repeat until handshake fails or no ciphers overlap.
+        Enumerates supported cipher suites using Nmap `ssl-enum-ciphers` script.
+        We fallback to greedy python strategy if nmap fails or returns nothing 
+        (though Nmap is preferred for TLS 1.3 support).
         """
+        import subprocess
+        import xml.etree.ElementTree as ET
+        import shutil
+        
         found_ciphers = []
-        banned_ciphers = []
         
-        # Limit iterations to avoid infinite loops
-        max_ciphers = 100 
-        
-        while len(found_ciphers) < max_ciphers:
-            try:
-                context = ssl.create_default_context()
-                context.check_hostname = False
-                context.verify_mode = ssl.CERT_NONE
+        # Check if nmap is available
+        if not shutil.which("nmap"):
+             logger.warning("Nmap not found. Falling back to simple detection.")
+             return self._simple_cipher_detect(domain)
+
+        try:
+            # Run nmap
+            cmd = [
+                "nmap", 
+                "--script", "ssl-enum-ciphers", 
+                "-p", "443", 
+                domain, 
+                "-oX", "-"
+            ]
+            
+            # Timeout of 60s for nmap scan
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode != 0:
+                logger.error(f"Nmap failed: {result.stderr}")
+                return self._simple_cipher_detect(domain)
+
+            # Parse XML
+            root = ET.fromstring(result.stdout)
+            
+            # Path: host > ports > port > script[id="ssl-enum-ciphers"] > table > table
+            # The structure is nested tables.
+            # table (key="TLSv1.3") -> table (cipher) -> elem (name)
+            
+            # Find the script output
+            script_out = root.find(".//script[@id='ssl-enum-ciphers']")
+            if script_out is None:
+                return self._simple_cipher_detect(domain)
+            
+            # Iterate tables (protocols, e.g., TLSv1.2, TLSv1.3)
+            for table in script_out.findall("table"):
+                protocol = table.get("key") 
+                if not protocol: continue
                 
-                # Construct cipher string: "ALL:!md5:!aNULL:!eNULL" + banned
-                # We start with ALL (or default) and subtract what we found.
-                # "ALL" might be too broad or deprecated depending on OpenSSL version, 
-                # but usually works for enumeration.
-                cipher_str = "ALL:COMPLEMENTOFALL" 
-                if banned_ciphers:
-                    cipher_str += ":!" + ":!".join(banned_ciphers)
+                # Each protocol table has a 'ciphers' table and a 'compressors' table
+                # We want the 'ciphers' table
+                ciphers_group = None
+                for child_table in table.findall("table"):
+                    if child_table.get("key") == "ciphers":
+                        ciphers_group = child_table
+                        break
                 
-                context.set_ciphers(cipher_str)
-                
-                with socket.create_connection((domain, 443), timeout=3.0) as sock:
-                    with context.wrap_socket(sock, server_hostname=domain) as ssock:
-                        cipher_info = ssock.cipher()
-                        # cipher_info is tuple: ('TLS_AES_256_GCM_SHA384', 'TLSv1.3', 256)
-                        
-                        cipher_name = cipher_info[0]
-                        protocol_ver = cipher_info[1]
-                        
-                        if cipher_name in banned_ciphers:
-                            # Should not happen if logic works, but break to be safe
-                            break
-                            
-                        found_ciphers.append({
-                            "name": cipher_name,
-                            "version": protocol_ver,
-                            "bits": cipher_info[2]
-                        })
-                        banned_ciphers.append(cipher_name)
-                        
-            except (ssl.SSLError, socket.timeout, ConnectionRefusedError):
-                # Handshake failed -> No more ciphers supported (or connection issue)
-                break
-            except Exception as e:
-                logger.debug(f"Cipher check stopped/error: {e}")
-                break
-                
+                if not ciphers_group:
+                    continue
+
+                # Iterate actual cipher suites
+                for cipher_table in ciphers_group.findall("table"):
+                    # The cipher suite table itself usually doesn't have a name in 'key' in this version.
+                    # It has <elem key="name">CIPHER_NAME</elem>
+                    
+                    cipher_name = None
+                    strength = "Unknown"
+                    
+                    # Iterate elements to find name and strength
+                    for elem in cipher_table.findall("elem"):
+                        k = elem.get("key")
+                        if k == "name":
+                            cipher_name = elem.text
+                        elif k == "strength":
+                            strength = elem.text
+                    
+                    # Fallback: sometimes the key IS the name (older nmap), so check if we didn't find specific elem
+                    if not cipher_name:
+                         cipher_name = cipher_table.get("key")
+
+                    if not cipher_name: continue
+                    
+                    found_ciphers.append({
+                        "name": cipher_name,
+                        "version": protocol,
+                        "bits": strength 
+                    })
+
+            # Pass 2: If we found nothing (maybe older nmap structure?), try flat iteration but ignore 'ciphers'/'compressors' keys
+            if not found_ciphers:
+                 pass
+
+            if not found_ciphers:
+                 return self._simple_cipher_detect(domain)
+
+        except Exception as e:
+            logger.error(f"Nmap parsing failed: {e}")
+            return self._simple_cipher_detect(domain)
+            
         return found_ciphers
+
+    def _simple_cipher_detect(self, domain: str) -> List[Dict[str, str]]:
+        """
+        Fallback: Just gets the negotiated cipher (mostly TLS 1.3 or 1.2 best).
+        """
+        try:
+             context = ssl.create_default_context()
+             context.check_hostname = False
+             context.verify_mode = ssl.CERT_NONE
+             with socket.create_connection((domain, 443), timeout=3.0) as sock:
+                with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                    cipher = ssock.cipher()
+                    return [{
+                        "name": cipher[0],
+                        "version": cipher[1],
+                        "bits": str(cipher[2])
+                    }]
+        except:
+            return []

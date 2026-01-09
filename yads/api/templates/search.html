@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Search Header -->
+    <div class="flex flex-col items-center justify-center py-10 bg-gray-800/30 rounded-xl border border-gray-700/50">
+        <h1 class="text-3xl font-bold text-white mb-6">Global Search</h1>
+        <div class="w-full max-w-2xl relative">
+            <input type="text" id="main-search-input" 
+                   class="w-full bg-gray-900 border border-gray-600 rounded-xl py-4 pl-12 pr-4 text-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-xl transition-all"
+                   placeholder="Search domains, technologies, vulnerabilities..."
+                   value="{{ q }}">
+            <svg class="w-6 h-6 text-gray-400 absolute left-4 top-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+        <p class="text-sm text-gray-500 mt-2">Press Enter to search deep into scan results.</p>
+    </div>
+
+    <!-- Results Container -->
+    <div id="results-container" class="space-y-8 hidden">
+        
+        <!-- Target Matches -->
+        <div id="target-matches" class="hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                Targets Found
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="target-list">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Deep Findings -->
+        <div id="finding-matches" class="hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                Deep Findings (Scan Data)
+            </h2>
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl overflow-hidden">
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="bg-gray-900/50 text-gray-500 font-medium border-b border-gray-700/50">
+                        <tr>
+                            <th class="px-6 py-3">Module</th>
+                            <th class="px-6 py-3">Target</th>
+                            <th class="px-6 py-3">Match Type</th>
+                            <th class="px-6 py-3 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="finding-list" class="divide-y divide-gray-800">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- No Results -->
+        <div id="no-results" class="hidden text-center py-12">
+            <svg class="w-16 h-16 text-gray-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="text-xl text-gray-500">No results found for your query.</p>
+        </div>
+    </div>
+    
+    <!-- Loading State -->
+    <div id="search-loading" class="hidden flex justify-center py-12">
+       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const mainInput = document.getElementById('main-search-input');
+    const resultsContainer = document.getElementById('results-container');
+    const targetSection = document.getElementById('target-matches');
+    const findingSection = document.getElementById('finding-matches');
+    const noResults = document.getElementById('no-results');
+    const loading = document.getElementById('search-loading');
+    
+    // Auto-search if q param exists
+    if(mainInput.value.length >= 2) {
+        performSearch(mainInput.value);
+    }
+    
+    // Listen for Enter key
+    mainInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            performSearch(mainInput.value);
+            // Update URL without reload
+            const url = new URL(window.location);
+            url.searchParams.set('q', mainInput.value);
+            window.history.pushState({}, '', url);
+        }
+    });
+
+    async function performSearch(query) {
+        if(query.length < 2) return;
+        
+        loading.classList.remove('hidden');
+        resultsContainer.classList.add('hidden');
+        
+        try {
+            const resp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            const data = await resp.json();
+            
+            loading.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+            
+            // Render Targets
+            const tList = document.getElementById('target-list');
+            tList.innerHTML = '';
+            if (data.targets && data.targets.length > 0) {
+                targetSection.classList.remove('hidden');
+                data.targets.forEach(t => {
+                    tList.innerHTML += `
+                        <a href="/targets/${t.id}" class="block p-4 bg-gray-800 border border-indigo-500/30 rounded-lg hover:bg-gray-700 hover:border-indigo-400 transition group">
+                            <h3 class="text-lg font-bold text-white group-hover:text-indigo-300">${t.domain}</h3>
+                            <p class="text-sm text-gray-500">View Details &rarr;</p>
+                        </a>
+                    `;
+                });
+            } else {
+                targetSection.classList.add('hidden');
+            }
+
+            // Render Findings
+            const fList = document.getElementById('finding-list');
+            fList.innerHTML = '';
+            if (data.findings && data.findings.length > 0) {
+                findingSection.classList.remove('hidden');
+                data.findings.forEach(f => {
+                    fList.innerHTML += `
+                        <tr class="hover:bg-white/5 transition">
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 rounded text-xs font-mono bg-gray-700 text-gray-300 border border-gray-600">${f.module}</span>
+                            </td>
+                            <td class="px-6 py-4 font-medium text-white">${f.target}</td>
+                            <td class="px-6 py-4 text-gray-400 text-sm">Content Match</td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="/targets/${f.target_id}" class="text-indigo-400 hover:text-indigo-300 text-sm hover:underline">View Target</a>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                findingSection.classList.add('hidden');
+            }
+            
+            if ((!data.targets || data.targets.length === 0) && (!data.findings || data.findings.length === 0)) {
+                noResults.classList.remove('hidden');
+            } else {
+                noResults.classList.add('hidden');
+            }
+            
+        } catch (e) {
+            console.error("Search failed", e);
+            loading.classList.add('hidden');
+        }
+    }
+});
+</script>
+{% endblock %}

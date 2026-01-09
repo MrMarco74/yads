@@ -8,12 +8,15 @@ from sqlmodel import Session, select, func, create_engine, text
 from contextlib import asynccontextmanager
 import os
 import aiofiles
+from datetime import datetime
 from yads.modules.visual_osint import VisualOSINT
 from yads.modules.report_generator import generate_report
+from yads.modules.brand_monitor import BrandMonitor
 
 from yads.config import settings
 from yads.models import Target, ScanResult, ModuleState
 from yads.core.logging_config import configure_logging
+from yads.core.backup import create_backup_zip, restore_backup_from_zip
 
 # -- Logging Setup --
 logger = configure_logging("yads-api")
@@ -121,7 +124,7 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner"]
     final_types = [t for t in scan_types_selected if t in valid_types]
     if not final_types:
         final_types = valid_types
@@ -304,7 +307,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner"]
     selected_types = [t for t in scan_types if t in valid_types]
     
     if not selected_types:
@@ -553,6 +556,8 @@ async def view_target_table(
     limit: int = 20, 
     filter_online: str = "all",
 
+    filter_server: Optional[str] = None,
+    filter_asn: Optional[str] = None,
     filter_last_scan: str = "all",
     filter_tag: Optional[str] = None,
     session: Session = Depends(get_session)
@@ -615,6 +620,25 @@ async def view_target_table(
              sub_scanned = select(ScanResult.target_id).distinct()
              query = query.where(Target.id.notin_(sub_scanned))
 
+    # -- Filter: Server (Web Analyzer) --
+    if filter_server:
+        # Subquery: Targets having web_analyzer scan with specific server header
+        # Using cast to text for JSON comparison
+        sub_server = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'web_analyzer',
+            text("data->>'server_header' = :server").bindparams(server=filter_server)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_server))
+
+    # -- Filter: ASN (Infrastructure Scanner) --
+    if filter_asn:
+        # Subquery: Targets having infrastructure_scanner with specific ASN
+        sub_asn = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'infrastructure_scanner',
+            text("data->'asn'->>'asn' = :asn").bindparams(asn=filter_asn)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_asn))
+
     # -- Filter: Tags --
     if filter_tag:
         # JSONB Containment: tags contains [filter_tag]
@@ -641,17 +665,49 @@ async def view_target_table(
     
     # Calculate Total Pages
     total_pages = (total_count + limit - 1) // limit
+
+    # -- Cipher Compliance Setup --
+    from yads.models import SystemConfig
+    approved_ciphers_set = set()
+    ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
+    raw_ac = ""
+    if ac_conf:
+        raw_ac = ac_conf.value
+    else:
+        # Load from file default
+        try:
+             import os
+             if os.path.exists("ciphers.csv"):
+                with open("ciphers.csv", "r") as f:
+                    raw_ac = f.read()
+        except:
+            pass
     
+    if raw_ac:
+        for line in raw_ac.splitlines():
+            # Format: TLS Version,Cipherset
+            # We care about the 2nd column "Cipherset" which is the distinct name
+            parts = line.split(',')
+            if len(parts) >= 2:
+                cipher_name = parts[1].strip()
+                if cipher_name and cipher_name.lower() != "cipherset": # Skip header
+                    approved_ciphers_set.add(cipher_name)
+        
     # Prepare table rows with summary data
     table_rows = []
     for t in targets:
         results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
         
         # Summaries
-        dns = next((r for r in results if r.module_name == 'dns_scanner'), None)
+        # Look for either dns_scanner or subdomain_scanner, prioritizing subdomain_scanner (more data)
+        sub_scan = next((r for r in results if r.module_name == 'subdomain_scanner'), None)
+        dns_scan = next((r for r in results if r.module_name == 'dns_scanner'), None)
+        dns = sub_scan if sub_scan else dns_scan
+        
         ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
         web = next((r for r in results if r.module_name == 'web_analyzer'), None)
         infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
+        tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
         
         # Online Status Logic (Mirroring the Filter Logic)
         is_online = None 
@@ -671,10 +727,18 @@ async def view_target_table(
             else:
                 is_online = False
 
+        # Extract DNS A Record (IP)
+        # Data structure: data["records"]["A"] = ["1.2.3.4", ...]
+        dns_ip = None
+        if dns and dns.data and "records" in dns.data and "A" in dns.data["records"]:
+             a_records = dns.data["records"]["A"]
+             if a_records:
+                 dns_ip = a_records[0]
+
         row_data = {
             "target": t,
             "is_online": is_online,
-            "dns_ip": dns.data.get("a_records", [""])[0] if (dns and dns.data and dns.data.get("a_records")) else None,
+            "dns_ip": dns_ip,
             "dns_count": len(dns.data.get("subdomains", [])) if (dns and dns.data) else 0,
             "ssl_issuer": ssl.data.get("issuer", {}).get("commonName") if (ssl and ssl.data and not ssl.data.get("error")) else None,
             "ssl_expiry": ssl.data.get("notAfter") if (ssl and ssl.data and not ssl.data.get("error")) else None,
@@ -684,9 +748,58 @@ async def view_target_table(
             "https_status": web.data.get("https_status") if (web and web.data) else None,
             "https_redirect": web.data.get("https_redirect") if (web and web.data) else None,
             "wildcard_detected": dns.data.get("wildcard_detected") if (dns and dns.data) else None,
+            "takeover_risks": dns.data.get("takeover_risks", []) if (dns and dns.data) else [],
+            "tld_stats": tld_scan.data if (tld_scan and tld_scan.data) else None,
+            "last_scan": results[0].scanned_at if results else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results]))
         }
+        
+        # Calculate Compliance
+        compliant = 0
+        non_compliant = 0
+        if ssl and ssl.data and not ssl.data.get("error"):
+            detected_ciphers = ssl.data.get("ciphers", [])
+            # detected_ciphers is list of dicts: {name, version, bits}
+            for dc in detected_ciphers:
+                name = dc.get("name")
+                if name:
+                    if name in approved_ciphers_set:
+                        compliant += 1
+                    else:
+                        non_compliant += 1
+                        
+        row_data["cipher_compliant"] = compliant
+        row_data["cipher_compliant"] = compliant
+        row_data["cipher_non_compliant"] = non_compliant
+        
+        # CVE Statistics
+        cve_stats = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        secrets_count = 0
+        
+        if web and web.data:
+            if "cves" in web.data:
+                for cve in web.data["cves"]:
+                    try:
+                        cvss = float(cve.get("cvss", 0))
+                        if cvss >= 9.0:
+                            cve_stats["critical"] += 1
+                        elif cvss >= 7.0:
+                            cve_stats["high"] += 1
+                        elif cvss >= 4.0:
+                            cve_stats["medium"] += 1
+                        else:
+                            cve_stats["low"] += 1
+                    except (ValueError, TypeError):
+                        pass
+            
+            # Secret Stats
+            if "secrets" in web.data:
+                secrets_count = len(web.data["secrets"])
+
+        row_data["cve_stats"] = cve_stats
+        row_data["secrets_count"] = secrets_count
+        
         table_rows.append(row_data)
 
     return templates.TemplateResponse("target_table.html", {
@@ -695,6 +808,8 @@ async def view_target_table(
         "filter_online": filter_online,
         "filter_last_scan": filter_last_scan,
         "filter_tag": filter_tag,
+        "filter_server": filter_server,
+        "filter_asn": filter_asn,
         "unique_tags": get_unique_tags(session),
         "pagination": {
             "page": page,
@@ -742,6 +857,46 @@ async def stop_all_scans(session: Session = Depends(get_session)):
     
     msg = f"Stopped!+Purged:+{purged_count},+Revoked:+{revoked_count},+DB+Updated:+{db_updated_count}"
     return RedirectResponse(url=f"/dashboard/targets?msg={msg}", status_code=303)
+
+
+# -- Backup & Restore Routes --
+
+@app.get("/api/backup/export")
+async def export_data(session: Session = Depends(get_session)):
+    """
+    Generates and downloads a full system backup (Zip).
+    """
+    try:
+        zip_file = create_backup_zip(session)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"yads_backup_{timestamp}.zip"
+        
+        return StreamingResponse(
+            zip_file, 
+            media_type="application/zip", 
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"Export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/backup/restore")
+async def restore_data(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    """
+    Restores system from backup zip. 
+    WARNING: Wiples all existing data!
+    """
+    try:
+        content = await file.read()
+        restore_backup_from_zip(session, content)
+        
+        return RedirectResponse(url="/settings?msg=System+Restored+Successfully", status_code=303)
+    except Exception as e:
+        logger.error(f"Restore failed: {e}")
+        return RedirectResponse(url=f"/settings?error=Restore+Failed:+{str(e)}", status_code=303)
 
 
 # -- Queue Management Routes --
@@ -930,6 +1085,32 @@ async def export_targets_excel(session: Session = Depends(get_session)):
     
     # Fetch all targets
     targets = session.exec(select(Target).order_by(Target.created_at.desc())).all()
+
+    # -- Cipher Compliance Setup --
+    from yads.models import SystemConfig
+    approved_ciphers_set = set()
+    ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
+    raw_ac = ""
+    if ac_conf:
+        raw_ac = ac_conf.value
+    else:
+        # Load from file default
+        try:
+             import os
+             if os.path.exists("ciphers.csv"):
+                with open("ciphers.csv", "r") as f:
+                    raw_ac = f.read()
+        except:
+            pass
+    
+    if raw_ac:
+        for line in raw_ac.splitlines():
+             parts = line.split(',')
+             if len(parts) >= 2:
+                cipher_name = parts[1].strip()
+                # Skip header if it exists
+                if cipher_name and cipher_name.lower() != "cipherset":
+                    approved_ciphers_set.add(cipher_name)
     
     data = []
     for t in targets:
@@ -972,10 +1153,27 @@ async def export_targets_excel(session: Session = Depends(get_session)):
                 row["SSL_Issuer"] = ssl.data.get("issuer", {}).get("commonName", "")
                 row["SSL_Expiry"] = ssl.data.get("notAfter", "")
                 row["SSL_SANs_Count"] = len(ssl.data.get("subjectAltName", []))
+                
+                # Compliance logic
+                compliant = 0
+                non_compliant = 0
+                detected_ciphers = ssl.data.get("ciphers", [])
+                for dc in detected_ciphers:
+                    name = dc.get("name")
+                    if name:
+                        if name in approved_ciphers_set:
+                            compliant += 1
+                        else:
+                            non_compliant += 1
+                row["Cipher_Compliant"] = compliant
+                row["Cipher_Non_Compliant"] = non_compliant
+
         else:
             row["SSL_Issuer"] = ""
             row["SSL_Expiry"] = ""
             row["SSL_SANs_Count"] = 0
+            row["Cipher_Compliant"] = 0
+            row["Cipher_Non_Compliant"] = 0
 
         # Web
         web = next((r for r in results if r.module_name == 'web_analyzer'), None)
@@ -1311,6 +1509,82 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     }
     return StreamingResponse(output_pdf, headers=headers, media_type='application/pdf')
 
+@app.get("/api/stats/best-entrypoint")
+async def get_best_entrypoint(session: Session = Depends(get_session)):
+    """
+    Analyzes all targets to find the best entrypoint based on findings.
+    """
+    targets = session.exec(select(Target)).all()
+    if not targets:
+        return {"error": "No targets found"}
+
+    scored_targets = []
+
+    for t in targets:
+        score = 0
+        reasons = []
+
+        # Get latest results
+        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
+        
+        # Subdomains (+1 each)
+        dns = next((r for r in results if r.module_name in ['subdomain_scanner', 'dns_scanner']), None)
+        if dns and dns.data:
+            subs = dns.data.get("subdomains", [])
+            sub_count = len(subs)
+            if sub_count > 0:
+                points = sub_count * 1
+                score += points
+                reasons.append(f"+{points} from {sub_count} subdomains")
+
+        # Web Tech (+2 each)
+        web = next((r for r in results if r.module_name == 'web_analyzer'), None)
+        if web and web.data:
+            techs = web.data.get("technologies", [])
+            tech_count = len(techs)
+            if tech_count > 0:
+                points = tech_count * 2
+                score += points
+                reasons.append(f"+{points} from {tech_count} detected technologies")
+
+        # Cloud Buckets (+5 each)
+        infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
+        if infra and infra.data:
+            buckets = infra.data.get("buckets", [])
+            bucket_count = len(buckets)
+            if bucket_count > 0:
+                points = bucket_count * 5
+                score += points
+                reasons.append(f"+{points} from {bucket_count} exposed storage buckets")
+
+        # SSL Issues (+3 if expired/error)
+        ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
+        if ssl and ssl.data:
+            if ssl.data.get("error") or ssl.data.get("expired"): # Assuming expired flag or checking date
+                points = 3
+                score += points
+                reasons.append(f"+{points} from SSL configuration issues")
+
+        if score > 0:
+            scored_targets.append({
+                "target": t.domain,
+                "target_id": t.id,
+                "score": score,
+                "reasons": reasons
+            })
+
+    if not scored_targets:
+        return {"message": "No significant entrypoints found (Score 0)."}
+
+    # Sort descending
+    scored_targets.sort(key=lambda x: x["score"], reverse=True)
+    best = scored_targets[0]
+
+    return {
+        "best_target": best,
+        "all_scores": scored_targets[:5] # Top 5
+    }
+
 @app.get("/targets/{target_id}", response_class=HTMLResponse)
 async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session)):
     target = session.get(Target, target_id)
@@ -1362,7 +1636,10 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         latest_infra = next((r for r in history_entries if r.module_name == 'infrastructure_scanner'), None)
         latest_visual = next((r for r in history_entries if r.module_name == 'visual_osint'), None)
         latest_ssl = next((r for r in history_entries if r.module_name == 'ssl_scanner'), None)
-        current_results = [r for r in [latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl] if r]
+        latest_wayback = next((r for r in history_entries if r.module_name == 'wayback_scanner'), None)
+        latest_crawler = next((r for r in history_entries if r.module_name == 'crawler'), None)
+        latest_cd = next((r for r in history_entries if r.module_name == 'content_discovery'), None)
+        current_results = [r for r in [latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd] if r]
 
     
     # Extract specific results for template
@@ -1372,6 +1649,34 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     infra_result = next((r for r in current_results if r.module_name == 'infrastructure_scanner'), None)
     visual_result = next((r for r in current_results if r.module_name == 'visual_osint'), None)
     ssl_result = next((r for r in current_results if r.module_name == 'ssl_scanner'), None)
+    wayback_result = next((r for r in current_results if r.module_name == 'wayback_scanner'), None)
+    crawler_result = next((r for r in current_results if r.module_name == 'crawler'), None)
+    content_discovery_result = next((r for r in current_results if r.module_name == 'content_discovery'), None)
+
+    # -- Cipher Compliance Setup --
+    from yads.models import SystemConfig
+    approved_ciphers_set = set()
+    ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
+    raw_ac = ""
+    if ac_conf:
+        raw_ac = ac_conf.value
+    else:
+        try:
+             import os
+             if os.path.exists("ciphers.csv"):
+                with open("ciphers.csv", "r") as f:
+                    raw_ac = f.read()
+        except:
+            pass
+    
+    if raw_ac:
+        for line in raw_ac.splitlines():
+             parts = line.split(',')
+             if len(parts) >= 2:
+                cipher_name = parts[1].strip()
+                if cipher_name and cipher_name.lower() != "cipherset":
+                    approved_ciphers_set.add(cipher_name)
+
     
     return templates.TemplateResponse("target_detail.html", {
         "request": request,
@@ -1382,9 +1687,12 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "infra_result": infra_result,
         "visual_result": visual_result,
         "ssl_result": ssl_result,
+        "wayback_result": wayback_result,
+        "crawler_result": crawler_result,
         "history_entries": history_entries, # Pass full history
         "current_history_id": history_id,
-        "raw_results": jsonable_encoder([r.model_dump() for r in current_results]) 
+        "raw_results": jsonable_encoder([r.model_dump() for r in current_results]),
+        "approved_ciphers": approved_ciphers_set
     })
 
 
@@ -1422,6 +1730,35 @@ def get_target(target_id: int, session: Session = Depends(get_session)):
 def get_target_results(target_id: int, session: Session = Depends(get_session)):
     results = session.exec(select(ScanResult).where(ScanResult.target_id == target_id).order_by(ScanResult.scanned_at.desc())).all()
     return results
+
+@app.post("/api/targets/{target_id}/brand-hunt")
+def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: Session = Depends(get_session)):
+    """
+    Triggers a visual comparison between a reference logo and identified typosquat domains.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    # Get latest typosquat results
+    ts_result = session.exec(select(ScanResult).where(
+        ScanResult.target_id == target_id,
+        ScanResult.module_name == "typosquat_scanner"
+    ).order_by(ScanResult.scanned_at.desc())).first()
+    
+    if not ts_result or not ts_result.data or not ts_result.data.get("found"):
+        return {"message": "No typosquat candidates found to hunt against.", "matches": []}
+        
+    candidates = ts_result.data.get("found", [])
+    
+    monitor = BrandMonitor()
+    # This might take a few seconds, but since its a "Hunt" action, blocking slightly is okay-ish for MVP.
+    # ideally async or task, but for <50 squats usually fine.
+    # If many, we should background task it. But user wants "feature to select... and search".
+    # Let's run it synchronously for immediate feedback as requested, unless it times out.
+    matches = monitor.hunt_lookalikes(logo_url, candidates)
+    
+    return {"matches": matches, "count": len(matches)}
 
 # -- Settings Routes --
 
@@ -1467,14 +1804,52 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         except:
             pass
         
+    # Load Approved Ciphers
+    approved_ciphers = ""
+    ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
+    if ac_conf:
+        approved_ciphers = ac_conf.value
+    else:
+        # Default load
+        try:
+             import os
+             if os.path.exists("ciphers.csv"):
+                with open("ciphers.csv", "r") as f:
+                    approved_ciphers = f.read()
+        except:
+            pass
+
+    # Load Custom DNS
+    custom_dns_servers = ""
+    dns_conf = session.get(SystemConfig, "CUSTOM_DNS_SERVERS")
+    if dns_conf:
+        custom_dns_servers = dns_conf.value
+        
+    # Custom Wordlist Status
+    has_custom_wordlist = False
+    custom_wordlist_lines = 0
+    try:
+        # Assuming run from root or predictable structure
+        # yads/api/main.py -> yads/data/wordlists/subdomains.txt
+        wordlist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "wordlists", "subdomains.txt")
+        if os.path.exists(wordlist_path):
+            has_custom_wordlist = True
+            with open(wordlist_path, 'rb') as f:
+                custom_wordlist_lines = sum(1 for _ in f)
+    except:
+        pass
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
-        "auto_queue": auto_queue,
         "auto_queue": auto_queue,
         "rate_limit": rate_limit,
         "web_request_delay": web_request_delay,
         "web_request_timeout": web_request_timeout,
-        "worker_concurrency": worker_concurrency
+        "worker_concurrency": worker_concurrency,
+        "approved_ciphers": approved_ciphers,
+        "custom_dns_servers": custom_dns_servers,
+        "has_custom_wordlist": has_custom_wordlist,
+        "custom_wordlist_lines": custom_wordlist_lines
     })
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -1485,6 +1860,8 @@ async def update_settings(
     web_request_delay: str = Form(None),
     web_request_timeout: int = Form(None),
     worker_concurrency: int = Form(4),
+    approved_ciphers: str = Form(None),
+    custom_dns_servers: str = Form(None),
     session: Session = Depends(get_session)
 ):
     from yads.models import SystemConfig
@@ -1515,7 +1892,29 @@ async def update_settings(
     else:
         wc_conf.value = str(worker_concurrency)
         session.add(wc_conf)
-    
+
+    # Approved Ciphers
+    if approved_ciphers is not None:
+        # Normalize line endings
+        approved_ciphers = approved_ciphers.replace("\r\n", "\n")
+        ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
+        if not ac_conf:
+             ac_conf = SystemConfig(key="APPROVED_CIPHERS", value=approved_ciphers)
+             session.add(ac_conf)
+        else:
+             ac_conf.value = approved_ciphers
+             session.add(ac_conf)
+             
+    # Custom DNS Servers
+    if custom_dns_servers is not None:
+         dns_conf = session.get(SystemConfig, "CUSTOM_DNS_SERVERS")
+         if not dns_conf:
+             dns_conf = SystemConfig(key="CUSTOM_DNS_SERVERS", value=custom_dns_servers)
+             session.add(dns_conf)
+         else:
+             dns_conf.value = custom_dns_servers
+             session.add(dns_conf)
+             
     session.commit()
     
     # Broadcast Updates
@@ -1558,6 +1957,39 @@ async def update_settings(
         pass
 
     return RedirectResponse(url="/settings?saved=true", status_code=303)
+
+@app.post("/settings/wordlist/upload", response_class=RedirectResponse)
+async def upload_custom_wordlist(
+    wordlist_file: UploadFile = File(...), 
+    session: Session = Depends(get_session)
+):
+    try:
+        # Define path
+        wordlist_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "wordlists")
+        os.makedirs(wordlist_dir, exist_ok=True)
+        wordlist_path = os.path.join(wordlist_dir, "subdomains.txt")
+        
+        # Save file
+        async with aiofiles.open(wordlist_path, 'wb') as out_file:
+            while content := await wordlist_file.read(1024):
+                await out_file.write(content)
+                
+        return RedirectResponse(url="/settings?saved=true&msg=Wordlist+Uploaded", status_code=303)
+    except Exception as e:
+        logger.error(f"Failed to upload wordlist: {e}")
+        return RedirectResponse(url=f"/settings?error=Upload+Failed:+{str(e)}", status_code=303)
+
+@app.post("/settings/wordlist/delete", response_class=RedirectResponse)
+async def delete_custom_wordlist(session: Session = Depends(get_session)):
+    try:
+        wordlist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "wordlists", "subdomains.txt")
+        if os.path.exists(wordlist_path):
+            os.remove(wordlist_path)
+            
+        return RedirectResponse(url="/settings?saved=true&msg=Custom+Wordlist+Deleted", status_code=303)
+    except Exception as e:
+        logger.error(f"Failed to delete wordlist: {e}")
+        return RedirectResponse(url=f"/settings?error=Delete+Failed:+{str(e)}", status_code=303)
 
 @app.post("/admin/reset", response_class=HTMLResponse)
 async def admin_reset(session: Session = Depends(get_session)):
@@ -1799,11 +2231,188 @@ async def get_redirect_graph(domain: str = None, session: Session = Depends(get_
         "edges": edges
     }
 
+@app.get("/api/visualizations/redirects/centrality")
+async def get_redirect_centrality(session: Session = Depends(get_session)):
+    """
+    Analyzes the redirect graph to find the most central node (highest degree).
+    """
+    # 1. Reconstruct Graph (Simplified Logic from get_redirect_graph)
+    # We need to build the graph structure in memory to calculate degrees
+    targets = session.exec(select(Target)).all()
+    
+    # Adjacency List: Node -> {in: 0, out: 0}
+    degrees = {}
+    
+    def touch_node(n):
+        if n not in degrees: degrees[n] = {"in": 0, "out": 0}
+
+    for t in targets:
+        scan = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name == "web_analyzer"
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        start_node = t.domain.replace("https://", "").replace("http://", "").rstrip('/')
+        touch_node(start_node)
+        
+        if not scan or not scan.data: continue
+        
+        chain = scan.data.get("redirect_chain", [])
+        if chain:
+            prev_node = start_node
+            for hop_url in chain:
+                curr_node = hop_url.replace("https://", "").replace("http://", "").rstrip('/')
+                touch_node(curr_node)
+                
+                if prev_node != curr_node:
+                    degrees[prev_node]["out"] += 1
+                    degrees[curr_node]["in"] += 1
+                
+                prev_node = curr_node
+
+    if not degrees:
+        return {"error": "No graph data available."}
+
+    # 2. Find Max Degree (Centrality)
+    # Score = In-Degree + Out-Degree (Total Connections)
+    sorted_nodes = sorted(
+        degrees.items(), 
+        key=lambda item: (item[1]["in"] + item[1]["out"]), 
+        reverse=True
+    )
+    
+    top_node_id, stats = sorted_nodes[0]
+    total_degree = stats["in"] + stats["out"]
+    
+    if total_degree == 0:
+         return {"message": "Graph has no connections."}
+
+    return {
+        "node_id": top_node_id,
+        "stats": {
+            "total_connections": total_degree,
+            "inbound": stats["in"],
+            "outbound": stats["out"]
+        }
+    }
+
+@app.get("/api/visualizations/network")
+async def get_network_graph(target_id: Optional[int] = None, session: Session = Depends(get_session)):
+    """
+    Returns graph data (nodes, edges) for the Network Relationship visualization.
+    Integrates DNS records and Subdomains.
+    """
+    query = select(Target)
+    if target_id:
+        query = query.where(Target.id == target_id)
+        
+    targets = session.exec(query).all()
+    
+    nodes = {} # id -> {id, label, group, val}
+    edges = [] # {from, to, arrows, label?}
+    
+    unique_edge_keys = set()
+    
+    def add_node(nid, label, group, value=1):
+        if nid not in nodes:
+            nodes[nid] = {"id": nid, "label": label, "group": group, "value": value}
+        else:
+            # Maybe upgrade group or increase value?
+            if nodes[nid]["group"] == "ip" and group == "server":
+                 nodes[nid]["group"] = "server"
+            nodes[nid]["value"] = max(nodes[nid]["value"], value)
+            
+    def add_edge(src, dst, label=""):
+        key = f"{src}-{dst}-{label}"
+        if key not in unique_edge_keys:
+            edges.append({"from": src, "to": dst, "arrows": "to", "label": label, "font": {"align": "middle", "size": 10}})
+            unique_edge_keys.add(key)
+
+    for t in targets:
+        # 1. Target Node
+        tgt_node_id = f"target_{t.id}"
+        add_node(tgt_node_id, t.domain, "target", 20)
+        
+        # 2. Get DNS Scan Results (Includes Subdomain Scanner results usually if merged, but check module name)
+        # We check both dns_scanner and subdomain_scanner results
+        scans = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner"])
+        ).order_by(ScanResult.scanned_at.desc())).all()
+        
+        # Process latest of each type
+        processed_modules = set()
+        
+        for scan in scans:
+            if scan.module_name in processed_modules: continue
+            processed_modules.add(scan.module_name)
+            
+            data = scan.data
+            if not data: continue
+            
+            # A. DNS Records (A, MX, NS, CNAME)
+            records = data.get("records", {})
+            
+            # A Records -> IPs
+            for ip in records.get("A", []):
+                ip_id = f"ip_{ip}"
+                add_node(ip_id, ip, "ip", 5)
+                add_edge(tgt_node_id, ip_id, "A")
+            
+            # MX Records
+            for mx in records.get("MX", []):
+                # MX often format: "10 mail.example.com"
+                parts = mx.split()
+                val = parts[-1] if parts else mx
+                mx_id = f"mx_{val}"
+                add_node(mx_id, val, "resource", 3)
+                add_edge(tgt_node_id, mx_id, "MX")
+                
+            # NS Records
+            for ns in records.get("NS", []):
+                ns_id = f"ns_{ns}"
+                add_node(ns_id, ns, "resource", 3)
+                add_edge(tgt_node_id, ns_id, "NS")
+                
+            # CNAME
+            for cn in records.get("CNAME", []):
+                cn = cn.rstrip('.')
+                cn_id = f"cname_{cn}"
+                add_node(cn_id, cn, "resource", 3)
+                add_edge(tgt_node_id, cn_id, "CNAME")
+
+            # B. Subdomains
+            subdomains = data.get("subdomains", [])
+            # Subdomains is a list of dicts: {subdomain, ips}
+            for sub in subdomains:
+                sub_name = sub.get("subdomain")
+                if not sub_name: continue
+                
+                sub_id = f"sub_{sub_name}"
+                add_node(sub_id, sub_name.replace(f".{t.domain}", ""), "subdomain", 2) # Label: sub only
+                add_edge(tgt_node_id, sub_id, "")
+                
+                # Link Subdomain -> IPs
+                for ip in sub.get("ips", []):
+                    ip_id = f"ip_{ip}"
+                    add_node(ip_id, ip, "ip", 5)
+                    add_edge(sub_id, ip_id, "A")
+
+    return {
+        "nodes": list(nodes.values()),
+        "edges": edges
+    }
+
 @app.get("/visualizations/redirect-graph", response_class=HTMLResponse)
 async def view_redirect_graph(request: Request, session: Session = Depends(get_session)):
     # Fetch all targets for the dropdown
     targets = session.exec(select(Target.domain).order_by(Target.domain)).all()
     return templates.TemplateResponse("redirect_graph.html", {"request": request, "domains": targets})
+
+@app.get("/visualizations/network-graph", response_class=HTMLResponse)
+async def view_network_graph(request: Request, session: Session = Depends(get_session)):
+    targets = session.exec(select(Target).order_by(Target.domain)).all()
+    return templates.TemplateResponse("network_graph.html", {"request": request, "domains": targets})
 
 # --- Analytics ---
 
@@ -1848,12 +2457,218 @@ async def get_infrastructure_stats(target_id: Optional[int] = None, session: Ses
         country_code = country if country else "Unknown"
         countries[country_code] = count
         
+    # 3. Tech Stack (Web Servers) - Optimized & Normalized
+    ts_query = text(f"SELECT data->>'server_header', count(*) FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')} GROUP BY 1")
+    ts_results = session.exec(ts_query).all()
+    
+    tech_stack = {}
+    for server, count in ts_results:
+        if not server: 
+            server_name = "Unknown"
+        else:
+            # Normalize: "nginx/1.18.0 (Ubuntu)" -> "Nginx"
+            # Normalize: "Apache/2.4.41" -> "Apache"
+            server_name = server.split('/')[0].split(' ')[0].strip()
+            
+        tech_stack[server_name] = tech_stack.get(server_name, 0) + count
+
+    # 4. Status Code Health Check
+    sc_query = text(f"SELECT data->>'status_code', count(*) FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')} GROUP BY 1")
+    sc_results = session.exec(sc_query).all()
+    
+    status_codes = {}
+    for code, count in sc_results:
+        if not code: continue
+        status_codes[code] = count
+
+    # 4. Vulnerability Stats & Risk Feed
+    # We need to fetch web_analyzer results to parse CVEs
+    vuln_query = f"SELECT data FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')}"
+    vuln_results = session.exec(text(vuln_query)).all()
+    
+    vuln_stats = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    risk_feed = []
+
+    for row in vuln_results:
+        # row is a tuple (data dict,)
+        data = row[0]
+        if not data: continue
+            
+        cves = data.get("cves", [])
+        for cve in cves:
+            try:
+                cvss = float(cve.get("cvss", 0))
+                if cvss >= 9.0:
+                    vuln_stats["critical"] += 1
+                    risk_feed.append({
+                        "type": "CVE", 
+                        "severity": "Critical",
+                        "title": cve.get("id"),
+                        "desc": f"CVSS {cvss}",
+                        "target_id": "Unknown" # Ideally we select target_id too
+                    })
+                elif cvss >= 7.0:
+                    vuln_stats["high"] += 1
+                elif cvss >= 4.0:
+                    vuln_stats["medium"] += 1
+                else:
+                    vuln_stats["low"] += 1
+            except: pass
+            
+    # Get Target IDs for Risk Feed (Need a better query for this)
+    # Re-querying with target_id for the feed items
+    feed_query = text(f"SELECT target_id, data FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')}")
+    feed_results = session.exec(feed_query).all()
+    
+    risk_feed = [] # Reset to rebuild with IDs
+    
+    for tid, data in feed_results:
+        if not data: continue
+        # CVEs
+        cves = data.get("cves", [])
+        for cve in cves:
+            try:
+                cvss = float(cve.get("cvss", 0))
+                if cvss >= 9.0:
+                     risk_feed.append({
+                        "type": "CVE",
+                        "severity": "Critical", 
+                        "title": cve.get("id"),
+                        "desc": f"CVSS {cvss}",
+                        "target_id": tid
+                    })
+            except: pass
+            
+    # Subdomain Takeovers
+    takeover_query = text(f"SELECT target_id, data FROM scanresult {where_clause.replace('infrastructure_scanner', 'dns_scanner')}")
+    to_results = session.exec(takeover_query).all()
+    
+    for tid, data in to_results:
+        if not data: continue
+        risks = data.get("takeover_risks", [])
+        for risk in risks:
+             risk_feed.append({
+                "type": "Takeover",
+                "severity": "Critical",
+                "title": risk.get("subdomain") or "Domain Root",
+                "desc": f"Provider: {risk.get('provider')}",
+                "target_id": tid
+            })
+
+    # Sort Risk Feed (takeovers first, then cves)
+    risk_feed.sort(key=lambda x: 0 if x['type'] == 'Takeover' else 1)
+        
     return {
         "cloud_providers": cloud_providers,
-        "countries": countries
+        "countries": countries,
+        "tech_stack": tech_stack,
+        "status_codes": status_codes,
+        "vuln_stats": vuln_stats,
+        "risk_feed": risk_feed[:20] # Top 20
     }
 
 # --- Tagging API ---
+
+@app.get("/api/stats/security-risks")
+async def get_security_risks(session: Session = Depends(get_session)):
+    """
+    Aggregates security risks for visualizations:
+    - SSL Expiry Timeline
+    - Reputation Monitor (Blacklists)
+    - Open Buckets
+    """
+    from datetime import datetime
+    
+    # helper for filtering latest result of a type
+    # (In a real app, this might be a complex window function query, but we loop for simplicity on small datasets)
+    
+    # Fetch all targets
+    targets = session.exec(select(Target)).all()
+    
+    ssl_timeline = []
+    reputation_issues = []
+    open_buckets = []
+    
+    for t in targets:
+        # Get latest relevant scans
+        # SSL
+        ssl_res = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name == "ssl_scanner"
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        # Infra
+        infra_res = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name == "infrastructure_scanner"
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        # Process SSL
+        if ssl_res and ssl_res.data:
+            not_after = ssl_res.data.get("notAfter")
+            
+            if not_after:
+                try:
+                    # Parse date string "May 25 12:00:00 2025 GMT"
+                    # Python's datetime.strptime can handle this if we match format
+                    # Example format from stdlib: 'Oct  5 23:59:59 2025 GMT'
+                    try:
+                        dt = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                    except:
+                        # Sometimes day is single digit with 2 spaces "Oct  5"
+                        # Try removing extra spaces or multiple formats
+                        # Quickfix: just try generic dateutil if available or robust parse
+                        dt = datetime.strptime(not_after.replace("  ", " "), "%b %d %H:%M:%S %Y %Z")
+                        
+                    days_left = (dt - datetime.utcnow()).days
+                    
+                    status = "ok"
+                    if days_left < 7: status = "critical"
+                    elif days_left < 30: status = "warning"
+                    
+                    ssl_timeline.append({
+                        "target": t.domain,
+                        "target_id": t.id,
+                        "days_left": days_left,
+                        "expiry_date": dt.strftime("%Y-%m-%d"),
+                        "status": status
+                    })
+                except Exception as e:
+                    pass
+
+        # Process Infra (Reputation + Buckets)
+        if infra_res and infra_res.data:
+            # Buckets
+            buckets = infra_res.data.get("buckets", [])
+            for bucket in buckets:
+                if bucket.get("status") == "Public":
+                    open_buckets.append({
+                        "target": t.domain,
+                        "target_id": t.id,
+                        "url": bucket.get("url"),
+                        "code": bucket.get("code")
+                    })
+            
+            # Reputation
+            rep = infra_res.data.get("reputation", [])
+            if rep:
+                ip = infra_res.data.get("ip", "Unknown")
+                reputation_issues.append({
+                    "target": t.domain,
+                    "target_id": t.id,
+                    "ip": ip,
+                    "issues": rep
+                })
+
+    # Sort SSL by urgency
+    ssl_timeline.sort(key=lambda x: x["days_left"])
+    
+    return {
+        "ssl_timeline": ssl_timeline,
+        "reputation_issues": reputation_issues,
+        "open_buckets": open_buckets
+    }
+
 
 def get_unique_tags(session: Session) -> List[str]:
     """Helper to fetch all unique tags from all targets."""
@@ -1899,6 +2714,52 @@ async def remove_tag(target_id: int, tag: str, session: Session = Depends(get_se
         session.add(target)
         session.commit()
     return target.tags
+
+@app.get("/api/search")
+async def search_targets(q: str, session: Session = Depends(get_session)):
+    """
+    Global search across domains and JSON scan results.
+    """
+    if not q or len(q) < 2:
+        return {"targets": [], "findings": []}
+        
+    query_str = f"%{q}%"
+    
+    # 1. Search Domains
+    t_query = select(Target).where(Target.domain.ilike(query_str)).limit(10)
+    targets = session.exec(t_query).all()
+    
+    # 2. Search Scan Results (Deep Search) - PostgreSQL JSONB -> Text
+    # We select the scan result and the associated target domain
+    # Casting JSONB to Text allows simple "contains" text search
+    sr_query = text("""
+        SELECT sr.id, sr.module_name, sr.data, t.id, t.domain 
+        FROM scanresult sr 
+        JOIN target t ON sr.target_id = t.id 
+        WHERE sr.data::text ILIKE :q 
+        LIMIT 20
+    """)
+    
+    findings_raw = session.exec(sr_query, params={"q": query_str}).all()
+    
+    findings = []
+    for row in findings_raw:
+        # row: (id, module_name, data, target_id, domain)
+        findings.append({
+            "module": row[1],
+            "target": row[4],
+            "target_id": row[3],
+            "snippet": "Match found in data" # MVP: Highlighting is complex in JSON
+        })
+        
+    return {
+        "targets": [{"id": t.id, "domain": t.domain} for t in targets],
+        "findings": findings
+    }
+
+@app.get("/search", response_class=HTMLResponse)
+async def view_search(request: Request, q: str = ""):
+    return templates.TemplateResponse("search.html", {"request": request, "q": q})
 
 @app.post("/targets/bulk/tag", response_class=RedirectResponse)
 async def bulk_add_tag(

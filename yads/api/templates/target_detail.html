@@ -28,8 +28,12 @@
                         <h4 class="text-sm font-bold text-white mb-3">Select Scanners</h4>
                         <div class="space-y-2 mb-4">
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="dns_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">DNS Scanner</span>
+                                <input type="checkbox" name="scan_types" value="subdomain_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">Subdomain Recon</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="dns_scanner" class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">DNS Records (Domain Only)</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="web_analyzer" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
@@ -40,12 +44,32 @@
                                 <span class="text-sm text-gray-300">Typosquat Scanner</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cve_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">CVE Vulnerability Scanner</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="infrastructure_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
                                 <span class="text-sm text-gray-300">Infrastructure</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="ssl_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">SSL Certificate</span>
+                                <span class="text-sm text-gray-300">SSL</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="wayback_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">Wayback Machine</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="crawler" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">Site Crawler</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="content_discovery" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">Content Discovery (Fuzzing)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="tld_scanner" class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                <span class="text-sm text-gray-300">TLD Scanner</span>
                             </label>
                         </div>
                         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-lg transition-colors">
@@ -116,7 +140,57 @@
                     <div class="mb-6">
                         <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Discovered Subdomains</h3>
                         {% if dns_result.data.subdomains %}
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Vulnerabilities Card -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 shadow-lg mb-8">
+            <h3 class="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Vulnerability Report (CVEs)
+            </h3>
+            
+            {% if web_data and web_data.cves %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="bg-gray-900/50 text-gray-200 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">Software</th>
+                                <th class="p-3">CVE ID</th>
+                                <th class="p-3">Severity</th>
+                                <th class="p-3">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700">
+                            {% for cve in web_data.cves %}
+                            <tr class="hover:bg-gray-700/30">
+                                <td class="p-3 font-medium text-white">{{ cve.product }}</td>
+                                <td class="p-3 font-mono text-red-300">
+                                    <a href="https://cve.circl.lu/cve/{{ cve.id }}" target="_blank" class="hover:underline">{{ cve.id }}</a>
+                                </td>
+                                <td class="p-3">
+                                    {% if cve.cvss and cve.cvss != 'N/A' %}
+                                        <span class="px-2 py-1 rounded text-xs font-bold 
+                                            {% if cve.cvss|float >= 7.0 %}bg-red-900 text-red-200
+                                            {% elif cve.cvss|float >= 4.0 %}bg-orange-900 text-orange-200
+                                            {% else %}bg-green-900 text-green-200{% endif %}">
+                                            {{ cve.cvss }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-gray-500">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="p-3 text-xs">{{ cve.summary }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-gray-500 text-sm flex items-center justify-center py-8 bg-gray-900/30 rounded-lg border border-gray-700 border-dashed">
+                    <p>No known CVEs matching the identified technology versions were found.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                                 {% for sub in dns_result.data.subdomains %}
                                 <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
                                     <div class="flex items-center justify-between mb-1">
@@ -268,6 +342,29 @@
                                     </div>
                                  {% endif %}
 
+                                 <!-- Secret Leaks -->
+                                 {% if web_result.data.secrets %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-pink-500 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            Secret Keys & Tokens Found
+                                        </h4>
+                                        <div class="space-y-2">
+                                            {% for secret in web_result.data.secrets %}
+                                                <div class="bg-pink-900/20 border border-pink-500/30 rounded p-3 flex flex-col gap-1 shadow-sm shadow-pink-900/20">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-xs font-bold text-pink-400">{{ secret.type }}</span>
+                                                        <span class="text-[10px] bg-pink-900/50 text-pink-200 px-1.5 py-0.5 rounded font-mono border border-pink-500/20">CRITICAL</span>
+                                                    </div>
+                                                    <div class="font-mono text-[10px] text-pink-200 bg-black/30 p-1.5 rounded border border-white/5 break-all">
+                                                        {{ secret.redacted_value }}
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
                                  <!-- CVEs -->
                                  {% if web_result.data.cves %}
                                     <div class="mb-4">
@@ -283,6 +380,24 @@
                                                         <span class="text-[10px] bg-red-900/50 text-red-200 px-1.5 py-0.5 rounded">CVSS: {{ cve.cvss }}</span>
                                                     </div>
                                                     <p class="text-[10px] text-gray-400 line-clamp-2" title="{{ cve.summary }}">{{ cve.summary }}</p>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- Broken Link Hijacking -->
+                                 {% if web_result.data.broken_links %}
+                                    <div class="mb-4 bg-red-900/10 border border-red-500/30 rounded p-3">
+                                        <h4 class="text-xs text-red-500 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                            Broken Link Hijacking Risks
+                                        </h4>
+                                        <div class="space-y-1">
+                                            {% for link in web_result.data.broken_links %}
+                                                <div class="flex items-center justify-between text-xs">
+                                                    <span class="text-red-300 truncate w-3/4" title="{{ link.url }}">{{ link.url }}</span>
+                                                    <span class="bg-red-900/50 text-red-200 px-1.5 py-0.5 rounded">{{ link.error }}</span>
                                                 </div>
                                             {% endfor %}
                                         </div>
@@ -373,6 +488,336 @@
                 {% endif %}
             </div>
 
+            <!-- OSINT FINDINGS CARD -->
+            <div class="bg-gray-800/50 border border-indigo-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                 <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">OSINT Findings</h2>
+                </div>
+                
+                {% if web_result and (web_result.data.emails or web_result.data.phones or web_result.data.socials or web_result.data.documents) %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        
+                        <!-- CONTACTS -->
+                        <div class="space-y-4">
+                            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Contacts</h3>
+                            
+                            <!-- Emails -->
+                            {% if web_result.data.emails %}
+                                <div class="space-y-1">
+                                    <p class="text-xs text-gray-500 font-bold mb-1">Emails</p>
+                                    {% for email in web_result.data.emails %}
+                                        <div class="flex items-center gap-2 group">
+                                            <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                            <span class="text-sm text-gray-300 select-all group-hover:text-white">{{ email }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Phones -->
+                            {% if web_result.data.phones %}
+                                <div class="space-y-1 mt-3">
+                                    <p class="text-xs text-gray-500 font-bold mb-1">Phones</p>
+                                    {% for phone in web_result.data.phones %}
+                                        <div class="flex items-center gap-2">
+                                            <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                                            <span class="text-sm text-gray-300 select-all">{{ phone }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            {% if not web_result.data.emails and not web_result.data.phones %}
+                                <p class="text-gray-500 italic text-sm">No contact info found.</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- SOCIALS -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Social Profiles</h3>
+                            {% if web_result.data.socials %}
+                                <div class="flex flex-col gap-2">
+                                    {% for link in web_result.data.socials %}
+                                        <a href="{{ link }}" target="_blank" class="flex items-center gap-2 p-2 bg-gray-900/40 rounded hover:bg-gray-800 transition-colors group">
+                                            <!-- Simple Icon selection based on URL logic -->
+                                            <div class="w-6 h-6 rounded flex items-center justify-center bg-gray-700 text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-colors text-xs font-bold">
+                                                {% if 'linkedin' in link %}LI
+                                                {% elif 'twitter' in link or 'x.com' in link %}X
+                                                {% elif 'facebook' in link %}FB
+                                                {% elif 'instagram' in link %}IG
+                                                {% elif 'youtube' in link %}YT
+                                                {% elif 'github' in link %}GH
+                                                {% elif 'gitlab' in link %}GL
+                                                {% else %}Web{% endif %}
+                                            </div>
+                                            <span class="text-xs text-blue-400 truncate w-48 group-hover:text-blue-300 underline">{{ link }}</span>
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-gray-500 italic text-sm">No social profiles found.</p>
+                            {% endif %}
+                        </div>
+
+                        <!-- DOCUMENTS -->
+                        <div>
+                             <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Documents (Metadata)</h3>
+                             {% if web_result.data.documents %}
+                                <ul class="space-y-2">
+                                    {% for doc in web_result.data.documents %}
+                                        <li class="flex items-start gap-2 group">
+                                            <svg class="w-4 h-4 text-gray-500 mt-0.5 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                            <a href="{{ doc }}" target="_blank" class="text-xs text-gray-400 hover:text-white break-all hover:underline">{{ doc.split('/')[-1] }}</a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                             {% else %}
+                                <p class="text-gray-500 italic text-sm">No public documents found.</p>
+                             {% endif %}
+                        </div>
+                    </div>
+                    
+
+                {% else %}
+                    <p class="text-gray-500 italic mb-4">No expanded OSINT data available (Web Analyzer required).</p>
+                    
+                    {% if web_result and web_result.log_content %}
+                    <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                        <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                            <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                            View OSINT Logs (Debug)
+                        </summary>
+                        <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ web_result.log_content }}</pre>
+                        </div>
+                    </details>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- WAYBACK / HISTORY CARD -->
+            <div class="bg-gray-800/50 border border-gray-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                     <div class="p-2 bg-gray-500/10 rounded-lg text-gray-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                     </div>
+                     <h2 class="text-xl font-semibold text-white">Historical Intelligence</h2>
+                </div>
+
+                {% if wayback_result %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div class="bg-gray-900/40 rounded-lg p-5 border border-gray-700/30">
+                            <h3 class="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Wayback Machine</h3>
+                            {% if wayback_result.data.latest %}
+                                <div class="flex items-end gap-2 mb-2">
+                                    <p class="text-3xl font-bold text-white">
+                                        {% set ts = wayback_result.data.latest.timestamp %}
+                                        {% if ts and ts|length >= 8 %}
+                                            {{ ts[:4] }}-{{ ts[4:6] }}-{{ ts[6:8] }}
+                                        {% else %}
+                                            {{ ts }}
+                                        {% endif %}
+                                    </p>
+                                    <p class="text-xs text-gray-500 mb-1.5">Latest Snapshot</p>
+                                </div>
+                                <a href="{{ wayback_result.data.link }}" target="_blank" class="inline-flex items-center text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded transition-colors">
+                                    View Archive <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                </a>
+                            {% else %}
+                                <p class="text-gray-500 italic text-sm">No snapshots found.</p>
+                                {% if wayback_result.data.error %}
+                                    <div class="mt-2 bg-red-900/20 border border-red-500/50 rounded p-2">
+                                        <p class="text-xs text-red-300 break-all"><strong>Error:</strong> {{ wayback_result.data.error }}</p>
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                         </div>
+                         
+                         <div class="bg-gray-900/40 rounded-lg p-5 border border-gray-700/30">
+                             <h3 class="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Observation Start</h3>
+                              {% if wayback_result.data.earliest %}
+                                <div class="flex items-end gap-2">
+                                    <p class="text-3xl font-bold text-white">
+                                        {% set ts_early = wayback_result.data.earliest.timestamp %}
+                                        {% if ts_early and ts_early|length >= 8 %}
+                                            {{ ts_early[:4] }}-{{ ts_early[4:6] }}-{{ ts_early[6:8] }}
+                                        {% else %}
+                                            {{ ts_early }}
+                                        {% endif %}
+                                    </p>
+                                    <p class="text-xs text-gray-500 mb-1.5">First Seen</p>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">First archived snapshot of this domain.</p>
+                            {% else %}
+                                <p class="text-gray-500 italic text-sm">-</p>
+                            {% endif %}
+                         </div>
+                    </div>
+                    
+                    {% if wayback_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ wayback_result.log_content }}</pre>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No Wayback data available (Run Wayback Scanner).</p>
+                {% endif %}
+
+            </div>
+
+            <!-- CRAWLER / SITE MAP ANALYSIS -->
+            {% if crawler_result %}
+            <div class="bg-gray-800/50 border border-purple-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center gap-3 mb-6">
+                     <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                     </div>
+                     <h2 class="text-xl font-semibold text-white">Site Structure Analysis</h2>
+                     <span class="ml-auto text-xs font-mono text-gray-500 bg-gray-900 border border-gray-700 px-2 py-1 rounded">
+                        Pages: {{ crawler_result.data.stats.pages_crawled }}
+                     </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Internal Issues -->
+                    <div class="bg-gray-900/40 rounded-lg p-4 border border-gray-700/30">
+                        <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center justify-between">
+                            Internal Anomalies
+                            <span class="text-xs normal-case font-normal text-gray-500">Dead Ends found: {{ crawler_result.data.dead_ends|length }}</span>
+                        </h3>
+                        {% if crawler_result.data.dead_ends %}
+                            <div class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                {% for page in crawler_result.data.dead_ends %}
+                                    <div class="flex flex-col bg-red-900/10 p-2 rounded border-l-2 border-red-500/50">
+                                        <div class="flex justify-between items-start">
+                                            <span class="text-xs text-red-200 font-mono break-all">{{ page.url }}</span>
+                                        </div>
+                                        <span class="text-[10px] text-red-400/70 mt-1">{{ page.title }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                             <p class="text-gray-500 text-sm italic">No dead-end pages found (Good!).</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- External Collectors -->
+                    <div class="bg-gray-900/40 rounded-lg p-4 border border-gray-700/30">
+                         <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Top External Connections</h3>
+                         {% if crawler_result.data.collectors %}
+                            <div class="space-y-1">
+                                {% for domain in crawler_result.data.collectors %}
+                                    <div class="flex justify-between items-center bg-gray-800/50 p-1.5 rounded hover:bg-gray-800 transition-colors">
+                                        <span class="text-sm text-indigo-300 font-mono">{{ domain.domain }}</span>
+                                        <span class="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded-full">{{ domain.count }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                         {% else %}
+                             <p class="text-gray-500 text-sm italic">No external domains collected.</p>
+                         {% endif %}
+                    </div>
+                </div>
+
+                {% if crawler_result.log_content %}
+                <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                    <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                        <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        View Scan Logs
+                    </summary>
+                    <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ crawler_result.log_content }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- CONTENT DISCOVERY CARD -->
+            {% if content_discovery_result %}
+            <div class="bg-gray-800/50 border border-teal-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">Content Discovery (Fuzzing)</h2>
+                        <p class="text-xs text-gray-400">Active enumeration of hidden files and directories.</p>
+                    </div>
+                    {% if content_discovery_result.data and content_discovery_result.data.found_assets %}
+                        <span class="text-xs bg-teal-900/50 text-teal-300 px-2 py-1 rounded border border-teal-700">
+                            {{ content_discovery_result.data.found_assets|length }} Found
+                        </span>
+                    {% endif %}
+                </div>
+
+                {% if content_discovery_result.data.found_assets %}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="bg-gray-900/50 text-xs uppercase text-gray-500">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-l-lg">Status</th>
+                                    <th class="px-4 py-3">Path</th>
+                                    <th class="px-4 py-3">Type</th>
+                                    <th class="px-4 py-3 text-right rounded-r-lg">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-700/50">
+                                {% for asset in content_discovery_result.data.found_assets %}
+                                <tr class="hover:bg-white/5 transition-colors">
+                                    <td class="px-4 py-3">
+                                        {% if asset.status == 200 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-green-900/40 text-green-300 border border-green-700/50">200 OK</span>
+                                        {% elif asset.status == 403 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-orange-900/40 text-orange-300 border border-orange-700/50">403 Forbidden</span>
+                                        {% elif asset.status == 301 or asset.status == 302 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-blue-900/40 text-blue-300 border border-blue-700/50">{{ asset.status }} Redirect</span>
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">{{ asset.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-3 font-mono text-white select-all">{{ asset.path }}</td>
+                                    <td class="px-4 py-3 text-xs">{{ asset.type or '-' }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <a href="{{ asset.url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 hover:underline text-xs">Open &nearr;</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-8 bg-gray-900/20 rounded-lg border border-gray-700/50 border-dashed">
+                            <p class="text-gray-500 text-sm">No interesting assets found.</p>
+                            {% if content_discovery_result.data.error %}
+                                <p class="text-red-400 text-xs mt-2">{{ content_discovery_result.data.error }}</p>
+                            {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if content_discovery_result.log_content %}
+                <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                    <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                        <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        View Fuzzing Logs
+                    </summary>
+                    <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ content_discovery_result.log_content }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <!-- TYPOSQUAT ANALYSIS CARD -->
             <div class="bg-gray-800/50 border border-orange-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
                 <div class="flex items-center gap-3 mb-6">
@@ -442,29 +887,90 @@
             </div>
 
             <!-- VISUAL OSINT CARD -->
-            <div class="bg-gray-800/50 border border-pink-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+            <div class="bg-gray-800/50 border border-pink-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm"
+                 x-data="{ 
+                    hunting: false, 
+                    matches: [], 
+                    message: '', 
+                    hunt(logoUrl) {
+                        this.hunting = true;
+                        this.message = 'Scanning known typosquats for visual matches...';
+                        this.matches = [];
+                        fetch('/api/targets/{{ target.id }}/brand-hunt', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({logo_url: logoUrl})
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            this.hunting = false;
+                            this.matches = data.matches || [];
+                            if (this.matches.length === 0) {
+                                this.message = data.message || 'No visual matches found.';
+                            } else {
+                                this.message = `Found ${this.matches.length} potential lookalikes!`;
+                            }
+                        })
+                        .catch(e => {
+                            this.hunting = false;
+                            this.message = 'Error: ' + e;
+                        });
+                    }
+                 }">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="p-2 bg-pink-500/10 rounded-lg text-pink-400">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     </div>
                     <h2 class="text-xl font-semibold text-white">Visual Identity (OSINT)</h2>
+                    <span x-show="hunting" class="ml-auto text-xs text-pink-400 animate-pulse font-bold">Hunting...</span>
                 </div>
 
                 {% if visual_result %}
                     {% if visual_result.data.logos %}
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
                             {% for logo in visual_result.data.logos %}
-                                <div class="bg-gray-900 rounded-lg p-4 flex flex-col items-center justify-center gap-3 group hover:border-pink-500/30 border border-transparent transition-all">
+                                <div class="bg-gray-900 rounded-lg p-4 flex flex-col items-center justify-center gap-3 group hover:border-pink-500/30 border border-transparent transition-all relative">
                                     <div class="w-16 h-16 bg-white rounded-lg flex items-center justify-center p-2 shadow-lg">
                                         <img src="{{ logo.url }}" class="max-w-full max-h-full object-contain" alt="{{ logo.source }} Logo">
                                     </div>
-                                    <div class="text-center">
+                                    <div class="text-center w-full">
                                         <p class="text-xs font-bold text-gray-300">{{ logo.source }}</p>
-                                        <p class="text-[10px] text-gray-500 uppercase">{{ logo.type }}</p>
+                                        <p class="text-[10px] text-gray-500 uppercase mb-2">{{ logo.type }}</p>
+                                        <button @click="hunt('{{ logo.url }}')" 
+                                                class="w-full text-[10px] bg-pink-900/30 hover:bg-pink-600 hover:text-white text-pink-300 border border-pink-500/30 rounded py-1 transition-colors"
+                                                :disabled="hunting"
+                                                :class="{'opacity-50 cursor-not-allowed': hunting}">
+                                            Hunt Lookalikes
+                                        </button>
                                     </div>
                                 </div>
                             {% endfor %}
                         </div>
+                        
+                        <!-- Hunt Results -->
+                        <div x-show="message" class="mt-6 border-t border-gray-700/50 pt-4" style="display: none;">
+                            <h4 class="text-sm font-bold text-pink-400 mb-2" x-text="message"></h4>
+                            
+                            <div class="grid grid-cols-1 gap-2" x-show="matches.length > 0">
+                                <template x-for="match in matches">
+                                    <div class="flex items-center gap-4 bg-gray-900/80 p-3 rounded-lg border border-pink-500/30">
+                                        <img :src="match.match_url" class="w-8 h-8 rounded bg-white p-1 object-contain">
+                                        
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-sm font-bold text-white truncate" x-text="match.domain"></p>
+                                                <span class="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">MATCH</span>
+                                            </div>
+                                            <p class="text-xs text-gray-500 font-mono">
+                                                Score: <span x-text="Math.round(match.score * 100) + '%'"></span> | 
+                                                Dist: <span x-text="match.distance"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
                     {% else %}
                         <p class="text-gray-500 italic">No external visual identity found.</p>
                     {% endif %}
@@ -549,6 +1055,45 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Detected Ciphers -->
+                         <div class="mt-6 border-t border-gray-700/50 pt-4">
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Detected Ciphers</h3>
+                            {% if ssl_result.data.ciphers %}
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {% for cipher in ssl_result.data.ciphers %}
+                                    {% set is_compliant = cipher.name in approved_ciphers %}
+                                    <div class="flex items-center justify-between p-2 rounded {{ 'bg-green-900/10 border border-green-500/20' if is_compliant else 'bg-red-900/10 border border-red-500/20' }}">
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-mono {{ 'text-green-300' if is_compliant else 'text-red-300' }}">{{ cipher.name }}</span>
+                                            <span class="text-[10px] text-gray-500">{{ cipher.version }} - {{ cipher.bits }} bits</span>
+                                        </div>
+                                        <div>
+                                            {% if is_compliant %}
+                                                <span class="text-[10px] uppercase font-bold text-green-500 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/10">OK</span>
+                                            {% else %}
+                                                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-900/20 px-1.5 py-0.5 rounded border border-red-500/10">Risk</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                                <p class="text-xs text-gray-500 italic">No specific cipher suites detected.</p>
+                            {% endif %}
+                         </div>
+                    {% endif %}
+                    
+                    {% if ssl_result.log_content %}
+                    <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                        <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                            <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                            View Scan Logs
+                        </summary>
+                        <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ ssl_result.log_content }}</pre>
+                        </div>
+                    </details>
                     {% endif %}
                 {% else %}
                     <p class="text-gray-500 italic">No SSL data available.</p>
@@ -594,6 +1139,42 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Whois Info -->
+                            {% if infra_result.data.whois %}
+                            <div class="bg-gray-900/50 rounded-lg p-3 mt-4 border border-gray-700/50">
+                                <h4 class="text-xs text-gray-500 mb-2 uppercase font-bold">Whois Registration</h4>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between items-center bg-gray-800/30 p-1.5 rounded">
+                                        <span class="text-gray-400 text-xs">Registrar</span>
+                                        <span class="text-indigo-300 font-mono text-xs truncate max-w-[150px]" title="{{ infra_result.data.whois.registrar }}">{{ infra_result.data.whois.registrar or 'Unknown' }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-1">
+                                        <span class="text-gray-400 text-xs">Created</span>
+                                        <span class="text-white text-xs font-mono">{{ infra_result.data.whois.creation_date or '-' }}</span>
+                                    </div>
+                                     <div class="flex justify-between items-center p-1">
+                                        <span class="text-gray-400 text-xs">Expires</span>
+                                        <span class="text-xs font-mono {{ 'text-red-400 font-bold' if infra_result.data.whois.days_to_expire and infra_result.data.whois.days_to_expire < 30 else 'text-green-400' }}">
+                                            {{ infra_result.data.whois.expiration_date or '-' }}
+                                            {% if infra_result.data.whois.days_to_expire %}
+                                                <span class="opacity-75">({{ infra_result.data.whois.days_to_expire }}d)</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% if infra_result.data.whois.emails %}
+                                    <div class="pt-2 border-t border-gray-700/50">
+                                        <p class="text-[10px] text-gray-500 mb-1">Contact Emails</p>
+                                        <div class="flex flex-wrap gap-1">
+                                            {% for email in infra_result.data.whois.emails %}
+                                                <span class="text-[10px] bg-gray-800 text-gray-300 px-1 py-0.5 rounded">{{ email }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
 
                         <!-- Findings & Buckets -->
@@ -622,7 +1203,15 @@
                                      <h4 class="text-xs text-red-400 font-bold mb-2">Reputation Flags</h4>
                                      <ul class="text-sm text-gray-300 list-disc pl-4">
                                         {% for flag in infra_result.data.reputation %}
-                                            <li>{{ flag }}</li>
+                                            {% if flag.link is defined %}
+                                                <li>
+                                                    <a href="{{ flag.link }}" target="_blank" class="text-red-300 hover:text-red-200 underline">
+                                                        {{ flag.message }}
+                                                    </a>
+                                                </li>
+                                            {% else %}
+                                                <li>{{ flag }}</li>
+                                            {% endif %}
                                         {% endfor %}
                                      </ul>
                                 </div>
