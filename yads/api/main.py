@@ -546,6 +546,84 @@ async def delete_target(target_id: int, request: Request, session: Session = Dep
     # If HTMX deletes the row, we return empty body (200 OK) so the row disappears.
     return HTMLResponse(content="", status_code=200)
 
+# -- Real-time Scan Status & Logs --
+
+@app.get("/api/scans/{target_id}/status")
+async def get_scan_status(target_id: int):
+    """
+    Returns the latest status message and progress from Redis/DB.
+    """
+    import redis
+    r = redis.from_url(settings.REDIS_URL)
+    
+    # Check Redis for live status first
+    status_msg = r.get(f"scan:status:{target_id}")
+    if status_msg:
+        return {"status": status_msg.decode("utf-8")}
+        
+    # Fallback to DB if no live status (e.g. idle or finished)
+    with Session(engine) as session:
+        t = session.get(Target, target_id)
+        if t:
+            return {"status": t.scan_progress or t.scan_status}
+            
+    return {"status": "Unknown"}
+
+@app.get("/api/scans/{target_id}/logs")
+async def get_scan_logs(target_id: int):
+    """
+    Returns the recent log lines from Redis.
+    """
+    import redis
+    import json
+    r = redis.from_url(settings.REDIS_URL)
+    
+    # Fetch List
+    logs = r.lrange(f"scan:logs:{target_id}", 0, -1)
+    parsed_logs = []
+    
+    for l in logs:
+        try:
+            entry = json.loads(l)
+            parsed_logs.append(entry)
+        except:
+            parsed_logs.append({"msg": l.decode('utf-8')})
+            
+    return {"logs": parsed_logs}
+
+@app.get("/components/log_viewer/{target_id}", response_class=HTMLResponse)
+async def component_log_viewer(request: Request, target_id: int):
+    """
+    Returns the HTML fragment for the log viewer.
+    """
+    return templates.TemplateResponse("_log_viewer.html", {
+        "request": request,
+        "target_id": target_id
+    })
+
+@app.get("/components/log_lines/{target_id}", response_class=HTMLResponse)
+async def component_log_lines(request: Request, target_id: int):
+    """
+    Returns just the <li> elements for the log viewer (polled by HTMX).
+    """
+    import redis
+    import json
+    r = redis.from_url(settings.REDIS_URL)
+    
+    logs = r.lrange(f"scan:logs:{target_id}", 0, -1)
+    parsed_logs = []
+    for l in logs:
+        try:
+            entry = json.loads(l)
+            parsed_logs.append(entry)
+        except:
+            parsed_logs.append({"msg": l.decode('utf-8'), "ts": "", "level": "INFO"})
+            
+    return templates.TemplateResponse("_log_viewer_lines.html", {
+        "request": request, 
+        "logs": parsed_logs
+    })
+
 
 # -- Table View & Bulk Actions --
 

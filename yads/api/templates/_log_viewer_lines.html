@@ -1,0 +1,16 @@
+{% for log in logs %}
+<li class="flex gap-3 group hover:bg-white/5 p-0.5 rounded transition-colors">
+    <span class="text-gray-500 select-none shrink-0 w-20 text-right">{{ log.ts.split('T')[1][:8] if log.ts else '' }}</span>
+    <span class="
+        {% if log.level == 'INFO' %}text-blue-400
+        {% elif log.level == 'WARNING' %}text-yellow-400
+        {% elif log.level == 'ERROR' %}text-red-500 font-bold
+        {% else %}text-gray-300{% endif %}
+        shrink-0 w-16 uppercase text-[10px] tracking-wider pt-0.5
+    ">{{ log.level }}</span>
+    <span class="text-gray-300 break-all">{{ log.msg }}</span>
+</li>
+{% endfor %}
+{% if not logs %}
+<li class="text-gray-600 italic">No logs available for this session.</li>
+{% endif %}

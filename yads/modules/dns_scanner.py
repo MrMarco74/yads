@@ -260,7 +260,15 @@ class SubdomainScanner(DNSRecordScanner):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_sub = {executor.submit(verify_domain, sub): sub for sub in potential_full_domains}
+            total_subs = len(potential_full_domains)
+            completed_count = 0
+            
             for future in concurrent.futures.as_completed(future_to_sub):
+                completed_count += 1
+                # Log progress every 50 or 10%
+                if completed_count % 50 == 0 or completed_count == total_subs:
+                    logger.info(f"Subdomain Discovery Progress: {completed_count}/{total_subs} verified.")
+                    
                 res = future.result()
                 if res:
                     verified_results.append(res)
