@@ -7,6 +7,8 @@ from ipwhois import IPWhois
 
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
+from sqlmodel import select
+from yads.models import Target, ScanResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +34,38 @@ class InfrastructureScanner(BaseScannerModule):
         }
 
         # 1. Resolve IP
+        # 1. Resolve IP
+        ip = None
         try:
             ip = socket.gethostbyname(domain)
-            results["ip"] = ip
-        except Exception as e:
-            results["error"] = f"Could not resolve domain: {e}"
+        except Exception:
+            pass
+
+        # Fallback to DB if failed or 0.0.0.0
+        if not ip or ip == "0.0.0.0":
+             if self.db:
+                 try:
+                     # Find target ID
+                     t = self.db.exec(select(Target).where(Target.domain == domain)).first()
+                     if t:
+                         # Get latest DNS result
+                         dns_res = self.db.exec(select(ScanResult).where(
+                             ScanResult.target_id == t.id, 
+                             ScanResult.module_name == "dns_scanner"
+                         ).order_by(ScanResult.scanned_at.desc())).first()
+                         
+                         if dns_res and dns_res.data and "records" in dns_res.data:
+                             a_records = dns_res.data["records"].get("A", [])
+                             if a_records:
+                                 ip = a_records[0]
+                 except Exception as e:
+                     logger.error(f"DB DNS Fallback failed: {e}")
+
+        if not ip or ip == "0.0.0.0":
+            results["error"] = "Could not resolve IP (and DNS fallback failed)"
             return results
+            
+        results["ip"] = ip
 
         # 2. ASN & Geo Lookup
         try:

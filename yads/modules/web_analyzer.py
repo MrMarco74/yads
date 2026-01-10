@@ -201,7 +201,7 @@ class WebAnalyzer(BaseScannerModule):
         
         # Check HTTP
         try:
-            r_http = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False)
+            r_http = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False, verify=False)
             results["http_status"] = r_http.status_code
             
             # Check for redirect to HTTPS
@@ -213,7 +213,7 @@ class WebAnalyzer(BaseScannerModule):
 
         # Check HTTPS
         try:
-            r_https = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True)
+            r_https = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True, verify=False)
             results["https_status"] = r_https.status_code
             results["http_headers"] = dict(r_https.headers)
             results["redirect_chain"] = [r.url for r in r_https.history] + [r_https.url]
@@ -244,6 +244,8 @@ class WebAnalyzer(BaseScannerModule):
                  return results
              # If HTTP worked but HTTPS failed, we still have some info
              results["https_status"] = 0
+             if results["http_status"] > 0:
+                 results["status_code"] = results["http_status"]
 
         # Decide which URL to use for Deep Scan (prefer HTTPS if available, else HTTP)
         url = f"https://{target}" if results["https_status"] > 0 else f"http://{target}"
@@ -276,11 +278,8 @@ class WebAnalyzer(BaseScannerModule):
             matches = re.finditer(regex, content)
             for match in matches:
                 full_match = match.group(0)
-                # Redact
-                if len(full_match) > 8:
-                    redacted = full_match[:4] + "*" * (len(full_match) - 8) + full_match[-4:]
-                else:
-                    redacted = "*" * len(full_match)
+                # No Redaction per user request
+                redacted = full_match
                 
                 # Check for uniqueness
                 if not any(s['value'] == redacted for s in results["secrets"]):
@@ -343,7 +342,7 @@ class WebAnalyzer(BaseScannerModule):
                 # Performance optimizations: disable-gpu, no-sandbox
                 browser = p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]) 
                 
-                context = browser.new_context()
+                context = browser.new_context(ignore_https_errors=True)
                 page = context.new_page()
                 page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"})
                 
@@ -372,9 +371,38 @@ class WebAnalyzer(BaseScannerModule):
                 # 2. Sensitive Keyword Search
                 keywords = ["Confidential", "Internal Use Only", "Index of /", "admin portal", "login", "dashboard"]
                 page_text = page.inner_text("body").lower()
+                title_text = (results.get("title") or "").lower()
+                
+                found_dir_listing = False
+                
+                # Check for Directory Listing (Title or Body)
+                if "index of /" in title_text or "index of /" in page_text:
+                     found_dir_listing = True
+                     if "Index of /" not in results["keywords_found"]:
+                         results["keywords_found"].append("Index of /")
+
                 for kw in keywords:
                     if kw.lower() in page_text:
+                        # Avoid duplicating Index of / if already added
+                        if kw == "Index of /": continue
                         results["keywords_found"].append(kw)
+                
+                if found_dir_listing:
+                    hint = "Directory Listing Enabled"
+                    if hint not in results["risk_hints"]:
+                        results["risk_hints"].append(hint)
+                    
+                    # Explicit Vulnerability
+                    vuln_id = "MISC-DIR-LISTING"
+                    if not any(v.get('id') == vuln_id for v in results["cves"]):
+                        results["cves"].append({
+                            "id": vuln_id,
+                            "severity": "MEDIUM",
+                            "cvss": 5.3,
+                            "description": "Directory Browsing is enabled (Index of / found). This exposes the web server's file structure and may allow attackers to download sensitive files not intended for public access.",
+                            "references": ["https://cwe.mitre.org/data/definitions/548.html"],
+                            "product": "Web Server Configuration"
+                        })
 
                 # 3. Enhanced Fingerprinting & CVE (Comprehensive)
                 

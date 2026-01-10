@@ -75,16 +75,7 @@
             </div>
         </div>
         
-        <!-- Cloud Provider Chart -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-                Cloud Providers
-            </h3>
-            <div class="relative h-64">
-                <canvas id="cloudProviderChart"></canvas>
-            </div>
-        </div>
+
 
         <!-- Status Code Chart -->
         <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
@@ -158,6 +149,116 @@
                 <div class="text-gray-500 text-sm text-center py-12">No public buckets detected.</div>
             </div>
         </div>
+    </div>
+
+    <!-- Secrets & Data Leaks Chapter -->
+    <div id="secrets-leaks-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            Secrets & Data Leaks
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-gray-400">
+                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                    <tr>
+                        <th class="px-4 py-2">Target</th>
+                        <th class="px-4 py-2">Total Leaks</th>
+                        <th class="px-4 py-2">Detected Secrets</th>
+                        <th class="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="secrets-table-body" class="divide-y divide-gray-800">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div id="no-secrets-msg" class="text-gray-500 text-sm text-center py-8 hidden">
+            <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            No secrets detected across infrastructure.
+        </div>
+    </div>
+
+    <!-- Detected Vulnerabilities Chapter -->
+    <div id="features-vuln-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            Detected Vulnerabilities
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-gray-400">
+                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                    <tr>
+                        <th class="px-4 py-2">Target</th>
+                        <th class="px-4 py-2">Severity</th>
+                        <th class="px-4 py-2">Vulnerability</th>
+                         <th class="px-4 py-2">Context</th>
+                        <th class="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vuln-table-body" class="divide-y divide-gray-800">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div id="no-vuln-msg" class="text-gray-500 text-sm text-center py-8 hidden">
+            <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            No known vulnerabilities detected (Clean).
+        </div>
+    </div>
+
+    <div id="tech-details-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            Detailed Web Technologies
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-gray-400">
+                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                    <tr>
+                        <th class="px-4 py-2">Target</th>
+                        <th class="px-4 py-2">Detected Frameworks & Libraries</th>
+                        <th class="px-4 py-2">Server Header</th>
+                        <th class="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tech-details-body" class="divide-y divide-gray-800">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+
+    <!-- Cloud Infrastructure Chapter -->
+    <div id="cloud-infra-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+            Cloud Infrastructure
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Chart Column -->
+            <div class="md:col-span-1 border-r border-gray-700/50 pr-4">
+                <div class="relative h-64">
+                    <canvas id="cloudProviderChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Details Column -->
+            <div class="md:col-span-2 overflow-x-auto">
+                 <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                        <tr>
+                            <th class="px-4 py-2">Target</th>
+                            <th class="px-4 py-2">Provider</th>
+                            <th class="px-4 py-2">IP Address</th>
+                            <th class="px-4 py-2 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cloud-details-body" class="divide-y divide-gray-800">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
     </div>
 
     <!-- Global Map -->
@@ -410,6 +511,102 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             bucketList.innerHTML = '<div class="text-gray-500 text-sm text-center py-12 flex flex-col items-center"><svg class="w-8 h-8 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>No Open Buckets</div>';
         }
+
+        // --- Secrets Table ---
+        const secretsContainer = document.getElementById('secrets-leaks-container');
+        const secretsBody = document.getElementById('secrets-table-body');
+        const noSecretsMsg = document.getElementById('no-secrets-msg');
+        
+        if (data.secrets_leaks && data.secrets_leaks.length > 0) {
+            secretsContainer.classList.remove('hidden');
+            noSecretsMsg.classList.add('hidden');
+            secretsBody.innerHTML = '';
+            
+            data.secrets_leaks.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                
+                // Aggregate types
+                const types = [...new Set(item.secrets.map(s => s.type))];
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-white">${item.target}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-pink-900/50 text-pink-200 border border-pink-500/30">
+                            ${item.count} Detected
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                            ${item.secrets.map(s => 
+                                '<div class="text-[10px] font-mono border-b border-gray-700/50 pb-0.5 mb-0.5 last:border-0">' +
+                                    '<span class="text-pink-400 font-bold">' + s.type + ':</span> ' +
+                                    '<span class="text-gray-300 break-all select-all">' + (s.value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/`/g, '') + '</span>' +
+                                '</div>'
+                            ).join('')}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                         <a href="/targets/${item.target_id}" class="text-pink-400 hover:text-pink-300 text-xs hover:underline flex items-center justify-end gap-1">
+                            Inspect 
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                         </a>
+                    </td>
+                `;
+                secretsBody.appendChild(tr);
+            });
+        } else {
+             // Secrets Empty State
+             secretsContainer.classList.remove('hidden');
+             secretsBody.innerHTML = '';
+             noSecretsMsg.classList.remove('hidden');
+        }
+        
+        // --- Vulnerabilities Table ---
+        const vulnContainer = document.getElementById('features-vuln-container');
+        const vulnBody = document.getElementById('vuln-table-body');
+        const noVulnMsg = document.getElementById('no-vuln-msg');
+        
+        if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+            vulnContainer.classList.remove('hidden');
+            vulnBody.innerHTML = '';
+            noVulnMsg.classList.add('hidden');
+            
+            data.vulnerabilities.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                
+                // Severity styling
+                let sevBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-300">UNKNOWN</span>';
+                const sev = (item.severity || '').toString().toUpperCase();
+                if (sev === 'CRITICAL') sevBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-200 border border-red-500/30">CRITICAL</span>';
+                else if (sev === 'HIGH') sevBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-900/50 text-orange-200 border border-orange-500/30">HIGH</span>';
+                else if (sev === 'MEDIUM') sevBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-900/50 text-yellow-200 border border-yellow-500/30">MEDIUM</span>';
+                else if (sev === 'LOW') sevBadge = '<span class="px-2 py-0.5 rounded text-xs font-bold bg-green-900/50 text-green-200 border border-green-500/30">LOW</span>';
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-white text-xs">${item.target}</td>
+                    <td class="px-4 py-3">${sevBadge}</td>
+                    <td class="px-4 py-3">
+                         <div class="text-sm font-bold text-red-400">${item.id || 'N/A'}</div>
+                         <div class="text-xs text-gray-400 mt-0.5 max-w-md truncate" title="${item.description}">${item.description || ''}</div>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-gray-400">${item.product || '-'}</td>
+                    <td class="px-4 py-3 text-right">
+                         <a href="/targets/${item.target_id}" class="text-indigo-400 hover:text-indigo-300 text-xs hover:underline flex items-center justify-end gap-1">
+                            Details 
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                         </a>
+                    </td>
+                `;
+                vulnBody.appendChild(tr);
+            });
+        } else {
+             // Show empty state
+             vulnContainer.classList.remove('hidden');
+             vulnBody.innerHTML = '';
+             noVulnMsg.classList.remove('hidden');
+        }
     }
 
     // Google GeoChart Logic initialization moved to top of file
@@ -545,6 +742,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // --- Cloud Details Table ---
+        const cloudContainer = document.getElementById('cloud-infra-container');
+        const cloudBody = document.getElementById('cloud-details-body');
+        
+        // Show container if we have data
+        if ((cloudLabels.length > 0) || (data.cloud_details && data.cloud_details.length > 0)) {
+            if (cloudContainer) cloudContainer.classList.remove('hidden');
+        }
+
+        if (data.cloud_details && data.cloud_details.length > 0 && cloudBody) {
+            cloudBody.innerHTML = '';
+            data.cloud_details.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-white">${item.target}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded textxs font-medium bg-indigo-900/40 text-indigo-200 border border-indigo-500/20">
+                            ${item.provider}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 font-mono text-xs text-gray-300">${item.ip}</td>
+                    <td class="px-4 py-3 text-right">
+                         <a href="/targets/${item.id}" class="text-indigo-400 hover:text-indigo-300 text-xs hover:underline">View Target &rarr;</a>
+                    </td>
+                `;
+                cloudBody.appendChild(tr);
+            });
+        }
+
         // --- Status Code Health (Bar) ---
         const scCtx = document.getElementById('locationChart').getContext('2d');
         // Replace Location with Status Code Distribution
@@ -670,6 +898,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+
+        // --- Detailed Tech Table ---
+        const techContainer = document.getElementById('tech-details-container');
+        const techBody = document.getElementById('tech-details-body');
+        
+        if (data.tech_details && data.tech_details.length > 0) {
+            techContainer.classList.remove('hidden');
+            techBody.innerHTML = '';
+            
+            data.tech_details.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                
+                const techs = item.technologies.length > 0 
+                    ? item.technologies.map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded textxs font-medium bg-blue-900/40 text-blue-200 border border-blue-500/20 mr-1 mb-1">${t}</span>`).join('') 
+                    : '<span class="text-gray-600 text-xs italic">None detected</span>';
+                
+                const srv = item.server_header 
+                    ? `<span class="font-mono text-xs text-indigo-300 bg-black/30 px-1 py-0.5 rounded">${item.server_header}</span>` 
+                    : '<span class="text-gray-600 text-xs">-</span>';
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-white">${item.target}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-wrap items-center">
+                            ${techs}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">${srv}</td>
+                    <td class="px-4 py-3 text-right">
+                         <a href="/targets/${item.id}" class="text-blue-400 hover:text-blue-300 text-xs hover:underline">View Target &rarr;</a>
+                    </td>
+                `;
+                techBody.appendChild(tr);
+            });
+        }
+
 
         // --- Risk Feed ---
         const feedBody = document.getElementById('risk-feed-body');

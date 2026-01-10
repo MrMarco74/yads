@@ -35,8 +35,8 @@ class DNSRecordScanner(BaseScannerModule):
     def _get_custom_nameservers(self) -> List[str]:
         try:
             from yads.models import SystemConfig
-            if self.db_session:
-                conf = self.db_session.get(SystemConfig, "CUSTOM_DNS_SERVERS")
+            if self.db:
+                conf = self.db.get(SystemConfig, "CUSTOM_DNS_SERVERS")
                 if conf and conf.value:
                     return [ip.strip() for ip in conf.value.split(',') if ip.strip()]
         except Exception:
@@ -270,7 +270,7 @@ class SubdomainScanner(DNSRecordScanner):
                 # Check for Stop Signal
                 if completed_count % 10 == 0:
                     try:
-                        check_stop_signal(self.db_session)
+                        check_stop_signal(self.db)
                     except StopSignalError:
                         logger.warning("Stop All detected during subdomain enumeration. Aborting.")
                         # Cancel remaining futures?
