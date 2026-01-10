@@ -100,6 +100,76 @@ class InfrastructureScanner(BaseScannerModule):
             logger.error(f"Error in IPWhois: {e}")
             results["asn_error"] = str(e)
 
+        # 3.5 GeoIP Lookup (IP-API)
+        # Re-adding functionality for "Global Map" as requested.
+        try:
+            import requests
+            # Limited to 45 requests per minute. Fine for single threaded worker or slow queue.
+            # If high concurrency, we need a local DB.
+            geo_resp = requests.get(f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as", timeout=3)
+            if geo_resp.status_code == 200:
+                geo_data = geo_resp.json()
+                if geo_data.get("status") == "success":
+                    results["geoip"] = {
+                        "country_name": geo_data.get("country"),
+                        "country_code": geo_data.get("countryCode"),
+                        "city": geo_data.get("city"),
+                        "lat": geo_data.get("lat"),
+                        "lon": geo_data.get("lon"),
+                        "isp": geo_data.get("isp"),
+                        "org": geo_data.get("org")
+                    }
+                    
+                    # Enhanced Cloud Provider Detection via ISP/Org from GeoIP
+                    # Sometimes better than WHOIS desc
+                    isp_org = (geo_data.get("isp") or "") + " " + (geo_data.get("org") or "")
+                    isp_org = isp_org.lower()
+                    
+                    if not results["cloud_provider"]:
+                         if "amazon" in isp_org or "aws" in isp_org: results["cloud_provider"] = "AWS"
+                         elif "google" in isp_org: results["cloud_provider"] = "GCP"
+                         elif "microsoft" in isp_org or "azure" in isp_org: results["cloud_provider"] = "Azure"
+                         elif "hetzner" in isp_org: results["cloud_provider"] = "Hetzner"
+                         elif "digitalocean" in isp_org: results["cloud_provider"] = "DigitalOcean"
+                         elif "cloudflare" in isp_org: results["cloud_provider"] = "Cloudflare"
+
+        except Exception as e:
+            logger.error(f"GeoIP Lookup Failed: {e}") 
+        
+        # 3.6 Fallback Logic (Prevent Data Loss if API fails)
+        # If we have an IP, but no GeoIP/Cloud Provider (due to rate limit/timeout), 
+        # check if we have a previous result for this IP and reuse it.
+        if results["ip"] and (not results.get("geoip") or not results.get("cloud_provider")):
+            if self.db:
+                try:
+                    # Find target ID (we need it to query scanresult)
+                    # Note: We rely on domain matching here.
+                    t_obj = self.db.exec(select(Target).where(Target.domain == domain)).first()
+                    if t_obj:
+                         prev_res = self.db.exec(select(ScanResult).where(
+                             ScanResult.target_id == t_obj.id,
+                             ScanResult.module_name == "infrastructure_scanner"
+                         ).order_by(ScanResult.scanned_at.desc())).first()
+                         
+                         if prev_res and prev_res.data:
+                             prev_ip = prev_res.data.get("ip")
+                             
+                             # Only reuse if IP hasn't changed!
+                             if prev_ip == results["ip"]:
+                                 # Reuse GeoIP if missing
+                                 if not results.get("geoip") and prev_res.data.get("geoip"):
+                                     results["geoip"] = prev_res.data.get("geoip")
+                                     logger.info(f"Reused cached GeoIP for {domain} (API failed)")
+                                     
+                                 # Reuse Cloud Provider if missing
+                                 if not results.get("cloud_provider") and prev_res.data.get("cloud_provider"):
+                                     results["cloud_provider"] = prev_res.data.get("cloud_provider")
+                                     logger.info(f"Reused cached CloudProvider for {domain}")
+                                     
+                except Exception as ex:
+                    logger.error(f"Fallback logic failed: {ex}")
+
+
         # 4. Reputation Check
         if results["ip"]:
             results["reputation"] = self._check_reputation(results["ip"])
@@ -143,7 +213,7 @@ class InfrastructureScanner(BaseScannerModule):
             future_to_cand = {executor.submit(check_bucket, c): c for c in candidates}
             for i, future in enumerate(concurrent.futures.as_completed(future_to_cand)):
                 if i % 5 == 0:
-                     check_stop_signal(self.db_session)
+                     check_stop_signal(self.db)
                 res = future.result()
                 if res:
                     results["buckets"].append(res)

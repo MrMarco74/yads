@@ -107,6 +107,10 @@ app.add_middleware(
 from celery import Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
+# -- Routers --
+from yads.api.routers import analytics
+app.include_router(analytics.router)
+
 
 # -- UI Routes --
 
@@ -698,6 +702,13 @@ async def view_target_table(
     filter_wildcard: Optional[str] = None, # "yes", "no", "all"
     filter_scan_status: Optional[str] = None, # "running", "queued", "idle", "failed"
     
+    # New Functional Filters
+    filter_login: Optional[str] = None,
+    filter_dns: Optional[str] = None,
+    filter_secrets: Optional[str] = None,
+    filter_takeover: Optional[str] = None,
+    filter_ssl: Optional[str] = None,
+    
     # New: Persist Scan Options
     scan_types: List[str] = Query(None),
     
@@ -880,6 +891,74 @@ async def view_target_table(
         ).distinct()
         query = query.where(Target.id.in_(sub_wild))
 
+    # -- Filter: Login Page --
+    if filter_login and filter_login != "all":
+        is_login = "true" if filter_login == "yes" else "false"
+        sub_login = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'web_analyzer',
+            text("data->>'is_login_page' = :val").bindparams(val=is_login)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_login))
+
+    # -- Filter: DNS (Has Data/Subdomains) --
+    if filter_dns and filter_dns != "all":
+        # "has_data" means either dns_scanner or subdomain_scanner has results
+        # We check if 'subdomains' array length > 0 OR 'records' is not empty
+        if filter_dns == "active":
+             sub_dns = select(ScanResult.target_id).where(
+                or_(ScanResult.module_name == 'dns_scanner', ScanResult.module_name == 'subdomain_scanner'),
+                text("jsonb_array_length(data->'subdomains') > 0")
+             ).distinct()
+             query = query.where(Target.id.in_(sub_dns))
+        elif filter_dns == "none":
+            # Harder to filter "None" with subquery IN, usually requires NOT IN
+            pass # TODO: Implement "No DNS" cleanly if needed, or just focus on Active
+
+    # -- Filter: Secrets --
+    if filter_secrets and filter_secrets == "found":
+        sub_sec = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'web_analyzer',
+            text("jsonb_array_length(data->'secrets') > 0")
+        ).distinct()
+        query = query.where(Target.id.in_(sub_sec))
+
+    # -- Filter: Takeover --
+    if filter_takeover and filter_takeover == "found":
+        sub_take = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'dns_scanner',
+            text("jsonb_array_length(data->'takeover_risks') > 0")
+        ).distinct()
+        query = query.where(Target.id.in_(sub_take))
+
+    # -- Filter: SSL Issues --
+    if filter_ssl and filter_ssl == "issues":
+         # Look for scan result with "error" key present in data
+         sub_ssl = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'ssl_scanner',
+            text("data ? 'error'") # JSONB operator for key existence
+         ).distinct()
+         query = query.where(Target.id.in_(sub_ssl))
+    
+    # -- Filter: Server Header --
+    if filter_server:
+        # data->'server_header' contains string
+        search_srv = f"%{filter_server}%"
+        sub_srv = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'web_analyzer',
+            text("data->>'server_header' ILIKE :srv").bindparams(srv=search_srv)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_srv))
+
+    # -- Filter: ASN --
+    if filter_asn:
+        # data->'asn'->>'asn' (e.g. "AS1234") or 'asn_description'
+        search_asn = f"%{filter_asn}%"
+        sub_asn = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'infrastructure_scanner',
+            text("(data->'asn'->>'asn' ILIKE :asn OR data->'asn'->>'asn_description' ILIKE :asn)").bindparams(asn=search_asn)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_asn)) 
+
     # -- Filter: Scope (Internal vs External) --
     INTERNAL_TLDS = ['.vrnet', '.internal', '.local', '.lan', '.test']
     
@@ -1016,7 +1095,9 @@ async def view_target_table(
             "tld_stats": tld_scan.data if (tld_scan and tld_scan.data) else None,
             "port_scan": port_scan.data if (port_scan and port_scan.data) else None,
             "last_scan": results[0].scanned_at if results else None,
-            "modules": list(set([r.module_name for r in results]))
+            "last_scan": results[0].scanned_at if results else None,
+            "modules": list(set([r.module_name for r in results])),
+            "is_login_page": web.data.get("is_login_page", False) if (web and web.data) else False
         }
         
         # Calculate Compliance

@@ -50,224 +50,307 @@
         <p class="text-sm">Run scan modules (Infrastructure, Visual) to populate this view.</p>
     </div>
 
-    <!-- Charts Grid -->
-    <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
-        
-        <!-- Vulnerability Profile -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg lg:col-span-2">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                Security Posture (CVEs)
+    <!-- Section: General Overview -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('general')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                General Overview
             </h3>
-            <div class="relative h-48">
-                <canvas id="vulnChart"></canvas>
-            </div>
-        </div>
+            <svg id="arrow-general" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-general" class="hidden p-6 bg-gray-900/20">
+            <!-- Charts Grid -->
+            <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
+                
+                <!-- Vulnerability Profile -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg lg:col-span-2">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Security Posture (CVEs)
+                    </h3>
+                    <div class="relative h-48">
+                        <canvas id="vulnChart"></canvas>
+                    </div>
+                </div>
 
-        <!-- Tech Stack Chart -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-             <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                Web Server Technology
-            </h3>
-            <div class="relative h-64">
-                <canvas id="techStackChart"></canvas>
-            </div>
-        </div>
-        
-
-
-        <!-- Status Code Chart -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Status Code Health
-            </h3>
-            <div class="relative h-64">
-                <canvas id="locationChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Critical Risk Feed -->
-        <div class="bg-red-900/10 border border-red-500/20 rounded-xl p-6 shadow-lg lg:col-span-2">
-            <h3 class="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                Critical Risk Feed
-            </h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-gray-400">
-                    <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                        <tr>
-                            <th class="px-4 py-2">Severity</th>
-                            <th class="px-4 py-2">Type</th>
-                            <th class="px-4 py-2">Issue</th>
-                            <th class="px-4 py-2">Details</th>
-                             <th class="px-4 py-2 text-right">Target</th>
-                        </tr>
-                    </thead>
-                    <tbody id="risk-feed-body" class="divide-y divide-gray-800">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Security Health Section -->
-    <div id="security-health-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
-        <!-- SSL Expiry -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                SSL Expiry Timeline
-            </h3>
-            <div class="relative h-64">
-                <canvas id="sslChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Reputation Monitor -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
-                Reputation Monitor
-            </h3>
-            <div id="reputation-list" class="h-64 overflow-y-auto pr-2 space-y-3">
-                <!-- Populated by JS -->
-                <div class="text-gray-500 text-sm text-center py-12">No blacklisted IPs found.</div>
-            </div>
-        </div>
-
-        <!-- Open Buckets -->
-        <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-                Open Bucket Alerts
-            </h3>
-            <div id="buckets-list" class="h-64 overflow-y-auto pr-2 space-y-3">
-                <!-- Populated by JS -->
-                <div class="text-gray-500 text-sm text-center py-12">No public buckets detected.</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Secrets & Data Leaks Chapter -->
-    <div id="secrets-leaks-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            Secrets & Data Leaks
-        </h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-gray-400">
-                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                    <tr>
-                        <th class="px-4 py-2">Target</th>
-                        <th class="px-4 py-2">Total Leaks</th>
-                        <th class="px-4 py-2">Detected Secrets</th>
-                        <th class="px-4 py-2 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="secrets-table-body" class="divide-y divide-gray-800">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
-        </div>
-        <div id="no-secrets-msg" class="text-gray-500 text-sm text-center py-8 hidden">
-            <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            No secrets detected across infrastructure.
-        </div>
-    </div>
-
-    <!-- Detected Vulnerabilities Chapter -->
-    <div id="features-vuln-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            Detected Vulnerabilities
-        </h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-gray-400">
-                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                    <tr>
-                        <th class="px-4 py-2">Target</th>
-                        <th class="px-4 py-2">Severity</th>
-                        <th class="px-4 py-2">Vulnerability</th>
-                         <th class="px-4 py-2">Context</th>
-                        <th class="px-4 py-2 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="vuln-table-body" class="divide-y divide-gray-800">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
-        </div>
-        <div id="no-vuln-msg" class="text-gray-500 text-sm text-center py-8 hidden">
-            <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            No known vulnerabilities detected (Clean).
-        </div>
-    </div>
-
-    <div id="tech-details-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-            Detailed Web Technologies
-        </h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-gray-400">
-                <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                    <tr>
-                        <th class="px-4 py-2">Target</th>
-                        <th class="px-4 py-2">Detected Frameworks & Libraries</th>
-                        <th class="px-4 py-2">Server Header</th>
-                        <th class="px-4 py-2 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="tech-details-body" class="divide-y divide-gray-800">
-                    <!-- Populated by JS -->
-                </tbody>
-            </table>
-        </div>
-
-    <!-- Cloud Infrastructure Chapter -->
-    <div id="cloud-infra-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-            Cloud Infrastructure
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Chart Column -->
-            <div class="md:col-span-1 border-r border-gray-700/50 pr-4">
-                <div class="relative h-64">
-                    <canvas id="cloudProviderChart"></canvas>
+                <!-- Tech Stack Chart -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                        Web Server Technology
+                    </h3>
+                    <div class="relative h-64">
+                        <canvas id="techStackChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Status Code Chart -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Status Code Health
+                    </h3>
+                    <div class="relative h-64">
+                        <canvas id="locationChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Critical Risk Feed -->
+                <div class="bg-red-900/10 border border-red-500/20 rounded-xl p-6 shadow-lg lg:col-span-2">
+                    <h3 class="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Critical Risk Feed
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                                <tr>
+                                    <th class="px-4 py-2">Severity</th>
+                                    <th class="px-4 py-2">Type</th>
+                                    <th class="px-4 py-2">Issue</th>
+                                    <th class="px-4 py-2">Details</th>
+                                     <th class="px-4 py-2 text-right">Target</th>
+                                </tr>
+                            </thead>
+                            <tbody id="risk-feed-body" class="divide-y divide-gray-800">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Details Column -->
-            <div class="md:col-span-2 overflow-x-auto">
-                 <table class="w-full text-left text-sm text-gray-400">
-                    <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                        <tr>
-                            <th class="px-4 py-2">Target</th>
-                            <th class="px-4 py-2">Provider</th>
-                            <th class="px-4 py-2">IP Address</th>
-                            <th class="px-4 py-2 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cloud-details-body" class="divide-y divide-gray-800">
+        </div>
+    </div>
+
+    <!-- Section: Security Health -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('security')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                Security Health Monitoring
+            </h3>
+            <svg id="arrow-security" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-security" class="hidden p-6 bg-gray-900/20">
+            <!-- Security Health Section -->
+            <div id="security-health-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+                <!-- SSL Expiry -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        SSL Expiry Timeline
+                    </h3>
+                    <div class="relative h-64">
+                        <canvas id="sslChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Reputation Monitor -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                        Reputation Monitor
+                    </h3>
+                    <div id="reputation-list" class="h-64 overflow-y-auto pr-2 space-y-3">
                         <!-- Populated by JS -->
-                    </tbody>
-                </table>
+                        <div class="text-gray-500 text-sm text-center py-12">No blacklisted IPs found.</div>
+                    </div>
+                </div>
+
+                <!-- Open Buckets -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                        Open Bucket Alerts
+                    </h3>
+                    <div id="buckets-list" class="h-64 overflow-y-auto pr-2 space-y-3">
+                        <!-- Populated by JS -->
+                        <div class="text-gray-500 text-sm text-center py-12">No public buckets detected.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Secrets & Leaks -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('secrets')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                Secrets & Data Leaks
+            </h3>
+            <svg id="arrow-secrets" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-secrets" class="hidden p-6 bg-gray-900/20">
+            <!-- Secrets & Data Leaks Chapter -->
+            <div id="secrets-leaks-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    Secrets & Data Leaks
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                            <tr>
+                                <th class="px-4 py-2">Target</th>
+                                <th class="px-4 py-2">Total Leaks</th>
+                                <th class="px-4 py-2">Detected Secrets</th>
+                                <th class="px-4 py-2 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="secrets-table-body" class="divide-y divide-gray-800">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-secrets-msg" class="text-gray-500 text-sm text-center py-8 hidden">
+                    <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    No secrets detected across infrastructure.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Vulnerabilities -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('vulns')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Detected Vulnerabilities
+            </h3>
+            <svg id="arrow-vulns" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-vulns" class="hidden p-6 bg-gray-900/20">
+            <!-- Detected Vulnerabilities Chapter -->
+            <div id="features-vuln-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Detected Vulnerabilities
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                            <tr>
+                                <th class="px-4 py-2">Target</th>
+                                <th class="px-4 py-2">Severity</th>
+                                <th class="px-4 py-2">Vulnerability</th>
+                                 <th class="px-4 py-2">Context</th>
+                                <th class="px-4 py-2 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vuln-table-body" class="divide-y divide-gray-800">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-vuln-msg" class="text-gray-500 text-sm text-center py-8 hidden">
+                    <svg class="w-8 h-8 opacity-20 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    No known vulnerabilities detected (Clean).
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Tech Details -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('tech')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                Detailed Web Technologies
+            </h3>
+            <svg id="arrow-tech" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-tech" class="hidden p-6 bg-gray-900/20">
+            <div id="tech-details-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    Detailed Web Technologies
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                            <tr>
+                                <th class="px-4 py-2">Target</th>
+                                <th class="px-4 py-2">Detected Frameworks & Libraries</th>
+                                <th class="px-4 py-2">Server Header</th>
+                                <th class="px-4 py-2 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tech-details-body" class="divide-y divide-gray-800">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Cloud Infra -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg">
+        <button onclick="toggleSection('cloud')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                Cloud Infrastructure
+            </h3>
+            <svg id="arrow-cloud" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-cloud" class="hidden p-6 bg-gray-900/20">
+            <!-- Cloud Infrastructure Chapter -->
+            <div id="cloud-infra-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    Cloud Infrastructure
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Chart Column -->
+                    <div class="md:col-span-1 border-r border-gray-700/50 pr-4">
+                        <div class="relative h-64">
+                            <canvas id="cloudProviderChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Details Column -->
+                    <div class="md:col-span-2 overflow-x-auto">
+                         <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                                <tr>
+                                    <th class="px-4 py-2">Target</th>
+                                    <th class="px-4 py-2">Provider</th>
+                                    <th class="px-4 py-2">IP Address</th>
+                                    <th class="px-4 py-2 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cloud-details-body" class="divide-y divide-gray-800">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     </div>
 
-    <!-- Global Map -->
-    <div id="global-map-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
-        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            Global Server Map
-        </h3>
-        <div id="geoChart" class="w-full h-96 rounded-lg overflow-hidden"></div>
+    <!-- Section: Global Map -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg mt-6">
+        <button onclick="toggleSection('map')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Global Server Map
+            </h3>
+            <svg id="arrow-map" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div id="content-map" class="hidden p-6 bg-gray-900/20">
+            <!-- Global Map -->
+            <div id="global-map-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Global Server Map
+                </h3>
+                <div id="geoChart" class="w-full h-96 rounded-lg overflow-hidden"></div>
+            </div>
+        </div>
     </div>
 
 <!-- Analysis Modal -->
@@ -306,8 +389,42 @@
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 
 <script>
+    // Collapsible Logic with Persistence
+    window.toggleSection = function(id) {
+        const content = document.getElementById(`content-${id}`);
+        const arrow = document.getElementById(`arrow-${id}`);
+        if (!content || !arrow) return;
+        
+        const isHidden = content.classList.contains('hidden');
+        if (isHidden) {
+            content.classList.remove('hidden');
+            arrow.classList.add('rotate-180');
+            localStorage.setItem(`analytics_section_${id}`, 'open');
+            
+            // Special case for Map: Redraw to fix sizing issues
+            if (id === 'map' && window.lastCountryData) {
+                setTimeout(() => renderMap(window.lastCountryData), 100);
+            }
+        } else {
+            content.classList.add('hidden');
+            arrow.classList.remove('rotate-180');
+            localStorage.setItem(`analytics_section_${id}`, 'closed');
+        }
+    };
+
 document.addEventListener('DOMContentLoaded', async () => {
     
+    // Restore Section State
+    const sections = ['general', 'security', 'secrets', 'vulns', 'tech', 'cloud', 'map'];
+    sections.forEach(id => {
+        if (localStorage.getItem(`analytics_section_${id}`) === 'open') {
+             const c = document.getElementById(`content-${id}`);
+             const a = document.getElementById(`arrow-${id}`);
+             if(c) c.classList.remove('hidden');
+             if(a) a.classList.add('rotate-180');
+        }
+    });
+
     // Global Chart Config for Dark Mode / Visibility
     Chart.defaults.color = '#9ca3af'; 
     Chart.defaults.borderColor = '#374151'; 
@@ -317,10 +434,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     google.charts.load('current', {
         'packages': ['geochart']
     });
-    google.charts.setOnLoadCallback(() => { isGoogleLoaded = true; });
+    google.charts.setOnLoadCallback(() => { 
+        isGoogleLoaded = true;
+        // If map section is already open (restored state), draw it now
+        if (window.lastCountryData && !document.getElementById('content-map').classList.contains('hidden')) {
+            renderMap(window.lastCountryData);
+        }
+    });
     
     let cloudChart = null;
-    let locationChart = null; // Renamed to Status Code Chart actually in previous step, ensuring variable names consistent
+    let locationChart = null; 
 
     // Load Tags
     try {
@@ -365,6 +488,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!response.ok) throw new Error("API request failed");
             const data = await response.json();
             
+            // Save for map redraws
+            window.lastCountryData = data.countries;
+
             // Check if data is empty
             const hasData = Object.keys(data.cloud_providers).length > 0 || Object.keys(data.countries).length > 0;
             
@@ -912,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
                 
                 const techs = item.technologies.length > 0 
-                    ? item.technologies.map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded textxs font-medium bg-blue-900/40 text-blue-200 border border-blue-500/20 mr-1 mb-1">${t}</span>`).join('') 
+                    ? item.technologies.map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-900/40 text-blue-200 border border-blue-500/20 mr-1 mb-1">${t}</span>`).join('') 
                     : '<span class="text-gray-600 text-xs italic">None detected</span>';
                 
                 const srv = item.server_header 

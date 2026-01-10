@@ -285,11 +285,12 @@
             </div>
             <div class="overflow-x-auto rounded-b-xl">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-900/80 text-gray-400 text-xs uppercase font-semibold">
+                    <thead class="bg-gray-900/80 text-gray-400 text-xs uppercase font-semibold relative z-10">
                         <tr>
                             <th class="p-4 w-10">
                                 <input type="checkbox" id="select-all" class="rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
                             </th>
+                            <th class="p-4 w-12 text-center" title="Login Detected">🔑</th>
                             <th class="p-4 w-1/4">Domain</th> <!-- explicitly wider -->
                             <th class="p-4">Online</th>
                             <th class="p-4">Probe</th>
@@ -313,6 +314,13 @@
                         <tr class="bg-gray-800/50 border-b border-gray-700/50">
                             <th class="p-2">
                                 <!-- No filter for checkbox -->
+                            </th>
+                            <th class="p-2">
+                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_login" style="min-width: 40px">
+                                    <option value="all" {% if not filter_login or filter_login == 'all' %}selected{% endif %}>-</option>
+                                    <option value="yes" {% if filter_login == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if filter_login == 'no' %}selected{% endif %}>No</option>
+                                </select>
                             </th>
                             <!-- Domain -->
                             <th class="p-2">
@@ -386,13 +394,49 @@
                                 </select>
                             </th>
                              <!-- Disabled filters for complex cols for now -->
+                             <!-- DNS -->
+                             <th class="p-2">
+                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_dns">
+                                    <option value="all" {% if not filter_dns or filter_dns == 'all' %}selected{% endif %}>-</option>
+                                    <option value="active" {% if filter_dns == 'active' %}selected{% endif %}>Data</option>
+                                </select>
+                             </th>
+                             <!-- SSL -->
+                             <th class="p-2">
+                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_ssl">
+                                    <option value="all" {% if not filter_ssl or filter_ssl == 'all' %}selected{% endif %}>-</option>
+                                    <option value="issues" {% if filter_ssl == 'issues' %}selected{% endif %}>Issues</option>
+                                </select>
+                             </th>
+                             <!-- Compliant -->
                              <th class="p-2"></th>
+                             <!-- Server / ASN -->
+                             <th class="p-2">
+                                <div class="flex flex-col gap-1">
+                                    <input type="text" placeholder="Server" value="{{ filter_server or '' }}" 
+                                           class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
+                                           data-param="filter_server">
+                                    <input type="text" placeholder="ASN" value="{{ filter_asn or '' }}" 
+                                           class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
+                                           data-param="filter_asn">
+                                </div>
+                             </th>
+                             <!-- Secrets -->
+                             <th class="p-2">
+                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_secrets">
+                                    <option value="all" {% if not filter_secrets or filter_secrets == 'all' %}selected{% endif %}>-</option>
+                                    <option value="found" {% if filter_secrets == 'found' %}selected{% endif %}>Found</option>
+                                </select>
+                             </th>
+                             <!-- CVEs -->
                              <th class="p-2"></th>
-                             <th class="p-2"></th>
-                             <th class="p-2"></th>
-                             <th class="p-2"></th>
-                             <th class="p-2"></th>
-                             <th class="p-2"></th>
+                             <!-- Takeover -->
+                             <th class="p-2">
+                                 <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_takeover">
+                                    <option value="all" {% if not filter_takeover or filter_takeover == 'all' %}selected{% endif %}>-</option>
+                                    <option value="found" {% if filter_takeover == 'found' %}selected{% endif %}>Found</option>
+                                </select>
+                             </th>
                              <th class="p-2"></th>
                              <th class="p-2"></th>
                              <th class="p-2"></th> <!-- Actions column placeholder -->
@@ -403,6 +447,11 @@
                         <tr class="hover:bg-gray-700/30 transition-colors group">
                             <td class="p-4">
                                 <input type="checkbox" name="target_ids" value="{{ row.target.id }}" class="target-checkbox rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
+                            </td>
+                            <td class="p-4 text-center">
+                                {% if row.is_login_page %}
+                                    <span title="Login/Auth Page Detected" class="cursor-help text-lg">🔑</span>
+                                {% endif %}
                             </td>
                             <td class="p-4">
                                 <div class="flex flex-col gap-1" style="padding-left: {{ (row.depth or 0) * 1.5 }}rem;">
