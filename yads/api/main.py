@@ -2033,6 +2033,7 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     else:
     # Default: Latest results (derived from the history list we already fetched)
         # We need latest of EACH type.
+        latest_subdomain = next((r for r in history_entries if r.module_name == 'subdomain_scanner'), None)
         latest_dns = next((r for r in history_entries if r.module_name == 'dns_scanner'), None)
         latest_web = next((r for r in history_entries if r.module_name == 'web_analyzer'), None)
         latest_typosquat = next((r for r in history_entries if r.module_name == 'typosquat_scanner'), None)
@@ -2043,11 +2044,16 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         latest_crawler = next((r for r in history_entries if r.module_name == 'crawler'), None)
         latest_cd = next((r for r in history_entries if r.module_name == 'content_discovery'), None)
         latest_tld = next((r for r in history_entries if r.module_name == 'tld_scanner'), None)
-        current_results = [r for r in [latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld] if r]
+        current_results = [r for r in [latest_subdomain, latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld] if r]
 
     
     # Extract specific results for template
-    dns_result = next((r for r in current_results if r.module_name == 'dns_scanner'), None)
+    # Extract specific results for template
+    # Prioritize subdomain_scanner for DNS view as it contains everything + subdomains
+    subdomain_result = next((r for r in current_results if r.module_name == 'subdomain_scanner'), None)
+    dns_only_result = next((r for r in current_results if r.module_name == 'dns_scanner'), None)
+    dns_result = subdomain_result if subdomain_result else dns_only_result
+
     web_result = next((r for r in current_results if r.module_name == 'web_analyzer'), None)
     typosquat_result = next((r for r in current_results if r.module_name == 'typosquat_scanner'), None)
     infra_result = next((r for r in current_results if r.module_name == 'infrastructure_scanner'), None)
@@ -3050,14 +3056,39 @@ async def get_infrastructure_stats(target_id: Optional[int] = None, session: Ses
     if target_id:
         where_clause += f" AND target_id = {target_id}"
 
-    # 1. Cloud Providers
-    cp_query = text(f"SELECT data->>'cloud_provider', count(*) FROM scanresult {where_clause} GROUP BY 1")
-    cp_results = session.exec(cp_query).all()
-    
+    # 1. Cloud Providers (Detailed & Aggregated)
     cloud_providers = {}
-    for provider, count in cp_results:
-        provider_name = provider if provider else "Unknown"
-        cloud_providers[provider_name] = count
+    cloud_details = []
+    
+    # We reuse the same target list logic if possible, but let's just do a fresh loop for clarity/safety 
+    # (since we changed the other one to be tech stack specific)
+    # Ideally we'd fetch all Scans in one go, but let's stick to modular blocks for now.
+    
+    infra_targets = session.exec(select(Target.id, Target.domain)).all()
+    
+    for t_id, t_domain in infra_targets:
+        if target_id and t_id != target_id: continue
+        
+        # Get latest infra scan
+        i_res = session.exec(select(ScanResult).where(
+             ScanResult.target_id == t_id,
+             ScanResult.module_name == 'infrastructure_scanner'
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        if i_res and i_res.data:
+            data = i_res.data
+            provider_name = data.get("cloud_provider") or "Unknown"
+            ip_address = data.get("ip") or "Unknown"
+            
+            # Aggregate
+            cloud_providers[provider_name] = cloud_providers.get(provider_name, 0) + 1
+            
+            cloud_details.append({
+                "target": t_domain,
+                "id": t_id,
+                "provider": provider_name,
+                "ip": ip_address
+            })
         
     # 2. Countries
     c_query = text(f"SELECT data->'asn'->>'country', count(*) FROM scanresult {where_clause} GROUP BY 1")
@@ -3068,20 +3099,48 @@ async def get_infrastructure_stats(target_id: Optional[int] = None, session: Ses
         country_code = country if country else "Unknown"
         countries[country_code] = count
         
-    # 3. Tech Stack (Web Servers) - Optimized & Normalized
-    ts_query = text(f"SELECT data->>'server_header', count(*) FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')} GROUP BY 1")
-    ts_results = session.exec(ts_query).all()
-    
+    # 3. Tech Stack (Detailed & Aggregated)
     tech_stack = {}
-    for server, count in ts_results:
-        if not server: 
-            server_name = "Unknown"
-        else:
-            # Normalize: "nginx/1.18.0 (Ubuntu)" -> "Nginx"
-            # Normalize: "Apache/2.4.41" -> "Apache"
-            server_name = server.split('/')[0].split(' ')[0].strip()
-            
-        tech_stack[server_name] = tech_stack.get(server_name, 0) + count
+    tech_details = []
+    
+    # Fetch all targets (ID and Domain)
+    all_targets = session.exec(select(Target.id, Target.domain)).all()
+    
+    for t_id, t_domain in all_targets:
+        # Check filter
+        if target_id and t_id != target_id: continue
+        
+        # Get latest web scan
+        w_res = session.exec(select(ScanResult).where(
+             ScanResult.target_id == t_id,
+             ScanResult.module_name == 'web_analyzer'
+        ).order_by(ScanResult.scanned_at.desc())).first()
+        
+        if w_res and w_res.data:
+             data = w_res.data
+             # Aggregate for chart
+             # 1. actual tech_stack list
+             ts = data.get("tech_stack", []) or []
+             # 2. Server header fallback
+             headers = data.get("http_headers", {})
+             srv = headers.get("Server") or headers.get("server")
+             if srv:
+                 # Normalize
+                 srv_name = srv.split('/')[0].split(' ')[0].strip()
+                 if srv_name not in ts: ts.append(srv_name)
+             
+             # Clean up duplicates
+             ts_unique = list(set(ts))
+             
+             for tech in ts_unique:
+                 tech_stack[tech] = tech_stack.get(tech, 0) + 1
+                 
+             tech_details.append({
+                 "target": t_domain,
+                 "id": t_id,
+                 "technologies": ts_unique,
+                 "server_header": srv
+             })
 
     # 4. Status Code Health Check
     sc_query = text(f"SELECT data->>'status_code', count(*) FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')} GROUP BY 1")
@@ -3171,8 +3230,10 @@ async def get_infrastructure_stats(target_id: Optional[int] = None, session: Ses
         
     return {
         "cloud_providers": cloud_providers,
+        "cloud_details": cloud_details,
         "countries": countries,
         "tech_stack": tech_stack,
+        "tech_details": tech_details,
         "status_codes": status_codes,
         "vuln_stats": vuln_stats,
         "risk_feed": risk_feed[:20] # Top 20
@@ -3199,6 +3260,9 @@ async def get_security_risks(session: Session = Depends(get_session)):
     ssl_timeline = []
     reputation_issues = []
     open_buckets = []
+    open_buckets = []
+    secrets_leaks = []
+    vulnerabilities = []
     
     for t in targets:
         # Get latest relevant scans
@@ -3267,9 +3331,38 @@ async def get_security_risks(session: Session = Depends(get_session)):
                 reputation_issues.append({
                     "target": t.domain,
                     "target_id": t.id,
-                    "ip": ip,
                     "issues": rep
                 })
+
+        # Process Secrets (Web Analyzer)
+        web_res = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t.id,
+            ScanResult.module_name == "web_analyzer"
+        ).order_by(ScanResult.scanned_at.desc())).first()
+
+
+        
+        if web_res and web_res.data and web_res.data.get("secrets"):
+            found = web_res.data.get("secrets")
+            if found:
+                 secrets_leaks.append({
+                     "target": t.domain,
+                     "target_id": t.id,
+                     "count": len(found),
+                     "secrets": found # Contains type, value
+                 })
+
+        # Process Vulnerabilities (Web Analyzer CVEs)
+        if web_res and web_res.data and web_res.data.get("cves"):
+             for cve in web_res.data.get("cves"):
+                 vulnerabilities.append({
+                     "target": t.domain,
+                     "target_id": t.id,
+                     "id": cve.get("id"),
+                     "severity": cve.get("severity", "UNKNOWN"),
+                     "description": cve.get("description", ""),
+                     "product": cve.get("product", "")
+                 })
 
     # Sort SSL by urgency
     ssl_timeline.sort(key=lambda x: x["days_left"])
@@ -3277,7 +3370,9 @@ async def get_security_risks(session: Session = Depends(get_session)):
     return {
         "ssl_timeline": ssl_timeline,
         "reputation_issues": reputation_issues,
-        "open_buckets": open_buckets
+        "open_buckets": open_buckets,
+        "secrets_leaks": secrets_leaks,
+        "vulnerabilities": vulnerabilities
     }
 
 
