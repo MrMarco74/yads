@@ -16,6 +16,9 @@ class Target(SQLModel, table=True):
     
     # Tagging
     tags: List[str] = Field(default=[], sa_column=Column(JSONB))
+    
+    # Visual Identity
+    brand_logo_url: Optional[str] = Field(default=None)
 
     
     # Relationships

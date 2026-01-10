@@ -9,10 +9,6 @@
     
     <!-- Sidebar: Controls -->
     <div class="w-80 flex-shrink-0 bg-gray-900 border-r border-gray-800 p-6 flex flex-col z-20">
-        <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <span>🕸️</span> Network Graph
-        </h2>
-        
         <!-- Domain Selector -->
         <div class="mb-6">
             <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
@@ -26,7 +22,28 @@
                     <option value="" disabled>No targets found</option>
                 {% endif %}
             </select>
-            <p class="mt-2 text-xs text-gray-500">Pick a domain to see its infrastructure.</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="mb-6">
+            <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Filters</h3>
+            <div class="space-y-3">
+                <!-- Connected Checkbox -->
+                <label class="flex items-center space-x-2 cursor-pointer group">
+                    <input type="checkbox" id="filter-connected" class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-700 bg-gray-800 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    <span class="text-sm text-gray-300 group-hover:text-white transition">Hide Unconnected</span>
+                </label>
+                
+                <!-- Online Status Dropdown -->
+                <div>
+                     <label for="filter-online" class="block text-xs text-gray-500 mb-1">Online Status</label>
+                     <select id="filter-online" class="w-full bg-gray-800 border border-gray-700 text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                        <option value="all">Show All</option>
+                        <option value="online">Online Only</option>
+                        <option value="offline">Offline Only</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
         <!-- Legend -->
@@ -61,6 +78,19 @@
                     Show Full Network
                 </button>
              </div>
+
+             <h3 class="text-xs text-gray-400 mt-4 mb-2 uppercase font-bold tracking-wider">Export</h3>
+             <div class="flex flex-col gap-2">
+                <button onclick="exportGraph('svg')" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg shadow transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Visio (SVG)
+                </button>
+                <button onclick="exportGraph('excel')" class="w-full px-3 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded-lg shadow transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Visio Data (Excel)
+                </button>
+             </div>
+
         </div>
 
         <!-- Stats -->
@@ -84,6 +114,19 @@
     <!-- Main Area: Graph -->
     <div class="flex-grow relative bg-gray-950">
         <div id="mynetwork" class="w-full h-full"></div>
+        
+        <!-- Custom Navigation Controls -->
+        <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-10">
+            <button onclick="network.moveTo({scale: network.getScale() + 0.2})" class="p-2 bg-gray-800 text-indigo-400 rounded-full shadow-lg hover:bg-gray-700 hover:text-white transition focus:outline-none" title="Zoom In">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            </button>
+            <button onclick="network.moveTo({scale: network.getScale() - 0.2})" class="p-2 bg-gray-800 text-indigo-400 rounded-full shadow-lg hover:bg-gray-700 hover:text-white transition focus:outline-none" title="Zoom Out">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+            </button>
+            <button onclick="network.fit({animation: {duration: 500}})" class="p-2 bg-gray-800 text-indigo-400 rounded-full shadow-lg hover:bg-gray-700 hover:text-white transition focus:outline-none" title="Fit to Screen">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+            </button>
+        </div>
         
         <!-- Empty State Prompt -->
         <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -109,14 +152,22 @@
         const emptyPrompt = document.getElementById('empty-prompt');
         const domSelect = document.getElementById('domain-select');
         
+        // Filter Inputs
+        const filterConnected = document.getElementById('filter-connected').checked;
+        const filterOnline = document.getElementById('filter-online').value;
+
         // UI Updates
         loading.classList.remove('hidden');
         stats.classList.add('hidden');
         emptyPrompt.classList.add('hidden');
         
-        // If targetId is null (full network), reset the dropdown
-        if (!targetId) {
+        // If targetId is explicitly null (user clicked Show Full), clear selection
+        if (targetId === null) {
             domSelect.value = "";
+            targetId = ""; // Use empty string for logic
+        } else if (targetId === undefined) {
+             // Called without arg? Read from dropdown
+             targetId = domSelect.value;
         }
         
         // Destroy old network to clear canvas
@@ -126,9 +177,9 @@
         }
 
         // Build URL
-        let url = '/api/visualizations/network';
+        let url = `/api/visualizations/network?filter_empty=${filterConnected}&filter_online=${filterOnline}`;
         if (targetId) {
-            url += `?target_id=${targetId}`;
+            url += `&target_id=${targetId}`;
         }
 
         // Fetch Data
@@ -142,8 +193,15 @@
                 document.getElementById('edge-count').innerText = data.edges.length;
                 
                 if (data.nodes.length === 0) {
-                    alert("No data found (Run a DNS scan first!).");
-                    emptyPrompt.classList.remove('hidden');
+                     // If filtered, maybe show "No matching data"
+                    if (filterConnected || filterOnline !== "all") {
+                         loading.innerText = "No matching targets found.";
+                         loading.classList.remove("hidden");
+                         loading.classList.remove("animate-pulse");
+                    } else {
+                         alert("No data found (Run a DNS scan first!).");
+                         emptyPrompt.classList.remove('hidden');
+                    }
                     return;
                 }
 
@@ -163,6 +221,10 @@
                         font: { size: 14, face: 'Ui-sans-serif', color: '#e5e7eb', strokeWidth: 2, strokeColor: '#1f2937' },
                         borderWidth: 2,
                         shadow: true
+                    },
+                    layout: {
+                        improvedLayout: false,
+                        randomSeed: 42
                     },
                     edges: {
                         width: 1,
@@ -213,7 +275,7 @@
                         tooltipDelay: 200,
                         hideEdgesOnDrag: true,
                         hover: true,
-                        navigationButtons: true,
+                        navigationButtons: false, // Customized buttons
                         keyboard: true
                     }
                 };
@@ -223,8 +285,6 @@
                 // Add click listener
                 network.on("click", function (params) {
                     if (params.nodes.length > 0) {
-                         // Maybe show side panel details?
-                         // For now just console log
                          console.log("Clicked node:", params.nodes[0]);
                     }
                 });
@@ -234,17 +294,36 @@
                 loading.innerText = "Error: " + err;
                 loading.classList.remove("text-indigo-400");
                 loading.classList.add("text-red-500");
+                loading.classList.remove('hidden');
             });
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Dropdown listener
+    // Export Function
+    window.exportGraph = function(format) {
         const domSelect = document.getElementById('domain-select');
-        domSelect.addEventListener('change', function() {
-            const targetId = this.value;
-            if (!targetId) return;
-            loadGraph(targetId);
-        });
+        const targetId = domSelect.value;
+        const filterConnected = document.getElementById('filter-connected').checked;
+        const filterOnline = document.getElementById('filter-online').value;
+        
+        let url = `/api/visualizations/network/export?format=${format}&filter_empty=${filterConnected}&filter_online=${filterOnline}`;
+        if (targetId) {
+            url += `&target_id=${targetId}`;
+        }
+        
+        // Trigger download
+        window.location.href = url;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Listeners for auto-reload
+        const domSelect = document.getElementById('domain-select');
+        const filterConnected = document.getElementById('filter-connected');
+        const filterOnline = document.getElementById('filter-online');
+        
+        domSelect.addEventListener('change', () => loadGraph());
+        filterConnected.addEventListener('change', () => loadGraph());
+        filterOnline.addEventListener('change', () => loadGraph());
     });
+
 </script>
 {% endblock %}

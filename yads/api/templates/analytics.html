@@ -309,12 +309,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sslCtx = document.getElementById('sslChart').getContext('2d');
         const sslData = data.ssl_timeline || [];
         
-        // Take top 10 soonest
-        const topSSL = sslData.slice(0, 10);
+        // Take all domains with data
+        // const topSSL = sslData.slice(0, 10); 
+        const topSSL = sslData;
+
+        // Dynamic Height Adjustment
+        if (topSSL.length > 10) {
+            const newHeight = topSSL.length * 30; // 30px per bar
+            document.getElementById('sslChart').parentElement.style.height = `${newHeight}px`;
+        } else {
+             document.getElementById('sslChart').parentElement.style.height = '16rem'; // default h-64
+        }
+        
         const labels = topSSL.map(i => i.target);
         const values = topSSL.map(i => i.days_left);
         const colors = topSSL.map(i => {
-           if (i.days_left < 7) return '#EF4444';
+           if (i.status === 'expired') return '#DC2626'; // Dark Red for expired
+           if (i.days_left < 7) return '#EF4444'; // Red for critical
            if (i.days_left < 30) return '#F59E0B'; 
            return '#10B981';
         });

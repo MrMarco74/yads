@@ -13,6 +13,132 @@ import re
 
 import logging
 
+TECH_SIGNATURES = {
+    # CMS / Frameworks
+    "WordPress": {
+        "meta": {"generator": r"WordPress"},
+        "script": [r"wp-content", r"wp-includes"],
+        "html": [r"wp-json"],
+        "headers": {"X-Powered-By": r"WordPress"}
+    },
+    "Joomla": {
+        "meta": {"generator": r"Joomla"},
+        "html": [r"Joomla!"],
+        "headers": {"X-Content-Encoded-By": r"Joomla"}
+    },
+    "Drupal": {
+        "meta": {"generator": r"Drupal"},
+        "headers": {"X-Generator": r"Drupal"},
+        "script": [r"drupal.js"]
+    },
+    "Magento": {
+        "script": [r"mage/cookies", r"varien/js"],
+        "html": [r"Mage\.Cookies"],
+        "headers": {"X-Magento-Vary": r".*"}
+    },
+    "Shopify": {
+        "html": [r"shopify\.com"],
+        "script": [r"cdn\.shopify\.com"],
+        "headers": {"X-Shopify-Stage": r".*"}
+    },
+    "Wix": {
+        "meta": {"generator": r"Wix"},
+        "headers": {"X-Wix-Request-Id": r".*"}
+    },
+    "Squarespace": {
+        "headers": {"X-Served-By": r"Squarespace"}
+    },
+    
+    # JavaScript Frameworks
+    "React": {
+        "html": [r"data-reactroot", r"react-dom"],
+        "script": [r"react\.production\.min\.js", r"react\.development\.js"]
+    },
+    "Vue.js": {
+        "html": [r"data-v-", r"vue-root"],
+        "script": [r"vue\.js", r"vue\.min\.js"]
+    },
+    "Angular": {
+        "html": [r"ng-app", r"ng-controller", r"ng-version"],
+        "script": [r"angular\.js"]
+    },
+    "Svelte": {
+        "html": [r"svelte-"],
+        "script": [r"svelte-internal"]
+    },
+    
+    # Web Servers (Headers mostly)
+    "Nginx": {
+        "headers": {"Server": r"nginx"}
+    },
+    "Apache": {
+        "headers": {"Server": r"Apache"}
+    },
+    "IIS": {
+        "headers": {"Server": r"IIS"}
+    },
+    "LiteSpeed": {
+        "headers": {"Server": r"LiteSpeed"}
+    },
+    "Cloudflare": {
+        "headers": {"Server": r"cloudflare", "CF-RAY": r".*"}
+    },
+    
+    # Backend Tech
+    "PHP": {
+        "headers": {"X-Powered-By": r"PHP", "Set-Cookie": r"PHPSESSID"}
+    },
+    "ASP.NET": {
+        "headers": {"X-Powered-By": r"ASP\.NET", "Set-Cookie": r"ASPSESSIONID"}
+    },
+    "Laravel": {
+        "headers": {"Set-Cookie": r"laravel_session", "X-Powered-By": r"Laravel"}
+    },
+    "Django": {
+        "headers": {"Set-Cookie": r"csrftoken"},
+        "html": [r"csrfmiddlewaretoken"]
+    },
+    "Ruby on Rails": {
+        "headers": {"X-Powered-By": r"Phusion Passenger", "X-Runtime": r".*"},
+        "meta": {"csrf-param": r"authenticity_token"}
+    },
+    "Express": {
+        "headers": {"X-Powered-By": r"Express"}
+    },
+    
+    # UI / Libraries
+    "Bootstrap": {
+        "script": [r"bootstrap(\.min)?\.js"],
+        "html": [r"bootstrap(\.min)?\.css"]
+    },
+    "jQuery": {
+        "script": [r"jquery.*\.js"]
+    },
+    "Tailwind CSS": {
+        "html": [r"tailwindcss"]
+    },
+    "FontAwesome": {
+        "html": [r"fa-", r"font-awesome"],
+        "script": [r"fontawesome"]
+    },
+    
+    # Analytics / Marketing
+    "Google Analytics": {
+        "script": [r"google-analytics\.com/analytics\.js", r"googletagmanager\.com/gtag/js"],
+        "cookies": [r"_ga", r"_gid"]
+    },
+    "Google Tag Manager": {
+        "script": [r"googletagmanager\.com/gtm\.js"],
+        "html": [r"googletagmanager\.com/ns\.html"]
+    },
+    "Hotjar": {
+        "script": [r"static\.hotjar\.com"]
+    },
+    "Facebook Pixel": {
+        "script": [r"connect\.facebook\.net/en_US/fbevents\.js"]
+    }
+}
+
 class WebAnalyzer(BaseScannerModule):
     @property
     def module_name(self) -> str:
@@ -93,18 +219,24 @@ class WebAnalyzer(BaseScannerModule):
             results["redirect_chain"] = [r.url for r in r_https.history] + [r_https.url]
             results["status_code"] = r_https.status_code # Primary status for legacy logic
             
-            # Simple Tech Stack fingerprinting via headers
-            server = r_https.headers.get("Server")
-            if server:
-                results["tech_stack"].append(f"Server: {server}")
-                self._check_cve(server, results)
-            
-            x_powered = r_https.headers.get("X-Powered-By")
-            if x_powered:
-                results["tech_stack"].append(f"PoweredBy: {x_powered}")
-                if any(char.isdigit() for char in x_powered):
-                     results["risk_hints"].append(f"Version Disclosure: {x_powered}")
-                     self._check_cve(x_powered, results)
+            # Tech Stack fingerprinting via headers (Stage 1)
+            for tech, signatures in TECH_SIGNATURES.items():
+                if "headers" in signatures:
+                    for header_name, regex in signatures["headers"].items():
+                        header_val = results["http_headers"].get(header_name) or results["http_headers"].get(header_name.lower())
+                        if header_val:
+                            if re.search(regex, header_val, re.IGNORECASE):
+                                if tech not in results["tech_stack"]:
+                                    results["tech_stack"].append(tech)
+                                    
+                                    # Version extraction hints
+                                    # Start with simple one: if header has digits, maybe version?
+                                    # Refined: checks if the matched value actually contains the version
+                                    # This is a broad heuristic.
+                                    if any(c.isdigit() for c in header_val) and len(header_val) < 50:
+                                         # Try to isolate version? 
+                                         # For now, just logging the hint or sending to CVE check
+                                         self._check_cve(f"{tech} {header_val}", results)
 
         except requests.RequestException as e:
              if results["http_status"] == 0:
@@ -244,47 +376,65 @@ class WebAnalyzer(BaseScannerModule):
                     if kw.lower() in page_text:
                         results["keywords_found"].append(kw)
 
-                # 3. Enhanced Fingerprinting & CVE (Regex on HTML + Meta Generators)
+                # 3. Enhanced Fingerprinting & CVE (Comprehensive)
                 
-                # A. Meta Generator (High confidence version)
-                try:
-                    generators = page.locator("meta[name='generator']").all()
-                    for gen in generators:
-                        content_attr = gen.get_attribute("content")
-                        if content_attr:
-                            results["tech_stack"].append(f"Generator: {content_attr}")
-                            # Try CVE check
-                            # Generator often is "WordPress 5.8" (space sep) not "/"
-                            if " " in content_attr:
-                                p_parts = content_attr.split(" ")
-                                if len(p_parts) >= 2:
-                                    # Assume last part is version if digit?
-                                    ver = p_parts[-1]
-                                    prod = " ".join(p_parts[:-1])
-                                    if any(c.isdigit() for c in ver):
-                                        cves = lookup_cves(prod, ver)
-                                        if cves:
-                                             existing_ids = {c['id'] for c in results["cves"]}
-                                             for cve in cves:
-                                                 if cve['id'] not in existing_ids:
-                                                     cve['product'] = content_attr
-                                                     results["cves"].append(cve)
-                except:
-                    pass
+                # Gather data points
+                cookies_list = context.cookies()
+                cookie_names = [c["name"] for c in cookies_list]
+                
+                # Re-check headers from response if accessible (Playwright response object)
+                # But we mostly rely on Requests for headers.
+                
+                # Check Signatures
+                for tech, signatures in TECH_SIGNATURES.items():
+                    if tech in results["tech_stack"]:
+                        continue # Already found
+                        
+                    # Meta Tags
+                    if "meta" in signatures:
+                        for m_name, m_regex in signatures["meta"].items():
+                            val = results["meta_tags"].get(m_name)
+                            if val and re.search(m_regex, val, re.IGNORECASE):
+                                results["tech_stack"].append(tech)
+                                if any(c.isdigit() for c in val):
+                                    self._check_cve(f"{tech} {val}", results)
+                                break
+                    
+                    if tech in results["tech_stack"]: continue
 
-                # B. Regex Signatures
-                signatures = {
-                    "WordPress": r"wp-content|wp-includes",
-                    "Drupal": r"Drupal",
-                    "Joomla": r"Joomla",
-                    "React": r"data-reactroot",
-                    "Vue.js": r"data-v-"
-                }
-                
-                for tech, regex in signatures.items():
-                    if re.search(regex, content, re.IGNORECASE):
-                        if f"{tech}" not in results["tech_stack"]: 
-                            results["tech_stack"].append(tech)
+                    # HTML Content
+                    if "html" in signatures:
+                        for html_regex in signatures["html"]:
+                            if re.search(html_regex, content, re.IGNORECASE):
+                                results["tech_stack"].append(tech)
+                                break
+                                
+                    if tech in results["tech_stack"]: continue
+
+                    # Scripts (src)
+                    if "script" in signatures:
+                        try:
+                            # We can re-evaluate script tags or check network requests if we tracked them
+                            # Simple approach: check script src in DOM
+                            script_srcs = page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
+                            found_script = False
+                            for src in script_srcs:
+                                for s_regex in signatures["script"]:
+                                    if re.search(s_regex, src, re.IGNORECASE):
+                                        results["tech_stack"].append(tech)
+                                        found_script = True
+                                        break
+                                if found_script: break
+                        except: pass
+                        
+                    if tech in results["tech_stack"]: continue
+
+                    # Cookies
+                    if "cookies" in signatures:
+                        for c_regex in signatures["cookies"]:
+                            if any(re.search(c_regex, c_name, re.IGNORECASE) for c_name in cookie_names):
+                                results["tech_stack"].append(tech)
+                                break
 
                 # --- 4. OSINT Extraction ---
                 # A. Emails

@@ -1,31 +1,40 @@
-            {% for target in active_scans %}
-            <div class="flex flex-col bg-gray-900/50 rounded-lg border border-gray-700 p-3 hover:border-blue-500/50 transition-all group">
-                <div class="flex items-center justify-between mb-2">
-                    <a href="/targets/{{ target.id }}" class="font-mono text-gray-300 group-hover:text-blue-400 transition-colors truncate">
-                        {{ target.domain }}
-                    </a>
-                    <span class="text-[10px] uppercase tracking-wider text-blue-400/80 bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-500/10">Running</span>
-                </div>
+{% if active_scans %}
+<div class="bg-gray-800/50 border border-blue-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm animate-fade-in"
+     hx-get="/dashboard/active_scans"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+    <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+        Currently Scanning
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for target in active_scans %}
+        <div class="flex flex-col bg-gray-900/50 rounded-lg border border-gray-700 p-3 hover:border-blue-500/50 transition-all group">
+            <div class="flex items-center justify-between mb-2">
+                <a href="/targets/{{ target.id }}" class="font-mono text-gray-300 group-hover:text-blue-400 transition-colors truncate">
+                    {{ target.domain }}
+                </a>
+                <span class="text-[10px] uppercase tracking-wider text-blue-400/80 bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-500/10">Running</span>
+            </div>
+            
+            <div class="flex items-center justify-between mt-auto">
+                <span class="text-xs text-gray-400 truncate max-w-[150px]">
+                    {{ target.scan_progress or 'Processing...' }}
+                </span>
                 
-                <div class="flex items-center justify-between mt-auto">
-                    <!-- Status is now rendered directly server-side for this fragment, no more inner polling -->
-                    <span class="text-xs text-gray-400 truncate max-w-[150px]">
-                        {{ target.scan_progress or 'Processing...' }}
-                    </span>
-                    
-                    <button 
-                        hx-get="/components/log_viewer/{{ target.id }}"
-                        hx-target="#modal-container"
-                        hx-swap="innerHTML"
-                        class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 rounded px-2 py-1 transition-colors flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                        View Logs
-                    </button>
-                </div>
+                <button 
+                    hx-get="/components/log_viewer/{{ target.id }}"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 rounded px-2 py-1 transition-colors flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    View Logs
+                </button>
             </div>
-            {% endfor %}
-            {% if not active_scans %}
-            <div class="col-span-full text-center py-8 text-gray-500">
-                No scans currently running.
-            </div>
-            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div hx-get="/dashboard/active_scans" hx-trigger="every 5s" hx-swap="outerHTML"></div>
+{% endif %}

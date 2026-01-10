@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from ipwhois import IPWhois
 
 from yads.core.base import BaseScannerModule
+from yads.core.utils import check_stop_signal, StopSignalError
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,9 @@ class InfrastructureScanner(BaseScannerModule):
         # Run checks in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_cand = {executor.submit(check_bucket, c): c for c in candidates}
-            for future in concurrent.futures.as_completed(future_to_cand):
+            for i, future in enumerate(concurrent.futures.as_completed(future_to_cand)):
+                if i % 5 == 0:
+                     check_stop_signal(self.db_session)
                 res = future.result()
                 if res:
                     results["buckets"].append(res)

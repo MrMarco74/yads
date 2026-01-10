@@ -77,6 +77,9 @@ class TLDScanner(BaseScannerModule):
             "details": []
         }
         
+        # Cache for ASN lookups to avoid rate limits
+        ip_asn_cache = {}
+        
         def check_tld(tld):
             # Skip if it matches the original domain extension
             if tld == ext.suffix:
@@ -93,14 +96,41 @@ class TLDScanner(BaseScannerModule):
                 # We check A records basically
                 answers = res.resolve(candidate, 'A')
                 ips = [str(r) for r in answers]
+                primary_ip = ips[0]
                 
                 # It exists!
+                
+                # 1. ASN Lookup (Cached)
+                asn_info = {}
+                if primary_ip in ip_asn_cache:
+                    asn_info = ip_asn_cache[primary_ip]
+                else:
+                    try:
+                        from ipwhois import IPWhois
+                        obj = IPWhois(primary_ip)
+                        rdap = obj.lookup_rdap(depth=1)
+                        asn_info = {
+                            "asn": rdap.get("asn"),
+                            "org": rdap.get("asn_description"),
+                            "country": rdap.get("asn_country_code")
+                        }
+                        ip_asn_cache[primary_ip] = asn_info
+                    except Exception:
+                        pass
+                
+                # 2. Server Header (HTTP Request)
+                server_header = None
+                try:
+                    # Quick HEAD request
+                    h = requests.head(f"http://{candidate}", timeout=2, allow_redirects=True)
+                    server_header = h.headers.get("Server")
+                except:
+                    pass
+
                 # Check if matches reference
                 match = False
                 if ref_ips:
-                    # If any IP shares commonality? Or exact match?
-                    # Usually squatter/different owner has totally diff IP.
-                    # "different from the main tld" -> strict difference
+                    # If any IP shares commonality
                     if any(ip in ref_ips for ip in ips):
                         match = True
                 
@@ -109,6 +139,9 @@ class TLDScanner(BaseScannerModule):
                     "domain": candidate,
                     "status": "registered",
                     "ips": ips,
+                    "primary_ip": primary_ip,
+                    "asn": asn_info,
+                    "server": server_header,
                     "same_owner": match
                 }
                 
@@ -127,7 +160,7 @@ class TLDScanner(BaseScannerModule):
         # Limit to maybe 50-100 threads? IANA list has ~1500 TLDs. 
         # 1500/100 = 15 batches. 2s timeout. ~30s scan. Acceptable.
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             future_to_tld = {executor.submit(check_tld, tld): tld for tld in all_tlds}
             
             for future in concurrent.futures.as_completed(future_to_tld):

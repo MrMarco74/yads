@@ -55,7 +55,8 @@ async def get_security_risks(session: Session = Depends(get_session)):
                     days_left = (dt - datetime.utcnow()).days
                     
                     status = "ok"
-                    if days_left < 7: status = "critical"
+                    if days_left < 0: status = "expired"
+                    elif days_left < 7: status = "critical"
                     elif days_left < 30: status = "warning"
                     
                     ssl_timeline.append({

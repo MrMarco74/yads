@@ -34,11 +34,7 @@
           <div class="flex items-center">
             <a href="/" class="flex-shrink-0 flex items-center gap-3">
               <img src="/static/logo.jpg" alt="YADS Logo" class="h-10 w-auto rounded-lg shadow-lg shadow-cyan-500/20">
-              <span
-                class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-cyan-400"
-              >
-                YADS
-              </span>
+
             </a>
             <!-- Search Bar -->
             <div class="hidden md:flex ml-4 flex-1 max-w-xs">
@@ -109,5 +105,12 @@
     <main class="w-full mx-auto py-6 sm:px-6 lg:px-8">
       {% block content %}{% endblock %}
     </main>
+    
+    <footer class="border-t border-gray-800 bg-gray-900/50 backdrop-blur-sm mt-8 py-4">
+      <div class="max-w-[95%] mx-auto px-4 flex justify-between items-center text-xs text-gray-500">
+        <p>&copy; 2025 YADS Security. All rights reserved.</p>
+        <p class="font-mono">Build: v1.2.5 (2025-01-10)</p>
+      </div>
+    </footer>
   </body>
 </html>

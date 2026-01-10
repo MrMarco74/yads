@@ -1,8 +1,8 @@
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Request, Form, UploadFile, File, Body
+from fastapi import FastAPI, HTTPException, Depends, Request, Form, UploadFile, File, Body, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, Response
 from fastapi.encoders import jsonable_encoder
 from sqlmodel import Session, select, func, create_engine, text
 from contextlib import asynccontextmanager
@@ -14,7 +14,7 @@ from yads.modules.report_generator import generate_report
 from yads.modules.brand_monitor import BrandMonitor
 
 from yads.config import settings
-from yads.models import Target, ScanResult, ModuleState
+from yads.models import Target, ScanResult, ModuleState, SystemConfig
 from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
 
@@ -22,7 +22,9 @@ from yads.core.backup import create_backup_zip, restore_backup_from_zip
 logger = configure_logging("yads-api")
 
 # -- DB Setup --
+import tldextract
 engine = create_engine(settings.DATABASE_URL, echo=False)
+
 
 def get_session():
     with Session(engine) as session:
@@ -124,12 +126,29 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "full_scan"]
     final_types = [t for t in scan_types_selected if t in valid_types]
+    
+    if "full_scan" in final_types:
+        # User explicitly requested EVERYTHING
+        final_types = [t for t in valid_types if t != "full_scan"]
+    
     if not final_types:
-        final_types = valid_types
+         return RedirectResponse(url="/targets/table?msg=Error:+No+valid+scan+types+selected", status_code=303)
+
+    import logging
+    logger = logging.getLogger("yads-api")
+    logger.info(f"DEBUG: Bulk Scan Request. Target Count: {len(target_ids)}. Selected Types: {scan_types_selected}. Final: {final_types}")
 
     count = 0
+    
+    # Check Queue Status
+    from yads.models import SystemConfig
+    queue_config = session.get(SystemConfig, "QUEUE_ACTIVE")
+    queue_active = False
+    if queue_config and queue_config.value.lower() == "true":
+        queue_active = True
+
     for tid_str in target_ids:
         try:
             tid = int(tid_str)
@@ -137,9 +156,14 @@ async def bulk_scan_targets(
             if target:
                 target.scan_status = "queued"
                 session.add(target)
-                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types])
+                
+                # Always dispatch to Redis (even if paused, it waits there).
+                # This ensures arguments (scan_types) are preserved.
+                # Bulk scan is also a MANUAL action.
+                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types, True])
                 count += 1
-        except:
+        except Exception as e:
+            logger.error(f"Failed to queue target {tid_str}: {e}")
             continue
             
     session.commit()
@@ -307,19 +331,31 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "full_scan"]
     selected_types = [t for t in scan_types if t in valid_types]
     
+    if "full_scan" in selected_types:
+        # User explicitly requested EVERYTHING
+        # Expand 'full_scan' to all real scanner types
+        # Remove 'full_scan' pseudo-type to avoid worker conflict
+        real_types = [t for t in valid_types if t != "full_scan"]
+        selected_types = real_types
+    
     if not selected_types:
-        # Fallback to all if none selected (or if triggered without form)
-        selected_types = valid_types
+        # DO NOT FALLBACK TO ALL.
+        # Fail if nothing valid selected.
+        msg = "Error: No valid scan types selected."
+        return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
 
     # Trigger Celery Task (and update status)
     target.scan_status = "queued"
     session.add(target)
     session.commit()
     
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types])
+    # Always dispatch to Redis (even if paused, it waits there).
+    # This ensures argments are preserved.
+    # We pass ignore_queue_pause=True because this is a MANUAL action by the user.
+    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types, True])
     
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 
@@ -419,6 +455,20 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
             "queue_active": queue_active
         }
     })
+
+@app.get("/dashboard/active_scans", response_class=HTMLResponse)
+async def dashboard_active_scans(request: Request, session: Session = Depends(get_session)):
+    """HTMX endpoint to refresh the active scans list"""
+    try:
+        active_scans = session.exec(select(Target).where(Target.scan_status == "running")).all()
+        return templates.TemplateResponse("_active_scans.html", {
+            "request": request,
+            "active_scans": active_scans
+        })
+    except Exception as e:
+        with open("/tmp/yads_debug.log", "a") as f:
+            f.write(f"Error in dashboard_active_scans: {e}\n")
+        raise e
 
 @app.get("/dashboard/targets", response_class=HTMLResponse)
 async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, session: Session = Depends(get_session)):
@@ -638,17 +688,73 @@ async def view_target_table(
     filter_asn: Optional[str] = None,
     filter_last_scan: str = "all",
     filter_tag: Optional[str] = None,
+    filter_domain: Optional[str] = None,
+    filter_web_probe: str = "all",
+    
+    # New Per-Column Filters
+    filter_http_status: Optional[str] = None,
+    filter_https_status: Optional[str] = None,
+    filter_redirect: Optional[str] = None, # "yes", "no", "all"
+    filter_wildcard: Optional[str] = None, # "yes", "no", "all"
+    filter_scan_status: Optional[str] = None, # "running", "queued", "idle", "failed"
+    
+    # New: Persist Scan Options
+    scan_types: List[str] = Query(None),
+    
+    # New: Sorting & Scope
+    filter_scope: str = "all", # "all", "external", "internal"
+    filter_root_domain: Optional[str] = None, # For the dedicated root filter
+    
     session: Session = Depends(get_session)
 ):
     """
     Renders a detailed table view of all targets with bulk actions.
     Supports pagination and filtering (Online Status, Last Scan).
     """
+    from fastapi import Query # Ensure import availability if not global, but usually at top.
     from datetime import datetime, timedelta
-    from sqlmodel import or_, and_
+    from sqlmodel import or_, and_, col
+
+    # Scan Types Persistence Logic
+    default_scan_types = []  # Default to NOTHING selected to force explicit choice and avoid accidental full scans
+    
+    # If not provided (initial load or link without params), use defaults
+    if scan_types is None:
+        selected_scan_types = default_scan_types
+    else:
+        selected_scan_types = scan_types
 
     # Base Query
     query = select(Target)
+    
+    # -- Filter: Domain (Wildcard) --
+    if filter_domain:
+        clean_filter = filter_domain.strip()
+        if '*' in clean_filter:
+            # Shell-style wildcard: * -> SQL %
+            sql_pattern = clean_filter.replace('*', '%')
+            query = query.where(Target.domain.ilike(sql_pattern))
+        else:
+            # Strict match if no wildcard provided? 
+            # Or standard contains? 
+            # Given explicit "using * as wildcard" request, we default to exact match if no * finds, 
+            # BUT usually search bars are "contains". 
+            # Let's do exact match here to honor the distinction, or maybe simple substring?
+            # User request: "filter domains using * as wildcard"
+            # It implies "*" is the mechanism.
+            # I'll implement: Treat as exact string unless * is present. 
+            # Actually, let's treat it as "starts with" or partial?
+            # Safe bet: default to partial match (contains) is usually what users want if they don't know wildcards.
+            # BUT if they specifically asked for * wildcard, maybe they want to be precise.
+            # I will use ILIKE logic: if no * is present, I will treat it as a straight ILIKE match (exact). 
+            # Users can add *name* to do contains.
+            # Wait, that might be annoying.
+            # Compromise: I'll blindly replace * with % and run ILIKE. 
+            # If they don't use *, it's an exact match. 
+            # If they want contains, they type *foo*.
+            # User explicitly requested strict behavior: "Only example-client.de without anything else"
+            # So if no wildcard is used, we enforce STRICT equality.
+            query = query.where(func.lower(Target.domain) == clean_filter.lower())
     
     # -- Filter: Last Scan Time --
     if filter_last_scan != "all":
@@ -677,7 +783,8 @@ async def view_target_table(
         # Note: We use `text` for raw JSON/Cast operations compatible with PostgreSQL
         online_criteria = or_(
              and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
-             and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0"))
+             and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0")),
+             and_(ScanResult.module_name == 'port_scanner', text("data->>'is_active' = 'true'"))
         )
         
         sub_online = select(ScanResult.target_id).where(online_criteria).distinct()
@@ -720,11 +827,82 @@ async def view_target_table(
     # -- Filter: Tags --
     if filter_tag:
         # JSONB Containment: tags contains [filter_tag]
-        # SQLAlchemy/pg dialect: .contains
-        # We need to perform cast or use specific operator
-        # For simple list of strings in JSONB, @> operator works
-        # SQLModel/SA: col(Target.tags).contains([filter_tag])
         query = query.where(Target.tags.contains([filter_tag]))
+
+    # -- Filter: Scan Status --
+    if filter_scan_status and filter_scan_status != "all":
+        query = query.where(Target.scan_status == filter_scan_status)
+
+    # -- Filter: HTTP Status (Web Analyzer) --
+    if filter_http_status:
+        # Find targets where Web Analyzer result has this http_status
+        # Note: data->'http_status' might be number or string. Cast to text for comparison.
+        try:
+            status_code = int(filter_http_status)
+            sub_http = select(ScanResult.target_id).where(
+                ScanResult.module_name == 'web_analyzer',
+                text("data->>'http_status' = :code").bindparams(code=str(status_code))
+            ).distinct()
+            query = query.where(Target.id.in_(sub_http))
+        except:
+            pass # Invalid integer input
+
+    # -- Filter: HTTPS Status (Web Analyzer) --
+    if filter_https_status:
+        try:
+            status_code = int(filter_https_status)
+            sub_https = select(ScanResult.target_id).where(
+                ScanResult.module_name == 'web_analyzer',
+                text("data->>'https_status' = :code").bindparams(code=str(status_code))
+            ).distinct()
+            query = query.where(Target.id.in_(sub_https))
+        except:
+            pass
+
+    # -- Filter: Redirect (Web Analyzer) --
+    if filter_redirect and filter_redirect != "all":
+        # check data->'https_redirect' (boolean)
+        is_redir = "true" if filter_redirect == "yes" else "false"
+        sub_redir = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'web_analyzer',
+            text("data->>'https_redirect' = :val").bindparams(val=is_redir)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_redir))
+
+    # -- Filter: Wildcard (DNS Scanner) --
+    if filter_wildcard and filter_wildcard != "all":
+        # check data->'wildcard_detected' (boolean)
+        is_wild = "true" if filter_wildcard == "yes" else "false"
+        # Check both dns_scanner and subdomain_scanner as they both detect wildcards
+        sub_wild = select(ScanResult.target_id).where(
+            or_(ScanResult.module_name == 'dns_scanner', ScanResult.module_name == 'subdomain_scanner'),
+            text("data->>'wildcard_detected' = :val").bindparams(val=is_wild)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_wild))
+
+    # -- Filter: Scope (Internal vs External) --
+    INTERNAL_TLDS = ['.vrnet', '.internal', '.local', '.lan', '.test']
+    
+    if filter_scope == "external":
+        # Exclude internal TLDs
+        for tld in INTERNAL_TLDS:
+            query = query.where(func.lower(Target.domain).not_like(f"%{tld}"))
+            
+    elif filter_scope == "internal":
+        # Include ONLY internal TLDs
+        conditions = [func.lower(Target.domain).like(f"%{tld}") for tld in INTERNAL_TLDS]
+        query = query.where(or_(*conditions))
+
+    # -- Filter: Root Domain --
+    if filter_root_domain:
+        # Match EXACT root OR anything ending in .root
+        # This covers example-client.de and sub.example-client.de
+        query = query.where(
+            or_(
+                Target.domain == filter_root_domain,
+                Target.domain.like(f"%.{filter_root_domain}")
+            )
+        )
 
     # Calculate offset
 
@@ -739,7 +917,10 @@ async def view_target_table(
         total_count = session.exec(select(func.count()).select_from(Target)).one()
     
     # Fetch Paginated Targets
-    targets = session.exec(query.order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    # Default Sorting: Hierarchical (Reversed Domain)
+    # This puts example-client.de (ed.knabzd) before sub.example-client.de (ed.knabzd.bus)
+    # Using func.reverse from SQLAlchemy (Postgres supported)
+    targets = session.exec(query.order_by(func.reverse(Target.domain)).offset(offset).limit(limit)).all()
     
     # Calculate Total Pages
     total_pages = (total_count + limit - 1) // limit
@@ -786,10 +967,11 @@ async def view_target_table(
         web = next((r for r in results if r.module_name == 'web_analyzer'), None)
         infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
         tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
+        port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
         
         # Online Status Logic (Mirroring the Filter Logic)
         is_online = None 
-        if infra or web:
+        if infra or web or port_scan:
             has_ip = False
             if infra and infra.data and infra.data.get("ip"):
                 has_ip = True
@@ -800,7 +982,11 @@ async def view_target_table(
                 if isinstance(code, int) and code > 0:
                     has_http = True
             
-            if has_ip or has_http:
+            has_probe = False
+            if port_scan and port_scan.data and port_scan.data.get("is_active"):
+                has_probe = True
+
+            if has_ip or has_http or has_probe:
                 is_online = True
             else:
                 is_online = False
@@ -828,7 +1014,7 @@ async def view_target_table(
             "wildcard_detected": dns.data.get("wildcard_detected") if (dns and dns.data) else None,
             "takeover_risks": dns.data.get("takeover_risks", []) if (dns and dns.data) else [],
             "tld_stats": tld_scan.data if (tld_scan and tld_scan.data) else None,
-            "last_scan": results[0].scanned_at if results else None,
+            "port_scan": port_scan.data if (port_scan and port_scan.data) else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results]))
         }
@@ -878,7 +1064,36 @@ async def view_target_table(
         row_data["cve_stats"] = cve_stats
         row_data["secrets_count"] = secrets_count
         
+        # Root Domain Logic
+        ext = tldextract.extract(t.domain)
+        # Reconstruct root (e.g. example-client.de)
+        root = f"{ext.domain}.{ext.suffix}"
+        row_data["root_domain"] = root
+        # Check if this target IS the root (ignoring subdomain part if empty or 'www'?)
+        # Strict check: is the subdomain empty?
+        row_data["is_root"] = (not ext.subdomain)
+        
+        # Calculate visual depth
+        # If no subdomain, depth 0. Else dot count + 1
+        if not ext.subdomain:
+            row_data["depth"] = 0
+        else:
+             row_data["depth"] = ext.subdomain.count('.') + 1
+        
         table_rows.append(row_data)
+
+    # -- Extract Unique Root Domains for Filter --
+    # Optimization: If list is huge, this might be slow. 
+    # Query all domains ONLY if we need to populate the filter?
+    # Let's do a lightweight query for all domains to build the dropdown.
+    all_domains = session.exec(select(Target.domain)).all()
+    unique_roots = set()
+    for d in all_domains:
+        ext = tldextract.extract(d)
+        if ext.domain and ext.suffix:
+            unique_roots.add(f"{ext.domain}.{ext.suffix}")
+    
+    unique_roots_list = sorted(list(unique_roots))
 
     return templates.TemplateResponse("target_table.html", {
         "request": request, 
@@ -888,6 +1103,23 @@ async def view_target_table(
         "filter_tag": filter_tag,
         "filter_server": filter_server,
         "filter_asn": filter_asn,
+        "filter_domain": filter_domain,
+        "filter_web_probe": filter_web_probe,
+        
+        "filter_http_status": filter_http_status,
+        "filter_https_status": filter_https_status,
+        "filter_redirect": filter_redirect,
+        "filter_wildcard": filter_wildcard,
+        "filter_scan_status": filter_scan_status,
+        
+        "filter_scope": filter_scope,
+        "filter_root_domain": filter_root_domain,
+        "unique_root_domains": unique_roots_list,
+        
+        "limit": limit,
+        "total_targets": total_count,
+        "total_pages": total_pages,
+        "selected_scan_types": selected_scan_types,
         "unique_tags": get_unique_tags(session),
         "pagination": {
             "page": page,
@@ -904,37 +1136,65 @@ async def view_target_table(
 
 @app.post("/scans/stop-all")
 async def stop_all_scans(session: Session = Depends(get_session)):
-    # 1. Purge Pending Queue
+    """
+    Panic Button: Immediately stops all scans.
+    1. Pauses the Queue (prevent new tasks).
+    2. Purges Redis Queue (remove pending).
+    3. FORCE KILLS (SIGKILL) all active and reserved tasks.
+    4. Updates DB status.
+    """
+    # 1. Pause Queue
+    # We need to ensure QUEUE_ACTIVE is set to false
+    # Check if we have set_system_config helper, if not, do it manually
+    conf = session.exec(select(SystemConfig).where(SystemConfig.key == "QUEUE_ACTIVE")).first()
+    if not conf:
+        conf = SystemConfig(key="QUEUE_ACTIVE", value="false")
+        session.add(conf)
+    else:
+        conf.value = "false"
+        session.add(conf)
+    session.commit() # Commit pause immediately
+
+    # 2. Purge Pending Queue
     purged_count = celery_app.control.purge()
     
-    # 2. Attempt to Revoke Running Tasks
+    # 3. Force Kill Active & Reserved Tasks
     i = celery_app.control.inspect()
     active = i.active() if i else None
+    reserved = i.reserved() if i else None
     revoked_count = 0
     
-    if active:
-        for worker, tasks in active.items():
-            for task in tasks:
-                 task_id = task.get("id")
-                 if task_id:
-                     celery_app.control.revoke(task_id, terminate=True)
-                     revoked_count += 1
+    # Helper to kill tasks
+    def kill_tasks(task_dict):
+        count = 0
+        if task_dict:
+            for worker, tasks in task_dict.items():
+                for task in tasks:
+                    task_id = task.get("id")
+                    if task_id:
+                        # SIGKILL is required for a true "Stop All"
+                        celery_app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+                        count += 1
+        return count
+
+    revoked_count += kill_tasks(active)
+    revoked_count += kill_tasks(reserved)
     
-    # 3. Update DB Status
-    statement = select(Target).where(Target.scan_status.in_(["scanning", "queued"]))
+    # 4. Update DB Status
+    statement = select(Target).where(Target.scan_status.in_(["running", "queued", "scanning"]))
     targets = session.exec(statement).all()
     
     db_updated_count = 0
     for t in targets:
         t.scan_status = "stopped"
-        t.scan_progress = "Manually stopped"
+        t.scan_progress = "Manually stopped (Panic)"
         session.add(t)
         db_updated_count += 1
         
     session.commit()
     
-    msg = f"Stopped!+Purged:+{purged_count},+Revoked:+{revoked_count},+DB+Updated:+{db_updated_count}"
-    return RedirectResponse(url=f"/dashboard/targets?msg={msg}", status_code=303)
+    msg = f"PANIC STOP: Queue Paused. Purged: {purged_count}, Killed: {revoked_count}, Updated: {db_updated_count}"
+    return RedirectResponse(url=f"/?msg={msg}", status_code=303)
 
 
 # -- Backup & Restore Routes --
@@ -988,10 +1248,48 @@ async def view_queue(request: Request, session: Session = Depends(get_session)):
         r = redis.from_url(settings.REDIS_URL, decode_responses=True)
         queue_len = r.llen("celery")
         # Peek top 50
-        queue_items = r.lrange("celery", 0, 49) 
+        raw_items = r.lrange("celery", 0, 49)
+        queue_items = []
+        import json
+        import base64
+        
+        for raw in raw_items:
+            try:
+                item_data = json.loads(raw)
+                # Try to get data from argsrepr first (easiest)
+                # Format: [1, 'domain', ['type1', 'type2']]
+                args_str = item_data.get('headers', {}).get('argsrepr', '')
+                
+                # If argsrepr exists, try to parse it safely or just format it
+                # Converting string representation to list can be risky with eval, 
+                # but we can try to parse it if it looks like JSON or just use string manipulation
+                
+                # Robust fallback: Decode Body
+                body_b64 = item_data.get('body')
+                if body_b64:
+                    # Celery default encoding is base64 for body
+                    body_str = base64.b64decode(body_b64).decode('utf-8')
+                    body_json = json.loads(body_str)
+                    args = body_json[0] # [id, domain, types]
+                    
+                    domain = args[1] if len(args) > 1 else "?"
+                    scan_types = args[2] if len(args) > 2 else ["All"]
+                    
+                    queue_items.append({
+                        "domain": domain,
+                        "scan_types": scan_types,
+                        "raw_id": item_data.get('headers', {}).get('id', '?')
+                    })
+                else:
+                     # Fallback to raw if body missing
+                     queue_items.append({"domain": "Unknown", "scan_types": args_str, "raw_id": "?"})
+                     
+            except Exception as e:
+                queue_items.append({"domain": "Parse Error", "scan_types": str(e), "raw_id": "?"})
+
     except Exception as e:
         queue_len = "Error connecting to Redis"
-        queue_items = [str(e)]
+        queue_items = []
 
     # Check Active/Paused Config
     from yads.models import SystemConfig
@@ -1001,10 +1299,14 @@ async def view_queue(request: Request, session: Session = Depends(get_session)):
     if config:
         queue_active = config.value.lower() == "true"
         
+    # Fetch Pending Items from DB (waiting for queue to resume)
+    pending_items = session.exec(select(Target).where(Target.scan_status == "queued")).all()
+
     return templates.TemplateResponse("queue.html", {
         "request": request,
         "queue_length": queue_len,
         "queue_items": queue_items,
+        "pending_items": pending_items,
         "queue_active": queue_active
     })
 
@@ -1018,10 +1320,33 @@ async def control_queue(request: Request, action: str = Form(...), session: Sess
         session.add(config)
     
     if action == "start":
+        # CRITICAL: Update DB to "true" BEFORE enabling consumer.
+        # Otherwise, eager workers pick up tasks, check DB, see "false", and abort immediately.
+        config.value = "true"
+        session.add(config)
+        session.commit()
+        
         # Enable Consumer
         celery_app.control.add_consumer('celery', reply=True)
-        config.value = "true"
-        msg = "Queue+Processing+Started"
+        
+        msg = "Queue+Processing+Resumed"
+        
+        # Return early since we committed already
+        return RedirectResponse(url=f"/queue?msg={msg}", status_code=303)
+    elif action == "clear":
+        # 1. Purge Redis Queue
+        purged = celery_app.control.purge()
+        
+        # 2. Clear DB Queue (mark as stopped/cancelled)
+        statement = select(Target).where(Target.scan_status == "queued")
+        targets = session.exec(statement).all()
+        for t in targets:
+            t.scan_status = "stopped"
+            t.scan_progress = "Cleared from Queue"
+            session.add(t)
+            
+        msg = f"Queue+Cleared+(Purged:+{purged},+DB+Updated:+{len(targets)})"
+
     elif action == "pause":
          # Disable Consumer
         celery_app.control.cancel_consumer('celery', reply=True)
@@ -1717,7 +2042,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         latest_wayback = next((r for r in history_entries if r.module_name == 'wayback_scanner'), None)
         latest_crawler = next((r for r in history_entries if r.module_name == 'crawler'), None)
         latest_cd = next((r for r in history_entries if r.module_name == 'content_discovery'), None)
-        current_results = [r for r in [latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd] if r]
+        latest_tld = next((r for r in history_entries if r.module_name == 'tld_scanner'), None)
+        current_results = [r for r in [latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld] if r]
 
     
     # Extract specific results for template
@@ -1730,6 +2056,7 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     wayback_result = next((r for r in current_results if r.module_name == 'wayback_scanner'), None)
     crawler_result = next((r for r in current_results if r.module_name == 'crawler'), None)
     content_discovery_result = next((r for r in current_results if r.module_name == 'content_discovery'), None)
+    tld_result = next((r for r in current_results if r.module_name == 'tld_scanner'), None)
 
     # -- Cipher Compliance Setup --
     from yads.models import SystemConfig
@@ -1767,6 +2094,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "ssl_result": ssl_result,
         "wayback_result": wayback_result,
         "crawler_result": crawler_result,
+        "content_discovery_result": content_discovery_result,
+        "tld_result": tld_result,
         "history_entries": history_entries, # Pass full history
         "current_history_id": history_id,
         "raw_results": jsonable_encoder([r.model_dump() for r in current_results]),
@@ -1837,6 +2166,74 @@ def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: S
     matches = monitor.hunt_lookalikes(logo_url, candidates)
     
     return {"matches": matches, "count": len(matches)}
+
+# -- Brand Logo Management --
+
+@app.post("/targets/{target_id}/logo")
+async def set_target_logo(
+    target_id: int, 
+    logo_url: str = Form(...), 
+    session: Session = Depends(get_session)
+):
+    """
+    Sets the primary brand logo for a target.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    target.brand_logo_url = logo_url.strip()
+    session.add(target)
+    session.commit()
+    
+    return RedirectResponse(url=f"/targets/{target_id}?msg=Logo+updated", status_code=303)
+
+@app.post("/targets/{target_id}/logo/upload")
+async def upload_target_logo(
+    target_id: int, 
+    file: UploadFile = File(...), 
+    session: Session = Depends(get_session)
+):
+    """
+    Uploads a custom logo file and sets it as primary.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    # Validate
+    if not file.content_type.startswith("image/"):
+        return RedirectResponse(url=f"/targets/{target_id}?error=Invalid+file+type", status_code=303)
+        
+    # Save
+    import shutil
+    import uuid
+    
+    ext = file.filename.split('.')[-1].lower() if '.' in file.filename else "png"
+    if ext not in ["png", "jpg", "jpeg", "svg", "webp", "ico"]:
+        return RedirectResponse(url=f"/targets/{target_id}?error=Invalid+extension", status_code=303)
+        
+    filename = f"logo_{target_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    upload_dir = "yads/api/static/logos"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = os.path.join(upload_dir, filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Update Target
+        # URL path is relative to static root
+        logo_url = f"/static/logos/{filename}"
+        target.brand_logo_url = logo_url
+        session.add(target)
+        session.commit()
+        
+        return RedirectResponse(url=f"/targets/{target_id}?msg=Logo+uploaded", status_code=303)
+    except Exception as e:
+         logger.error(f"Logo upload failed: {e}")
+         return RedirectResponse(url=f"/targets/{target_id}?error=Upload+failed", status_code=303)
 
 # -- Settings Routes --
 
@@ -2375,12 +2772,36 @@ async def get_redirect_centrality(session: Session = Depends(get_session)):
     }
 
 @app.get("/api/visualizations/network")
-async def get_network_graph(target_id: Optional[int] = None, session: Session = Depends(get_session)):
+async def get_network_graph(
+    target_id: Optional[int] = None, 
+    filter_empty: bool = False,
+    filter_online: str = "all",
+    session: Session = Depends(get_session)
+):
     """
     Returns graph data (nodes, edges) for the Network Relationship visualization.
     Integrates DNS records and Subdomains.
     """
+    from sqlmodel import or_, and_
+    
     query = select(Target)
+    
+    # 1. Online/Offline Filter
+    if filter_online != "all":
+        online_criteria = or_(
+             and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
+             and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0")),
+             and_(ScanResult.module_name == 'port_scanner', text("data->>'is_active' = 'true'"))
+        )
+        sub_online = select(ScanResult.target_id).where(online_criteria).distinct()
+
+        if filter_online == "online":
+            query = query.where(Target.id.in_(sub_online))
+        elif filter_online == "offline":
+             sub_scanned = select(ScanResult.target_id).distinct()
+             query = query.where(Target.id.in_(sub_scanned))
+             query = query.where(Target.id.notin_(sub_online))
+
     if target_id:
         query = query.where(Target.id == target_id)
         
@@ -2474,14 +2895,126 @@ async def get_network_graph(target_id: Optional[int] = None, session: Session = 
                 for ip in sub.get("ips", []):
                     ip_id = f"ip_{ip}"
                     add_node(ip_id, ip, "ip", 5)
+
+
                     add_edge(sub_id, ip_id, "A")
+
+    # Filter Empty (Unconnected) Nodes
+    if filter_empty:
+        connected_ids = set()
+        for e in edges:
+            connected_ids.add(e["from"])
+            connected_ids.add(e["to"])
+        
+        # Keep only connected nodes
+        nodes = {nid: n for nid, n in nodes.items() if nid in connected_ids}
 
     return {
         "nodes": list(nodes.values()),
         "edges": edges
     }
 
+@app.get("/api/visualizations/network/export")
+async def export_network_graph(
+    target_id: Optional[int] = None,
+    filter_empty: bool = False,
+    filter_online: str = "all",
+    format: str = "svg", 
+    session: Session = Depends(get_session)
+):
+    """
+    Exports the Network Graph to SVG (Visio) or Excel (Visio Data Visualizer).
+    """
+    # Reuse existing logic to get nodes/edges
+    graph_data = await get_network_graph(target_id=target_id, filter_empty=filter_empty, filter_online=filter_online, session=session)
+    nodes = graph_data.get("nodes", [])
+    edges = graph_data.get("edges", [])
+    
+    if format == "svg":
+        # Generate DOT source
+        dot_lines = ["digraph NetworkGraph {", "  rankdir=LR;", "  node [shape=circle style=filled];"]
+        
+        # Add Nodes
+        for n in nodes:
+            # Map Vis.js groups to Graphviz colors/shapes
+            color = "#cccccc"
+            shape = "ellipse"
+            group = n.get('group')
+            if group == 'target': color = "lightblue"; shape="doublecircle"
+            elif group == 'subdomain': color = "plum"
+            elif group == 'ip': color = "orange"; shape="box"
+            elif group == 'resource': color = "cyan"; shape="diamond"
+            
+            label = n.get('label', '').replace('"', '\\"')
+            dot_lines.append(f'  "{n["id"]}" [label="{label}" fillcolor="{color}" shape="{shape}"];')
+            
+        # Add Edges
+        for e in edges:
+            dot_lines.append(f'  "{e["from"]}" -> "{e["to"]}";')
+            
+        dot_lines.append("}")
+        dot_source = "\n".join(dot_lines)
+        
+        # Convert to SVG via subprocess
+        import asyncio
+        try:
+            # Async Subprocess
+            proc = await asyncio.create_subprocess_exec(
+                'dot', '-Tsvg',
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            svg_out, err = await proc.communicate(input=dot_source.encode('utf-8'))
+            
+            if proc.returncode != 0:
+                logger.error(f"Graphviz Error: {err.decode()}")
+                return Response(content=f"Error generating SVG: {err.decode()}", status_code=500)
+                
+            return Response(content=svg_out, media_type="image/svg+xml", headers={
+                "Content-Disposition": 'attachment; filename="network_graph.svg"'
+            })
+        except FileNotFoundError:
+             return Response(content="Graphviz (dot) not found on server.", status_code=500)
+        except Exception as e:
+             logger.error(f"Export Error: {e}")
+             return Response(content=f"Export Error: {str(e)}", status_code=500)
+
+    elif format == "excel" or format == "csv":
+        # Export for Visio Data Visualizer (Excel)
+        import pandas as pd
+        from io import BytesIO
+        
+        # Nodes Sheet
+        df_nodes = pd.DataFrame(nodes)
+        if not df_nodes.empty:
+            # Reorder/Rename if keys exist
+            display_cols = ["id", "label", "group"]
+            df_nodes = df_nodes[[c for c in display_cols if c in df_nodes.columns]]
+            df_nodes.columns = [c.capitalize() for c in df_nodes.columns]
+        
+        # Edges Sheet
+        df_edges = pd.DataFrame(edges)
+        if not df_edges.empty:
+             display_cols = ["from", "to", "label"]
+             df_edges = df_edges[[c for c in display_cols if c in df_edges.columns]]
+             df_edges.columns = ["Source", "Target", "Description"]
+             
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_nodes.to_excel(writer, index=False, sheet_name='Nodes')
+            df_edges.to_excel(writer, index=False, sheet_name='Edges')
+            
+        output.seek(0)
+        return StreamingResponse(output, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={
+            "Content-Disposition": 'attachment; filename="network_graph_data.xlsx"'
+        })
+        
+    return {"error": "Invalid format"}
+
 @app.get("/visualizations/redirect-graph", response_class=HTMLResponse)
+
 async def view_redirect_graph(request: Request, session: Session = Depends(get_session)):
     # Fetch all targets for the dropdown
     targets = session.exec(select(Target.domain).order_by(Target.domain)).all()
@@ -2866,3 +3399,40 @@ async def bulk_add_tag(
 
 
 
+
+@app.post("/admin/reset", response_class=HTMLResponse)
+async def admin_reset_system(request: Request, session: Session = Depends(get_session)):
+    """
+    Emergency Stop & Data Wipe:
+    1. Purge Redis Queue
+    2. Revoke all active tasks
+    3. Delete all Targets & Scan Results
+    """
+    # 1. Purge Queue
+    try:
+        celery_app.control.purge()
+    except Exception as e:
+        logger.error(f"Failed to purge queue: {e}")
+
+    # 2. Revoke Active/Reserved Tasks
+    i = celery_app.control.inspect()
+    active = i.active() if i else None
+    reserved = i.reserved() if i else None
+    
+    if active:
+        for worker, tasks in active.items():
+            for task in tasks:
+                celery_app.control.revoke(task['id'], terminate=True)
+                
+    if reserved:
+        for worker, tasks in reserved.items():
+            for task in tasks:
+                celery_app.control.revoke(task['id'], terminate=True)
+
+    # 3. Delete Data (Cascade)
+    session.exec(text("DELETE FROM scanresult"))
+    session.exec(text("DELETE FROM modulestate"))
+    session.exec(text("DELETE FROM target"))
+    session.commit()
+    
+    return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)

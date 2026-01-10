@@ -5,46 +5,8 @@
     <!-- Stats Row -->
     {% include "_dashboard_stats.html" %}
 
-    <!-- Active Scans Row (Conditional) -->
-    {% if active_scans %}
-    <div class="bg-gray-800/50 border border-blue-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm animate-fade-in">
-        <h3 class="text-sm font-medium text-gray-400 mb-4 flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-            Currently Scanning
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for target in active_scans %}
-            <div class="flex flex-col bg-gray-900/50 rounded-lg border border-gray-700 p-3 hover:border-blue-500/50 transition-all group">
-                <div class="flex items-center justify-between mb-2">
-                    <a href="/targets/{{ target.id }}" class="font-mono text-gray-300 group-hover:text-blue-400 transition-colors truncate">
-                        {{ target.domain }}
-                    </a>
-                    <span class="text-[10px] uppercase tracking-wider text-blue-400/80 bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-500/10">Running</span>
-                </div>
-                
-                <div class="flex items-center justify-between mt-auto">
-                    <span class="text-xs text-gray-400 truncate max-w-[150px]"
-                          hx-get="/api/scans/{{ target.id }}/status"
-                          hx-trigger="every 10s"
-                          hx-swap="innerHTML"
-                          hx-select="status">
-                        {{ target.scan_progress or 'Processing...' }}
-                    </span>
-                    
-                    <button 
-                        hx-get="/components/log_viewer/{{ target.id }}"
-                        hx-target="#modal-container"
-                        hx-swap="innerHTML"
-                        class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 rounded px-2 py-1 transition-colors flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                        View Logs
-                    </button>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+    <!-- Active Scans Row -->
+    {% include "_active_scans.html" %}
 
     <!-- Modal Container (Placeholder) -->
     <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none empty:hidden">
