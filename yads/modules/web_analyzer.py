@@ -179,7 +179,8 @@ class WebAnalyzer(BaseScannerModule):
             "https_status": 0,
             "https_redirect": False,
             "cves": [],
-            "secrets": []
+            "secrets": [],
+            "is_login_page": False
         }
         
         url = f"http://{target}" # Start with http, let it redirect to https
@@ -207,6 +208,11 @@ class WebAnalyzer(BaseScannerModule):
             # Check for redirect to HTTPS
             if r_http.is_redirect and r_http.headers.get("Location", "").startswith("https"):
                 results["https_redirect"] = True
+            
+            # 401 means Basic Auth -> Login Page
+            if r_http.status_code == 401:
+                results["is_login_page"] = True
+                self.logger.info(f"Login Page Detected (HTTP 401) for {target}")
                 
         except Exception:
             results["http_status"] = 0 # Failed
@@ -256,6 +262,36 @@ class WebAnalyzer(BaseScannerModule):
         if results["status_code"] is not None:
              self.logger.info("Stage 2: Starting Headless Scan (Playwright)...")
              self._run_headless(url, results, timeout)
+
+        # --- Stage 3: Smart Merge (Data Preservation) ---
+        # If we failed to find technologies/title (likely timeout/error), 
+        # try to restore from previous scan to avoid "blinking" dashboard.
+        if not results["tech_stack"] and self.db:
+            try:
+                from yads.models import Target, ScanResult
+                from sqlmodel import select
+                
+                # We need target_id. `target` arg is string domain.
+                t_obj = self.db.exec(select(Target).where(Target.domain == target)).first()
+                if t_obj:
+                    # Fetch LAST successful WebAnalyzer result
+                    prev = self.db.exec(select(ScanResult).where(
+                        ScanResult.target_id == t_obj.id,
+                        ScanResult.module_name == "web_analyzer"
+                    ).order_by(ScanResult.scanned_at.desc())).first()
+                    
+                    if prev and prev.data:
+                         prev_stack = prev.data.get("tech_stack", [])
+                         if prev_stack:
+                             results["tech_stack"] = prev_stack
+                             results["risk_hints"].append("Cached technologies used (Scan failed)")
+                             self.logger.info(f"Restored {len(prev_stack)} technologies from history.")
+                         
+                         if not results.get("title") and prev.data.get("title"):
+                             results["title"] = prev.data.get("title")
+
+            except Exception as e:
+                self.logger.error(f"Smart Merge failed: {e}")
 
         return results
 
@@ -358,6 +394,24 @@ class WebAnalyzer(BaseScannerModule):
                 
                 # 0. Secret Scanning
                 self._scan_secrets(content, results)
+                
+                # 0.5 Login Page Detection
+                try:
+                    # Check 1: Password Input
+                    pw_count = page.locator("input[type='password']").count()
+                    if pw_count > 0:
+                        results["is_login_page"] = True
+                        self.logger.info(f"Login Page Detected (Password Input) for {url}")
+                    
+                    # Check 2: Title Keywords (if not already found)
+                    if not results["is_login_page"] and results["title"]:
+                        t_lower = results["title"].lower()
+                        if "login" in t_lower or "sign in" in t_lower or "anmeldung" in t_lower:
+                            results["is_login_page"] = True
+                            self.logger.info(f"Login Page Detected (Title Keyword) for {url}")
+                            
+                except Exception as e:
+                    self.logger.error(f"Login detection failed: {e}")
                 
                 # 1. Visual Identity (Favicon & OG)
                 try:

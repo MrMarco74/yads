@@ -102,7 +102,7 @@
       </div>
     </nav>
 
-    <main class="w-full mx-auto py-6 sm:px-6 lg:px-8">
+    <main class="{% block main_classes %}w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}">
       {% block content %}{% endblock %}
     </main>
     

@@ -2,99 +2,118 @@
 
 {% block title %}Network Relationships Graph{% endblock %}
 
+{% block main_classes %}flex-1 w-full bg-gray-900 overflow-hidden relative flex flex-col{% endblock %}
+
 {% block content %}
-<!-- Main Container: Flexbox Layout -->
-<!-- Break out of base.html padding with negative margins -->
-<div class="fixed inset-0 top-20 z-0 flex bg-gray-900 overflow-hidden">
+<style>
+    /* Force body to be a flex column filling the screen */
+    body {
+        height: 100vh !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    /* Hide footer to reclaim space */
+    footer { display: none !important; }
+</style>
+
+<!-- Full Screen Layout Container (Using flex-1 from main_classes) -->
+<div class="flex flex-1 h-full w-full overflow-hidden">
     
-    <!-- Sidebar: Controls -->
-    <div class="w-80 flex-shrink-0 bg-gray-900 border-r border-gray-800 p-6 flex flex-col z-20">
-        <!-- Domain Selector -->
-        <div class="mb-6">
-            <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
-            <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
-                <option value="" selected disabled>Choose a domain...</option>
-                {% if domains %}
-                    {% for d in domains %}
-                    <option value="{{ d.id }}">{{ d.domain }}</option>
-                    {% endfor %}
-                {% else %}
-                    <option value="" disabled>No targets found</option>
-                {% endif %}
-            </select>
-        </div>
+    <!-- Sidebar: Controls (Fixed Width) -->
+    <div class="w-80 flex-none bg-gray-900 border-r border-gray-800 flex flex-col z-20 shadow-xl">
+        
+        <!-- Sidebar Header / Content Scrollable -->
+        <div class="flex-1 overflow-y-auto p-6">
+            <!-- Domain Selector -->
+            <div class="mb-6">
+                <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
+                <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
+                    <option value="" selected disabled>Choose a domain...</option>
+                    {% if domains %}
+                        {% for d in domains %}
+                        <option value="{{ d.id }}">{{ d.domain }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="" disabled>No targets found</option>
+                    {% endif %}
+                </select>
+            </div>
 
-        <!-- Filters -->
-        <div class="mb-6">
-            <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Filters</h3>
-            <div class="space-y-3">
-                <!-- Connected Checkbox -->
-                <label class="flex items-center space-x-2 cursor-pointer group">
-                    <input type="checkbox" id="filter-connected" class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-700 bg-gray-800 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                    <span class="text-sm text-gray-300 group-hover:text-white transition">Hide Unconnected</span>
-                </label>
-                
-                <!-- Online Status Dropdown -->
-                <div>
-                     <label for="filter-online" class="block text-xs text-gray-500 mb-1">Online Status</label>
-                     <select id="filter-online" class="w-full bg-gray-800 border border-gray-700 text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
-                        <option value="all">Show All</option>
-                        <option value="online">Online Only</option>
-                        <option value="offline">Offline Only</option>
-                    </select>
+            <!-- Filters -->
+            <div class="mb-6">
+                <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Filters</h3>
+                <div class="space-y-3">
+                    <!-- Connected Checkbox -->
+                    <label class="flex items-center space-x-2 cursor-pointer group">
+                        <input type="checkbox" id="filter-connected" class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-700 bg-gray-800 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                        <span class="text-sm text-gray-300 group-hover:text-white transition">Hide Unconnected</span>
+                    </label>
+                    
+                    <!-- Online Status Dropdown -->
+                    <div>
+                         <label for="filter-online" class="block text-xs text-gray-500 mb-1">Online Status</label>
+                         <select id="filter-online" class="w-full bg-gray-800 border border-gray-700 text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
+                            <option value="all">Show All</option>
+                            <option value="online">Online Only</option>
+                            <option value="offline">Offline Only</option>
+                        </select>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Legend -->
-        <div class="mb-6">
-            <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Legend</h3>
-            <div class="space-y-3 text-xs text-gray-300">
-                <div class="flex items-center gap-3">
-                    <span class="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></span>
-                    <span>Target (Domain Root)</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></span>
-                    <span>Subdomain</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="w-3 h-3 rounded-sm bg-orange-500 shadow-sm shadow-orange-500/50"></span>
-                    <span>IP Address</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 bg-cyan-500 rotate-45 shadow-sm shadow-cyan-500/50 ms-0.5"></div>
-                    <span>Resources (MX, NS, CNAME)</span>
+            <!-- Legend -->
+            <div class="mb-6">
+                <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Legend</h3>
+                <div class="space-y-3 text-xs text-gray-300">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div>
+                        <span>Target (Domain Root)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></div>
+                        <span>Subdomain</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-sm bg-orange-500 shadow-sm shadow-orange-500/50"></div>
+                        <span>IP Address</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 bg-cyan-500 rotate-45 shadow-sm shadow-cyan-500/50 ms-0.5"></div>
+                        <span>Resources (MX, NS, CNAME)</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Actions -->
-        <div class="mb-6 border-t border-gray-800 pt-4">
-             <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Analysis</h3>
-             <div class="flex flex-col gap-2">
-                <button onclick="loadGraph(null)" class="w-full px-3 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-600 rounded-lg shadow transition flex items-center justify-center gap-2">
+            <!-- Actions -->
+            <div class="mb-6 border-t border-gray-800 pt-4">
+                 <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Analysis</h3>
+                 <button onclick="loadGraph(null)" class="w-full px-3 py-2 mb-4 text-sm font-medium text-white bg-green-700 hover:bg-green-600 rounded-lg shadow transition flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Show Full Network
-                </button>
-             </div>
+                 </button>
 
-             <h3 class="text-xs text-gray-400 mt-4 mb-2 uppercase font-bold tracking-wider">Export</h3>
-             <div class="flex flex-col gap-2">
-                <button onclick="exportGraph('svg')" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Visio (SVG)
-                </button>
-                <button onclick="exportGraph('excel')" class="w-full px-3 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Visio Data (Excel)
-                </button>
-             </div>
-
+                 <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Export</h3>
+                 <div class="flex flex-col gap-2">
+                    <button onclick="exportGraph('svg')" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg shadow transition flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Visio (SVG)
+                    </button>
+                    <button onclick="exportGraph('excel')" class="w-full px-3 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded-lg shadow transition flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Visio Data (Excel)
+                    </button>
+                    <!-- New High Res Button -->
+                    <button onclick="downloadHighRes()" class="w-full px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg shadow transition flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        High-Res Image (PNG)
+                    </button>
+                 </div>
+            </div>
         </div>
 
-        <!-- Stats -->
-        <div id="stats" class="hidden mt-auto border-t border-gray-800 pt-4">
+        <!-- Sidebar Footer (Stats) -->
+        <div id="stats" class="hidden p-4 border-t border-gray-800 bg-gray-900 z-10">
              <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Statistics</h3>
              <div class="flex justify-between text-sm text-gray-300 mb-1">
                  <span>Nodes</span>
@@ -106,17 +125,25 @@
              </div>
         </div>
         
-        <div id="loading" class="hidden mt-4 text-center text-sm font-bold text-indigo-400 animate-pulse">
+        <div id="loading" class="hidden p-4 text-center text-sm font-bold text-indigo-400 animate-pulse bg-gray-900 border-t border-gray-800">
             Mapping Infrastructure...
+        </div>
+        
+        <!-- High Res Processing Overlay -->
+        <div id="export-loading" class="hidden fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
+            <div class="text-white font-bold text-lg">Rendering High-Res Image...</div>
+            <div class="text-gray-400 text-sm">Please wait</div>
         </div>
     </div>
 
-    <!-- Main Area: Graph -->
-    <div class="flex-grow relative bg-gray-950">
-        <div id="mynetwork" class="w-full h-full"></div>
+    <!-- Main Content: Graph Area (Flex Grow) -->
+    <div class="flex-1 relative min-w-0 bg-gray-950">
+        <!-- Vis.js Container -->
+        <div id="mynetwork" class="absolute inset-0 w-full h-full"></div>
         
-        <!-- Custom Navigation Controls -->
-        <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-10">
+        <!-- Graph Controls (Floating) -->
+        <div class="absolute bottom-8 right-8 flex flex-col gap-2 z-30">
             <button onclick="network.moveTo({scale: network.getScale() + 0.2})" class="p-2 bg-gray-800 text-indigo-400 rounded-full shadow-lg hover:bg-gray-700 hover:text-white transition focus:outline-none" title="Zoom In">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
             </button>
@@ -129,8 +156,8 @@
         </div>
         
         <!-- Empty State Prompt -->
-        <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="text-center text-gray-600">
+        <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div class="text-center text-gray-600 bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 backdrop-blur-sm">
                 <p class="text-2xl font-bold mb-2">Select a Target</p>
                 <p class="text-sm">Choose a domain to visualize its infrastructure map.</p>
             </div>
@@ -161,28 +188,29 @@
         stats.classList.add('hidden');
         emptyPrompt.classList.add('hidden');
         
-        // If targetId is explicitly null (user clicked Show Full), clear selection
+        // Handle Target Selection Logic
         if (targetId === null) {
+            // "Show Full Network" clicked -> reset dropdown
             domSelect.value = "";
-            targetId = ""; // Use empty string for logic
+            targetId = ""; 
         } else if (targetId === undefined) {
-             // Called without arg? Read from dropdown
+             // Called from listener -> read value
              targetId = domSelect.value;
         }
-        
-        // Destroy old network to clear canvas
+
+        // Clean up old network
         if (network) {
             network.destroy();
             network = null;
         }
 
-        // Build URL
+        // Build API URL
         let url = `/api/visualizations/network?filter_empty=${filterConnected}&filter_online=${filterOnline}`;
         if (targetId) {
             url += `&target_id=${targetId}`;
         }
 
-        // Fetch Data
+        // Fetch & Render
         fetch(url)
             .then(response => response.json())
             .then(data => {
@@ -193,24 +221,24 @@
                 document.getElementById('edge-count').innerText = data.edges.length;
                 
                 if (data.nodes.length === 0) {
-                     // If filtered, maybe show "No matching data"
                     if (filterConnected || filterOnline !== "all") {
-                         loading.innerText = "No matching targets found.";
+                         loading.innerText = "No matching nodes found with current filters.";
                          loading.classList.remove("hidden");
                          loading.classList.remove("animate-pulse");
                     } else {
-                         alert("No data found (Run a DNS scan first!).");
+                         loading.innerText = "No data found. Has this target been scanned?";
+                         loading.classList.remove("hidden");
+                         loading.classList.remove("animate-pulse");
                          emptyPrompt.classList.remove('hidden');
                     }
                     return;
                 }
 
-                // Vis Data
+                // Initialize Vis.js
                 const nodes = new vis.DataSet(data.nodes);
                 const edges = new vis.DataSet(data.edges);
                 
-                 // Options
-                 const options = {
+                const options = {
                     nodes: {
                         shape: 'dot',
                         scaling: {
@@ -223,40 +251,21 @@
                         shadow: true
                     },
                     layout: {
-                        improvedLayout: false,
+                        improvedLayout: false, // Faster for large graphs
                         randomSeed: 42
                     },
                     edges: {
                         width: 1,
                         color: { inherit: 'from', opacity: 0.6 },
-                        smooth: {
-                            type: 'dynamic'
-                        },
-                        arrows: {
-                            to: { enabled: true, scaleFactor: 0.5 }
-                        },
+                        smooth: { type: 'dynamic' },
+                        arrows: { to: { enabled: true, scaleFactor: 0.5 } },
                         font: { align: 'middle', size: 10, strokeWidth: 0, color: '#9ca3af', background: '#111827' }
                     },
                     groups: {
-                        target: {
-                            color: { background: '#3b82f6', border: '#1d4ed8' }, // Blue
-                            size: 30,
-                            font: { size: 18 }
-                        },
-                        subdomain: {
-                            color: { background: '#a855f7', border: '#7e22ce' }, // Purple
-                            size: 20
-                        },
-                        ip: {
-                            color: { background: '#f97316', border: '#c2410c' }, // Orange
-                            shape: 'square',
-                            size: 15
-                        },
-                        resource: {
-                             color: { background: '#06b6d4', border: '#0891b2' }, // Cyan
-                             shape: 'diamond',
-                             size: 12
-                        }
+                        target: { color: { background: '#3b82f6', border: '#1d4ed8' }, size: 30, font: { size: 18 } },
+                        subdomain: { color: { background: '#a855f7', border: '#7e22ce' }, size: 20 },
+                        ip: { color: { background: '#f97316', border: '#c2410c' }, shape: 'square', size: 15 },
+                        resource: { color: { background: '#06b6d4', border: '#0891b2' }, shape: 'diamond', size: 12 }
                     },
                     physics: {
                         stabilization: true,
@@ -275,14 +284,14 @@
                         tooltipDelay: 200,
                         hideEdgesOnDrag: true,
                         hover: true,
-                        navigationButtons: false, // Customized buttons
-                        keyboard: true
+                        navigationButtons: false,
+                        keyboard: true,
+                        zoomView: true
                     }
                 };
                 
                 network = new vis.Network(container, { nodes, edges }, options);
                 
-                // Add click listener
                 network.on("click", function (params) {
                     if (params.nodes.length > 0) {
                          console.log("Clicked node:", params.nodes[0]);
@@ -291,14 +300,14 @@
             })
             .catch(err => {
                 console.error(err);
-                loading.innerText = "Error: " + err;
+                loading.innerText = "Error loading graph: " + err;
                 loading.classList.remove("text-indigo-400");
                 loading.classList.add("text-red-500");
                 loading.classList.remove('hidden');
             });
     }
 
-    // Export Function
+    // Export Handler
     window.exportGraph = function(format) {
         const domSelect = document.getElementById('domain-select');
         const targetId = domSelect.value;
@@ -306,16 +315,157 @@
         const filterOnline = document.getElementById('filter-online').value;
         
         let url = `/api/visualizations/network/export?format=${format}&filter_empty=${filterConnected}&filter_online=${filterOnline}`;
-        if (targetId) {
-            url += `&target_id=${targetId}`;
-        }
+        if (targetId) url += `&target_id=${targetId}`;
         
-        // Trigger download
         window.location.href = url;
     }
 
+    // High-Res Image Export
+    window.downloadHighRes = function() {
+        if (!network) return alert("No graph loaded to export.");
+        
+        const loadingOverlay = document.getElementById('export-loading');
+        const container = document.getElementById('mynetwork');
+        
+        // Show loading
+        loadingOverlay.classList.remove('hidden');
+
+        // Capture original state
+        // We'll use a Promise-based flow to allow UI to update (render loading spinner)
+        setTimeout(() => {
+            try {
+                // 1. Emulate High-Res environment
+                const originalOptions = { nodes: { font: { size: 14 } } }; // assumption
+                const largeSize = { width: '8000px', height: '8000px' };
+                
+                // Keep styles to restore later
+                const originalStyle = {
+                    width: container.style.width,
+                    height: container.style.height,
+                    position: container.style.position,
+                    zIndex: container.style.zIndex
+                };
+
+                // Hack: Force container to be massive
+                // We don't hide it, because visibility:hidden might stop canvas rendering in some browsers?
+                // Just let it overflow temporarily. We'll freeze viewport via overlay.
+                container.style.width = largeSize.width;
+                container.style.height = largeSize.height;
+                container.style.position = 'absolute'; // Break out of flex
+                container.style.zIndex = '-9999'; // Hide behind everything
+                
+                // 2. Set Font to 16px
+                network.setOptions({ nodes: { font: { size: 16 } } });
+                
+                // 3. Resize and Fit
+                network.setSize(largeSize.width, largeSize.height);
+                network.fit({ animation: false });
+                
+                // 4. Wait for render (vis.js simulation might need a tick)
+                setTimeout(() => {
+                    // 5. Draw Legend & Capture
+                    const canvas = container.querySelector('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw Background (gray-950 matching app theme)
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = "#030712"; 
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.restore();
+                    
+                    // Legend Drawing
+                    ctx.save();
+                    // Position: Bottom Left with 50px margin
+                    const lx = 50; 
+                    const ly = canvas.height - 350; // Height of legend box approx 300px
+                    
+                    // Box Background
+                    ctx.fillStyle = "rgba(17, 24, 39, 0.9)"; // gray-900 with opacity
+                    ctx.shadowColor = "rgba(0,0,0,0.5)";
+                    ctx.shadowBlur = 20;
+                    ctx.fillRect(lx, ly, 500, 300);
+                    ctx.strokeStyle = "#374151"; // gray-700 border
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(lx, ly, 500, 300);
+                    
+                    // Legend Title
+                    ctx.fillStyle = "#9ca3af"; // gray-400
+                    ctx.font = "bold 24px ui-sans-serif, system-ui";
+                    ctx.fillText("LEGEND", lx + 30, ly + 50);
+                    
+                    // Items
+                    const items = [
+                        { color: "#3b82f6", label: "Target (Domain Root)", shape: "circle" },
+                        { color: "#a855f7", label: "Subdomain", shape: "circle" },
+                        { color: "#f97316", label: "IP Address", shape: "square" },
+                        { color: "#06b6d4", label: "Resources (MX, NS)", shape: "diamond" }
+                    ];
+                    
+                    let currY = ly + 100;
+                    items.forEach(item => {
+                        ctx.fillStyle = item.color;
+                        ctx.shadowBlur = 0;
+                        
+                        // Draw Shape
+                        if (item.shape === "circle") {
+                            ctx.beginPath();
+                            ctx.arc(lx + 50, currY, 12, 0, 2 * Math.PI);
+                            ctx.fill();
+                        } else if (item.shape === "square") {
+                            ctx.fillRect(lx + 38, currY - 12, 24, 24);
+                        } else if (item.shape === "diamond") {
+                            ctx.save();
+                            ctx.translate(lx + 50, currY);
+                            ctx.rotate(45 * Math.PI / 180);
+                            ctx.fillRect(-10, -10, 20, 20); // rotated square
+                            ctx.restore();
+                        }
+                        
+                        // Label
+                        ctx.fillStyle = "#e5e7eb"; // text-gray-200
+                        ctx.font = "28px ui-sans-serif, system-ui";
+                        ctx.fillText(item.label, lx + 90, currY + 10);
+                        
+                        currY += 50; // Spacing
+                    });
+                    
+                    ctx.restore();
+                    
+                    // 6. Download
+                    const dataUrl = canvas.toDataURL("image/png");
+                    
+                    const a = document.createElement('a');
+                    a.href = dataUrl;
+                    a.download = `network_graph_${Date.now()}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // 7. Restore
+                    container.style.width = originalStyle.width;
+                    container.style.height = originalStyle.height;
+                    container.style.position = originalStyle.position;
+                    container.style.zIndex = originalStyle.zIndex;
+                    
+                    network.setOptions(originalOptions);
+                    network.setSize('100%', '100%');
+                    network.fit({ animation: false });
+
+                    loadingOverlay.classList.add('hidden');
+                    
+                }, 1000); // 1s wait for large layout to stabilize/render
+                
+            } catch (e) {
+                console.error(e);
+                alert("Export failed: " + e);
+                loadingOverlay.classList.add('hidden');
+            }
+        }, 100);
+    }
+
+    // Initialization
     document.addEventListener('DOMContentLoaded', function() {
-        // Listeners for auto-reload
         const domSelect = document.getElementById('domain-select');
         const filterConnected = document.getElementById('filter-connected');
         const filterOnline = document.getElementById('filter-online');
@@ -323,7 +473,11 @@
         domSelect.addEventListener('change', () => loadGraph());
         filterConnected.addEventListener('change', () => loadGraph());
         filterOnline.addEventListener('change', () => loadGraph());
+        
+        // Initial resize check just in case
+        setTimeout(() => {
+             window.dispatchEvent(new Event('resize'));
+        }, 200);
     });
-
 </script>
 {% endblock %}
