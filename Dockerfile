@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     nmap \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

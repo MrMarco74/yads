@@ -9,6 +9,7 @@ import uuid
 from typing import Any, Dict, List, Set
 
 from yads.core.base import BaseScannerModule
+from yads.core.utils import check_stop_signal, StopSignalError
 
 class DNSRecordScanner(BaseScannerModule):
     @property
@@ -265,6 +266,17 @@ class SubdomainScanner(DNSRecordScanner):
             
             for future in concurrent.futures.as_completed(future_to_sub):
                 completed_count += 1
+                
+                # Check for Stop Signal
+                if completed_count % 10 == 0:
+                    try:
+                        check_stop_signal(self.db_session)
+                    except StopSignalError:
+                        logger.warning("Stop All detected during subdomain enumeration. Aborting.")
+                        # Cancel remaining futures?
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        raise
+
                 # Log progress every 50 or 10%
                 if completed_count % 50 == 0 or completed_count == total_subs:
                     logger.info(f"Subdomain Discovery Progress: {completed_count}/{total_subs} verified.")
@@ -337,45 +349,20 @@ class SubdomainScanner(DNSRecordScanner):
 
     def _fetch_ct_logs(self, domain: str) -> List[str]:
         """
-        Queries crt.sh to find subdomains from Certificate Transparency logs.
-        Includes rate limiting, retries, and fallback to Hackertarget.
+        Queries crt.sh via PostgreSQL (Direct Connection) to find subdomains.
+        Includes fallback to Hackertarget if PostgreSQL fails.
         """
-        subs = set()
-        url = f"https://crt.sh/?q=%.{domain}&output=json"
-        
-        # Robustness: Retry loop
-        max_retries = 3
-        
-        for attempt in range(max_retries):
-            try:
-                # Rate Limiting: Jitter delay (2-5 seconds)
-                delay = random.uniform(2.0, 5.0)
-                logging.getLogger("yads.modules.dns").info(f"Waiting {delay:.2f}s before crt.sh query...")
-                time.sleep(delay)
-                
-                resp = requests.get(url, timeout=15, headers={'User-Agent': "Mozilla/5.0 (compatible; YADS/1.0)"})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    for entry in data:
-                        name_value = entry.get('name_value', '')
-                        for name in name_value.split('\n'):
-                            name = name.strip()
-                            if name.endswith(domain) and '*' not in name:
-                                 subs.add(name)
-                    return list(subs) # Success, return immediately
-                elif resp.status_code in [429, 502, 503, 504]:
-                     # Transient errors, retry
-                     wait = (attempt + 1) * 5
-                     logging.getLogger("yads.modules.dns").warning(f"crt.sh returned {resp.status_code}. Retrying in {wait}s...")
-                     time.sleep(wait)
-                     continue
-                else:
-                    break # Non-retriable error
-            except Exception as e:
-                logging.getLogger("yads.modules.dns").warning(f"crt.sh query failed (Attempt {attempt+1}): {e}")
-                time.sleep(2)
-        
-        # If we get here, crt.sh failed. Try Fallback.
+        try:
+            from yads.modules.crtSH_client import search_domain
+            subs = search_domain(domain)
+            if subs:
+                return subs
+        except ImportError:
+            logging.getLogger("yads.modules.dns").error("Could not import crtSH_client. is psycopg2 installed?")
+        except Exception as e:
+             logging.getLogger("yads.modules.dns").warning(f"crt.sh (PG) failed: {e}")
+
+        # If we get here, crt.sh failed or returned nothing. Try Fallback.
         logging.getLogger("yads.modules.dns").warning("crt.sh exhaustion/failure. Attempting Fallback: Hackertarget.")
         return self._fetch_hackertarget(domain)
 

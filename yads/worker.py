@@ -1,6 +1,6 @@
 from celery import Celery
 from sqlmodel import Session, create_engine, select
-from yads.models import ScanResult, Target
+from yads.models import ScanResult, Target, SystemConfig
 from datetime import datetime
 import os
 import dns.resolver
@@ -51,7 +51,7 @@ class LogCapture:
 import socket
 
 @celery_app.task(name="yads.worker.run_all_scans")
-def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
+def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ignore_queue_pause: bool = False):
     """
     Main orchestration task.
     Runs configured scanners for the given target.
@@ -59,7 +59,7 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
     """
     if scan_types is None:
         # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["subdomain_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery"]
+        scan_types = ["subdomain_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
@@ -83,13 +83,36 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
 
     try:
         with Session(engine) as session:
+            # 0. Check for Global Stop (Panic Button)
+            from yads.models import SystemConfig
+            conf = session.exec(select(SystemConfig).where(SystemConfig.key == "QUEUE_ACTIVE")).first()
+            
+            # DEBUG LOGGING FOR STATE
+            conf_val = conf.value if conf else "None"
+            logger.info(f"[Worker] Checking QUEUE_ACTIVE for {domain}. DB Value: '{conf_val}', IgnorePause: {ignore_queue_pause}")
+            
+            if not ignore_queue_pause and (conf and conf.value == "false"):
+                logger.warning(f"[Worker] Queue is PAUSED (Stop All). Aborting scan for {domain} (ID: {target_id}).")
+                # Ensure status is stopped
+                try:
+                    target = session.get(Target, target_id)
+                    if target:
+                        target.scan_status = "stopped"
+                        target.scan_progress = "Aborted by Stop All"
+                        session.add(target)
+                        session.commit()
+                except Exception as e:
+                    logger.error(f"[Worker] Failed to update stop status: {e}")
+                
+                return
+
             # Update Status to Running
             try:
                 target = session.get(Target, target_id)
                 if not target:
                     logger.warning(f"[Worker] Target {domain} (ID: {target_id}) not found in DB. Aborting scan.")
                     return
-
+                
                 target.scan_status = "running"
                 target.scan_progress = "Initializing scan..."
                 session.add(target)
@@ -259,6 +282,38 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                          print(f"[Worker] {inf.module_name} no change.")
                 except Exception as e:
                     logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
+                    session.rollback()
+
+            # 4b. Run Port Scanner (Lightweight Web Probe)
+            if "port_scanner" in scan_types:
+                logger.info(f"[Worker] PortScanner requested for {domain}")
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Port Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.port_scanner import PortScanner
+                    ps = PortScanner(db_session=session)
+                    logger.info(f"[Worker] Step 4b: Running {ps.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ps.module_name} for {domain}")
+                        result = ps.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result:
+                         logger.info(f"[Worker] PortScanner result found: {result.data}")
+                         if hasattr(result, 'log_content'):
+                            result.log_content = captured_logs
+                            session.add(result)
+                            session.commit()
+                         print(f"[Worker] {ps.module_name} finished.")
+                    else:
+                         logger.info("[Worker] PortScanner result is Empty/None")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Port Scanner: {e}", exc_info=True)
                     session.rollback()
 
             # 5. Run Visual OSINT
@@ -559,9 +614,9 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None):
                                  
                                  # Queue Scan (Conditional)
                                  if auto_queue_enabled:
-                                     celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain])
+                                     celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain, scan_types])
                                      queued_count += 1
-                                     logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain}")
+                                     logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {scan_types}")
                                  else:
                                      logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
                      
