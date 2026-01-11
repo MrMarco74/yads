@@ -25,7 +25,8 @@
       }
     </style>
   </head>
-  <body class="min-h-screen font-sans antialiased">
+  <body class="min-h-screen font-sans antialiased flex flex-col">
+    {% if user %}
     <nav
       class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50"
     >
@@ -36,7 +37,7 @@
               <img src="/static/logo.jpg" alt="YADS Logo" class="h-10 w-auto rounded-lg shadow-lg shadow-cyan-500/20">
 
             </a>
-            <!-- Search Bar -->
+            <!-- Search Bar (Visible to all) -->
             <div class="hidden md:flex ml-4 flex-1 max-w-xs">
                  <form action="/search" method="GET" class="w-full relative">
                     <input type="text" name="q" 
@@ -73,6 +74,7 @@
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-indigo-400"
                   >Spiderweb</a
                 >
+                {% if user.role != 'viewer' %}
                 <a
                   href="/logs"
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
@@ -83,33 +85,114 @@
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >Queue</a
                 >
+                {% endif %}
+                
+                {% if user.role == 'admin' %}
+                <a
+                  href="/users/"
+                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-purple-400"
+                  >Users</a
+                >
                 <a
                   href="/settings"
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >Settings</a
                 >
-              </div>
+                {% endif %}
+                
+                {% if user.role == 'admin' and not user.tenant_id %}
+                <a
+                  href="/tenants/"
+                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-pink-400"
+                  >Tenants</a
+                >
+                {% endif %}
+
+              </div> <!-- End space-x-4 -->
+            </div> <!-- End hidden md:block -->
+          </div> <!-- End flex items-center (Left Side) -->
+
+          <!-- Right Side: User Info, Tenant Switcher, System Status -->
+          <div class="flex items-center gap-4">
+            
+            <!-- Context Switcher -->
+            {% if user.allowed_tenants and user.allowed_tenants|length > 1 %}
+            <form action="/auth/switch-tenant" method="post" class="flex items-center gap-2 border border-gray-600 rounded px-2 py-1 bg-gray-800">
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tenant</label>
+                <div class="relative">
+                    <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-gray-800 text-xs text-white font-medium pr-6 outline-none focus:text-blue-400 transition-colors cursor-pointer">
+                        <!-- Default/Disabled option if needed, but usually we have a selection -->
+                        {% if user.role == 'admin' %}
+                        <option value="" class="bg-gray-800 text-white" {% if not user.tenant_id %}selected{% endif %}>[Platform Admin]</option>
+                        {% endif %}
+                        
+                        {% for t in user.allowed_tenants %}
+                        <option value="{{ t.id }}" class="bg-gray-800 text-white" {% if user.tenant_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-gray-400">
+                         <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
+                    </div>
+                </div>
+            </form>
+            {% elif user.role == 'admin' %}
+             <form action="/auth/switch-tenant" method="post" class="flex items-center gap-2 border border-purple-700/50 rounded px-2 py-1 bg-purple-900/20">
+                <label class="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Context</label>
+                <div class="relative">
+                    <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-transparent text-xs text-purple-200 font-medium pr-6 outline-none focus:text-white transition-colors cursor-pointer">
+                         <option value="" class="bg-gray-900 text-white" {% if not user.tenant_id %}selected{% endif %}>Platform Admin</option>
+                         {% if user.tenant %}
+                         <option value="{{ user.tenant.id }}" class="bg-gray-900 text-white" selected>{{ user.tenant.name }}</option>
+                         {% endif %}
+                    </select>
+                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-purple-400">
+                         <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
+                    </div>
+                </div>
+            </form>
+            {% elif user.tenant %}
+                 <div class="flex items-center gap-2 border border-gray-700 rounded px-2 py-1 bg-gray-800">
+                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Tenant</span>
+                    <span class="text-xs text-gray-300 font-medium">{{ user.tenant.name }}</span>
+                 </div>
+            {% endif %}
+
+            <div class="h-6 w-px bg-gray-800 mx-1"></div>
+
+            <div class="flex flex-col items-end">
+                 <span class="text-xs font-bold text-white leading-none">{{ user.username }}</span>
+                 <span class="text-[9px] text-gray-500 uppercase tracking-wider leading-none mt-1">{{ user.role }}</span>
             </div>
-          </div>
-          <div>
-            <span
-              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200 border border-green-700"
-            >
-              System Online
-            </span>
+            
+            {% if not user.mfa_enabled %}
+               <a href="/mfa/setup" class="text-yellow-500 hover:text-yellow-400 text-xs font-medium transition-colors" title="Enable MFA">⚠️ MFA</a>
+            {% endif %}
+            
+            <a href="/logout" class="text-gray-400 hover:text-white transition-colors" title="Logout">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+            </a>
+
+            <div>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-900/50 text-green-400 border border-green-800 shadow-lg shadow-green-900/20">
+                Online
+              </span>
+            </div>
           </div>
         </div>
       </div>
     </nav>
+    {% endif %}
 
-    <main class="{% block main_classes %}w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}">
+    <main class="flex-grow {% block main_classes %}w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}">
       {% block content %}{% endblock %}
     </main>
     
     <footer class="border-t border-gray-800 bg-gray-900/50 backdrop-blur-sm mt-8 py-4">
       <div class="max-w-[95%] mx-auto px-4 flex justify-between items-center text-xs text-gray-500">
         <p>&copy; 2025 YADS Security. All rights reserved.</p>
-        <p class="font-mono">Build: v1.2.5 (2025-01-10)</p>
+        <p class="font-mono">Build: v{{ settings.VERSION }} ({{ now_utc }})</p>
       </div>
     </footer>
   </body>

@@ -27,7 +27,7 @@ services:
 
   yads-worker:
     build: .
-    command: celery -A yads.worker worker --loglevel=info --concurrency 10
+    command: python /app/scripts/start_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:yads@db:5432/yads
       - REDIS_URL=redis://redis:6379/0

@@ -4,6 +4,23 @@ from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, String
 
+
+class UserTenantLink(SQLModel, table=True):
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id", primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", primary_key=True)
+
+class Tenant(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    users: List["User"] = Relationship(back_populates="tenant")
+    targets: List["Target"] = Relationship(back_populates="tenant")
+    
+    # Authorized Users (M:N)
+    allowed_users: List["User"] = Relationship(back_populates="allowed_tenants", link_model=UserTenantLink)
+
 class Target(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     domain: str = Field(index=True, unique=True)
@@ -20,6 +37,9 @@ class Target(SQLModel, table=True):
     # Visual Identity
     brand_logo_url: Optional[str] = Field(default=None)
 
+    # Multi-Tenancy
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id")
+    tenant: Optional[Tenant] = Relationship(back_populates="targets")
     
     # Relationships
     scan_results: List["ScanResult"] = Relationship(back_populates="target")
@@ -79,3 +99,25 @@ class SystemConfig(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str # Stored as string, parsed as needed (JSON, bool, int)
     description: Optional[str] = None
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    password_hash: str
+    role: str = Field(default="viewer") # admin, scanner, viewer
+    is_active: bool = Field(default=True)
+    last_login: Optional[datetime] = Field(default=None)
+    
+    # MFA Fields
+    mfa_secret: Optional[str] = None
+    mfa_enabled: bool = Field(default=False)
+    
+    # Password Policy
+    force_password_change: bool = Field(default=False)
+
+    # Multi-Tenancy
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id")
+    tenant: Optional[Tenant] = Relationship(back_populates="users")
+    
+    # Authorized Tenants (M:N)
+    allowed_tenants: List[Tenant] = Relationship(back_populates="allowed_users", link_model=UserTenantLink)

@@ -3,7 +3,9 @@ from sqlmodel import Session, select, func, text
 from typing import Dict, List, Any
 from datetime import datetime
 from yads.database import engine
-from yads.models import Target, ScanResult
+from yads.database import engine
+from yads.models import Target, ScanResult, User
+from yads.auth.deps import get_current_active_user
 
 router = APIRouter(prefix="/api/stats", tags=["analytics"])
 
@@ -12,7 +14,7 @@ def get_session():
         yield session
 
 @router.get("/infrastructure")
-async def get_infrastructure_stats(session: Session = Depends(get_session)):
+async def get_infrastructure_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Aggregates infrastructure data for the Analytics Dashboard.
     Includes:
@@ -33,17 +35,19 @@ async def get_infrastructure_stats(session: Session = Depends(get_session)):
     # Ideally filtering by "latest" per target/module.
     
     query = text("""
-        SELECT DISTINCT ON (target_id, module_name) 
-            target_id, module_name, data, scanned_at 
-        FROM scanresult 
-        WHERE module_name IN ('infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner')
-        ORDER BY target_id, module_name, scanned_at DESC
+        SELECT DISTINCT ON (s.target_id, s.module_name) 
+            s.target_id, s.module_name, s.data, s.scanned_at 
+        FROM scanresult s
+        JOIN target t ON s.target_id = t.id
+        WHERE s.module_name IN ('infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner')
+          AND t.tenant_id = :tenant_id
+        ORDER BY s.target_id, s.module_name, s.scanned_at DESC
     """)
     
-    results = session.exec(query).all()
+    results = session.exec(query, params={"tenant_id": user.tenant_id}).all()
     
-    # Pre-fetch Targets for name lookup
-    targets = session.exec(select(Target)).all()
+    # Pre-fetch Targets for name lookup (Tenant Scoped)
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
     target_map = {t.id: t.domain for t in targets}
     
     # Data Containers
@@ -185,7 +189,7 @@ async def get_infrastructure_stats(session: Session = Depends(get_session)):
     }
 
 @router.get("/security-risks")
-async def get_security_risks(session: Session = Depends(get_session)):
+async def get_security_risks(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Aggregates security risks for visualizations:
     - SSL Expiry Timeline
@@ -195,14 +199,16 @@ async def get_security_risks(session: Session = Depends(get_session)):
     - Vulnerabilities (Detailed Table)
     """
     query = text("""
-        SELECT DISTINCT ON (target_id, module_name) 
-            target_id, module_name, data 
-        FROM scanresult 
-        WHERE module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
-        ORDER BY target_id, module_name, scanned_at DESC
+        SELECT DISTINCT ON (s.target_id, s.module_name) 
+            s.target_id, s.module_name, s.data 
+        FROM scanresult s
+        JOIN target t ON s.target_id = t.id
+        WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
+          AND t.tenant_id = :tenant_id
+        ORDER BY s.target_id, s.module_name, s.scanned_at DESC
     """)
-    results = session.exec(query).all()
-    targets = session.exec(select(Target)).all()
+    results = session.exec(query, params={"tenant_id": user.tenant_id}).all()
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
     target_map = {t.id: t.domain for t in targets}
     
     ssl_timeline = []

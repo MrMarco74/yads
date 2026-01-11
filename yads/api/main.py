@@ -17,22 +17,16 @@ from yads.config import settings
 from yads.models import Target, ScanResult, ModuleState, SystemConfig
 from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
+from yads.api.routers import auth, analytics, users, tenants
+from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException
+from yads.models import User
 
 # -- Logging Setup --
 logger = configure_logging("yads-api")
 
 # -- DB Setup --
+from yads.database import engine, get_session, create_db_and_tables
 import tldextract
-engine = create_engine(settings.DATABASE_URL, echo=False)
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-def create_db_and_tables():
-    from yads.models import SQLModel
-    SQLModel.metadata.create_all(engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,7 +37,64 @@ async def lifespan(app: FastAPI):
     for i in range(max_retries):
         try:
             create_db_and_tables()
-            logger.info("Database connected and tables created.")
+            
+            # --- Schema Migration & Multi-Tenancy Init ---
+            with Session(engine) as session:
+                # Check if tenant table exists and columns are present (SQLModel create_all creates tables but doesn't alter)
+                # We can rely on basic SQL checks for SQLite/Postgres compatibility or inspection
+                # Simplest for this setup: Try to query tenant, if fail, we might be in weird state.
+                # But create_all should have created the table "tenant" if it didn't exist.
+                
+                # Check if User table has tenant_id column
+                try:
+                    session.exec(text("SELECT tenant_id FROM \"user\" LIMIT 1"))
+                except Exception:
+                    logger.info("Migrating schema: Adding tenant_id to user table")
+                    session.rollback()
+                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                except Exception:
+                    logger.info("Migrating schema: Adding tenant_id to user table")
+                    session.rollback()
+                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                    session.commit()
+                    
+                # Check for last_login column
+                try:
+                    session.exec(text("SELECT last_login FROM \"user\" LIMIT 1"))
+                except Exception:
+                    logger.info("Migrating schema: Adding last_login to user table")
+                    session.rollback()
+                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login TIMESTAMP WITHOUT TIME ZONE"))
+                    session.commit()
+                    
+                # Check if Target table has tenant_id column
+                try:
+                    session.exec(text("SELECT tenant_id FROM target LIMIT 1"))
+                except Exception:
+                    logger.info("Migrating schema: Adding tenant_id to target table")
+                    session.rollback()
+                    session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                    session.commit()
+
+                # Ensure Default Tenant "a customer"
+                from yads.models import Tenant
+                default_tenant = session.exec(select(Tenant).where(Tenant.name == "a customer")).first()
+                if not default_tenant:
+                    default_tenant = Tenant(name="a customer")
+                    session.add(default_tenant)
+                    session.commit()
+                    session.refresh(default_tenant)
+                    logger.info("Created default tenant: a customer")
+                
+                # Assign Orphaned Users to Default Tenant? NO!
+                # tenant_id IS NULL means Platform Admin now. Do not overwrite.
+                # session.exec(text(f"UPDATE \"user\" SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
+                
+                # Assign Orphaned Targets to Default Tenant
+                session.exec(text(f"UPDATE target SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
+                session.commit()
+                
+            logger.info("Database connected, tables created, and schema migrated.")
             
             # Enforce Paused State on Boot (User Request)
             with Session(engine) as session:
@@ -64,17 +115,32 @@ async def lifespan(app: FastAPI):
                         session.commit()
             
             # Broadcast Pause Command
-            from yads.worker import celery_app
-            # We must import celery_app here or at top. 
-            # Note: importing worker inside main might cause circular import if worker imports main.
-            # worker.py imports settings, logging, modules. It does NOT import main. Safe.
-            
             try:
+                from yads.worker import celery_app
+                # We must import celery_app here or at top. 
+                # Note: importing worker inside main might cause circular import if worker imports main.
+                # worker.py imports settings, logging, modules. It does NOT import main. Safe.
+                
                 # Cancel consumer to stop processing queue
                 celery_app.control.cancel_consumer('celery', reply=True)
                 logger.info("Auto-start disabled: Queue execution paused.")
             except Exception as e:
                 logger.warning(f"Failed to pause worker on boot: {e}")
+            
+            # Create Default Admin if None Exist
+            with Session(engine) as session:
+                from yads.models import User
+                from yads.auth.security import get_password_hash
+                existing_users = session.exec(select(User)).first()
+                if not existing_users:
+                    logger.warning("No users found. Creating default 'admin' user.")
+                    default_admin = User(
+                        username="admin", 
+                        password_hash=get_password_hash("admin"),
+                        role="admin"
+                    )
+                    session.add(default_admin)
+                    session.commit()
                 
             break
         except OperationalError:
@@ -92,6 +158,11 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
 templates = Jinja2Templates(directory="yads/api/templates")
 
+# Inject Globals
+templates.env.globals['settings'] = settings
+from datetime import datetime
+templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
 # -- CORS Setup --
 # Kept for dev compatibility, though strictly not needed for server-side rendering
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,8 +179,16 @@ from celery import Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
 # -- Routers --
-from yads.api.routers import analytics
+from yads.api.routers import analytics, auth, users
 app.include_router(analytics.router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(tenants.router)
+app.include_router(users.router)
+
+@app.exception_handler(LoginRequiredException)
+async def login_required_handler(request: Request, exc: LoginRequiredException):
+    return RedirectResponse(url="/login")
 
 
 # -- UI Routes --
@@ -120,7 +199,8 @@ app.include_router(analytics.router)
 async def bulk_scan_targets(
     request: Request,
     scan_types: List[str] = Form(default=[]), 
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "scanner"]))
 ):
     form = await request.form()
     target_ids = form.getlist("target_ids") 
@@ -156,7 +236,7 @@ async def bulk_scan_targets(
     for tid_str in target_ids:
         try:
             tid = int(tid_str)
-            target = session.get(Target, tid)
+            target = session.exec(select(Target).where(Target.id == tid, Target.tenant_id == user.tenant_id)).first()
             if target:
                 target.scan_status = "queued"
                 session.add(target)
@@ -178,7 +258,8 @@ async def bulk_scan_targets(
 async def bulk_import_targets(
     request: Request,
     file_upload: UploadFile = File(None),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "scanner"]))
 ):
     form = await request.form()
     raw_text = form.get("targets_raw", "")
@@ -236,14 +317,14 @@ async def bulk_import_targets(
                 skipped_dns_count += 1
                 continue
         
-        # Check duplicate
-        existing = session.exec(select(Target).where(Target.domain == domain)).first()
+        # Check duplicate (Tenant Scoped)
+        existing = session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first()
         if existing:
             duplicate_count += 1
             continue
             
         # Create
-        new_target = Target(domain=domain)
+        new_target = Target(domain=domain, tenant_id=user.tenant_id)
         session.add(new_target)
         imported_count += 1
         
@@ -259,9 +340,9 @@ async def bulk_import_targets(
 
 @app.post("/targets/bulk/delete", response_class=HTMLResponse)
 async def bulk_delete_targets(
-    request: Request,
     target_ids: List[int] = Form(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "scanner"]))
 ):
     """
     Deletes multiple targets and their associated data.
@@ -311,8 +392,26 @@ async def bulk_delete_targets(
         session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({ids_str})"))
         session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({ids_str})"))
         
-        # 2. Delete Targets
-        session.exec(text(f"DELETE FROM target WHERE id IN ({ids_str})"))
+        # 2. Delete Targets (Verify ownership implicitly by filtering ID list first? Better to rely on prior checks or simple query)
+        # But here we used raw delete for speed. 
+        # Safety check: Ensure all IDs belong to user.tenant_id
+        # For bulk delete, it's safer to fetch IDs that match tenant first.
+        
+        owned_targets = session.exec(select(Target.id).where(Target.id.in_(ids_to_delete), Target.tenant_id == user.tenant_id)).all()
+        # Only delete what we own
+        safe_ids = set(owned_targets)
+        
+        if len(safe_ids) != len(ids_to_delete):
+            # Some IDs were not owned. Log warning?
+            pass
+            
+        if safe_ids:
+            safe_ids_str = ",".join(map(str, safe_ids))
+            
+            # Prune dependencies using safe list
+            session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({safe_ids_str})"))
+            session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({safe_ids_str})"))
+            session.exec(text(f"DELETE FROM target WHERE id IN ({safe_ids_str})"))
         
         session.commit()
     
@@ -325,8 +424,9 @@ async def bulk_delete_targets(
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 @app.post("/targets/{target_id}/scan")
-async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session)):
-    target = session.get(Target, target_id)
+async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
+    # Tenant Scope Check
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     
@@ -364,21 +464,24 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, session: Session = Depends(get_session)):
-    # Calculate stats (Total Count)
-    total_targets = session.exec(select(func.count()).select_from(Target)).one()
-    total_scans_count = session.exec(select(func.count(ScanResult.id))).one()
+async def dashboard(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
+    # Calculate stats (Tenant Scoped)
+    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
+    
+    # Total scans is bit harder to filter if scanresult doesn't have tenant_id. 
+    # We have to join.
+    total_scans_count = session.exec(select(func.count(ScanResult.id)).join(Target).where(Target.tenant_id == user.tenant_id)).one()
     
     # Pagination defaults for initial load
     page = 1
     limit = 9
     offset = 0
     
-    # Fetch Paginated Targets
-    targets = session.exec(select(Target).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    # Fetch Paginated Targets (Tenant Scoped)
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
     
-    # Fetch Active Scans
-    active_scans = session.exec(select(Target).where(Target.scan_status == "running")).all()
+    # Fetch Active Scans (Tenant Scoped)
+    active_scans = session.exec(select(Target).where(Target.scan_status == "running", Target.tenant_id == user.tenant_id)).all()
     
     total_pages = (total_targets + limit - 1) // limit
     
@@ -426,15 +529,16 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
             "total_count": total_targets,
             "start_item": 1,
             "end_item": min(limit, total_targets)
-        }
+        },
+        "user": user # Pass user to context
     })
 
 
 @app.get("/dashboard/stats", response_class=HTMLResponse)
-async def dashboard_stats(request: Request, session: Session = Depends(get_session)):
+async def dashboard_stats(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
     """HTMX endpoint for auto-updating stats"""
-    total_targets = session.exec(select(func.count()).select_from(Target)).one()
-    total_scans_count = session.exec(select(func.count(ScanResult.id))).one()
+    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
+    total_scans_count = session.exec(select(func.count(ScanResult.id)).join(Target).where(Target.tenant_id == user.tenant_id)).one()
     
     # Queue Stats
     import redis
@@ -457,17 +561,19 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
             "total_scans": total_scans_count,
             "queue_length": queue_len,
             "queue_active": queue_active
-        }
+        },
+        "user": user
     })
 
 @app.get("/dashboard/active_scans", response_class=HTMLResponse)
-async def dashboard_active_scans(request: Request, session: Session = Depends(get_session)):
+async def dashboard_active_scans(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
     """HTMX endpoint to refresh the active scans list"""
     try:
-        active_scans = session.exec(select(Target).where(Target.scan_status == "running")).all()
+        active_scans = session.exec(select(Target).where(Target.scan_status == "running", Target.tenant_id == user.tenant_id)).all()
         return templates.TemplateResponse("_active_scans.html", {
             "request": request,
-            "active_scans": active_scans
+            "active_scans": active_scans,
+            "user": user
         })
     except Exception as e:
         with open("/tmp/yads_debug.log", "a") as f:
@@ -475,16 +581,16 @@ async def dashboard_active_scans(request: Request, session: Session = Depends(ge
         raise e
 
 @app.get("/dashboard/targets", response_class=HTMLResponse)
-async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, session: Session = Depends(get_session)):
+async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
     """
     HTMX endpoint to poll for target list updates (status/progress).
     Returns just the table rows/grid.
     """
     offset = (page - 1) * limit
-    total_count = session.exec(select(func.count()).select_from(Target)).one()
+    total_count = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
     
-    # Fetch Paginated
-    targets = session.exec(select(Target).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    # Fetch Paginated (Tenant Scoped)
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
     
     total_pages = (total_count + limit - 1) // limit
     
@@ -512,12 +618,13 @@ async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, ses
                 "total_count": total_count,
                  "start_item": offset + 1,
                 "end_item": min(offset + limit, total_count)
-            }
+            },
+            "user": user
         })
 
 
 @app.get("/logs", response_class=HTMLResponse)
-async def view_logs_page(request: Request):
+async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Renders the Logs page with a list of available log files.
     """
@@ -536,11 +643,12 @@ async def view_logs_page(request: Request):
     return templates.TemplateResponse("logs.html", {
         "request": request,
         "log_files": log_files,
-        "current_log": default_log
+        "current_log": default_log,
+        "user": user
     })
 
 @app.get("/api/logs/stream")
-async def get_logs_stream(file: str = "yads-api.log"):
+async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """Reads the last 100 lines of the specified log file."""
     log_dir = os.getenv("LOG_DIR", "logs")
     
@@ -557,15 +665,16 @@ async def get_logs_stream(file: str = "yads-api.log"):
         return {"logs": lines[-100:]}
 
 @app.post("/targets/add", response_class=HTMLResponse)
-async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session)):
+async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """HTMX endpoint to add a target"""
     domain = domain.lower().strip()
-    existing = session.exec(select(Target).where(Target.domain == domain)).first()
+    # Tenant Scope
+    existing = session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first()
     
     if existing:
         target = existing
     else:
-        target = Target(domain=domain)
+        target = Target(domain=domain, tenant_id=user.tenant_id)
         session.add(target)
         session.commit()
         session.refresh(target)
@@ -574,13 +683,13 @@ async def ui_add_target(request: Request, domain: str = Form(...), session: Sess
     # celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain])
     
     # Return standard target list row fragment or redirect
-    return await dashboard(request, session) 
+    return await dashboard(request, session, user) 
     # In a real HTMX app, we'd return just the new row or the updated list fragment.
     # For simplicity, refreshing the page or returning full page is easiest for now.
 
 @app.delete("/targets/{target_id}")
-async def delete_target(target_id: int, request: Request, session: Session = Depends(get_session)):
-    target = session.get(Target, target_id)
+async def delete_target(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     
@@ -716,7 +825,8 @@ async def view_target_table(
     filter_scope: str = "all", # "all", "external", "internal"
     filter_root_domain: Optional[str] = None, # For the dedicated root filter
     
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
 ):
     """
     Renders a detailed table view of all targets with bulk actions.
@@ -735,8 +845,8 @@ async def view_target_table(
     else:
         selected_scan_types = scan_types
 
-    # Base Query
-    query = select(Target)
+    # Base Query (Tenant Scoped)
+    query = select(Target).where(Target.tenant_id == user.tenant_id)
     
     # -- Filter: Domain (Wildcard) --
     if filter_domain:
@@ -1166,8 +1276,8 @@ async def view_target_table(
     # -- Extract Unique Root Domains for Filter --
     # Optimization: If list is huge, this might be slow. 
     # Query all domains ONLY if we need to populate the filter?
-    # Let's do a lightweight query for all domains to build the dropdown.
-    all_domains = session.exec(select(Target.domain)).all()
+    # Let's do a lightweight query for all domains to build the dropdown. (Tenant Scoped)
+    all_domains = session.exec(select(Target.domain).where(Target.tenant_id == user.tenant_id)).all()
     unique_roots = set()
     for d in all_domains:
         ext = tldextract.extract(d)
@@ -1177,6 +1287,7 @@ async def view_target_table(
     unique_roots_list = sorted(list(unique_roots))
 
     return templates.TemplateResponse("target_table.html", {
+        "user": user,
         "request": request, 
         "rows": table_rows,
         "filter_online": filter_online,
@@ -1216,7 +1327,7 @@ async def view_target_table(
 
 
 @app.post("/scans/stop-all")
-async def stop_all_scans(session: Session = Depends(get_session)):
+async def stop_all_scans(session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Panic Button: Immediately stops all scans.
     1. Pauses the Queue (prevent new tasks).
@@ -1302,7 +1413,8 @@ async def export_data(session: Session = Depends(get_session)):
 @app.post("/api/backup/restore")
 async def restore_data(
     file: UploadFile = File(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"]))
 ):
     """
     Restores system from backup zip. 
@@ -1322,7 +1434,7 @@ async def restore_data(
 import redis
 
 @app.get("/queue", response_class=HTMLResponse)
-async def view_queue(request: Request, session: Session = Depends(get_session)):
+async def view_queue(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     # Connect to Redis to peek at the queue
     # Celery default queue key is 'celery'
     try:
@@ -1381,10 +1493,11 @@ async def view_queue(request: Request, session: Session = Depends(get_session)):
         queue_active = config.value.lower() == "true"
         
     # Fetch Pending Items from DB (waiting for queue to resume)
-    pending_items = session.exec(select(Target).where(Target.scan_status == "queued")).all()
+    pending_items = session.exec(select(Target).where(Target.scan_status == "queued", Target.tenant_id == user.tenant_id)).all()
 
     return templates.TemplateResponse("queue.html", {
         "request": request,
+        "user": user,
         "queue_length": queue_len,
         "queue_items": queue_items,
         "pending_items": pending_items,
@@ -1392,7 +1505,7 @@ async def view_queue(request: Request, session: Session = Depends(get_session)):
     })
 
 @app.post("/queue/control")
-async def control_queue(request: Request, action: str = Form(...), session: Session = Depends(get_session)):
+async def control_queue(request: Request, action: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     from yads.models import SystemConfig
     
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
@@ -1418,8 +1531,35 @@ async def control_queue(request: Request, action: str = Form(...), session: Sess
         # 1. Purge Redis Queue
         purged = celery_app.control.purge()
         
-        # 2. Clear DB Queue (mark as stopped/cancelled)
+        # 2. Clear DB Queue (mark as stopped/cancelled) - Tenant Scoped if we want? 
+        # But this is "Control Queue", usually Admin only. 
+        # Ideally an Admin clears queue for EVERYONE or just their tenant?
+        # If we are strictly multi-tenant, maybe just their tenant. 
+        # But queue is shared resource (worker). Clearing it affects all.
+        # Let's purge REDIS (global) but update DB for tenant only? That results in mismatch.
+        # "Control Queue" is arguably a Super-Admin feature.
+        # But for now, let's limit to tenant to be consistent with "Multi-Tenancy".
+        # If user is admin of tenant a customer, they shouldn't clear tasks for Sparkasse.
+        
+        # However, redis.purge() CLEARS EVERYTHING.
+        # We can't selectively purge Redis without iterating.
+        # For this iteration: Global Purge (Queue is shared infrastructure)
+        # But DB updates should probably touch all to match reality?
+        # If the queue is empty, ALL tasks are stopped.
+        
         statement = select(Target).where(Target.scan_status == "queued")
+        # If we want to be nice, we only mark OUR targets as stopped.
+        # But if we purged Redis, EVERYONE'S tasks are gone.
+        # So we must mark ALL targets as stopped to reflect reality.
+        # Queue Control determines the state of the *Worker*, which is a singleton resource here.
+        # So we accept this is a "System Admin" generic action?
+        # The user's prompt implies "Multi-Tenancy" access control.
+        # A tenant admin shouldn't be able to stop the global scanner.
+        # But we don't have "Super Admin".
+        # Let's leave it global for now but acknowledge the limitation.
+        # Or better: Only update OUR targets, but warn that queue was purged.
+        
+        # Actually, let's do global DB update because the tasks actully died.
         targets = session.exec(statement).all()
         for t in targets:
             t.scan_status = "stopped"
@@ -1468,7 +1608,7 @@ async def control_queue(request: Request, action: str = Form(...), session: Sess
     
     # Check if HTMX request (e.g. from Dashboard)
     if request.headers.get("HX-Request"):
-        return await dashboard_stats(request, session)
+        return await dashboard_stats(request, session, user)
         
     return RedirectResponse(url=f"/queue?msg={msg}", status_code=303)
 
@@ -1476,12 +1616,12 @@ async def control_queue(request: Request, action: str = Form(...), session: Sess
 # -- Graph View --
 
 @app.get("/targets/graph", response_class=HTMLResponse)
-async def view_graph_page(request: Request, session: Session = Depends(get_session)):
+async def view_graph_page(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Renders the Graph View page.
     """
     targets = session.exec(select(Target)).all()
-    return templates.TemplateResponse("graph.html", {"request": request, "targets": targets})
+    return templates.TemplateResponse("graph.html", {"request": request, "targets": targets, "user": user})
 
 
 @app.get("/api/graph/{target_id}")
@@ -1560,7 +1700,7 @@ async def get_graph_data(target_id: int, session: Session = Depends(get_session)
 
 
 @app.get("/targets/export/excel")
-async def export_targets_excel(session: Session = Depends(get_session)):
+async def export_targets_excel(session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Generates an Excel report of all targets and their latest scan results.
     """
@@ -1700,7 +1840,7 @@ async def export_targets_excel(session: Session = Depends(get_session)):
 
 
 @app.get("/targets/{target_id}/export")
-async def export_target_pdf(target_id: int, session: Session = Depends(get_session)):
+async def export_target_pdf(target_id: int, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Generates a COMPREHENSIVE PDF report for a single target using FPDF.
     Includes full details from all scan modules.
@@ -2070,7 +2210,7 @@ async def get_best_entrypoint(session: Session = Depends(get_session)):
     }
 
 @app.get("/targets/{target_id}", response_class=HTMLResponse)
-async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session)):
+async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     target = session.get(Target, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
@@ -2171,6 +2311,7 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
 
     
     return templates.TemplateResponse("target_detail.html", {
+        "user": user,
         "request": request,
         "target": target,
         "dns_result": dns_result,
@@ -2195,13 +2336,13 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
 # -- API Endpoints (Legacy/JSON) --
 
 @app.post("/api/targets/", response_model=Target)
-def add_target(domain: str, session: Session = Depends(get_session)):
+def add_target(domain: str, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     domain = domain.lower().strip()
     existing = session.exec(select(Target).where(Target.domain == domain)).first()
     if existing:
         target = existing
     else:
-        target = Target(domain=domain)
+        target = Target(domain=domain, tenant_id=user.tenant_id)
         session.add(target)
         session.commit()
         session.refresh(target)
@@ -2226,7 +2367,7 @@ def get_target_results(target_id: int, session: Session = Depends(get_session)):
     return results
 
 @app.post("/api/targets/{target_id}/brand-hunt")
-def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: Session = Depends(get_session)):
+def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Triggers a visual comparison between a reference logo and identified typosquat domains.
     """
@@ -2260,7 +2401,8 @@ def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: S
 async def set_target_logo(
     target_id: int, 
     logo_url: str = Form(...), 
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "scanner"]))
 ):
     """
     Sets the primary brand logo for a target.
@@ -2325,7 +2467,7 @@ async def upload_target_logo(
 # -- Settings Routes --
 
 @app.get("/settings", response_class=HTMLResponse)
-async def view_settings(request: Request, session: Session = Depends(get_session)):
+async def view_settings(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):
     from yads.models import SystemConfig
     
     # Defaults
@@ -2333,6 +2475,8 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     rate_limit = settings.SCAN_QUEUE_RATE_LIMIT
     web_request_delay = 2.0
     worker_concurrency = 4 # Default if not set
+    session_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    otp_window = 1
     
     # Load from DB
     aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
@@ -2366,6 +2510,23 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         except:
             pass
         
+
+
+    # Session Config
+    sm_conf = session.get(SystemConfig, "ACCESS_TOKEN_EXPIRE_MINUTES")
+    if sm_conf:
+        try:
+            session_minutes = int(sm_conf.value)
+        except:
+             pass
+
+    otp_conf = session.get(SystemConfig, "OTP_VALID_WINDOW")
+    if otp_conf:
+        try:
+            otp_window = int(otp_conf.value)
+        except:
+            pass
+
     # Load Approved Ciphers
     approved_ciphers = ""
     ac_conf = session.get(SystemConfig, "APPROVED_CIPHERS")
@@ -2402,6 +2563,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         pass
 
     return templates.TemplateResponse("settings.html", {
+        "user": user,
         "request": request,
         "auto_queue": auto_queue,
         "rate_limit": rate_limit,
@@ -2411,17 +2573,22 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "approved_ciphers": approved_ciphers,
         "custom_dns_servers": custom_dns_servers,
         "has_custom_wordlist": has_custom_wordlist,
-        "custom_wordlist_lines": custom_wordlist_lines
+        "custom_wordlist_lines": custom_wordlist_lines,
+        "session_minutes": session_minutes,
+        "otp_window": otp_window
     })
 
 @app.post("/settings", response_class=HTMLResponse)
 async def update_settings(
-    request: Request, 
+    request: Request,
+    user: User = Depends(RoleChecker(["admin"])),
     auto_queue: bool = Form(False), 
     rate_limit: str = Form(None),
     web_request_delay: str = Form(None),
     web_request_timeout: int = Form(None),
     worker_concurrency: int = Form(4),
+    session_minutes: int = Form(60),
+    otp_window: int = Form(1),
     approved_ciphers: str = Form(None),
     custom_dns_servers: str = Form(None),
     session: Session = Depends(get_session)
@@ -2454,6 +2621,24 @@ async def update_settings(
     else:
         wc_conf.value = str(worker_concurrency)
         session.add(wc_conf)
+        
+    # Session Minutes
+    sm_conf = session.get(SystemConfig, "ACCESS_TOKEN_EXPIRE_MINUTES")
+    if not sm_conf:
+        sm_conf = SystemConfig(key="ACCESS_TOKEN_EXPIRE_MINUTES", value=str(session_minutes))
+        session.add(sm_conf)
+    else:
+        sm_conf.value = str(session_minutes)
+        session.add(sm_conf)
+
+    # OTP Window
+    otp_conf = session.get(SystemConfig, "OTP_VALID_WINDOW")
+    if not otp_conf:
+        otp_conf = SystemConfig(key="OTP_VALID_WINDOW", value=str(otp_window))
+        session.add(otp_conf)
+    else:
+        otp_conf.value = str(otp_window)
+        session.add(otp_conf)
 
     # Approved Ciphers
     if approved_ciphers is not None:
@@ -3102,26 +3287,26 @@ async def export_network_graph(
 
 @app.get("/visualizations/redirect-graph", response_class=HTMLResponse)
 
-async def view_redirect_graph(request: Request, session: Session = Depends(get_session)):
+async def view_redirect_graph(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     # Fetch all targets for the dropdown
     targets = session.exec(select(Target.domain).order_by(Target.domain)).all()
-    return templates.TemplateResponse("redirect_graph.html", {"request": request, "domains": targets})
+    return templates.TemplateResponse("redirect_graph.html", {"request": request, "domains": targets, "user": user})
 
 @app.get("/visualizations/network-graph", response_class=HTMLResponse)
-async def view_network_graph(request: Request, session: Session = Depends(get_session)):
+async def view_network_graph(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     targets = session.exec(select(Target).order_by(Target.domain)).all()
-    return templates.TemplateResponse("network_graph.html", {"request": request, "domains": targets})
+    return templates.TemplateResponse("network_graph.html", {"request": request, "domains": targets, "user": user})
 
 # --- Analytics ---
 
 @app.get("/analytics", response_class=HTMLResponse)
-async def view_analytics(request: Request, session: Session = Depends(get_session)):
+async def view_analytics(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     # Fetch all targets for the dropdown
     targets = session.exec(select(Target.domain, Target.id).order_by(Target.domain)).all()
     # Convert Row objects/tuples to list of dicts or similar if needed, 
     # but Jinja handles tuples fine (t.domain, t.id usually, but here it's explicit columns)
     # The result is a list of Row objects which behave like named tuples
-    return templates.TemplateResponse("analytics.html", {"request": request, "targets": targets})
+    return templates.TemplateResponse("analytics.html", {"request": request, "targets": targets, "user": user})
 
 @app.get("/api/stats/infrastructure")
 async def get_infrastructure_stats(target_id: Optional[int] = None, session: Session = Depends(get_session)):
