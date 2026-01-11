@@ -7,7 +7,8 @@ from datetime import datetime
 
 from yads.config import settings
 from yads.models import SystemConfig
-from yads.database import SessionLocal
+from yads.database import engine
+from sqlmodel import Session
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class RateLimiter:
             return self._config_cache[self.CONFIG_KEY]
             
         try:
-            with SessionLocal() as session:
+            with Session(engine) as session:
                 conf = session.get(SystemConfig, self.CONFIG_KEY)
                 val = float(conf.value) if conf else self.DEFAULT_DELAY
                 self._config_cache[self.CONFIG_KEY] = val

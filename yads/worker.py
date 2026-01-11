@@ -115,6 +115,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                 
                 target.scan_status = "running"
                 target.scan_progress = "Initializing scan..."
+                # Capture tenant_id for inheritance
+                parent_tenant_id = target.tenant_id
                 session.add(target)
                 session.commit()
             except Exception as e:
@@ -426,7 +428,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                                          # Check DB existence
                                          existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
                                          if not existing_t:
-                                             new_target = Target(domain=edomain)
+                                             # Inherit Tenant ID from parent
+                                             new_target = Target(domain=edomain, tenant_id=parent_tenant_id)
                                              session.add(new_target)
                                              session.commit() # Commit to get ID
                                              session.refresh(new_target)
@@ -606,7 +609,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                              existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
                              if not existing:
                                  # Create New Target (Always)
-                                 new_target = Target(domain=sub_domain)
+                                 # Inherit Tenant ID from parent
+                                 new_target = Target(domain=sub_domain, tenant_id=parent_tenant_id)
                                  session.add(new_target)
                                  session.commit()
                                  session.refresh(new_target)

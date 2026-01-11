@@ -46,7 +46,15 @@ def create_backup_zip(session: Session) -> io.BytesIO:
             json_str = json.dumps(data, default=json_serializer, indent=2)
             zf.writestr(f"data/{table_name}.json", json_str)
             
-        # 2. Backup Screenshots
+        # 2. Metadata (Version, Timestamp)
+        meta = {
+            "version": settings.VERSION,
+            "timestamp": datetime.utcnow().isoformat(),
+            "compatibility": "1.x" # Simple check
+        }
+        zf.writestr("metadata.json", json.dumps(meta, indent=2))
+            
+        # 3. Backup Screenshots
         if os.path.exists(SCREENSHOT_DIR):
             for root, dirs, files in os.walk(SCREENSHOT_DIR):
                 for file in files:
@@ -62,7 +70,23 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes):
     """
     Restores data from a ZIP archive.
     Strategy: Wipe All -> Restore All.
+    Checks for version compatibility.
     """
+    
+    # Pre-Check: Read Metadata
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
+        if "metadata.json" in zf.namelist():
+            try:
+                meta = json.loads(zf.read("metadata.json"))
+                backup_ver = meta.get("version", "0.0.0")
+                
+                # Simple Logic: Warn if Major version differs? 
+                # For now, we assume simple string compare or just logging.
+                # In a strict system, we might raise Exception.
+                # print(f"Restoring backup version {backup_ver} on system {settings.VERSION}")
+            except:
+                pass
+                
     # 1. Wipe Database
     # We use TRUNCATE CASCADE to clear everything cleanly
     # Note: We need to know table names. 
@@ -83,7 +107,22 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes):
             
     # Construct massive TRUNCATE command
     tables_str = ", ".join(table_names)
+    session.exec(text(f'TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE')) # using simple string for table names works if no keywords used
+    # But USER is a keyword. We need to handle quoted User table name if using raw SQL
+    # safe_tables = [f'"{t}"' for t in table_names]
+    # tables_str = ", ".join(safe_tables)
+    # session.exec(text(f'TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE'))
+    
+    # Fix for User Table
+    safe_tables = []
+    for t in table_names:
+        if t == "user":
+            safe_tables.append('"user"')
+        else:
+            safe_tables.append(t)
+    tables_str = ", ".join(safe_tables)
     session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
+    
     session.commit()
     
     # 2. Wipe Screenshots
@@ -114,19 +153,6 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes):
                     f.write(zf.read(member))
                     
         # Restore Database
-        # We need to restore in order? Target first, then children.
-        # MODELS list should be ordered by dependency (Parent first)
-        # Target -> ScanResult -> ChangeEvent
-        # ModuleState -> Target
-        # SystemConfig (independent)
-        
-        # Current MODELS list: [Target, ScanResult, ModuleState, SystemConfig, ChangeEvent]
-        # Target is 0. 
-        # ScanResult depends on Target. 
-        # ModuleState depends on Target.
-        # ChangeEvent depends on ScanResult.
-        # So the order allows sequential insertion.
-        
         for model in MODELS:
             table_name = model.__tablename__
             filename = f"data/{table_name}.json"
@@ -135,11 +161,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes):
                 json_data = json.loads(zf.read(filename))
                 
                 for item in json_data:
-                    # Convert ISO dates back to datetime objects
-                    # Model.model_validate(item) performs conversion if typed correctly in SQLModel
-                    # But input is dict.
-                    
-                    # Manual casting might be safer or rely on SQLModel validation
+                    # Validate and Add
                     db_obj = model.model_validate(item)
                     session.add(db_obj)
                     

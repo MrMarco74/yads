@@ -4,7 +4,8 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "YADS - Yet Another DNS Scanner"
+    PROJECT_NAME: str = "YADS"
+    VERSION: str = "1.2.6"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")
@@ -17,6 +18,11 @@ class Settings(BaseSettings):
     AUTO_QUEUE_SUBDOMAINS: bool = False
     SCAN_QUEUE_RATE_LIMIT: Optional[str] = None  # No default rate limit
     WEB_REQUEST_TIMEOUT: int = int(os.getenv("YADS_WEB_TIMEOUT", 10))
+
+    # Authentication & Security
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "changeme_in_production_please_super_secret")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # Default to 1 hour, configurable by Admin via SystemConfig later potentially
     
     class Config:
         env_file = ".env"

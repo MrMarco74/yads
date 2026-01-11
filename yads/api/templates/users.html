@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block main_classes %}flex-1 w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-8 mx-auto">
+    <h1 class="mb-6 text-3xl font-bold text-white">User Management</h1>
+    
+    <!-- Messages -->
+    {% if request.query_params.get("msg") %}
+    <div class="p-4 mb-6 text-green-200 bg-green-900/50 border border-green-800 rounded">
+        {{ request.query_params.get("msg") }}
+    </div>
+    {% endif %}
+    {% if request.query_params.get("error") %}
+    <div class="p-4 mb-6 text-red-200 bg-red-900/50 border border-red-800 rounded">
+        {{ request.query_params.get("error") }}
+    </div>
+    {% endif %}
+
+    <!-- Create User -->
+    <div class="p-6 mb-8 bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
+        <h2 class="mb-4 text-xl font-semibold text-gray-200">Create New User</h2>
+        <form action="/users/create" method="post" class="flex flex-wrap items-end gap-4">
+            <div>
+                <label class="block mb-1 text-sm text-gray-400">Username</label>
+                <input type="text" name="username" required class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+            </div>
+            <div>
+                <label class="block mb-1 text-sm text-gray-400">Password</label>
+                <div class="flex flex-col gap-2">
+                     <div class="flex gap-2">
+                        <input type="password" name="password" id="new_user_password" oninput="checkStrength()" required class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors w-full">
+                        <button type="button" onclick="generateRandomPassword()" class="px-3 py-2 text-xs font-bold text-gray-300 bg-gray-700 rounded hover:bg-gray-600 transition-colors border border-gray-600 whitespace-nowrap">
+                            Suggest
+                        </button>
+                    </div>
+                    <!-- Strength Meter -->
+                    <div class="w-full bg-gray-700 rounded-full h-1.5 dark:bg-gray-700">
+                        <div id="strength-bar" class="bg-red-600 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="strength-text" class="text-[10px] text-gray-500 font-mono text-right h-4">Min 8 chars</p>
+                </div>
+            </div>
+            <script>
+                function checkStrength() {
+                    const val = document.getElementById("new_user_password").value;
+                    const bar = document.getElementById("strength-bar");
+                    const txt = document.getElementById("strength-text");
+                    
+                    if (!val) {
+                        bar.style.width = "0%";
+                        bar.className = "bg-gray-600 h-1.5 rounded-full transition-all duration-300";
+                        txt.textContent = "";
+                        return;
+                    }
+
+                    // BSI-like check:
+                    // Length < 8: Weak
+                    // Length >= 8 + Complexity: Medium
+                    // Length >= 12 + Complexity: Strong (BSI Recommendation for standard protection is often 8 complex or 12+ simple phrases, but effectively 12+ complex is solid)
+                    
+                    let score = 0;
+                    if (val.length >= 8) score += 1;
+                    if (val.length >= 12) score += 1;
+                    if (val.length >= 16) score += 1;
+                    
+                    // Complexity
+                    if (/[A-Z]/.test(val)) score += 1;
+                    if (/[a-z]/.test(val)) score += 1;
+                    if (/[0-9]/.test(val)) score += 1;
+                    if (/[^A-Za-z0-9]/.test(val)) score += 1;
+
+                    // Max Score potential: 3 (len) + 4 (comp) = 7
+                    // Mapping to UI
+                    // < 3: Weak
+                    // 3-4: Moderate
+                    // 5-6: Strong
+                    // 7: Very Strong
+                    
+                    let color = "bg-red-600";
+                    let label = "Weak";
+                    let width = "10%";
+                    
+                    if (val.length < 8) {
+                        label = "Too Short (<8)";
+                        width = "10%";
+                    } else if (score < 4) {
+                        color = "bg-orange-500";
+                        label = "Weak";
+                        width = "30%";
+                    } else if (score < 6) {
+                        color = "bg-yellow-400";
+                        label = "Moderate";
+                        width = "60%";
+                    } else {
+                        color = "bg-green-500";
+                        label = "Strong (BSI Compliant)";
+                        width = "100%";
+                    }
+                    
+                    bar.className = `${color} h-1.5 rounded-full transition-all duration-300`;
+                    bar.style.width = width;
+                    txt.textContent = label;
+                    txt.className = `text-[10px] font-mono text-right h-4 ${color.replace('bg-', 'text-')}`;
+                }
+
+                function generateRandomPassword() {
+                    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+                    let password = "";
+                    for (let i = 0; i < 20; i++) {
+                        password += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                    const input = document.getElementById("new_user_password");
+                    input.value = password;
+                    input.type = "text"; // Show
+                    checkStrength(); // Update meter
+                }
+            </script>
+            <div>
+                <label class="block mb-1 text-sm text-gray-400">Role</label>
+                <select name="role" class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+                    <option value="viewer">Viewer</option>
+                    <option value="scanner">Scanner</option>
+                    <option value="admin">Admin</option>
+                </select>
+                </select>
+            </div>
+            
+            {% if not user.tenant_id %}
+            <div>
+                <label class="block mb-1 text-sm text-gray-400">Tenant</label>
+                <select name="target_tenant_id" class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+                    <option value="">-- Platform Admin --</option>
+                    {% for t in tenants %}
+                    <option value="{{ t.id }}">{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="flex items-center mb-3">
+                <input type="checkbox" name="force_change" value="true" id="force_change" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2">
+                <label for="force_change" class="ml-2 text-sm font-medium text-gray-400">Force Password Change</label>
+            </div>
+            <button type="submit" class="h-9 px-4 font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/30 text-sm mb-1">Create User</button>
+        </form>
+    </div>
+
+    <!-- User List -->
+    <div class="overflow-x-auto bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
+        <table class="w-full text-left table-auto">
+            <thead class="bg-gray-900/50 border-b border-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">ID</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Username</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Role</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Tenant</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Last Login</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">MFA</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700 text-gray-300">
+                {% for user in users %}
+                <tr class="hover:bg-gray-700/50 transition-colors">
+                    <td class="px-6 py-4 text-gray-400">{{ user.id }}</td>
+                    <td class="px-6 py-4 font-medium text-white">{{ user.username }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                            {% if user.role == 'admin' %}bg-purple-900/50 text-purple-200 border border-purple-800
+                            {% elif user.role == 'scanner' %}bg-blue-900/50 text-blue-200 border border-blue-800
+                            {% else %}bg-gray-700 text-gray-300 border border-gray-600{% endif %}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-400 text-sm">
+                        {% if user.tenant %}
+                            <div class="font-bold text-white flex items-center gap-1">
+                                {{ user.tenant.name }}
+                                <span class="bg-blue-900 text-blue-200 text-[10px] px-1 rounded border border-blue-800" title="Active Context">Active</span>
+                            </div>
+                            
+                            {% if user.allowed_tenants|length > 1 %}
+                                <div class="mt-1 text-xs text-gray-500">
+                                    {% for t in user.allowed_tenants %}
+                                        {% if t.id != user.tenant_id %}
+                                            <span class="block border-l-2 border-gray-700 pl-1 ml-1">{{ t.name }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-pink-400 font-mono">Platform Admin</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-gray-400 text-sm font-mono">
+                        {% if user.last_login %}
+                            <div title="{{ user.last_login }} in UTC">{{ user.last_login.strftime('%Y-%m-%d %H:%M') }}</div>
+                        {% else %}
+                            <span class="text-gray-600">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if user.mfa_enabled %}
+                        <span class="text-green-400 flex items-center gap-1">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span> Enabled
+                        </span>
+                        {% else %}
+                        <span class="text-gray-500 flex items-center gap-1">
+                            <span class="w-2 h-2 bg-gray-600 rounded-full"></span> Disabled
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 space-x-2">
+                        <a href="/users/{{ user.id }}/edit" class="text-blue-400 hover:text-blue-300 transition-colors font-bold mr-2">Edit</a>
+
+                        {% if user.username != 'admin' %}
+                        <form action="/users/delete" method="post" class="inline" onsubmit="return confirm('Delete user?');">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <button class="text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                        </form>
+                        {% endif %}
+                        
+                        <form action="/users/reset_mfa" method="post" class="inline" onsubmit="return confirm('Reset MFA?');">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <button class="text-orange-400 hover:text-orange-300 transition-colors">Reset MFA</button>
+                        </form>
+
+                        <form action="/users/reset_password" method="post" class="flex items-center gap-2 mt-2">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <input type="password" name="new_password" placeholder="New Password" required class="w-32 px-2 py-1 text-sm bg-gray-900 border border-gray-600 rounded text-gray-200 focus:outline-none focus:border-blue-500">
+                            <button class="px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors">Set PW</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
