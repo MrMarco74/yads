@@ -37,8 +37,8 @@ build_images:
     - export IMAGE_YADS=$IMAGE_YADS
     - export POSTGRES_PASSWORD=dummy_build_pass # Only needed for config valid check if referenced, but 'build' typically ignores values unless used in build args
     
-    - docker compose -p yads-prod -f docker-compose.prod.yml build
-    - docker compose -p yads-prod -f docker-compose.prod.yml push
+    - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml build
+    - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml push
 
     # SBOM (Disabled to save disk space on runner)
     # - apk add --no-cache curl
