@@ -38,6 +38,12 @@ async def get_current_user_html(request: Request, session: Session = Depends(get
         
     return user
 
+async def get_current_user_html_optional(request: Request, session: Session = Depends(get_db_session)) -> User | None:
+    try:
+        return await get_current_user_html(request, session)
+    except (LoginRequiredException, HTTPException):
+        return None
+
 async def get_current_user(request: Request, session: Session = Depends(get_db_session)) -> User:
     token = request.cookies.get("access_token")
     if not token:
