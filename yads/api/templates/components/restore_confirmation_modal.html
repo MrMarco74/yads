@@ -44,8 +44,17 @@
                         <div class="grid grid-cols-2 gap-2 text-sm text-gray-300">
                             {% for table, count in db_summary.items() %}
                                 <div class="flex justify-between border-b border-gray-700 pb-1">
-                                    <span>{{ table }}</span>
-                                    <span class="font-mono text-cyan-400">{{ count }}</span>
+                                    <span class="flex items-center gap-2">
+                                        {{ table }}
+                                        {% if skipped_tables and table in skipped_tables %}
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-700 text-gray-400 uppercase tracking-wide">Skipped</span>
+                                        {% endif %}
+                                    </span>
+                                    {% if skipped_tables and table in skipped_tables %}
+                                        <span class="font-mono text-gray-500 line-through decoration-gray-500">{{ count }}</span>
+                                    {% else %}
+                                        <span class="font-mono text-cyan-400">{{ count }}</span>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>

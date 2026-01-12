@@ -14,15 +14,15 @@
     </div>
 
     <!-- Timeline Container -->
-    <div class="relative border-l-2 border-gray-800 ml-4 md:ml-6 space-y-24">
+    <div class="relative border-l-2 border-gray-800 ml-4 md:ml-6 space-y-32 mt-12">
         {% for entry in entries %}
-        <div class="relative pl-8 md:pl-12">
+        <div class="relative pl-8 md:pl-12 pt-12">
             
             <!-- Timeline Dot (Removed) -->
             <!-- <div class="absolute -left-[9px] top-1 h-5 w-5 rounded-full border-4 border-gray-900 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div> -->
 
             <!-- Content Card -->
-            <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-2">
+            <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-2 mt-8">
                 <h2 class="text-2xl font-bold text-white mb-1 sm:mb-0">
                     {{ entry.title }}
                 </h2>

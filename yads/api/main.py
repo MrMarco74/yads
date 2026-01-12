@@ -76,23 +76,21 @@ async def lifespan(app: FastAPI):
                     session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
                     session.commit()
 
-                # Ensure Default Tenant "a customer"
-                from yads.models import Tenant
-                default_tenant = session.exec(select(Tenant).where(Tenant.name == "a customer")).first()
-                if not default_tenant:
-                    default_tenant = Tenant(name="a customer")
-                    session.add(default_tenant)
-                    session.commit()
-                    session.refresh(default_tenant)
-                    logger.info("Created default tenant: a customer")
+                # Ensure Default Tenant "a customer" -> REMOVED PER USER REQ
+                # from yads.models import Tenant
+                # default_tenant = session.exec(select(Tenant).where(Tenant.name == "a customer")).first()
+                # if not default_tenant:
+                #     default_tenant = Tenant(name="a customer")
+                #     session.add(default_tenant)
+                #     session.commit()
+                #     session.refresh(default_tenant)
+                #     logger.info("Created default tenant: a customer")
                 
-                # Assign Orphaned Users to Default Tenant? NO!
-                # tenant_id IS NULL means Platform Admin now. Do not overwrite.
-                # session.exec(text(f"UPDATE \"user\" SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
-                
-                # Assign Orphaned Targets to Default Tenant
-                session.exec(text(f"UPDATE target SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
-                session.commit()
+                # Assign Orphaned Users/Targets?
+                # Without default tenant, we can't assign them.
+                # Just leave them NULL (orphaned).
+                # session.exec(text(f"UPDATE target SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
+                pass
                 
             logger.info("Database connected, tables created, and schema migrated.")
             
@@ -1437,6 +1435,7 @@ async def export_data(session: Session = Depends(get_session)):
 
 @app.post("/api/backup/analyze")
 async def analyze_backup(
+    request: Request,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin"]))
@@ -1445,10 +1444,13 @@ async def analyze_backup(
     Analyzes the uploaded backup file and returns a summary for confirmation.
     Used by HTMX to pop up a modal.
     """
+    logger.info(f"Received backup upload for analysis: {file.filename}")
     if not file.filename.endswith('.zip'):
+        logger.warning("Upload rejected: Not a zip file")
         return HTMLResponse("<div class='text-red-400'>Error: Not a zip file</div>", status_code=400)
     
     contents = await file.read()
+    logger.info(f"Read {len(contents)} bytes from upload.")
     
     import zipfile
     import json
@@ -1469,6 +1471,7 @@ async def analyze_backup(
                     data = json.loads(zf.read(name))
                     db_summary[table] = len(data)
     except Exception as e:
+        logger.error(f"Error analyzing backup content: {e}")
         return HTMLResponse(f"<div class='text-red-400'>Error analyzing backup: {str(e)}</div>", status_code=400)
 
     # Encode contents to pass to next step? NO. Too large.
@@ -1483,6 +1486,7 @@ async def analyze_backup(
     tmp_path = "/tmp/yads_restore_pending.zip"
     with open(tmp_path, "wb") as f:
         f.write(contents)
+    logger.info(f"Backup saved to temporary path: {tmp_path}")
         
     # Look up Tenant Names
     tenant_ids = meta.get("tenant_ids", [])
@@ -1494,13 +1498,15 @@ async def analyze_backup(
             if t: tenant_names.append(t.name)
             else: tenant_names.append(f"Unknown ID {tid}")
     
+    from yads.core.backup import SYSTEM_TABLES
     return templates.TemplateResponse("components/restore_confirmation_modal.html", {
         "request": request,
         "meta": meta,
         "db_summary": db_summary,
         "tenant_names": tenant_names,
         "is_partial": bool(tenant_ids),
-        "tmp_path": tmp_path
+        "tmp_path": tmp_path,
+        "skipped_tables": SYSTEM_TABLES
     })
 
 @app.post("/api/backup/execute_restore")
@@ -1512,6 +1518,7 @@ async def execute_restore(
     """
     Actually executes the restore from the temp file.
     """
+    logger.info(f"Received restore execution request. Confirmed: {confirmed}")
     if not confirmed:
          return RedirectResponse(url="/settings?msg=Restore+Cancelled", status_code=303)
          
@@ -1831,9 +1838,9 @@ async def export_targets_excel(session: Session = Depends(get_session), user: Us
     import pandas as pd
     from io import BytesIO
     
-    # Fetch all targets
-    targets = session.exec(select(Target).order_by(Target.created_at.desc())).all()
-
+    # Fetch targets for this tenant
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id).order_by(Target.created_at.desc())).all()
+    
     # -- Cipher Compliance Setup --
     from yads.models import SystemConfig
     approved_ciphers_set = set()
@@ -1862,89 +1869,96 @@ async def export_targets_excel(session: Session = Depends(get_session), user: Us
     
     data = []
     for t in targets:
-        # Fetch latest results for each module (simplified: could use window functions for speed)
-        # We rely on lazy loading or simple queries here. For 100 targets it's okay.
-        # Ideally: select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())
-        # But we need one per module.
+        # Fetch latest results for each module
+        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
         
+        # Identify specific module results
+        sub_scan = next((r for r in results if r.module_name == 'subdomain_scanner'), None)
+        dns_scan = next((r for r in results if r.module_name == 'dns_scanner'), None)
+        dns = sub_scan if sub_scan else dns_scan
+        
+        ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
+        web = next((r for r in results if r.module_name == 'web_analyzer'), None)
+        infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
+        tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
+        port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
+        
+        # Online Status Logic
+        is_online = "Unknown"
+        if infra or web or port_scan:
+            has_ip = bool(infra and infra.data and infra.data.get("ip"))
+            has_http = False
+            if web and web.data and web.data.get("status_code"):
+                code = web.data.get("status_code")
+                if isinstance(code, int) and code > 0:
+                    has_http = True
+            has_probe = bool(port_scan and port_scan.data and port_scan.data.get("is_active"))
+            is_online = "Online" if (has_ip or has_http or has_probe) else "Offline"
+
+        # DNS 
+        dns_ip = ""
+        if dns and dns.data and "records" in dns.data and "A" in dns.data["records"]:
+             a_records = dns.data["records"]["A"]
+             if a_records:
+                 dns_ip = a_records[0]
+
+        # Compliance
+        compliant = 0
+        non_compliant = 0
+        if ssl and ssl.data and not ssl.data.get("error"):
+            detected_ciphers = ssl.data.get("ciphers", [])
+            for dc in detected_ciphers:
+                name = dc.get("name")
+                if name:
+                    if name in approved_ciphers_set: compliant += 1
+                    else: non_compliant += 1
+        
+        # CVEs
+        cve_stats = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        if web and web.data and "cves" in web.data:
+            for cve in web.data["cves"]:
+                try:
+                    cvss = float(cve.get("cvss", 0))
+                    if cvss >= 9.0: cve_stats["critical"] += 1
+                    elif cvss >= 7.0: cve_stats["high"] += 1
+                    elif cvss >= 4.0: cve_stats["medium"] += 1
+                    else: cve_stats["low"] += 1
+                except: pass
+
+        # TLDs
+        tld_free = tld_scan.data.get("free_count", 0) if tld_scan and tld_scan.data else 0
+        tld_diff = tld_scan.data.get("registered_count_diff_owner", 0) if tld_scan and tld_scan.data else 0
+
         row = {
             "ID": t.id,
             "Domain": t.domain,
-            "Created At": t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "Status": t.scan_status,
-            "Progress": t.scan_progress or ""
+            "Online": is_online,
+            "Probe": "Active" if (port_scan and port_scan.data and port_scan.data.get("is_active")) else ("Inactive" if port_scan else "-"),
+            "HTTP": web.data.get("http_status") if web and web.data else "-",
+            "HTTPS": web.data.get("https_status") if web and web.data else "-",
+            "HTTPS_Redirect": "Yes" if (web and web.data and web.data.get("https_redirect")) else "No",
+            "Wildcard": "Yes" if (dns and dns.data and dns.data.get("wildcard_detected")) else "No",
+            "Login_Detected": "Yes" if (web and web.data and web.data.get("is_login_page")) else "No",
+            "IP": dns_ip,
+            "Subdomain_Count": len(dns.data.get("subdomains", [])) if (dns and dns.data) else 0,
+            "Scan_Status": t.scan_status,
+            "Last_Scan": results[0].scanned_at.strftime("%Y-%m-%d %H:%M") if results else "-",
+            "SSL_Issuer": ssl.data.get("issuer", {}).get("commonName", "") if (ssl and ssl.data and not ssl.data.get("error")) else "",
+            "SSL_Expiry": ssl.data.get("notAfter", "") if (ssl and ssl.data and not ssl.data.get("error")) else "",
+            "Cipher_Compliant": compliant,
+            "Cipher_NonCompliant": non_compliant,
+            "Web_Server": web.data.get("server_header", "") if web and web.data else "",
+            "ASN": infra.data.get("asn", {}).get("asn", "") if infra and infra.data else "",
+            "ISP": infra.data.get("asn", {}).get("asn_description", "") if infra and infra.data else "",
+            "Secrets_Count": len(web.data.get("secrets", [])) if (web and web.data) else 0,
+            "CVE_Critical": cve_stats["critical"],
+            "CVE_High": cve_stats["high"],
+            "CVE_Med": cve_stats["medium"],
+            "Takeover_Risks": len(dns.data.get("takeover_risks", [])) if (dns and dns.data) else 0,
+            "TLD_Free": tld_free,
+            "TLD_Suspect": tld_diff,
+            "Created_At": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
         }
-        
-        # Helper to get latest module data
-        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
-        
-        # Modules: dns_scanner, ssl_scanner, web_analyzer, infrastructure_scanner, typosquat_scanner, visual_osint
-        
-        # DNS
-        dns = next((r for r in results if r.module_name == 'dns_scanner'), None)
-        if dns and dns.data:
-            row["DNS_IP"] = dns.data.get("a_records", [""])[0] if dns.data.get("a_records") else ""
-            row["DNS_Subs_Count"] = len(dns.data.get("subdomains", []))
-            row["DNS_MX"] = ", ".join(dns.data.get("mx_records", []))
-        else:
-             row["DNS_IP"] = ""
-             row["DNS_Subs_Count"] = 0
-             row["DNS_MX"] = ""
-
-        # SSL
-        ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
-        if ssl and ssl.data:
-            if ssl.data.get("error"):
-                 row["SSL_Issuer"] = "Error"
-                 row["SSL_Expiry"] = ssl.data.get("error")
-            else:
-                row["SSL_Issuer"] = ssl.data.get("issuer", {}).get("commonName", "")
-                row["SSL_Expiry"] = ssl.data.get("notAfter", "")
-                row["SSL_SANs_Count"] = len(ssl.data.get("subjectAltName", []))
-                
-                # Compliance logic
-                compliant = 0
-                non_compliant = 0
-                detected_ciphers = ssl.data.get("ciphers", [])
-                for dc in detected_ciphers:
-                    name = dc.get("name")
-                    if name:
-                        if name in approved_ciphers_set:
-                            compliant += 1
-                        else:
-                            non_compliant += 1
-                row["Cipher_Compliant"] = compliant
-                row["Cipher_Non_Compliant"] = non_compliant
-
-        else:
-            row["SSL_Issuer"] = ""
-            row["SSL_Expiry"] = ""
-            row["SSL_SANs_Count"] = 0
-            row["Cipher_Compliant"] = 0
-            row["Cipher_Non_Compliant"] = 0
-
-        # Web
-        web = next((r for r in results if r.module_name == 'web_analyzer'), None)
-        if web and web.data:
-            row["Web_Server"] = web.data.get("server_header", "")
-            row["Web_Title"] = web.data.get("title", "")
-            row["Web_Tech"] = ", ".join(web.data.get("technologies", []))
-        else:
-            row["Web_Server"] = ""
-            row["Web_Title"] = ""
-            row["Web_Tech"] = ""
-            
-         # Infra
-        infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
-        if infra and infra.data:
-             row["Infra_ASN"] = infra.data.get("asn", {}).get("asn", "")
-             row["Infra_Org"] = infra.data.get("asn", {}).get("asn_description", "")
-             row["Infra_Country"] = infra.data.get("geoip", {}).get("country_name", "")
-        else:
-             row["Infra_ASN"] = ""
-             row["Infra_Org"] = ""
-             row["Infra_Country"] = ""
-
         data.append(row)
 
     df = pd.DataFrame(data)
@@ -2860,10 +2874,34 @@ async def admin_reset(session: Session = Depends(get_session)):
 
     # 2. Delete Data
     # Truncate tables (Cascading usually handles it, but we do explicit delete for safety/clarity)
+    session.exec(text("DELETE FROM changeevent"))
     session.exec(text("DELETE FROM scanresult"))
     session.exec(text("DELETE FROM modulestate"))
     session.exec(text("DELETE FROM target"))
     
+    # 3. Clear Tenant Data (Requested by User)
+    # Must preserve Users, but unlink them.
+    session.exec(text('UPDATE "user" SET tenant_id = NULL'))
+    session.exec(text("DELETE FROM usertenantlink"))
+    session.exec(text("DELETE FROM tenant"))
+
+    # 4. Re-Initialize Default Tenant -> REMOVED PER USER REQ
+    # from yads.models import Tenant, UserTenantLink, User
+    # default_tenant = Tenant(name="a customer")
+    # session.add(default_tenant)
+    # session.commit()
+    # session.refresh(default_tenant)
+    # logger.info("Reset: Re-created default tenant: a customer")
+    
+    # Auto-link 'admin' to default tenant -> REMOVED
+    # admin = session.exec(select(User).where(User.username == "admin")).first()
+    # if admin:
+    #     session.add(UserTenantLink(user_id=admin.id, tenant_id=default_tenant.id))
+    #     admin.tenant_id = default_tenant.id
+    #     session.add(admin)
+    #     session.commit()
+    #     logger.info("Reset: Re-linked admin to default tenant.")
+
     # Reset Config? Maybe optional. Let's keep config.
     
     session.commit()

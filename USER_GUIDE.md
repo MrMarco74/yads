@@ -132,6 +132,8 @@ Visits the page as a real user.
 
 ### Network Graph
 An interactive node-graph showing relationships between Domains, IPs, and ASNs.
+*   **Plot Graph**: Click the "Plot Graph" button in the sidebar to fetch and display data.
+*   **Context Messaging**: If no data is available for the selected filters, the system will provide specific feedback (e.g., "Has this target been scanned?").
 *   **Clusters**: See which domains share the same hosting infrastructure.
 *   **Zoom/Pan**: Navigate large infrastructures easily.
 
@@ -152,6 +154,7 @@ Visualizes redirect chains.
 
 ### Exporting Data
 *   **PDF Report**: On the Target Details page, download a professionally formatted PDF summary.
+*   **Excel Export**: The Target Overview page features an expanded Excel export including all UI columns: SSL details, CVE counts, Secrets, ASN/ISP info, and more.
 *   **Backup**: Admin users can export the entire database and assets as a ZIP file from the Settings page.
 
 ### System Logs
@@ -186,6 +189,7 @@ Go to **Users** in the navbar.
 YADS supports multiple isolated environments (Tenants).
 *   **Isolation**: Targets, Results, and Users are scoped to a Tenant.
 *   **Switching**: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
+*   **Management**: Admins can rename tenants and manage memberships via the **Tenants** page.
 *   **Platform Admin**: An Admin without a specific tenant sees *everything* and can manage the tenants themselves.
 
 ---
@@ -197,6 +201,7 @@ YADS supports multiple isolated environments (Tenants).
 ### Queue Control
 *   **Pause/Resume**: Stop the background worker from processing new scans. Useful for maintenance.
 *   **Clear Queue**: Remove all pending jobs.
+*   **System Reset**: Reverts the system to a "Clean State". This removes all scan data and tenants, but preserves user accounts and system configurations.
 
 ### Configuration
 *   **Web Timeout**: Set global timeout for HTTP requests (default: 10s).
@@ -241,4 +246,4 @@ For technical support or to report bugs:
 
 ---
 
-*Verified for YADS v1.2.7*
+*Verified for YADS v1.2.8*

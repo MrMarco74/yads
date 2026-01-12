@@ -57,7 +57,8 @@
                     <td class="px-6 py-4 text-sm">
                         {{ tenant.targets|length }}
                     </td>
-                    <td class="px-6 py-4 space-x-2">
+                    <td class="px-6 py-4 space-x-2 flex items-center">
+                        <button onclick="openRenameModal({{ tenant.id }}, '{{ tenant.name }}')" class="px-3 py-1 text-xs font-bold text-blue-100 bg-blue-900/50 border border-blue-800 rounded hover:bg-blue-800 transition-colors">Rename</button>
                         <form action="/tenants/delete" method="post" class="inline" onsubmit="return confirm('DANGER: This will delete ALL users, targets, and scan results for this tenant. Continue?');">
                             <input type="hidden" name="tenant_id" value="{{ tenant.id }}">
                             <button class="px-3 py-1 text-xs font-bold text-red-100 bg-red-900/50 border border-red-800 rounded hover:bg-red-800 transition-colors">Delete</button>
@@ -75,4 +76,59 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Rename Modal -->
+<div id="renameModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+        <div class="p-6">
+            <h3 class="text-xl font-bold text-white mb-2">Rename Tenant</h3>
+            <p class="text-gray-400 text-sm mb-6">Enter a new name for the tenant.</p>
+            
+            <form action="/tenants/update" method="POST" id="renameForm">
+                <input type="hidden" name="tenant_id" id="renameTenantId">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">New Name</label>
+                        <input type="text" name="name" id="renameTenantName" required
+                               class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeRenameModal()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openRenameModal(id, name) {
+        document.getElementById('renameTenantId').value = id;
+        document.getElementById('renameTenantName').value = name;
+        document.getElementById('renameModal').classList.remove('hidden');
+        document.getElementById('renameTenantName').focus();
+    }
+
+    function closeRenameModal() {
+        document.getElementById('renameModal').classList.add('hidden');
+    }
+
+    // Close on escape
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeRenameModal();
+    });
+
+    // Close on click outside
+    document.getElementById('renameModal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('renameModal')) closeRenameModal();
+    });
+</script>
 {% endblock %}
