@@ -4,7 +4,6 @@ services:
   # --- Backend Services ---
   yads-api:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
-
     command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
     restart: always
     ports:
@@ -18,11 +17,13 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - API_KEY=${API_KEY}
     networks:
-      - yads-net
+      yads-net:
+      proxy-net:
+        aliases:
+          - yads
 
   yads-worker:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
-
     command: python /app/scripts/start_worker.py
     restart: always
     environment:
@@ -61,3 +62,7 @@ volumes:
 networks:
   yads-net:
     driver: bridge
+  proxy-net:
+    external: true
+    name: proxy-net
+    
