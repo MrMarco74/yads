@@ -418,11 +418,10 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<script src="/static/vendor/chart.js"></script>
+<script src="/static/vendor/chartjs-plugin-datalabels.js"></script>
 
-<!-- Google Charts -->
-<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
 
 <script>
     // Collapsible Logic with Persistence
@@ -1165,7 +1164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 1. Fetch Data First (if needed)
         if (!cachedGeoData) {
             try {
-                const response = await fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json');
+                const response = await fetch('/static/vendor/countries.geo.json');
                 if (!response.ok) throw new Error("Failed to load map data");
                 cachedGeoData = await response.json();
             } catch (e) {
