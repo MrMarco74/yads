@@ -9,7 +9,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-yads_secret_password}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
@@ -27,7 +27,7 @@ services:
     command: python /app/scripts/start_worker.py
     restart: always
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-yads_secret_password}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
@@ -43,7 +43,7 @@ services:
     restart: always
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_secret_password}
       - POSTGRES_DB=yads
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -65,4 +65,3 @@ networks:
   proxy-net:
     external: true
     name: proxy-net
-    
