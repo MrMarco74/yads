@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.2.6"
+    VERSION: str = "1.2.8"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")

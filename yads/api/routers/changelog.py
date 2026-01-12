@@ -1,16 +1,82 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime
+import markdown
+import textwrap
 
 from yads.database import get_session
 from yads.models import User, ChangelogEntry
-from yads.auth.deps import get_current_active_user
+from yads.auth.deps import get_current_active_user, get_current_user_html_optional
+from yads.config import settings
 
 router = APIRouter(
-    prefix="/api/changelog",
+    prefix="/changelog",  # Changed prefix to root /changelog for HTML
     tags=["changelog"]
 )
+
+templates = Jinja2Templates(directory="yads/api/templates")
+
+@router.get("/", response_class=HTMLResponse)
+def view_changelog(
+    request: Request,
+    current_user: User = Depends(get_current_user_html_optional),
+    session: Session = Depends(get_session)
+):
+    """
+    Render the full changelog history page.
+    Also marks all changes as seen for the current user.
+    """
+    # Fetch all entries, newest first
+    statement = select(ChangelogEntry).order_by(ChangelogEntry.published_at.desc())
+    entries = session.exec(statement).all()
+    
+    # Process markdown content for each entry
+    processed_entries = []
+    latest_id = 0
+    
+    for entry in entries:
+        if entry.id > latest_id:
+            latest_id = entry.id
+            
+        processed_entries.append({
+            "version": entry.version,
+            "title": entry.title,
+            "published_at": entry.published_at,
+            "content": markdown.markdown(textwrap.dedent(entry.content), extensions=['fenced_code', 'tables'])
+        })
+        
+    # Mark as read if user is logged in
+    if current_user and latest_id > (current_user.last_seen_changelog_id or 0):
+        current_user.last_seen_changelog_id = latest_id
+        session.add(current_user)
+        session.commit()
+    
+    return templates.TemplateResponse("changelog.html", {
+        "request": request,
+        "entries": processed_entries,
+        "user": current_user,
+        "settings": settings
+    })
+
+# Re-expose the API endpoint for compatibility if needed, but under /api/changelog path manually
+@router.get("/api/latest", response_model=List[ChangelogEntry])
+def get_latest_changes_api(
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Get all changelog entries that have an ID greater than what the user has last seen.
+    (Legacy/API support)
+    """
+    statement = select(ChangelogEntry).where(
+        ChangelogEntry.id > (current_user.last_seen_changelog_id or 0)
+    ).order_by(ChangelogEntry.published_at.desc())
+    
+    results = session.exec(statement).all()
+    return results
 
 @router.get("/latest", response_model=List[ChangelogEntry])
 def get_latest_changes(

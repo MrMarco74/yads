@@ -204,4 +204,41 @@ YADS supports multiple isolated environments (Tenants).
 
 ---
 
-*Verified for YADS v1.2.6*
+## 12. Best Practices
+
+To get the most out of YADS, consider these tips:
+> **💡 Pro Tip**: Schedule regular scans during off-peak hours to minimize network impact.
+
+1.  **Tagging**: Use tags creatively (e.g., `prod`, `dev`, `critical`) to organize targets.
+2.  **Regular Reviews**: Check the **Analytics** page weekly to spot trends in vulnerability counts.
+3.  **Scope Definition**: Be careful when adding root domains (e.g., `company.com`) as the **Subdomain Recon** module might find hundreds of assets.
+
+---
+
+## 13. Troubleshooting
+
+### Common Issues
+
+#### 🛑 Scan stuck in "Pending"
+*   **Cause**: The background worker might be paused or overloaded.
+*   **Fix**: Check **Settings > Queue Control** and ensure the queue is active. Check **active workers** count.
+
+#### ⚠️ "Web Analyzer" failed
+*   **Cause**: Target might be offline or blocking the scanner.
+*   **Fix**: Try visiting the URL manually. Adjust **Web Request Timeout** in settings if the site is slow.
+
+#### 🚫 MFA Code Rejected
+*   **Cause**: Time drift on the server or client.
+*   **Fix**: Ensure your server time is synced via NTP.
+
+---
+
+## 14. Support
+
+For technical support or to report bugs:
+*   **Internal Wiki**: [Link to internal wiki]
+*   **Email**: `security-team@example.com`
+
+---
+
+*Verified for YADS v1.2.7*

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YADS - Security Dashboard</title>
     <link rel="icon" type="image/jpeg" href="/static/logo.jpg">
-    <link href="/static/css/main.css" rel="stylesheet">
+    <link href="/static/css/main.css?v={{ settings.VERSION }}" rel="stylesheet">
     <script src="/static/vendor/htmx.min.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
@@ -84,10 +84,10 @@
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-cyan-400"
                   >Documentation</a
                 >
-                <button
-                  onclick="document.querySelector('[x-data]').__x.$data.open = true"
+                <a
+                  href="/changelog"
                   class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-green-400 text-left"
-                  >Recent Changes</button
+                  >Recent Changes</a
                 >
                 {% if user.role != 'viewer' %}
                 <a
@@ -213,64 +213,6 @@
       </div>
     </footer>
 
-    <!-- RECENT CHANGES MODAL -->
-    {% if user %}
-    <div x-data="{ open: false, changes: [] }" 
-         x-init="
-            fetch('/api/changelog/latest')
-                .then(res => res.json())
-                .then(data => {
-                    if(data.length > 0) {
-                        changes = data;
-                        open = true;
-                    }
-                })
-         "
-         x-show="open" 
-         x-cloak
-         class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-         style="display: none;">
-         
-         <div class="bg-gray-900 border border-indigo-500/50 rounded-xl shadow-2xl shadow-indigo-500/20 max-w-lg w-full mx-4 overflow-hidden transform transition-all"
-              style="background-color: #111827;" 
-              @click.away="open = false; fetch('/api/changelog/ack', { method: 'POST' });">
-              
-              <!-- Header -->
-              <div class="bg-indigo-900 p-5 border-b border-indigo-500/20 flex justify-between items-center">
-                  <div class="flex items-center gap-3">
-                      <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
-                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
-                      </div>
-                      <h2 class="text-xl font-bold text-white">New Features & Updates</h2>
-                  </div>
-                  <button @click="open = false; fetch('/api/changelog/ack', { method: 'POST' });" class="text-gray-400 hover:text-white transition-colors">
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  </button>
-              </div>
-              
-              <!-- Content -->
-              <div class="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
-                  <template x-for="entry in changes" :key="entry.id">
-                      <div class="relative bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-                          <div class="flex items-baseline justify-between mb-2">
-                              <h3 class="text-lg font-bold text-white" x-text="entry.title"></h3>
-                              <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded font-mono border border-indigo-700" x-text="entry.version"></span>
-                          </div>
-                          <!-- Use HTML injection safely if content is trusted -->
-                          <div class="prose prose-invert prose-sm text-gray-300 leading-snug" x-html="entry.content"></div>
-                          <p class="text-[10px] text-gray-500 mt-2 font-mono" x-text="new Date(entry.published_at).toLocaleDateString()"></p>
-                      </div>
-                  </template>
-              </div>
-              
-              <!-- Footer: Centered and Wider Button -->
-              <div class="bg-gray-900 p-5 border-t border-gray-800 flex justify-center" style="background-color: #111827;">
-                  <button @click="open = false; fetch('/api/changelog/ack', { method: 'POST' });" 
-                          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 w-2/3 rounded-lg transition-all shadow-lg shadow-indigo-500/20 text-sm">
-                      Got it!
-                  </button>
-              </div>
-         </div>
-    </div>
-    {% endif %}
+    <!-- RECENT CHANGES MODAL (Removed in favor of /changelog page) -->
+    
 </html>
