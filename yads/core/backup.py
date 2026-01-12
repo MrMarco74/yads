@@ -9,11 +9,10 @@ from sqlmodel import Session, select, SQLModel, text
 from sqlalchemy import MetaData
 
 from yads.config import settings
-from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEvent
+from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEvent, Tenant, User, UserTenantLink
 
-# List of models to backup/restore in order (parents first for restore, but usually we use generic approach)
-# For specific table names, we rely on SQLModel
-MODELS = [Target, ScanResult, ModuleState, SystemConfig, ChangeEvent]
+# List of models to backup/restore in order (parents first for restore)
+MODELS = [Tenant, User, UserTenantLink, SystemConfig, Target, ScanResult, ModuleState, ChangeEvent]
 
 SCREENSHOT_DIR = "yads/api/static/screenshots"
 
@@ -40,29 +39,35 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
             
             # Filtering Logic
             stmt = select(model)
-            if tenant_ids and hasattr(model, "tenant_id"):
-                 stmt = stmt.where(model.tenant_id.in_(tenant_ids))
-            elif tenant_ids and table_name in ["scanresult", "modulestate", "changeevent"]:
-                 # These relate to Target, which has tenant_id.
-                 # Optimization: Join with Target?
-                 # Or just filtering by target's tenant.
-                 # For simplicity in this codebase, we join.
-                 # Assuming all these link to Target via target_id
-                 from yads.models import Target
-                 stmt = stmt.join(Target).where(Target.tenant_id.in_(tenant_ids))
-            elif tenant_ids:
-                 # SystemConfig, User, etc.
-                 # If config, we might include all or exclude?
-                 # Strategy: If partial backup, exclude SystemConfig/User unless explicitly handled.
-                 # Typically tenant backup = App Data (Targets & Results).
-                 # We skip SystemConfig for tenant backups.
-                 if table_name == "systemconfig":
+            
+            if tenant_ids:
+                if table_name == "tenant":
+                     stmt = stmt.where(model.id.in_(tenant_ids))
+                     
+                elif hasattr(model, "tenant_id"):
+                     # Target, User
+                     stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+                     
+                elif table_name == "usertenantlink":
+                     stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+
+                elif table_name in ["scanresult", "modulestate"]:
+                     # Direct link to Target
+                     stmt = stmt.join(Target).where(Target.tenant_id.in_(tenant_ids))
+                     
+                elif table_name == "changeevent":
+                     # Link via ScanResult -> Target
+                     stmt = stmt.join(ScanResult).join(Target).where(Target.tenant_id.in_(tenant_ids))
+                     
+                elif table_name == "systemconfig":
+                     # Skip SystemConfig for partial backups? 
+                     # Or keep global config? Usually settings are global.
+                     # User said "restore backup function restores settings". 
+                     # If we are doing tenant backup, maybe we skip settings?
+                     # But current code skipped it.
                      continue
-                 if table_name == "user":
-                     # Users are cross-tenant usually, unless we filter by tenant_id (if User has it)
-                     # User model HAS tenant_id.
-                     if hasattr(model, "tenant_id"):
-                         stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+            
+            # For SystemConfig in full backup (no tenant_ids), it just passes through.
             
             records = session.exec(stmt).all()
             
@@ -126,27 +131,32 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         # --- PARTIAL RESTORE STRATEGY ---
         # 1. Purge Existing Data for these Tenants
         # We must delete children first, then parents.
-        # Order: ChangeEvent, ScanResult, ModuleState -> Target -> Tenant? (No, Tenant stays)
-        # ScanResult, ModuleState, ChangeEvent depend on Target.
-        # Target depends on Tenant.
-        # User depends on Tenant.
         
-        # Safe Delete Order:
-        # ChangeEvent -> Using Cascade from ScanResult usually?
-        # Let's use manual deletion to be safe and explicit.
+        # Order: ChangeEvent, ScanResult, ModuleState -> Target -> UserTenantLink -> User -> Tenant
         
         # Get Targets for these tenants
-        from yads.models import Target
-        targets_to_purge = session.exec(select(Target.id).where(Target.tenant_id.in_(tenant_ids))).all()
+        # Fetch objects first to safely get distinct IDs
+        targets = session.exec(select(Target).where(Target.tenant_id.in_(tenant_ids))).all()
+        target_ids = [t.id for t in targets if t.id is not None]
         
-        if targets_to_purge:
-             session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN ({','.join(map(str, targets_to_purge))}))"))
-             session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({','.join(map(str, targets_to_purge))})"))
-             session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({','.join(map(str, targets_to_purge))})"))
-             session.exec(text(f"DELETE FROM target WHERE id IN ({','.join(map(str, targets_to_purge))})"))
+        target_ids_str = ",".join(map(str, target_ids)) if target_ids else "NULL"
         
-        # Purge Users?
-        # session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({','.join(map(str, tenant_ids))})"))
+        # If no targets, we use NULL or logic to skip IN clause or use empty list.
+        # IN (NULL) matches nothing, which is safe.
+
+        if target_ids:
+             # Delete dependent tables
+             session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN ({target_ids_str}))"))
+             session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({target_ids_str})"))
+             session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({target_ids_str})"))
+             session.exec(text(f"DELETE FROM target WHERE id IN ({target_ids_str})"))
+        
+        # Purge Users and Tenant
+        tenant_ids_str = ",".join(map(str, tenant_ids))
+        if tenant_ids_str:
+             session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id IN ({tenant_ids_str})"))
+             session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({tenant_ids_str})"))
+             session.exec(text(f"DELETE FROM tenant WHERE id IN ({tenant_ids_str})"))
         
     else:
         # --- FULL WIPE STRATEGY ---
@@ -215,16 +225,21 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         session.commit()
         
     # Reset Sequences
-    # Only needed if IDs were manually inserted (which they were)
     for model in MODELS:
         table_name = model.__tablename__
+        
+        # Quote table name if needed (especially for "user")
+        safe_table_name = f'"{table_name}"' if table_name == "user" else table_name
+        
         if hasattr(model, "id"):
-             max_id = session.exec(text(f"SELECT MAX(id) FROM {table_name}")).first()
-             if max_id:
-                 seq_name = f"{table_name}_id_seq"
-                 try:
-                    session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
-                 except Exception:
-                     pass
-                     
+             try:
+                 max_id = session.exec(text(f"SELECT MAX(id) FROM {safe_table_name}")).first()
+                 if max_id:
+                     seq_name = f"{table_name}_id_seq" # Sequences usually don't need quotes if standard naming, but let's check.
+                     # Postgres creates "user_id_seq". Unquoted sequence name is usually fine unless it matches keyword.
+                     session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
+             except Exception:
+                 # Ignore errors only for sequence reset
+                 pass
+                      
     session.commit()
