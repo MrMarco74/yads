@@ -1,3 +1,4 @@
+import logging
 import json
 import os
 import shutil
@@ -9,6 +10,8 @@ from sqlmodel import Session, select, SQLModel, text
 from sqlalchemy import MetaData
 
 from yads.config import settings
+
+logger = logging.getLogger(__name__)
 from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEvent, Tenant, User, UserTenantLink
 
 # List of models to backup/restore in order (parents first for restore)
@@ -109,6 +112,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     - If Full Backup (no tenant_ids in meta): Wipe All -> Restore All.
     - If Tenant Backup: Purge specific Tenants -> Restore data.
     """
+    logger.info("Starting backup restore process...")
     meta = {}
     
     # Pre-Check: Read Metadata
@@ -116,23 +120,26 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         if "metadata.json" in zf.namelist():
             try:
                 meta = json.loads(zf.read("metadata.json"))
-            except:
-                pass
+                logger.debug(f"Backup metadata found: {meta}")
+            except Exception as e:
+                logger.error(f"Failed to read metadata.json: {e}")
     
     backup_type = meta.get("type", "full")
     tenant_ids = meta.get("tenant_ids", [])
+    logger.info(f"Backup type: {backup_type}, Tenant IDs in backup: {tenant_ids}")
     
-    # Force constraint checking deferred? NOT supported in simple SQLModel/SQLite (but we use Postgres).
-    # Ideally we assume the user confirmed the action.
+    # Override logic: if we are forcing restore to specific tenants??
+    # Current arg "target_tenant_ids" is unused logic-wise in original code, 
+    # but likely intended to match or remap. WE USE METADATA logic for now.
     
     table_names = [model.__tablename__ for model in MODELS]
 
     if backup_type == "partial" and tenant_ids:
+        logger.info("Performing PARTIAL restore strategy.")
+        
         # --- PARTIAL RESTORE STRATEGY ---
         # 1. Purge Existing Data for these Tenants
-        # We must delete children first, then parents.
-        
-        # Order: ChangeEvent, ScanResult, ModuleState -> Target -> UserTenantLink -> User -> Tenant
+        logger.debug(f"Purging existing data for tenants: {tenant_ids}")
         
         # Get Targets for these tenants
         # Fetch objects first to safely get distinct IDs
@@ -140,12 +147,11 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         target_ids = [t.id for t in targets if t.id is not None]
         
         target_ids_str = ",".join(map(str, target_ids)) if target_ids else "NULL"
-        
-        # If no targets, we use NULL or logic to skip IN clause or use empty list.
-        # IN (NULL) matches nothing, which is safe.
+        logger.debug(f"Found {len(target_ids)} targets to purge: {target_ids}")
 
         if target_ids:
              # Delete dependent tables
+             logger.debug("Deleting ChangeEvents, ScanResults, ModuleStates, Targets...")
              session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN ({target_ids_str}))"))
              session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({target_ids_str})"))
              session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({target_ids_str})"))
@@ -154,12 +160,14 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         # Purge Users and Tenant
         tenant_ids_str = ",".join(map(str, tenant_ids))
         if tenant_ids_str:
+             logger.debug("Deleting UserTenantLinks, Users, Tenants...")
              session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id IN ({tenant_ids_str})"))
              session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({tenant_ids_str})"))
              session.exec(text(f"DELETE FROM tenant WHERE id IN ({tenant_ids_str})"))
         
     else:
         # --- FULL WIPE STRATEGY ---
+        logger.info("Performing FULL restore strategy. Wiping all data.")
         tables_str = ", ".join(table_names)
         # Fix for User Table quotes
         safe_tables = []
@@ -170,21 +178,25 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                 safe_tables.append(t)
         tables_str = ", ".join(safe_tables)
         
+        logger.debug(f"Truncating tables: {tables_str}")
         session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
     
     session.commit()
+    logger.debug("Purge/Truncate complete. Committing transaction.")
     
     # 2. Restore Files (Screenshots)
-    # If partial, we just overwrite.
-    # If full, we should probably wipe dir?
+    logger.info("Restoring files (screenshots)...")
     if backup_type == "full":
         if os.path.exists(SCREENSHOT_DIR):
+            logger.debug(f"Full backup: Removing existing screenshot directory {SCREENSHOT_DIR}")
             shutil.rmtree(SCREENSHOT_DIR)
         os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     
     # 3. Read Zip & Insert
+    logger.info("Restoring database records...")
     with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
         # Restore Screenshots
+        count_files = 0
         for member in zf.namelist():
             if member.startswith("screenshots/"):
                 rel_path = member[len("screenshots/"):]
@@ -193,6 +205,8 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 with open(target_path, "wb") as f:
                     f.write(zf.read(member))
+                count_files += 1
+        logger.debug(f"Restored {count_files} screenshot files.")
                     
         # Restore Database
         for model in MODELS:
@@ -200,31 +214,25 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
             filename = f"data/{table_name}.json"
             
             if filename in zf.namelist():
+                logger.debug(f"Restoring table: {table_name}")
                 json_data = json.loads(zf.read(filename))
                 
+                count_records = 0
                 for item in json_data:
                     # filtering needed?
                     # The backup already filtered the data. checking tenant_id here is duplicate but safe.
                     # Just add them.
                     
-                    # Merge Strategy:
-                    # If ID exists (from another tenant not wiped?), we have a collision.
-                    # Since we use global auto-inc IDs, importing from another system might cause clashes.
-                    # BUT: We purged the specific tenant data. 
-                    # If this is "same system restore", IDs match holes.
-                    # If this is "cross system import", we might need to NULL the IDs and let them regenerate?
-                    # For now, we assume "Restore" means bringing back state, preserving IDs.
-                    
-                    # If full backup -> Table empty -> No clash.
-                    # If partial -> We deleted these IDs -> No clash.
-                    # Unless UUIDs or similar. We use Int.
-                    
                     db_obj = model.model_validate(item)
                     session.add(db_obj)
+                    count_records += 1
+                logger.debug(f"Restored {count_records} records for {table_name}")
                     
         session.commit()
+        logger.info("Database restore flush complete.")
         
     # Reset Sequences
+    logger.info("Resetting sequences...")
     for model in MODELS:
         table_name = model.__tablename__
         
@@ -237,9 +245,12 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                  if max_id:
                      seq_name = f"{table_name}_id_seq" # Sequences usually don't need quotes if standard naming, but let's check.
                      # Postgres creates "user_id_seq". Unquoted sequence name is usually fine unless it matches keyword.
+                     logger.debug(f"Resetting sequence {seq_name} to {max_id}")
                      session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
-             except Exception:
+             except Exception as e:
                  # Ignore errors only for sequence reset
+                 logger.warning(f"Failed to reset sequence for {table_name}: {e}")
                  pass
                       
     session.commit()
+    logger.info("Restore process completed successfully.")
