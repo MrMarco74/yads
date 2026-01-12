@@ -11,7 +11,7 @@ variables:
 stages:
   - lint
   - build
-#   - test
+  - test
   - deploy
 
 # --- LINT STAGE ---
