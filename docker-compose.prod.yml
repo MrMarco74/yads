@@ -4,9 +4,7 @@ services:
   # --- Backend Services ---
   yads-api:
     image: ${IMAGE_YADS}:latest
-    build: 
-      context: .
-      dockerfile: Dockerfile
+
     command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
     restart: always
     ports:
@@ -24,9 +22,7 @@ services:
 
   yads-worker:
     image: ${IMAGE_YADS}:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+
     command: python /app/scripts/start_worker.py
     restart: always
     environment:
