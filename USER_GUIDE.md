@@ -1,71 +1,207 @@
-# YADS - User Guide
+# YADS - Comprehensive User Guide
 
-**YADS** (Yet Another Domain Scanner) is a comprehensive automated scanner for analyzing domain security, infrastructure, and OSINT data.
-
-## 🚀 Getting Started
-
-1.  **Add a Target**: Go to the Dashboard and enter a domain name (e.g., `example.com`) in the "Add New Target" box.
-2.  **Start Scanning**:
-    *   Click "Scan Now" on the dashboard for a quick default scan.
-    *   Or go to the **Target Details** page and click **"New Scan"** to select specific modules.
+Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
 ---
 
-## 🛠 Scanner Modules
+## Table of Contents
 
-YADS includes several specialized scanners that run in parallel:
-
-### 1. Web Analyzer & OSINT
-*   **What it does**: Visits the website using a headless browser (Playwright) to capture what a real user sees.
-*   **Features**:
-    *   📸 **Screenshots**: Captures a full-page screenshot.
-    *   🧬 **Tech Stack**: Identifies CMS (WordPress, Drupal), Frameworks (React, Vue), and Server tech.
-    *   🕵️ **OSINT Extraction**:
-        *   **Contacts**: Extracts proper email addresses and phone numbers.
-        *   **Socials**: Finds links to LinkedIn, Twitter/X, GitHub, etc.
-        *   **Documents**: Lists public files (`.pdf`, `.docx`, `.xlsx`) linked on the page.
-    *   ⚠️ **Risk Hints**: Checks for exposed sensitive keywords or debug modes.
-
-### 2. DNS & Subdomain Scanner
-*   **DNS Records**: Fetches A, AAAA, MX, TXT, SPF, DMARC records. Checks for **Dangling CNAMEs** (hijacking risk).
-*   **Subdomain Enumeration**:
-    *   Uses **Certificate Transparency** logs (`crt.sh`) to find subdomains.
-    *   Performs active DNS brute-forcing with a wordlist.
-    *   Verifies which subdomains are actually alive.
-
-### 3. Infrastructure Scanner
-*   **Network Intelligence**: Resolves IPs to **ASN** (Autonomous System Number) and Location (Country/City).
-*   **Cloud Detection**: Identifies if the target is hosted on AWS, Google Cloud, Azure, etc.
-*   **Storage Buckets**: Checks for common S3 bucket names associated with the domain and tests if they are public.
-*   **Reputation**: Checks the IP against blacklist/spam databases (e.g., Spamhaus).
-
-### 4. Typosquat Scanner
-*   **Brand Protection**: Generates hundreds of "look-alike" domain variations (e.g., `exampel.com`).
-*   **Detection**: Checks if these domains are registered and resolving, indicating potential phishing traps targeting your brand.
-
-### 5. SSL Scanner
-*   **Certificate Audit**: detailed analysis of the SSL/TLS certificate (Issuer, Valid Dates, SANs).
-*   **Configuration**: Checks for weak Cipher Suites or outdated protocols.
+1.  [Introduction](#1-introduction)
+2.  [Getting Started](#2-getting-started)
+3.  [Dashboard Overview](#3-dashboard-overview)
+4.  [Target Management](#4-target-management)
+5.  [Running Scans](#5-running-scans)
+6.  [Analysis Modules](#6-analysis-modules)
+7.  [Visualizations](#7-visualizations)
+8.  [Data Management & Reports](#8-data-management--reports)
+9.  [User Management & Security](#9-user-management--security)
+10. [Multi-Tenancy](#10-multi-tenancy)
+11. [System Settings & Queue](#11-system-settings--queue)
 
 ---
 
-## 📊 Reports & Data Management
+## 1. Introduction
 
-### Target Details & PDF Export
-*   View all scan results on a single, comprehensive page.
-*   **Export PDF**: Click the "Export PDF" button to download a summary report suitable for sharing with stakeholders.
+**YADS** is an automated security reconnaissance platform designed to map, analyze, and monitor internet-facing assets. It combines multiple scanning techniques—DNS enumeration, port scanning, web analysis, and vulnerability detection—into a single, easy-to-use interface.
 
-### Backup & Recovery
-*   Located in **Settings** > **Data Backup & Recovery**.
-*   **Export**: Download a complete `.zip` archive of your database and screenshots.
-*   **Restore**: Upload a backup zip to restore the system to a previous state.
-    *   *Warning*: Restore is a destructive action that replaces current data.
+### Key Features
+*   **Asset Discovery**: Find subdomains and forgotten infrastructure.
+*   **Vulnerability Scanning**: Detect outdated software (CVEs) and misconfigurations.
+*   **Visual Intelligence**: Capture screenshots and visualize network relationships.
+*   **Continuous Monitoring**: Track changes over time with change detection.
+*   **Multi-User & Multi-Tenant**: Securely manage multiple teams or clients within one instance.
 
 ---
 
-## ⚙️ Settings
+## 2. Getting Started
 
-Customize the scanner behavior:
-*   **Concurrent Scans**: Limit how many domains are scanned at once.
-*   **Timeouts**: Adjust long/short timeouts for network requests.
-*   **Auto-Queueing**: Automatically re-scan targets periodically (configurable interval).
+### Accessing the System
+Navigate to your YADS instance (e.g., `https://yads.your-domain.com`).
+*   **Login**: Enter your username and password.
+*   **MFA**: If enabled, enter your Time-based One-Time Password (TOTP) from your authenticator app.
+
+### First Steps
+1.  **Dashboard**: You will land on the main dashboard showing an overview of your targets.
+2.  **Add Target**: Use the input box at the top (or "Add Target" button) to enter a domain (e.g., `example.com`).
+3.  **Run Scan**: Once added, click the "Scan" button to start gathering data.
+
+---
+
+## 3. Dashboard Overview
+
+The Dashboard is your command center.
+
+*   **Stats Cards**: Fast view of Total Targets, Active Scans, and Queue status.
+*   **Target List**: A paginated table of all your monitored domains.
+    *   **Status Indicators**: Shows if a scan is `Idle`, `Queued`, `Running`, or `Failed`.
+    *   **Health Checks**: Quick indicators for SSL status, Online status, and Risk Score.
+*   **Live Activity**: The "Active Scans" panel on the right shows real-time progress of running jobs.
+
+---
+
+## 4. Target Management
+
+### Adding Targets
+*   **Single**: Enter a domain in the dashboard input.
+*   **Bulk Import**: Click the "Import" button to upload a text file (one domain per line) or paste a list.
+    *   *Option*: "Verify DNS" checks if domains are resolvable before adding them.
+
+### Bulk Actions
+Select multiple targets using the checkboxes in the table to perform batch operations:
+*   **Bulk Scan**: Trigger specific scan modules for all selected targets.
+*   **Bulk Delete**: Remove targets and their data.
+
+### Filtering
+Use the column filters in the **Table View** to find specific targets:
+*   **Filter by Name**: Search for partial domain matches.
+*   **Filter by Status**: Show only `Failed` or `Running` scans.
+*   **Filter by Tags**: Organize targets using custom tags.
+
+---
+
+## 5. Running Scans
+
+You can run scans in two modes:
+
+### Quick Scan
+Clicking the "Play" button on a target runs the **Default Scan Profile**, which includes:
+*   DNS Enumeration
+*   Web Analysis
+*   SSL Check
+
+### Custom Scan
+On the **Target Details** page, click **"New Scan"** to open the advanced selector. You can toggle individual modules:
+*   **Subdomain Recon**: Finds `sub.example.com`.
+*   **DNS Records**: A/AAAA/MX/TXT records.
+*   **Web Analyzer**: Screenshots, tech stack, and headers.
+*   **Typosquatting**: Checks for phishing domains (e.g., `exampel.com`).
+*   **CVE Scanner**: Checks detected software against vulnerability databases.
+*   **Port Scan**: Probes common ports (80, 443, 8080, etc.).
+*   **Wayback Machine**: Looks for historical files and endpoints.
+*   **FULL SCAN**: Runs all available modules.
+
+---
+
+## 6. Analysis Modules
+
+### Web Analyzer & OSINT
+Visits the page as a real user.
+*   **Visuals**: Full-page screenshot and favicon.
+*   **Technologies**: Identifies CMS (WordPress), Server (Nginx), and Frameworks.
+*   **OSINT**: Extracts emails, phone numbers, and social media links found on the page.
+
+### Vulnerability Report (CVEs)
+*   Matches version numbers (e.g., "Apache 2.4.49") against known CVEs.
+*   Displays severity (CVSS) and descriptions.
+*   *Note*: This logic relies on accurate version detection.
+
+### Infrastructure Scanner
+*   **Geo-Location**: Maps the server IP to a physical location.
+*   **ASN Info**: Identifies the hosting provider (e.g., AWS, DigitalOcean).
+*   **Cloud Check**: Detects if the asset is on a major cloud provider.
+*   **Reputation**: Checks IP against spam/malware blacklists.
+
+### DNS & Subdomain
+*   **Passive Recon**: Uses public logs (CT) to find subdomains without touching the target.
+*   **Active Brute-force**: Tries common subdomain names.
+*   **Dangling CNAMEs**: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).
+
+---
+
+## 7. Visualizations
+
+### Network Graph
+An interactive node-graph showing relationships between Domains, IPs, and ASNs.
+*   **Clusters**: See which domains share the same hosting infrastructure.
+*   **Zoom/Pan**: Navigate large infrastructures easily.
+
+### Analytics Dashboard
+High-level metrics for management.
+*   **World Map**: Physical location of all assets.
+*   **Tech Distribution**: charts showing most common technologies (e.g., "80% Nginx").
+*   **Risk Overview**: Summary of critical vulnerabilities across the portfolio.
+
+### Spiderweb (Redirect Graph)
+Visualizes redirect chains.
+*   **Entry Points**: See where users land after typing a domain.
+*   **Loops**: Identify configuration errors causing infinite redirects.
+
+---
+
+## 8. Data Management & Reports
+
+### Exporting Data
+*   **PDF Report**: On the Target Details page, download a professionally formatted PDF summary.
+*   **Backup**: Admin users can export the entire database and assets as a ZIP file from the Settings page.
+
+### System Logs
+*   **View Logs**: Admins can inspect real-time application and worker logs for troubleshooting.
+*   **Stream**: The log viewer updates live as scans progress.
+
+---
+
+## 9. User Management & Security
+
+*(Admin Only)*
+
+### Managing Users
+Go to **Users** in the navbar.
+*   **Create User**: Define username, password, and initial role.
+*   **Roles**:
+    *   **Viewer**: Read-only access to dashboards.
+    *   **Scanner**: Can add targets and run scans.
+    *   **Admin**: Full system access, including settings and user management.
+
+### Multi-Factor Authentication (MFA)
+*   Users can enable 2FA in their profile.
+*   Admins can see who has MFA enabled but cannot disable it for them (users must reset if lost, or Admin deletes user).
+
+### Tenant Assignment
+*   Assign users to specific **Tenants** to isolate their view. A user assigned to "Client A" will only see targets belonging to "Client A".
+
+---
+
+## 10. Multi-Tenancy
+
+YADS supports multiple isolated environments (Tenants).
+*   **Isolation**: Targets, Results, and Users are scoped to a Tenant.
+*   **Switching**: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
+*   **Platform Admin**: An Admin without a specific tenant sees *everything* and can manage the tenants themselves.
+
+---
+
+## 11. System Settings & Queue
+
+*(Admin Only)*
+
+### Queue Control
+*   **Pause/Resume**: Stop the background worker from processing new scans. Useful for maintenance.
+*   **Clear Queue**: Remove all pending jobs.
+
+### Configuration
+*   **Web Timeout**: Set global timeout for HTTP requests (default: 10s).
+*   **Concurrent Limits**: Define how many headers scanners run in parallel.
+
+---
+
+*Verified for YADS v1.2.6*

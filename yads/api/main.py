@@ -179,12 +179,14 @@ from celery import Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users
+# -- Routers --
+from yads.api.routers import analytics, auth, users, changelog, help
 app.include_router(analytics.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tenants.router)
-app.include_router(users.router)
+app.include_router(changelog.router)
+app.include_router(help.router)
 
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):

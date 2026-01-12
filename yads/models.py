@@ -121,3 +121,13 @@ class User(SQLModel, table=True):
     
     # Authorized Tenants (M:N)
     allowed_tenants: List[Tenant] = Relationship(back_populates="allowed_users", link_model=UserTenantLink)
+
+    # Changelog Tracking
+    last_seen_changelog_id: Optional[int] = Field(default=0)
+
+class ChangelogEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    content: str  # HTML or Markdown
+    version: str
+    published_at: datetime = Field(default_factory=datetime.utcnow)
