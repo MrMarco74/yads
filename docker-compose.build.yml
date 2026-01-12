@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  yads-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  yads-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
