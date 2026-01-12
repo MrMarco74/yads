@@ -41,7 +41,7 @@ def main():
         "-A", "yads.worker",
         "worker",
         "--loglevel=info",
-        "--concurrency", str(concurrency)
+        "--autoscale", f"{concurrency},{concurrency}"
     ]
     
     print(f"[Startup] Executing: {' '.join(cmd)}")

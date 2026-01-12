@@ -17,6 +17,9 @@ from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEve
 # List of models to backup/restore in order (parents first for restore)
 MODELS = [Tenant, User, UserTenantLink, SystemConfig, Target, ScanResult, ModuleState, ChangeEvent]
 
+# Tables excluded by default in Safe Import Mode
+SYSTEM_TABLES = ["user", "usertenantlink", "systemconfig", "changeevent"]
+
 SCREENSHOT_DIR = "yads/api/static/screenshots"
 
 def json_serializer(obj):
@@ -105,14 +108,17 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
     memory_file.seek(0)
     return memory_file
 
-def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_ids: List[int] = None):
+def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_ids: List[int] = None, exclude_system: bool = True):
     """
     Restores data from a ZIP archive.
     Strategy: 
     - If Full Backup (no tenant_ids in meta): Wipe All -> Restore All.
     - If Tenant Backup: Purge specific Tenants -> Restore data.
+    
+    Args:
+        exclude_system: If True, skips User, UserTenantLink, SystemConfig to prevent overwriting admins/settings.
     """
-    logger.info("Starting backup restore process...")
+    logger.info(f"Starting backup restore process... (exclude_system={exclude_system})")
     meta = {}
     
     # Pre-Check: Read Metadata
@@ -128,11 +134,11 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     tenant_ids = meta.get("tenant_ids", [])
     logger.info(f"Backup type: {backup_type}, Tenant IDs in backup: {tenant_ids}")
     
-    # Override logic: if we are forcing restore to specific tenants??
-    # Current arg "target_tenant_ids" is unused logic-wise in original code, 
-    # but likely intended to match or remap. WE USE METADATA logic for now.
-    
     table_names = [model.__tablename__ for model in MODELS]
+
+    # Tables to SKIP if exclude_system is True
+    # User requested to exclude 'changeevent' as well.
+    SYSTEM_TABLES = ["user", "usertenantlink", "systemconfig", "changeevent"]
 
     if backup_type == "partial" and tenant_ids:
         logger.info("Performing PARTIAL restore strategy.")
@@ -160,26 +166,52 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         # Purge Users and Tenant
         tenant_ids_str = ",".join(map(str, tenant_ids))
         if tenant_ids_str:
-             logger.debug("Deleting UserTenantLinks, Users, Tenants...")
-             session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id IN ({tenant_ids_str})"))
-             session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({tenant_ids_str})"))
-             session.exec(text(f"DELETE FROM tenant WHERE id IN ({tenant_ids_str})"))
+             if not exclude_system:
+                 logger.debug("Deleting UserTenantLinks, Users...")
+                 session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id IN ({tenant_ids_str})"))
+                 session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({tenant_ids_str})"))
+             
+             # Always delete/refresh Tenant? Or keeps it?
+             # If we exclude system, we usually KEEP Tenants too, but Tenants are parent of Targets.
+             # If we delete Tenant, we lose the link.
+             # IF exclude_system is True, we SHOULD NOT delete the Tenant if it exists.
+             # But if we don't delete it, `restore` might duplicate or fail PK?
+             # `session.add` on existing PK -> Update or Error.
+             # In standard restore, we usually Wipe.
+             # Strategy: If exclude_system, DO NOT DELETE Tenant.
+             if not exclude_system:
+                  logger.debug("Deleting Tenants...")
+                  session.exec(text(f"DELETE FROM tenant WHERE id IN ({tenant_ids_str})"))
         
     else:
         # --- FULL WIPE STRATEGY ---
-        logger.info("Performing FULL restore strategy. Wiping all data.")
-        tables_str = ", ".join(table_names)
-        # Fix for User Table quotes
-        safe_tables = []
-        for t in table_names:
-            if t == "user":
-                safe_tables.append('"user"')
-            else:
-                safe_tables.append(t)
-        tables_str = ", ".join(safe_tables)
+        logger.info("Performing FULL restore strategy.")
         
-        logger.debug(f"Truncating tables: {tables_str}")
-        session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
+        if exclude_system:
+             # If skipping system, we can't TRUNCATE everything.
+             # We must delete ONLY data tables.
+             logger.info("exclude_system=True: Deleting only data tables, preserving Users/Settings.")
+             # Data tables: Target, ScanResult, ModuleState, ChangeEvent.
+             # Tenant?
+             # If we keep Users, we must keep Tenants they belong to.
+             # So we only wipe Targets and below.
+             
+             session.exec(text("TRUNCATE TABLE changeevent, scanresult, modulestate, target RESTART IDENTITY CASCADE"))
+             # Do NOT truncate Tenant, User, UserTenantLink, SystemConfig
+        else:
+             logger.info("Wiping ALL data (TRUNCATE).")
+             tables_str = ", ".join(table_names)
+             # Fix for User Table quotes
+             safe_tables = []
+             for t in table_names:
+                 if t == "user":
+                     safe_tables.append('"user"')
+                 else:
+                     safe_tables.append(t)
+             tables_str = ", ".join(safe_tables)
+             
+             logger.debug(f"Truncating tables: {tables_str}")
+             session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
     
     session.commit()
     logger.debug("Purge/Truncate complete. Committing transaction.")
@@ -188,6 +220,9 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     logger.info("Restoring files (screenshots)...")
     if backup_type == "full":
         if os.path.exists(SCREENSHOT_DIR):
+             # Only wipe screenshots if full restore?
+             # Or if we are overwriting targets.
+             # Safe to wipe/overwrite.
             logger.debug(f"Full backup: Removing existing screenshot directory {SCREENSHOT_DIR}")
             shutil.rmtree(SCREENSHOT_DIR)
         os.makedirs(SCREENSHOT_DIR, exist_ok=True)
@@ -195,7 +230,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     # 3. Read Zip & Insert
     logger.info("Restoring database records...")
     with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
-        # Restore Screenshots
+        # Restore Screenshots logic... (omitted for brevity, unchanged)
         count_files = 0
         for member in zf.namelist():
             if member.startswith("screenshots/"):
@@ -209,40 +244,38 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         logger.debug(f"Restored {count_files} screenshot files.")
         
         # --- LEGACY RECOVERY LOGIC ---
-        # If data/tenant.json is missing, but data/target.json exists, we must create placeholder tenants
-        # to prevent FK violations.
         if "data/tenant.json" not in zf.namelist() and "data/target.json" in zf.namelist():
-             logger.warning("Legacy backup detected: data/tenant.json missing. scanning targets for missing tenants...")
+             # ... (Keep existing legacy logic) ...
+             # Code omitted for brevity in search/replace, ASSUMING tool keeps unchanged context.
+             # WAIT, I am replacing a huge chunk. I must include the logic.
+             logger.warning("Legacy backup detected: data/tenant.json missing. scanning targets...")
              try:
                  target_data = json.loads(zf.read("data/target.json"))
-                 needed_tenant_ids = set()
-                 for item in target_data:
-                     if "tenant_id" in item and item["tenant_id"]:
-                         needed_tenant_ids.add(item["tenant_id"])
-                 
-                 logger.info(f"Found {len(needed_tenant_ids)} implicit tenant IDs: {needed_tenant_ids}")
-                 
-                 # Create them if they don't exist in current session (which should be empty if full restore)
-                 # If partial mode, we check DB.
-                 
-                 # For safety, just Upsert/Check each.
+                 needed_tenant_ids = {item["tenant_id"] for item in target_data if "tenant_id" in item and item["tenant_id"]}
                  for tid in needed_tenant_ids:
-                      # check if exists
                       existing = session.exec(select(Tenant).where(Tenant.id == tid)).first()
                       if not existing:
                           logger.info(f"Creating placeholder tenant for ID {tid}")
-                          # Use a placeholder name that won't collide easily
                           t = Tenant(id=tid, name=f"Restored_Tenant_{tid}_{int(datetime.utcnow().timestamp())}")
                           session.add(t)
-                 
-                 session.commit() # Commit tenants so Targets can link
+                 session.commit()
              except Exception as e:
                  logger.error(f"Failed to recover missing tenants: {e}")
-                 # proceeding, might fail later
-                     
+
         # Restore Database
         for model in MODELS:
             table_name = model.__tablename__
+            
+            # EXCLUSION CHECK
+            if exclude_system and table_name in SYSTEM_TABLES:
+                logger.info(f"Skipping restore of system table: {table_name}")
+                continue
+            
+            # If exclude_system is True, we also need to handle TENANT carefully.
+            # If Tenant exists, we might get PK Error if we try to insert duplicate ID.
+            # If table is Tenant and exclude_system is True:
+            # We should perform upsert (merge) or skip if exists.
+            
             filename = f"data/{table_name}.json"
             
             if filename in zf.namelist():
@@ -251,9 +284,17 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                 
                 count_records = 0
                 for item in json_data:
-                    # filtering needed?
-                    # The backup already filtered the data. checking tenant_id here is duplicate but safe.
-                    # Just add them.
+                    if exclude_system and table_name == "tenant":
+                         # Check existance
+                         tid = item.get("id")
+                         if tid:
+                             existing = session.exec(select(Tenant).where(Tenant.id == tid)).first()
+                             if existing:
+                                 # Skip overwriting existing Tenant
+                                 continue
+                    
+                    # For other tables (Target, etc.), we already purged them, so safe to add.
+                    # Or full wipe -> safe.
                     
                     db_obj = model.model_validate(item)
                     session.add(db_obj)
@@ -273,7 +314,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         
         if hasattr(model, "id"):
              try:
-                 max_id = session.exec(text(f"SELECT MAX(id) FROM {safe_table_name}")).first()
+                 max_id = session.scalar(text(f"SELECT MAX(id) FROM {safe_table_name}"))
                  if max_id:
                      seq_name = f"{table_name}_id_seq" # Sequences usually don't need quotes if standard naming, but let's check.
                      # Postgres creates "user_id_seq". Unquoted sequence name is usually fine unless it matches keyword.

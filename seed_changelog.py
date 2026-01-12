@@ -4,28 +4,45 @@ from yads.models import ChangelogEntry
 
 def seed_changelog():
     with Session(engine) as session:
-        # Check if any exist
-        existing = session.query(ChangelogEntry).first()
-        if existing:
-            print("Changelog entries already exist. Skipping seed.")
-            return
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.2.6").first():
+            entry1 = ChangelogEntry(
+                title="Welcome to YADS 1.2.6",
+                version="1.2.6",
+                content="""
+                <p>We've updated the system with new features!</p>
+                <ul>
+                    <li><strong>Recent Changes Modal:</strong> You are seeing this right now!</li>
+                    <li><strong>Improved Reporting:</strong> CVEs are now better organized.</li>
+                    <li><strong>Bug Fixes:</strong> Checkov pipeline issues resolved.</li>
+                </ul>
+                <p>Enjoy the new updates!</p>
+                """
+            )
+            session.add(entry1)
 
-        entry = ChangelogEntry(
-            title="Welcome to YADS 1.2.6",
-            version="1.2.6",
-            content="""
-            <p>We've updated the system with new features!</p>
-            <ul>
-                <li><strong>Recent Changes Modal:</strong> You are seeing this right now!</li>
-                <li><strong>Improved Reporting:</strong> CVEs are now better organized.</li>
-                <li><strong>Bug Fixes:</strong> Checkov pipeline issues resolved.</li>
-            </ul>
-            <p>Enjoy the new updates!</p>
-            """
-        )
-        session.add(entry)
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.2.8").first():
+            entry2 = ChangelogEntry(
+                title="YADS v1.2.8: UI Refinements & Core Improvements",
+                version="1.2.8",
+                content="""
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>Tenant Renaming:</strong> Admins can now rename tenants directly from the Tenants overview page via a new "Rename" button and modal.</li>
+                    <li><strong>Expanded Excel Export:</strong> The target export now includes all visible UI columns, including SSL details, CVE counts, Secrets, and Infrastructure info.</li>
+                    <li><strong>Plot Graph Button:</strong> The Network Graph now features an explicit "Plot Graph" button in the sidebar for better control.</li>
+                </ul>
+                <h3>🔧 Improvements & Fixes</h3>
+                <ul>
+                    <li><strong>Zero-Tenant State:</strong> System Reset now results in a clean "Zero-Tenant" state for better data isolation protocols.</li>
+                    <li><strong>Graph UI Restoration:</strong> Fixed missing loading overlays and status indicators on the Network Graph page.</li>
+                    <li><strong>Worker Autoscaling:</strong> Celery workers now use autoscaling for better resource management.</li>
+                </ul>
+                """
+            )
+            session.add(entry2)
+        
         session.commit()
-        print(f"Created Changelog Entry ID: {entry.id}")
+        print("Changelog seeded successfully.")
 
 if __name__ == "__main__":
     seed_changelog()

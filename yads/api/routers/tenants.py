@@ -47,6 +47,30 @@ async def add_tenant(request: Request, name: str = Form(...), session: Session =
     session.commit()
     return RedirectResponse(url="/tenants/?msg=Tenant+created", status_code=303)
 
+@router.post("/update", dependencies=[Depends(PlatformAdminChecker())])
+async def update_tenant(
+    tenant_id: int = Form(...),
+    name: str = Form(...),
+    session: Session = Depends(get_db_session)
+):
+    name = name.strip()
+    if not name:
+        return RedirectResponse(url=f"/tenants/?error=Name+required", status_code=303)
+        
+    tenant = session.get(Tenant, tenant_id)
+    if not tenant:
+        return RedirectResponse(url=f"/tenants/?error=Tenant+not+found", status_code=303)
+        
+    # Check if another tenant already has this name
+    existing = session.exec(select(Tenant).where(Tenant.name == name, Tenant.id != tenant_id)).first()
+    if existing:
+        return RedirectResponse(url=f"/tenants/?error=Tenant+name+already+exists", status_code=303)
+        
+    tenant.name = name
+    session.add(tenant)
+    session.commit()
+    return RedirectResponse(url="/tenants/?msg=Tenant+renamed", status_code=303)
+
 @router.post("/delete", dependencies=[Depends(PlatformAdminChecker())])
 async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(get_db_session)):
     tenant = session.get(Tenant, tenant_id)

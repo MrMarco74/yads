@@ -33,6 +33,25 @@
                     <option value="{{ t.id }}">{{ t.domain }}</option>
                     {% endfor %}
                 </select>
+                <button onclick="loadGraph()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg shadow-lg shadow-indigo-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Plot Graph
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div id="stats" class="hidden">
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Graph Stats</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-gray-800/50 p-2 rounded border border-gray-800 text-center">
+                        <span id="node-count" class="block text-lg font-bold text-white">0</span>
+                        <span class="text-[10px] text-gray-500 uppercase tracking-tighter">Nodes</span>
+                    </div>
+                    <div class="bg-gray-800/50 p-2 rounded border border-gray-800 text-center">
+                        <span id="edge-count" class="block text-lg font-bold text-white">0</span>
+                        <span class="text-[10px] text-gray-500 uppercase tracking-tighter">Edges</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Filters -->
@@ -144,6 +163,26 @@
                 <p class="text-sm">Choose a domain to visualize its infrastructure map.</p>
             </div>
         </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading" class="hidden absolute inset-0 z-40 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center">
+            <div class="text-center">
+                <div class="relative w-16 h-16 mx-auto mb-4">
+                    <div class="absolute inset-0 border-4 border-indigo-500/20 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-t-indigo-500 rounded-full animate-spin"></div>
+                </div>
+                <p class="text-indigo-400 font-medium animate-pulse">Building Infrastructure Graph...</p>
+            </div>
+        </div>
+
+        <!-- Export Loading Overlay -->
+        <div id="export-loading" class="hidden absolute inset-0 z-50 bg-gray-950/90 backdrop-blur-md flex items-center justify-center">
+            <div class="text-center">
+                 <div class="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+                 <h2 class="text-2xl font-bold text-white mb-2">Generating High-Res Image</h2>
+                 <p class="text-gray-400">Please wait while we render your network map at 8K resolution...</p>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -203,14 +242,18 @@
                 document.getElementById('edge-count').innerText = data.edges.length;
                 
                 if (data.nodes.length === 0) {
+                    const msgEl = loading.querySelector('p');
+                    const spinner = loading.querySelector('.animate-spin');
+                    if (spinner) spinner.parentElement.classList.add('hidden');
+                    
                     if (filterConnected || filterOnline !== "all") {
-                         loading.innerText = "No matching nodes found with current filters.";
+                         msgEl.innerText = "No matching nodes found with current filters.";
                          loading.classList.remove("hidden");
-                         loading.classList.remove("animate-pulse");
+                         msgEl.classList.remove("animate-pulse");
                     } else {
-                         loading.innerText = "No data found. Has this target been scanned?";
+                         msgEl.innerText = "No data found for this context. Has this target been scanned?";
                          loading.classList.remove("hidden");
-                         loading.classList.remove("animate-pulse");
+                         msgEl.classList.remove("animate-pulse");
                          emptyPrompt.classList.remove('hidden');
                     }
                     return;
@@ -282,9 +325,14 @@
             })
             .catch(err => {
                 console.error(err);
-                loading.innerText = "Error loading graph: " + err;
-                loading.classList.remove("text-indigo-400");
-                loading.classList.add("text-red-500");
+                const msgEl = loading.querySelector('p');
+                const spinner = loading.querySelector('.animate-spin');
+                if (spinner) spinner.parentElement.classList.add('hidden');
+                
+                msgEl.innerText = "Error loading graph: " + err;
+                msgEl.classList.remove("text-indigo-400");
+                msgEl.classList.add("text-red-500");
+                msgEl.classList.remove("animate-pulse");
                 loading.classList.remove('hidden');
             });
     }
