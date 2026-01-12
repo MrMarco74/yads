@@ -14,7 +14,7 @@ RUN npm run build:css
 FROM python:3.11-slim
 
 # Install system dependencies for Playwright
-RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
+RUN apt-get clean && apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
     nmap \

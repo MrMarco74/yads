@@ -28,7 +28,7 @@ build_images:
   stage: build
   image: docker:latest
   script:
-    - docker system prune -af || true
+    - docker system prune -af --volumes || true
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
 
     # Build & Push using Docker Compose
