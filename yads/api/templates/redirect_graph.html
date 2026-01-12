@@ -2,97 +2,111 @@
 
 {% block title %}Redirect Spiderweb{% endblock %}
 
+{% block main_classes %}flex-1 w-full bg-gray-900 overflow-hidden relative flex flex-col{% endblock %}
+
 {% block content %}
-<!-- Main Container: Flexbox Layout -->
-<!-- Break out of base.html padding with negative margins -->
-<div class="fixed inset-0 top-16 z-0 flex bg-gray-900 overflow-hidden">
-    
-    <!-- Sidebar: Controls -->
-    <div class="w-80 flex-shrink-0 bg-gray-900 border-r border-gray-800 p-6 flex flex-col z-20">
-        <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <span>🕷️</span> Spiderweb
-        </h2>
-        
-        <!-- Domain Selector -->
-        <div class="mb-6">
-            <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
-            <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
-                <option value="" selected disabled>Choose a domain...</option>
-                {% if domains %}
+<style>
+    /* Force body to be a flex column filling the screen */
+    body {
+        height: 100vh !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    footer { display: none !important; }
+</style>
+
+<!-- Main Layout Container -->
+<div class="flex flex-1 h-full w-full overflow-hidden relative">
+
+    <!-- Sidebar -->
+    <div class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-20 overflow-y-auto shrink-0">
+        <div class="p-4 space-y-6">
+            <!-- Target Select -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Target</label>
+                <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none">
+                    <option value="">Full Network</option>
                     {% for d in domains %}
                     <option value="{{ d }}">{{ d }}</option>
                     {% endfor %}
-                {% else %}
-                    <option value="" disabled>No targets found</option>
-                {% endif %}
-            </select>
-            <p class="mt-2 text-xs text-gray-500">Pick a domain to analyze redirects.</p>
-        </div>
+                </select>
+                <p class="text-[10px] text-gray-500 mt-1">Select a starting domain.</p>
+            </div>
 
-        <!-- Legend -->
-        <div class="mb-6">
-            <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Legend</h3>
-            <div class="space-y-2 text-xs text-gray-300">
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-                    <span>Source Domain</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-orange-500"></span>
-                    <span>Redirector (Hop)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
-                    <span>Landing Hub</span>
+            <!-- Analysis Tools -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Analysis</label>
+                <button onclick="window.findCentralHub()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 px-4 rounded transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    Find Best Entrypoint
+                </button>
+            </div>
+
+             <!-- Legend -->
+             <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Legend</label>
+                <div class="space-y-2 text-xs text-gray-300 bg-gray-800/50 p-3 rounded-lg border border-gray-800">
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rounded-full" style="background-color: #3b82f6;"></span>
+                        <span>Source</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rounded-full" style="background-color: #f97316;"></span>
+                        <span>Redirector</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rounded-full" style="background-color: #22c55e;"></span>
+                        <span>Landing</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Actions -->
-        <div class="mb-6 border-t border-gray-800 pt-4">
-             <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Analysis</h3>
-             <div class="flex flex-col gap-2">
-                <button onclick="loadGraph(null)" class="w-full px-3 py-2 text-sm font-medium text-white bg-green-700 hover:bg-green-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Show Full Network
-                </button>
-                <button onclick="findCentralHub()" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                    Find Central Hub
-                </button>
-             </div>
-        </div>
+            <!-- Usage Info -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Controls</label>
+                <div class="text-xs text-gray-400 space-y-1">
+                    <p><span class="font-bold text-gray-300">Scroll:</span> Zoom In/Out</p>
+                    <p><span class="font-bold text-gray-300">Drag:</span> Pan View</p>
+                    <p><span class="font-bold text-gray-300">Double Click:</span> Focus</p>
+                </div>
+            </div>
 
-        <!-- Stats -->
-        <div id="stats" class="hidden mt-auto border-t border-gray-800 pt-4">
-             <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Statistics</h3>
-             <div class="flex justify-between text-sm text-gray-300 mb-1">
-                 <span>Nodes</span>
-                 <span id="node-count" class="font-mono text-white">0</span>
-             </div>
-             <div class="flex justify-between text-sm text-gray-300">
-                 <span>Connections</span>
-                 <span id="edge-count" class="font-mono text-white">0</span>
-             </div>
-        </div>
-        
-        <div id="loading" class="hidden mt-4 text-center text-sm font-bold text-indigo-400 animate-pulse">
-            Analyzing Network...
+            <!-- About Info -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">About This Graph</label>
+                <div class="text-xs text-gray-400 space-y-3 bg-gray-800/30 p-3 rounded-lg border border-gray-800">
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">Where is this data from?</span>
+                        Collected by actively following HTTP status codes (3xx) and location headers starting from the target.
+                    </div>
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">What am I seeing?</span>
+                        A directional flow of traffic from entry points through intermediate redirectors to final landing pages.
+                    </div>
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">Use Cases</span>
+                        Trace affiliate/marketing campaigns, map phishing redirection chains, or debug configuration loops.
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
-
+    
     <!-- Main Area: Graph -->
-    <div class="flex-grow relative bg-gray-950">
-        <div id="mynetwork" class="w-full h-full"></div>
+    <div class="flex-1 relative min-w-0 bg-gray-950">
+        <div id="mynetwork" class="w-full h-full absolute inset-0"></div>
         
         <!-- Empty State Prompt -->
-        <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="text-center text-gray-600">
+        <div id="empty-prompt" class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div class="text-center text-gray-600 bg-gray-900/80 p-6 rounded-xl border border-gray-800/50 backdrop-blur-sm">
                 <p class="text-2xl font-bold mb-2">Select a Target</p>
                 <p class="text-sm">Choose a domain from the sidebar or visualize the full network.</p>
             </div>
         </div>
     </div>
+
 </div>
 
 <!-- Vis.js CDN -->

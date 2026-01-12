@@ -171,6 +171,60 @@
                  <p class="text-xs text-warning-500 mt-2 text-yellow-500">
                     Warning: Changing DNS servers affects all future scans. Ensure they are reachable.
                 </p>
+            <!-- Splunk Integration -->
+            <div class="border-b border-gray-700/50 pb-6">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-white mb-1">Splunk Integration (HEC)</h3>
+                    <p class="text-sm text-gray-400">Configure connection to Splunk HTTP Event Collector. Leave empty to use Environment Variables.</p>
+                </div>
+                <div class="space-y-4">
+                    <div class="relative w-full">
+                        <label class="block text-xs text-gray-400 mb-1">HEC URL</label>
+                        <input type="text" name="splunk_hec_url" value="{{ splunk_hec_url }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="https://splunk.example.com:8088/services/collector">
+                    </div>
+                    <div class="relative w-full">
+                         <label class="block text-xs text-gray-400 mb-1">HEC Token</label>
+                        <input type="password" name="splunk_hec_token" value="{{ splunk_hec_token }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Service -->
+            <div class="border-b border-gray-700/50 pb-6">
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-white mb-1">Email Service (SMTP)</h3>
+                    <p class="text-sm text-gray-400">Configure SMTP server for notifications. Leave empty to use Environment Variables.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div class="relative w-full">
+                        <label class="block text-xs text-gray-400 mb-1">SMTP Host</label>
+                        <input type="text" name="smtp_host" value="{{ smtp_host }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="smtp.example.com">
+                    </div>
+                     <div class="relative w-full">
+                        <label class="block text-xs text-gray-400 mb-1">SMTP Port</label>
+                        <input type="number" name="smtp_port" value="{{ smtp_port }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="587">
+                    </div>
+                     <div class="relative w-full">
+                        <label class="block text-xs text-gray-400 mb-1">SMTP User</label>
+                        <input type="text" name="smtp_user" value="{{ smtp_user }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="user@example.com">
+                    </div>
+                     <div class="relative w-full">
+                        <label class="block text-xs text-gray-400 mb-1">SMTP Password</label>
+                        <input type="password" name="smtp_password" value="{{ smtp_password }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-mono"
+                            placeholder="••••••••">
+                    </div>
+                </div>
             </div>
 
             <!-- Data Backup & Recovery -->

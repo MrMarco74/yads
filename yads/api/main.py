@@ -2133,85 +2133,11 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     }
     return StreamingResponse(output_pdf, headers=headers, media_type='application/pdf')
 
-@app.get("/api/stats/best-entrypoint")
-async def get_best_entrypoint(session: Session = Depends(get_session)):
-    """
-    Analyzes all targets to find the best entrypoint based on findings.
-    """
-    targets = session.exec(select(Target)).all()
-    if not targets:
-        return {"error": "No targets found"}
 
-    scored_targets = []
-
-    for t in targets:
-        score = 0
-        reasons = []
-
-        # Get latest results
-        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
-        
-        # Subdomains (+1 each)
-        dns = next((r for r in results if r.module_name in ['subdomain_scanner', 'dns_scanner']), None)
-        if dns and dns.data:
-            subs = dns.data.get("subdomains", [])
-            sub_count = len(subs)
-            if sub_count > 0:
-                points = sub_count * 1
-                score += points
-                reasons.append(f"+{points} from {sub_count} subdomains")
-
-        # Web Tech (+2 each)
-        web = next((r for r in results if r.module_name == 'web_analyzer'), None)
-        if web and web.data:
-            techs = web.data.get("technologies", [])
-            tech_count = len(techs)
-            if tech_count > 0:
-                points = tech_count * 2
-                score += points
-                reasons.append(f"+{points} from {tech_count} detected technologies")
-
-        # Cloud Buckets (+5 each)
-        infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
-        if infra and infra.data:
-            buckets = infra.data.get("buckets", [])
-            bucket_count = len(buckets)
-            if bucket_count > 0:
-                points = bucket_count * 5
-                score += points
-                reasons.append(f"+{points} from {bucket_count} exposed storage buckets")
-
-        # SSL Issues (+3 if expired/error)
-        ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
-        if ssl and ssl.data:
-            if ssl.data.get("error") or ssl.data.get("expired"): # Assuming expired flag or checking date
-                points = 3
-                score += points
-                reasons.append(f"+{points} from SSL configuration issues")
-
-        if score > 0:
-            scored_targets.append({
-                "target": t.domain,
-                "target_id": t.id,
-                "score": score,
-                "reasons": reasons
-            })
-
-    if not scored_targets:
-        return {"message": "No significant entrypoints found (Score 0)."}
-
-    # Sort descending
-    scored_targets.sort(key=lambda x: x["score"], reverse=True)
-    best = scored_targets[0]
-
-    return {
-        "best_target": best,
-        "all_scores": scored_targets[:5] # Top 5
-    }
 
 @app.get("/targets/{target_id}", response_class=HTMLResponse)
 async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    target = session.get(Target, target_id)
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     
@@ -2562,6 +2488,32 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     except:
         pass
 
+    # Splunk Config
+    splunk_hec_url = ""
+    splunk_hec_token = ""
+    su_conf = session.get(SystemConfig, "SPLUNK_HEC_URL")
+    if su_conf: splunk_hec_url = su_conf.value
+    st_conf = session.get(SystemConfig, "SPLUNK_HEC_TOKEN")
+    if st_conf: splunk_hec_token = st_conf.value
+
+    # Email Config
+    smtp_host = ""
+    smtp_port = ""
+    smtp_user = ""
+    smtp_password = ""
+    
+    sh_conf = session.get(SystemConfig, "SMTP_HOST")
+    if sh_conf: smtp_host = sh_conf.value
+    
+    sp_conf = session.get(SystemConfig, "SMTP_PORT")
+    if sp_conf: smtp_port = sp_conf.value
+    
+    suser_conf = session.get(SystemConfig, "SMTP_USER")
+    if suser_conf: smtp_user = suser_conf.value
+    
+    spass_conf = session.get(SystemConfig, "SMTP_PASSWORD")
+    if spass_conf: smtp_password = spass_conf.value
+
     return templates.TemplateResponse("settings.html", {
         "user": user,
         "request": request,
@@ -2575,7 +2527,13 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "has_custom_wordlist": has_custom_wordlist,
         "custom_wordlist_lines": custom_wordlist_lines,
         "session_minutes": session_minutes,
-        "otp_window": otp_window
+        "otp_window": otp_window,
+        "splunk_hec_url": splunk_hec_url,
+        "splunk_hec_token": splunk_hec_token,
+        "smtp_host": smtp_host,
+        "smtp_port": smtp_port,
+        "smtp_user": smtp_user,
+        "smtp_password": smtp_password
     })
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -2591,6 +2549,12 @@ async def update_settings(
     otp_window: int = Form(1),
     approved_ciphers: str = Form(None),
     custom_dns_servers: str = Form(None),
+    splunk_hec_url: str = Form(None),
+    splunk_hec_token: str = Form(None),
+    smtp_host: str = Form(None),
+    smtp_port: str = Form(None),
+    smtp_user: str = Form(None),
+    smtp_password: str = Form(None),
     session: Session = Depends(get_session)
 ):
     from yads.models import SystemConfig
@@ -2890,12 +2854,13 @@ async def export_targets_excel(session: Session = Depends(get_session)):
 # --- Visualizations ---
 
 @app.get("/api/visualizations/redirects")
-async def get_redirect_graph(domain: str = None, session: Session = Depends(get_session)):
+async def get_redirect_graph(domain: str = None, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Returns graph data (nodes, edges) for the Redirect Spiderweb visualization.
     Optional: ?domain=example.com filter.
     """
-    query = select(Target)
+    # Filter by user's tenant
+    query = select(Target).where(Target.tenant_id == user.tenant_id)
     if domain:
         # Filter by specific domain (exact match on target)
         query = query.where(Target.domain == domain)
@@ -2979,13 +2944,13 @@ async def get_redirect_graph(domain: str = None, session: Session = Depends(get_
     }
 
 @app.get("/api/visualizations/redirects/centrality")
-async def get_redirect_centrality(session: Session = Depends(get_session)):
+async def get_redirect_centrality(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Analyzes the redirect graph to find the most central node (highest degree).
     """
     # 1. Reconstruct Graph (Simplified Logic from get_redirect_graph)
     # We need to build the graph structure in memory to calculate degrees
-    targets = session.exec(select(Target)).all()
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
     
     # Adjacency List: Node -> {in: 0, out: 0}
     degrees = {}
@@ -3048,7 +3013,8 @@ async def get_network_graph(
     target_id: Optional[int] = None, 
     filter_empty: bool = False,
     filter_online: str = "all",
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
 ):
     """
     Returns graph data (nodes, edges) for the Network Relationship visualization.
@@ -3056,7 +3022,9 @@ async def get_network_graph(
     """
     from sqlmodel import or_, and_
     
-    query = select(Target)
+    
+    # Filter by user's tenant
+    query = select(Target).where(Target.tenant_id == user.tenant_id)
     
     # 1. Online/Offline Filter
     if filter_online != "all":
@@ -3192,13 +3160,14 @@ async def export_network_graph(
     filter_empty: bool = False,
     filter_online: str = "all",
     format: str = "svg", 
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
 ):
     """
     Exports the Network Graph to SVG (Visio) or Excel (Visio Data Visualizer).
     """
     # Reuse existing logic to get nodes/edges
-    graph_data = await get_network_graph(target_id=target_id, filter_empty=filter_empty, filter_online=filter_online, session=session)
+    graph_data = await get_network_graph(target_id=target_id, filter_empty=filter_empty, filter_online=filter_online, session=session, user=user)
     nodes = graph_data.get("nodes", [])
     edges = graph_data.get("edges", [])
     
@@ -3301,209 +3270,15 @@ async def view_network_graph(request: Request, session: Session = Depends(get_se
 
 @app.get("/analytics", response_class=HTMLResponse)
 async def view_analytics(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    # Fetch all targets for the dropdown
-    targets = session.exec(select(Target.domain, Target.id).order_by(Target.domain)).all()
-    # Convert Row objects/tuples to list of dicts or similar if needed, 
-    # but Jinja handles tuples fine (t.domain, t.id usually, but here it's explicit columns)
-    # The result is a list of Row objects which behave like named tuples
+    # Fetch targets for the dropdown (Tenant Scoped)
+    query = select(Target.domain, Target.id).order_by(Target.domain)
+    
+    if user.tenant_id:
+        query = query.where(Target.tenant_id == user.tenant_id)
+        
+    targets = session.exec(query).all()
+    
     return templates.TemplateResponse("analytics.html", {"request": request, "targets": targets, "user": user})
-
-@app.get("/api/stats/infrastructure")
-async def get_infrastructure_stats(target_id: Optional[int] = None, session: Session = Depends(get_session)):
-    """
-    Returns aggregated infrastructure stats:
-    - Cloud Provider distribution
-    - Server Locations (Country)
-    """
-    # Optimized SQL aggregation for JSONB fields
-    # PostgreSQL specific syntax for JSONB
-    
-    where_clause = "WHERE module_name='infrastructure_scanner'"
-    if target_id:
-        where_clause += f" AND target_id = {target_id}"
-
-    # 1. Cloud Providers (Detailed & Aggregated)
-    cloud_providers = {}
-    cloud_details = []
-    
-    # We reuse the same target list logic if possible, but let's just do a fresh loop for clarity/safety 
-    # (since we changed the other one to be tech stack specific)
-    # Ideally we'd fetch all Scans in one go, but let's stick to modular blocks for now.
-    
-    infra_targets = session.exec(select(Target.id, Target.domain)).all()
-    
-    for t_id, t_domain in infra_targets:
-        if target_id and t_id != target_id: continue
-        
-        # Get latest infra scan
-        i_res = session.exec(select(ScanResult).where(
-             ScanResult.target_id == t_id,
-             ScanResult.module_name == 'infrastructure_scanner'
-        ).order_by(ScanResult.scanned_at.desc())).first()
-        
-        if i_res and i_res.data:
-            data = i_res.data
-            provider_name = data.get("cloud_provider") or "Unknown"
-            ip_address = data.get("ip") or "Unknown"
-            
-            # Aggregate
-            cloud_providers[provider_name] = cloud_providers.get(provider_name, 0) + 1
-            
-            cloud_details.append({
-                "target": t_domain,
-                "id": t_id,
-                "provider": provider_name,
-                "ip": ip_address
-            })
-        
-    # 2. Countries
-    c_query = text(f"SELECT data->'asn'->>'country', count(*) FROM scanresult {where_clause} GROUP BY 1")
-    c_results = session.exec(c_query).all()
-    
-    countries = {}
-    for country, count in c_results:
-        country_code = country if country else "Unknown"
-        countries[country_code] = count
-        
-    # 3. Tech Stack (Detailed & Aggregated)
-    tech_stack = {}
-    tech_details = []
-    
-    # Fetch all targets (ID and Domain)
-    all_targets = session.exec(select(Target.id, Target.domain)).all()
-    
-    for t_id, t_domain in all_targets:
-        # Check filter
-        if target_id and t_id != target_id: continue
-        
-        # Get latest web scan
-        w_res = session.exec(select(ScanResult).where(
-             ScanResult.target_id == t_id,
-             ScanResult.module_name == 'web_analyzer'
-        ).order_by(ScanResult.scanned_at.desc())).first()
-        
-        if w_res and w_res.data:
-             data = w_res.data
-             # Aggregate for chart
-             # 1. actual tech_stack list
-             ts = data.get("tech_stack", []) or []
-             # 2. Server header fallback
-             headers = data.get("http_headers", {})
-             srv = headers.get("Server") or headers.get("server")
-             if srv:
-                 # Normalize
-                 srv_name = srv.split('/')[0].split(' ')[0].strip()
-                 if srv_name not in ts: ts.append(srv_name)
-             
-             # Clean up duplicates
-             ts_unique = list(set(ts))
-             
-             for tech in ts_unique:
-                 tech_stack[tech] = tech_stack.get(tech, 0) + 1
-                 
-             tech_details.append({
-                 "target": t_domain,
-                 "id": t_id,
-                 "technologies": ts_unique,
-                 "server_header": srv
-             })
-
-    # 4. Status Code Health Check
-    sc_query = text(f"SELECT data->>'status_code', count(*) FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')} GROUP BY 1")
-    sc_results = session.exec(sc_query).all()
-    
-    status_codes = {}
-    for code, count in sc_results:
-        if not code: continue
-        status_codes[code] = count
-
-    # 4. Vulnerability Stats & Risk Feed
-    # We need to fetch web_analyzer results to parse CVEs
-    vuln_query = f"SELECT data FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')}"
-    vuln_results = session.exec(text(vuln_query)).all()
-    
-    vuln_stats = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-    risk_feed = []
-
-    for row in vuln_results:
-        # row is a tuple (data dict,)
-        data = row[0]
-        if not data: continue
-            
-        cves = data.get("cves", [])
-        for cve in cves:
-            try:
-                cvss = float(cve.get("cvss", 0))
-                if cvss >= 9.0:
-                    vuln_stats["critical"] += 1
-                    risk_feed.append({
-                        "type": "CVE", 
-                        "severity": "Critical",
-                        "title": cve.get("id"),
-                        "desc": f"CVSS {cvss}",
-                        "target_id": "Unknown" # Ideally we select target_id too
-                    })
-                elif cvss >= 7.0:
-                    vuln_stats["high"] += 1
-                elif cvss >= 4.0:
-                    vuln_stats["medium"] += 1
-                else:
-                    vuln_stats["low"] += 1
-            except: pass
-            
-    # Get Target IDs for Risk Feed (Need a better query for this)
-    # Re-querying with target_id for the feed items
-    feed_query = text(f"SELECT target_id, data FROM scanresult {where_clause.replace('infrastructure_scanner', 'web_analyzer')}")
-    feed_results = session.exec(feed_query).all()
-    
-    risk_feed = [] # Reset to rebuild with IDs
-    
-    for tid, data in feed_results:
-        if not data: continue
-        # CVEs
-        cves = data.get("cves", [])
-        for cve in cves:
-            try:
-                cvss = float(cve.get("cvss", 0))
-                if cvss >= 9.0:
-                     risk_feed.append({
-                        "type": "CVE",
-                        "severity": "Critical", 
-                        "title": cve.get("id"),
-                        "desc": f"CVSS {cvss}",
-                        "target_id": tid
-                    })
-            except: pass
-            
-    # Subdomain Takeovers
-    takeover_query = text(f"SELECT target_id, data FROM scanresult {where_clause.replace('infrastructure_scanner', 'dns_scanner')}")
-    to_results = session.exec(takeover_query).all()
-    
-    for tid, data in to_results:
-        if not data: continue
-        risks = data.get("takeover_risks", [])
-        for risk in risks:
-             risk_feed.append({
-                "type": "Takeover",
-                "severity": "Critical",
-                "title": risk.get("subdomain") or "Domain Root",
-                "desc": f"Provider: {risk.get('provider')}",
-                "target_id": tid
-            })
-
-    # Sort Risk Feed (takeovers first, then cves)
-    risk_feed.sort(key=lambda x: 0 if x['type'] == 'Takeover' else 1)
-        
-    return {
-        "cloud_providers": cloud_providers,
-        "cloud_details": cloud_details,
-        "countries": countries,
-        "tech_stack": tech_stack,
-        "tech_details": tech_details,
-        "status_codes": status_codes,
-        "vuln_stats": vuln_stats,
-        "risk_feed": risk_feed[:20] # Top 20
-    }
 
 # --- Tagging API ---
 

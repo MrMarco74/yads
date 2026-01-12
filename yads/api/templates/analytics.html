@@ -68,9 +68,34 @@
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                         Security Posture (CVEs)
+                        <button onclick="showInfo('vuln_profile')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div class="relative h-48">
                         <canvas id="vulnChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Attack Surface Size Chart (New) -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                        Attack Surface Size (Subdomains)
+                        <button onclick="showInfo('attack_surface')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
+                    </h3>
+                    <div class="relative h-48">
+                        <canvas id="attackSurfaceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Web Service Encryption Chart (New) -->
+                <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg">
+                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        Web Service Encryption
+                        <button onclick="showInfo('encryption')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
+                    </h3>
+                    <div class="relative h-64">
+                        <canvas id="serviceDistChart"></canvas>
                     </div>
                 </div>
 
@@ -79,6 +104,7 @@
                      <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                         Web Server Technology
+                        <button onclick="showInfo('tech_stack')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div class="relative h-64">
                         <canvas id="techStackChart"></canvas>
@@ -90,6 +116,7 @@
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Status Code Health
+                        <button onclick="showInfo('status_code')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div class="relative h-64">
                         <canvas id="locationChart"></canvas>
@@ -101,6 +128,7 @@
                     <h3 class="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                         Critical Risk Feed
+                        <button onclick="showInfo('risk_feed')" class="text-red-400 hover:text-red-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-gray-400">
@@ -140,6 +168,7 @@
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                         SSL Expiry Timeline
+                        <button onclick="showInfo('ssl_expiry')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div class="relative h-64">
                         <canvas id="sslChart"></canvas>
@@ -151,6 +180,7 @@
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                         Reputation Monitor
+                        <button onclick="showInfo('reputation')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
                     <div id="reputation-list" class="h-64 overflow-y-auto pr-2 space-y-3">
                         <!-- Populated by JS -->
@@ -188,6 +218,7 @@
                 <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     Secrets & Data Leaks
+                    <button onclick="showInfo('secrets')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                 </h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-gray-400">
@@ -227,6 +258,7 @@
                 <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     Detected Vulnerabilities
+                    <button onclick="showInfo('vuln_profile')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                 </h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-gray-400">
@@ -266,6 +298,7 @@
                 <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                     Detailed Web Technologies
+                    <button onclick="showInfo('tech_stack')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                 </h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-gray-400">
@@ -298,42 +331,28 @@
         <div id="content-cloud" class="hidden p-6 bg-gray-900/20">
             <!-- Cloud Infrastructure Chapter -->
             <div id="cloud-infra-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg mb-6 hidden">
-                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-                    Cloud Infrastructure
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Chart Column -->
-                    <div class="md:col-span-1 border-r border-gray-700/50 pr-4">
-                        <div class="relative h-64">
+                <div class="grid grid-cols-1 lg:grid-cols-6 gap-6">
+                    <!-- Chart Column (Smaller: ~16%) -->
+                    <div class="lg:col-span-1 border-r border-gray-700/50 pr-4">
+                        <div class="relative h-48">
                             <canvas id="cloudProviderChart"></canvas>
                         </div>
                     </div>
                     
-                    <!-- Details Column -->
-                    <div class="md:col-span-2 overflow-x-auto">
-                         <table class="w-full text-left text-sm text-gray-400">
-                            <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
-                                <tr>
-                                    <th class="px-4 py-2">Target</th>
-                                    <th class="px-4 py-2">Provider</th>
-                                    <th class="px-4 py-2">IP Address</th>
-                                    <th class="px-4 py-2 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="cloud-details-body" class="divide-y divide-gray-800">
-                                <!-- Populated by JS -->
-                            </tbody>
-                        </table>
+                    <!-- Details Column (Larger: ~84%) -->
+                    <div class="lg:col-span-5">
+                         <!-- Replaced Table with Responsive Grid Container -->
+                         <div id="cloud-list-container" class="space-y-6">
+                            <!-- Populated by JS -->
+                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    </div>
 
     <!-- Section: Global Map -->
-    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg mt-6">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden mb-6 shadow-lg mt-12">
         <button onclick="toggleSection('map')" class="w-full flex items-center justify-between p-4 bg-gray-900/50 hover:bg-gray-800 transition border-b border-gray-700/50">
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
                 <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -342,13 +361,29 @@
             <svg id="arrow-map" class="w-5 h-5 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </button>
         <div id="content-map" class="hidden p-6 bg-gray-900/20">
-            <!-- Global Map -->
+            <!-- Global Map & List (Split View) -->
             <div id="global-map-container" class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 shadow-lg hidden">
-                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Global Server Map
-                </h3>
-                <div id="geoChart" class="w-full h-96 rounded-lg overflow-hidden"></div>
+                <div style="display: flex; height: 600px; flex-direction: row;">
+                    <!-- Map Column (66%) -->
+                    <div style="flex: 2; height: 100%; position: relative; border-right: 1px solid rgba(55, 65, 81, 0.5);">
+                        <div id="geoChart" class="w-full h-full rounded-lg overflow-hidden" style="min-height: 400px; display: block;"></div>
+                    </div>
+                    
+                    <!-- City List Column (33%) -->
+                    <div class="custom-scrollbar bg-gray-800/20 rounded-lg" style="flex: 1; height: 100%; overflow-y: auto;">
+                         <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="text-xs uppercase bg-gray-900/50 text-gray-500 sticky top-0 z-10 backdrop-blur-md">
+                                <tr>
+                                    <th class="px-4 py-2">Location</th>
+                                    <th class="px-4 py-2 text-right">Targets</th>
+                                </tr>
+                            </thead>
+                            <tbody id="geo-list-body" class="divide-y divide-gray-800">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -384,6 +419,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 
 <!-- Google Charts -->
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
@@ -429,21 +465,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     Chart.defaults.color = '#9ca3af'; 
     Chart.defaults.borderColor = '#374151'; 
 
-    // Google GeoChart Logic - Initialization moved to top
-    let isGoogleLoaded = false;
-    google.charts.load('current', {
-        'packages': ['geochart']
-    });
-    google.charts.setOnLoadCallback(() => { 
-        isGoogleLoaded = true;
-        // If map section is already open (restored state), draw it now
-        if (window.lastCountryData && !document.getElementById('content-map').classList.contains('hidden')) {
-            renderMap(window.lastCountryData);
-        }
-    });
+    // Google Charts Logic removed (Legacy)
     
     let cloudChart = null;
     let locationChart = null; 
+    let attackSurfaceChart = null;
+    let serviceDistChart = null; 
 
     // Load Tags
     try {
@@ -490,6 +517,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Save for map redraws
             window.lastCountryData = data.countries;
+            window.lastGeoStats = data.geo_stats;
 
             // Check if data is empty
             const hasData = Object.keys(data.cloud_providers).length > 0 || Object.keys(data.countries).length > 0;
@@ -504,6 +532,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('no-data-msg').classList.add('hidden');
                 renderCharts(data);
                 renderMap(data.countries);
+                renderTables(data);
             }
 
             // Load Security Data concurrently
@@ -714,7 +743,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td class="px-4 py-3 font-medium text-white text-xs">${item.target}</td>
                     <td class="px-4 py-3">${sevBadge}</td>
                     <td class="px-4 py-3">
-                         <div class="text-sm font-bold text-red-400">${item.id || 'N/A'}</div>
+                         <div class="text-sm font-bold text-red-400">
+                            ${item.id ? `<a href="https://nvd.nist.gov/vuln/detail/${item.id}" target="_blank" class="hover:text-red-300 hover:underline">${item.id}</a>` : 'N/A'}
+                         </div>
                          <div class="text-xs text-gray-400 mt-0.5 max-w-md truncate" title="${item.description}">${item.description || ''}</div>
                     </td>
                     <td class="px-4 py-3 text-xs text-gray-400">${item.product || '-'}</td>
@@ -735,42 +766,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Google GeoChart Logic initialization moved to top of file
-
-
-    function renderMap(countryData) {
-        if (!isGoogleLoaded) {
-            // Retry if google lib not ready
-            setTimeout(() => renderMap(countryData), 500);
-            return;
-        }
-
-        const container = document.getElementById('geoChart');
-        if(!container) return;
-
-        const chart = new google.visualization.GeoChart(container);
-        
-        // Convert dict to array
-        const dataArray = [['Country', 'Servers']];
-        for (const [code, count] of Object.entries(countryData)) {
-             // Handle "Unknown" or None
-             if (code && code !== 'Unknown') {
-                 dataArray.push([code, count]);
-             }
-        }
-
-        const data = google.visualization.arrayToDataTable(dataArray);
-
-        const options = {
-            backgroundColor: 'transparent',
-            colorAxis: {colors: ['#3b82f6', '#1d4ed8']}, // Light blue to dark blue
-            datalessRegionColor: '#374151', // Gray 700
-            defaultColor: '#1f2937',        // Gray 800
-            legend: 'none'
-        };
-
-        chart.draw(data, options);
-    }
 
     // Best Entrypoint Logic
     window.runBestEntrypointAnalysis = async function() {
@@ -861,43 +856,178 @@ document.addEventListener('DOMContentLoaded', async () => {
                     legend: {
                         position: 'right',
                         labels: {
-                            color: '#e5e7eb' // white text for legend
+                            color: '#e5e7eb',
+                            boxWidth: 12
                         }
+                    },
+                    datalabels: {
+                        color: '#fff',
+                        font: { weight: 'bold' },
+                        formatter: (val) => val, // Display the raw count number
+                        anchor: 'center',
+                        align: 'center'
                     }
                 }
-            }
+            },
+            plugins: [ChartDataLabels]
         });
 
-        // --- Cloud Details Table ---
-        const cloudContainer = document.getElementById('cloud-infra-container');
-        const cloudBody = document.getElementById('cloud-details-body');
+        // --- Cloud Details Grid ---
+        const cloudContainerMain = document.getElementById('cloud-infra-container');
+        const cloudListContainer = document.getElementById('cloud-list-container');
         
         // Show container if we have data
         if ((cloudLabels.length > 0) || (data.cloud_details && data.cloud_details.length > 0)) {
-            if (cloudContainer) cloudContainer.classList.remove('hidden');
+            if (cloudContainerMain) cloudContainerMain.classList.remove('hidden');
         }
 
-        if (data.cloud_details && data.cloud_details.length > 0 && cloudBody) {
-            cloudBody.innerHTML = '';
+        if (data.cloud_details && data.cloud_details.length > 0 && cloudListContainer) {
+            cloudListContainer.innerHTML = '';
+            
+            // 1. Group by Provider
+            const groups = {};
             data.cloud_details.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+                const p = item.provider || 'Unknown';
+                if(!groups[p]) groups[p] = [];
+                groups[p].push(item);
+            });
+
+            // 2. Sort groups by size
+            const sortedProviders = Object.keys(groups).sort((a,b) => groups[b].length - groups[a].length);
+
+            // Helper for toggle
+            window.toggleCloudGroup = function(sanitizedProvider) {
+                const hiddenItems = document.querySelectorAll(`.cloud-hidden-${sanitizedProvider}`);
+                const btnContainer = document.getElementById(`btn-container-${sanitizedProvider}`);
                 
-                tr.innerHTML = `
-                    <td class="px-4 py-3 font-medium text-white">${item.target}</td>
-                    <td class="px-4 py-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded textxs font-medium bg-indigo-900/40 text-indigo-200 border border-indigo-500/20">
-                            ${item.provider}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 font-mono text-xs text-gray-300">${item.ip}</td>
-                    <td class="px-4 py-3 text-right">
-                         <a href="/targets/${item.id}" class="text-indigo-400 hover:text-indigo-300 text-xs hover:underline">View Target &rarr;</a>
-                    </td>
+                hiddenItems.forEach(item => {
+                    item.classList.remove('hidden');
+                });
+                
+                if(btnContainer) btnContainer.remove();
+            };
+
+            sortedProviders.forEach(provider => {
+                const items = groups[provider];
+                const sanitizedProvider = provider.replace(/[^a-zA-Z0-9]/g, '_');
+                const total = items.length;
+                const limit = 12; // 12 fits nicely in 2, 3, 4 grids
+                const showCount = Math.min(total, limit);
+                const hasMore = total > limit;
+
+                // Wrapper for this Group
+                const groupWrapper = document.createElement('div');
+                groupWrapper.className = "space-y-3";
+
+                // A. Group Header
+                groupWrapper.innerHTML = `
+                    <h4 class="text-indigo-300 font-bold text-sm uppercase tracking-wider border-b border-gray-700 pb-2">
+                        ${provider} <span class="text-gray-500 text-xs ml-2">(${total} hosts)</span>
+                    </h4>
                 `;
-                cloudBody.appendChild(tr);
+
+                // B. Grid Container
+                const gridDiv = document.createElement('div');
+                gridDiv.className = "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"; // High density for maximum width usage
+                
+                items.forEach((item, idx) => {
+                    const isHidden = idx >= limit;
+                    const card = document.createElement('div');
+                    card.className = `bg-gray-800 border border-gray-700 rounded p-3 hover:bg-gray-700/50 transition flex justify-between items-start ${isHidden ? 'hidden cloud-hidden-' + sanitizedProvider : ''}`;
+                    
+                    card.innerHTML = `
+                        <div class="overflow-hidden">
+                            <div class="font-medium text-white text-sm truncate" title="${item.target}">${item.target}</div>
+                            <div class="font-mono text-xs text-gray-400 mt-1">${item.ip}</div>
+                        </div>
+                        <a href="/targets/${item.id}" class="text-gray-500 hover:text-indigo-400 ml-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </a>
+                    `;
+                    gridDiv.appendChild(card);
+                });
+
+                groupWrapper.appendChild(gridDiv);
+
+                // C. Show More Button
+                if (hasMore) {
+                    const moreDiv = document.createElement('div');
+                    moreDiv.id = `btn-container-${sanitizedProvider}`;
+                    moreDiv.className = "flex justify-center pt-2";
+                    moreDiv.innerHTML = `
+                        <button onclick="toggleCloudGroup('${sanitizedProvider}')" 
+                            class="text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 py-1.5 px-4 rounded border border-gray-700 transition">
+                            Show ${total - limit} more targets in ${provider}
+                        </button>
+                    `;
+                    groupWrapper.appendChild(moreDiv);
+                }
+
+                cloudListContainer.appendChild(groupWrapper);
             });
         }
+
+        // --- Attack Surface Chart (Subdomains) ---
+        const asCtx = document.getElementById('attackSurfaceChart').getContext('2d');
+        const asStats = data.attack_surface_stats || [];
+        const asLabels = asStats.map(x => x.target);
+        const asValues = asStats.map(x => x.count);
+
+        if (attackSurfaceChart) attackSurfaceChart.destroy();
+        attackSurfaceChart = new Chart(asCtx, {
+            type: 'bar',
+            data: {
+                labels: asLabels,
+                datasets: [{
+                    label: 'Subdomains',
+                    data: asValues,
+                    backgroundColor: '#6366F1',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                     x: { grid: { display: false }, ticks: { color: '#9ca3af' } },
+                     y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#e5e7eb' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // --- Service Distribution Chart (Doughnut) ---
+        const sdCtx = document.getElementById('serviceDistChart').getContext('2d');
+        const sdStats = data.service_distribution_stats || {};
+        const sdLabels = Object.keys(sdStats);
+        const sdValues = Object.values(sdStats);
+        
+        const sdColors = sdLabels.map(l => {
+            if (l === 'HTTP Only') return '#3B82F6';
+            if (l === 'HTTPS Only') return '#10B981';
+            if (l === 'Both') return '#8B5CF6';
+            return '#6B7280';
+        });
+
+        if (serviceDistChart) serviceDistChart.destroy();
+        serviceDistChart = new Chart(sdCtx, {
+            type: 'doughnut',
+            data: {
+                labels: sdLabels,
+                datasets: [{
+                    data: sdValues,
+                    backgroundColor: sdColors,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#e5e7eb' } }
+                }
+            }
+        });
 
         // --- Status Code Health (Bar) ---
         const scCtx = document.getElementById('locationChart').getContext('2d');
@@ -1024,8 +1154,159 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+    }
 
-        // --- Detailed Tech Table ---
+    var map = null;
+
+    // Cache GeoJSON to avoid repeated fetches
+    var cachedGeoData = null;
+
+    async function renderMap(countries) {
+        // 1. Fetch Data First (if needed)
+        if (!cachedGeoData) {
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json');
+                if (!response.ok) throw new Error("Failed to load map data");
+                cachedGeoData = await response.json();
+            } catch (e) {
+                console.error("Map Data Fetch Error:", e);
+                return; // Cannot render without map data
+            }
+        }
+
+        // 2. Initialize Leaflet Map (Sync)
+        const container = document.getElementById('geoChart');
+        if(!container) return;
+
+        container.style.display = 'block';
+
+        if (!map) {
+            // Safety: Resurrected Container Check
+            if (container._leaflet_id) {
+                container._leaflet_id = null;
+            }
+
+            map = L.map('geoChart', {
+                center: [20, 0],
+                zoom: 2,
+                scrollWheelZoom: false,
+                attributionControl: false
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+        }
+
+        // 3. Update Layers (Sync)
+        try {
+             // Clear previous geojson layers
+            map.eachLayer((layer) => {
+                if (layer instanceof L.GeoJSON) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            L.geoJSON(cachedGeoData, {
+                style: function(feature) {
+                    const name = feature.properties.name;
+                    let count = 0;
+                    
+                    if (countries[name]) count = countries[name];
+                    else {
+                        const match = Object.keys(countries).find(k => name.includes(k) || k.includes(name));
+                        if (match) count = countries[match];
+                    }
+
+                    return {
+                        fillColor: count > 0 ? '#6366f1' : '#1f2937', 
+                        weight: 1,
+                        opacity: 1,
+                        color: '#374151',
+                        dashArray: '3',
+                        fillOpacity: count > 0 ? 0.6 : 0.3
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const name = feature.properties.name;
+                    let count = 0;
+                    if (countries[name]) count = countries[name];
+                    else {
+                        const match = Object.keys(countries).find(k => name.includes(k) || k.includes(name));
+                        if (match) count = countries[match];
+                    }
+                    
+                    if (count > 0) {
+                        layer.bindPopup(`<strong>${name}</strong><br>Targets: ${count}`);
+                    }
+                }
+            }).addTo(map);
+
+        } catch (e) {
+            console.error("Map Layer Update Error:", e);
+        }
+
+        // 3. Render City List (Keep this as is)
+        const geoStats = window.lastGeoStats || {};
+        setTimeout(() => { if (map) map.invalidateSize(); }, 100);
+
+        // 3. Render City List
+        renderCityList(geoStats); 
+    }
+    window.renderMap = renderMap;
+    
+    function renderCityList(geoStats) {
+        const tbody = document.getElementById('geo-list-body');
+        if(!tbody) return;
+        tbody.innerHTML = '';
+        
+        // Flatten struct: {Country: {City: Count}} -> [{loc: "City, Country", count: N}]
+        let flat = [];
+        if (geoStats) {
+            for(const [country, cities] of Object.entries(geoStats)) {
+                if (typeof cities === 'object') {
+                    for(const [city, data] of Object.entries(cities)) {
+                         // data is { count: N, lat: X, lon: Y }
+                        flat.push({ loc: `${city}, ${country}`, count: data.count });
+                    }
+                }
+            }
+        }
+        
+        // Sort by count desc
+        flat.sort((a,b) => b.count - a.count);
+        
+        console.log("Flat Geo Data:", flat);
+
+        if(flat.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="px-4 py-8 text-center text-gray-600">No city data available.<br><span class="text-xs">Ensure GeoIP is enabled in scanners.</span></td></tr>';
+            return;
+        }
+        
+        flat.forEach(item => {
+             const tr = document.createElement('tr');
+             tr.className = 'border-b border-gray-800 hover:bg-white/5 transition';
+             tr.innerHTML = `
+                <td class="px-4 py-2 font-medium text-gray-300">
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm font-bold">${item.loc.split(',')[0]}</span>
+                        <span class="text-xs text-gray-500 uppercase tracking-wider">${item.loc.split(',')[1]}</span>
+                    </div>
+                </td>
+                <td class="px-4 py-2 text-right">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-900/50 text-indigo-300 border border-indigo-500/30 shadow-indigo-500/20 shadow-sm">
+                        ${item.count}
+                    </span>
+                </td>
+             `;
+             tbody.appendChild(tr);
+        });
+    }
+
+    function renderTables(data) {
+        // --- Tech Stack Chart (Bar - Top 10) ---
         const techContainer = document.getElementById('tech-details-container');
         const techBody = document.getElementById('tech-details-body');
         
@@ -1054,7 +1335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </td>
                     <td class="px-4 py-3">${srv}</td>
                     <td class="px-4 py-3 text-right">
-                         <a href="/targets/${item.id}" class="text-blue-400 hover:text-blue-300 text-xs hover:underline">View Target &rarr;</a>
+                        <a href="/targets/${item.id}" class="text-blue-400 hover:text-blue-300 text-xs hover:underline">View Target &rarr;</a>
                     </td>
                 `;
                 techBody.appendChild(tr);
@@ -1093,10 +1374,116 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             feedBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No critical risks detected. Good job!</td></tr>';
         }
-
     }
-    
-    // I will return early here and perform sequential edits to avoid wiping code.
-});
+
+    // --- Contextual Info System ---
+    const infoContent = {
+        'vuln_profile': {
+            title: "Security Posture (CVEs)",
+            source: "Module: <code>cve_scanner</code>",
+            desc: "Visualizes the distribution of detected CVEs (Common Vulnerabilities and Exposures) across all targets, categorized by severity. Use this to quickly assess the overall risk level of your infrastructure."
+        },
+        'attack_surface': {
+            title: "Attack Surface Size",
+            source: "Module: <code>subdomain_scanner</code>",
+            desc: "Counts the number of discovered subdomains for each target. A higher number indicates a larger external footprint, which typically increases the potential attack surface."
+        },
+        'encryption': {
+            title: "Web Service Encryption",
+            source: "Module: <code>port_scanner</code>",
+            desc: "Monitors the availability of HTTP vs HTTPS services. Ideally, all services should support HTTPS. This chart helps identify unencrypted (HTTP-only) or inaccessible endpoints."
+        },
+        'tech_stack': {
+            title: "Web Technologies",
+            source: "Module: <code>web_analyzer</code>",
+            desc: "Identifies the underlying technologies (Web Servers, Frameworks, CMS) used by your targets based on HTTP headers and fingerprints. Useful for asset inventory and detecting legacy tech."
+        },
+        'status_code': {
+            title: "Status Code Health",
+            source: "Module: <code>web_analyzer</code>",
+            desc: "Shows the distribution of HTTP response codes (200 OK, 404 Not Found, 500 Error, etc.). Helps in identifying broken targets or server errors."
+        },
+        'risk_feed': {
+            title: "Critical Risk Feed",
+            source: "Aggregated (All Modules)",
+            desc: "A prioritized list of the most critical issues found, such as High/Critical CVEs or exposed secrets. These items require immediate attention."
+        },
+        'ssl_expiry': {
+            title: "SSL Expiry Timeline",
+            source: "Module: <code>ssl_scanner</code>",
+            desc: "Tracks the validity of SSL certificates. Helps prevent service outages by highlighting certificates that are about to expire or are already invalid."
+        },
+        'reputation': {
+            title: "IP Reputation",
+            source: "Module: <code>infrastructure_scanner</code>",
+            desc: "Checks if your target IPs are listed on known blocklists (e.g., spam, malware) which could impact email deliverability or trust."
+        },
+        'secrets': {
+            title: "Secrets & Leaks",
+            source: "Module: <code>content_discovery</code> / <code>git_scanner</code>",
+            desc: "Scans for accidentally exposed secrets, API keys, or private keys in the response body or public repositories."
+        },
+        'cloud_infra': {
+            title: "Cloud Infrastructure",
+            source: "Module: <code>infrastructure_scanner</code> (Whois/BGP)",
+            desc: "Groups your targets by their hosting provider (e.g., AWS, GCP). Helps in auditing third-party vendor usage and determining data residency."
+        },
+        'global_map': {
+            title: "Global Server Map",
+            source: "Module: <code>infrastructure_scanner</code> (GeoIP)",
+            desc: "Maps the physical location of your servers based on their IP addresses. Useful for understanding geographic distribution and compliance."
+        }
+    };
+
+    window.showInfo = function(key) {
+        const modal = document.getElementById('info-modal');
+        const titleEl = document.getElementById('info-modal-title');
+        const contentEl = document.getElementById('info-modal-content');
+        
+        const data = infoContent[key];
+        if(!data) return;
+        
+        titleEl.textContent = data.title;
+        contentEl.innerHTML = `
+            <div class="space-y-4">
+                <div class="p-3 bg-gray-700/50 rounded border border-gray-600">
+                    <div class="text-xs uppercase text-gray-400 font-bold mb-1">Data Source</div>
+                    <div class="text-gray-200 text-sm font-mono">${data.source}</div>
+                </div>
+                <div>
+                     <div class="text-xs uppercase text-gray-400 font-bold mb-1">Description</div>
+                     <p class="text-gray-300 text-sm leading-relaxed">${data.desc}</p>
+                </div>
+            </div>
+        `;
+        
+        modal.classList.remove('hidden');
+    };
+
+    });
 </script>
+
+<!-- Info Modal -->
+<div id="info-modal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-gray-900/80 backdrop-blur-sm z-[60]">
+    <div class="relative p-4 w-full max-w-md h-auto mx-auto mt-32">
+        <div class="relative bg-gray-800 rounded-lg shadow-2xl border border-gray-700">
+            <div class="flex justify-between items-center p-4 rounded-t border-b border-gray-700">
+                <h3 id="info-modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+                    <!-- Title -->
+                </h3>
+                <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-700 hover:text-white rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" onclick="document.getElementById('info-modal').classList.add('hidden')">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div id="info-modal-content" class="p-6">
+                <!-- Content -->
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end">
+                <button onclick="document.getElementById('info-modal').classList.add('hidden')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition">
+                    Understood
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
