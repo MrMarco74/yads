@@ -207,7 +207,39 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                     f.write(zf.read(member))
                 count_files += 1
         logger.debug(f"Restored {count_files} screenshot files.")
-                    
+        
+        # --- LEGACY RECOVERY LOGIC ---
+        # If data/tenant.json is missing, but data/target.json exists, we must create placeholder tenants
+        # to prevent FK violations.
+        if "data/tenant.json" not in zf.namelist() and "data/target.json" in zf.namelist():
+             logger.warning("Legacy backup detected: data/tenant.json missing. scanning targets for missing tenants...")
+             try:
+                 target_data = json.loads(zf.read("data/target.json"))
+                 needed_tenant_ids = set()
+                 for item in target_data:
+                     if "tenant_id" in item and item["tenant_id"]:
+                         needed_tenant_ids.add(item["tenant_id"])
+                 
+                 logger.info(f"Found {len(needed_tenant_ids)} implicit tenant IDs: {needed_tenant_ids}")
+                 
+                 # Create them if they don't exist in current session (which should be empty if full restore)
+                 # If partial mode, we check DB.
+                 
+                 # For safety, just Upsert/Check each.
+                 for tid in needed_tenant_ids:
+                      # check if exists
+                      existing = session.exec(select(Tenant).where(Tenant.id == tid)).first()
+                      if not existing:
+                          logger.info(f"Creating placeholder tenant for ID {tid}")
+                          # Use a placeholder name that won't collide easily
+                          t = Tenant(id=tid, name=f"Restored_Tenant_{tid}_{int(datetime.utcnow().timestamp())}")
+                          session.add(t)
+                 
+                 session.commit() # Commit tenants so Targets can link
+             except Exception as e:
+                 logger.error(f"Failed to recover missing tenants: {e}")
+                 # proceeding, might fail later
+                     
         # Restore Database
         for model in MODELS:
             table_name = model.__tablename__
@@ -248,8 +280,9 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                      logger.debug(f"Resetting sequence {seq_name} to {max_id}")
                      session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
              except Exception as e:
-                 # Ignore errors only for sequence reset
+                 # Ignore errors only for sequence reset, but rollback transaction to clear state
                  logger.warning(f"Failed to reset sequence for {table_name}: {e}")
+                 session.rollback()
                  pass
                       
     session.commit()
