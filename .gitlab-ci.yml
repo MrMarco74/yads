@@ -50,13 +50,13 @@ build_images:
     expire_in: 1 week
 
 # --- TEST STAGE ---
-# secrets:
-#   extends: .secret-detection
+secrets:
+   extends: .secret-detection
 
-# checkov:
-#   extends: .checkov-scan
-#   variables:
-#     SCAN_DIR: "."
+checkov:
+   extends: .checkov-scan
+   variables:
+     SCAN_DIR: "."
 
 # --- DEPLOY STAGE ---
 deploy_to_portainer:
