@@ -34,20 +34,40 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     # Let's fetch all scan results for active modules
     # Ideally filtering by "latest" per target/module.
     
-    query = text("""
+    tenant_clause = ""
+    params = {}
+    
+    if user.tenant_id:
+        tenant_clause = "AND t.tenant_id = :tenant_id"
+        params["tenant_id"] = user.tenant_id
+    elif user.role == "admin":
+        # Admin sees all tenants if no explicit context switch
+        pass
+    else:
+        # Non-admin user without tenant? Valid?
+        tenant_clause = "AND t.tenant_id IS NULL"
+
+    query_str = f"""
         SELECT DISTINCT ON (s.target_id, s.module_name) 
             s.target_id, s.module_name, s.data, s.scanned_at 
         FROM scanresult s
         JOIN target t ON s.target_id = t.id
-        WHERE s.module_name IN ('infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner')
-          AND t.tenant_id = :tenant_id
+        WHERE s.module_name IN ('infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner', 'dns_scanner', 'subdomain_scanner', 'port_scanner')
+          {tenant_clause}
         ORDER BY s.target_id, s.module_name, s.scanned_at DESC
-    """)
+    """
     
-    results = session.exec(query, params={"tenant_id": user.tenant_id}).all()
+    results = session.exec(text(query_str), params=params).all()
     
-    # Pre-fetch Targets for name lookup (Tenant Scoped)
-    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
+    # Pre-fetch Targets for name lookup
+    target_statement = select(Target)
+    if user.tenant_id:
+        target_statement = target_statement.where(Target.tenant_id == user.tenant_id)
+    # If admin and no tenant_id, fetch all
+    elif user.role != "admin":
+        target_statement = target_statement.where(Target.tenant_id == None)
+        
+    targets = session.exec(target_statement).all()
     target_map = {t.id: t.domain for t in targets}
     
     # Data Containers
@@ -56,6 +76,7 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     
     status_codes = {}     # {Code: Count}
     countries = {}        # {CountryCode: Count}
+    geo_stats = {}        # {Country: {City: Count}}
     
     tech_stack = {}       # {TechName: Count}
     tech_details = []     # List of {target, technologies, server_header}
@@ -64,6 +85,9 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     risk_feed = []        # List of {severity, type, title, desc, target_id}
     
     vulnerabilities = []  # List of CVEs
+    
+    attack_surface_stats = [] # List of {target, count}
+    service_distribution_stats = {"HTTP Only": 0, "HTTPS Only": 0, "Both": 0, "None": 0}
     
     for row in results:
         # row is a tuple/object with accessors? SQLModel result usually row objects if mapped.
@@ -99,8 +123,28 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
                 
             # Geo
             country = data.get("geoip", {}).get("country_name") or "Unknown"
+            city = data.get("geoip", {}).get("city") or "Unknown"
+
             if country != "Unknown":
                 countries[country] = countries.get(country, 0) + 1
+                
+                # Data structure: {Country: {City: {count: N, lat: X, lon: Y}}}
+                if country not in geo_stats:
+                    geo_stats[country] = {}
+                
+                if city not in geo_stats[country]:
+                     # Initialize
+                     geo_stats[country][city] = {
+                         'count': 0, 
+                         'lat': data.get("geoip", {}).get("lat", 0),
+                         'lon': data.get("geoip", {}).get("lon", 0)
+                     }
+                
+                geo_stats[country][city]['count'] += 1
+            
+            # Debug Log
+            # print(f"DEBUG GEO: {country} -> {city}")
+
 
         # --- Web Analyzer ---
         elif mod == 'web_analyzer':
@@ -171,10 +215,34 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
                     "desc": f"Exposed tokens/keys in {t_name}",
                     "target_id": tid
                 })
+        
+        # --- DNS & Subdomain Scanners ---
+        elif mod in ['dns_scanner', 'subdomain_scanner']:
+            count = len(data.get("subdomains", []))
+            if count > 0:
+                attack_surface_stats.append({"target": t_name, "count": count})
+                
+        # --- Port Scanner ---
+        elif mod == 'port_scanner':
+            http_open = data.get("http", {}).get("open", False)
+            https_open = data.get("https", {}).get("open", False)
+            
+            if http_open and https_open:
+                service_distribution_stats["Both"] += 1
+            elif http_open:
+                service_distribution_stats["HTTP Only"] += 1
+            elif https_open:
+                service_distribution_stats["HTTPS Only"] += 1
+            else:
+                service_distribution_stats["None"] += 1
     
     # Sort Risk Feed by Severity
     severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
     risk_feed.sort(key=lambda x: severity_order.get(x["severity"], 99))
+    
+    # Sort Attack Surface Stats (Top 10)
+    attack_surface_stats.sort(key=lambda x: x["count"], reverse=True)
+    attack_surface_stats = attack_surface_stats[:10]
     
     return {
         "cloud_providers": cloud_providers,
@@ -185,7 +253,10 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
         "tech_details": tech_details,
         "vuln_stats": vuln_stats,
         "risk_feed": risk_feed[:10], # Top 10 risks
-        "vulnerabilities": vulnerabilities
+        "vulnerabilities": vulnerabilities,
+        "attack_surface_stats": attack_surface_stats,
+        "service_distribution_stats": service_distribution_stats,
+        "geo_stats": geo_stats
     }
 
 @router.get("/security-risks")
@@ -198,17 +269,35 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
     - Secrets Leaks
     - Vulnerabilities (Detailed Table)
     """
-    query = text("""
+    tenant_clause = ""
+    params = {}
+    
+    if user.tenant_id:
+        tenant_clause = "AND t.tenant_id = :tenant_id"
+        params["tenant_id"] = user.tenant_id
+    elif user.role == "admin":
+        pass
+    else:
+        tenant_clause = "AND t.tenant_id IS NULL"
+
+    query_str = f"""
         SELECT DISTINCT ON (s.target_id, s.module_name) 
             s.target_id, s.module_name, s.data 
         FROM scanresult s
         JOIN target t ON s.target_id = t.id
         WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
-          AND t.tenant_id = :tenant_id
+          {tenant_clause}
         ORDER BY s.target_id, s.module_name, s.scanned_at DESC
-    """)
-    results = session.exec(query, params={"tenant_id": user.tenant_id}).all()
-    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
+    """
+    results = session.exec(text(query_str), params=params).all()
+    
+    target_statement = select(Target)
+    if user.tenant_id:
+        target_statement = target_statement.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        target_statement = target_statement.where(Target.tenant_id == None)
+        
+    targets = session.exec(target_statement).all()
     target_map = {t.id: t.domain for t in targets}
     
     ssl_timeline = []
@@ -314,4 +403,91 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         "open_buckets": open_buckets,
         "secrets_leaks": secrets_leaks,
         "vulnerabilities": vulnerabilities
+    }
+
+@router.get("/best-entrypoint")
+async def get_best_entrypoint(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Analyzes all targets (tenant-scoped) to find the best entrypoint based on findings.
+    """
+    # Tenant Scope
+    query = select(Target)
+    if user.tenant_id:
+        query = query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin": 
+        # Non-admin without tenant seeing only unassigned? Or restricted.
+        # Platform Admin (admin + no tenant) can see all.
+        query = query.where(Target.tenant_id == None)
+
+    targets = session.exec(query).all()
+    
+    if not targets:
+        return {"error": "No targets found"}
+
+    scored_targets = []
+
+    for t in targets:
+        score = 0
+        reasons = []
+
+        # Get latest results
+        # Optimization: Fetch all results for these targets in one go? 
+        # Keeping original logic for low risk migration, but adding safety.
+        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
+        
+        # Subdomains (+1 each)
+        dns = next((r for r in results if r.module_name in ['subdomain_scanner', 'dns_scanner']), None)
+        if dns and dns.data:
+            subs = dns.data.get("subdomains", [])
+            sub_count = len(subs)
+            if sub_count > 0:
+                points = sub_count * 1
+                score += points
+                reasons.append(f"+{points} from {sub_count} subdomains")
+
+        # Web Tech (+2 each)
+        web = next((r for r in results if r.module_name == 'web_analyzer'), None)
+        if web and web.data:
+            techs = web.data.get("technologies", [])
+            tech_count = len(techs)
+            if tech_count > 0:
+                points = tech_count * 2
+                score += points
+                reasons.append(f"+{points} from {tech_count} detected technologies")
+
+        # Cloud Buckets (+5 each)
+        infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
+        if infra and infra.data:
+            buckets = infra.data.get("buckets", [])
+            bucket_count = len(buckets)
+            if bucket_count > 0:
+                points = bucket_count * 5
+                score += points
+                reasons.append(f"+{points} from {bucket_count} exposed storage buckets")
+
+        # SSL Issues (+3 if expired/error)
+        ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
+        if ssl and ssl.data:
+            if ssl.data.get("error") or ssl.data.get("expired"): 
+                points = 3
+                score += points
+                reasons.append(f"+{points} from SSL configuration issues")
+
+        if score > 0:
+            scored_targets.append({
+                "target": t.domain,
+                "target_id": t.id,
+                "score": score,
+                "reasons": reasons
+            })
+
+    if not scored_targets:
+        return {"message": "No suitable entrypoints found yet. Run more scans."}
+
+    # Sort by score desc
+    scored_targets.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {
+        "best_target": scored_targets[0],
+        "all_scores": scored_targets[:5]
     }

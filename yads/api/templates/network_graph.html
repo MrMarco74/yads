@@ -10,133 +10,115 @@
     body {
         height: 100vh !important;
         overflow: hidden !important;
+        /* Ensure flex direction matches base provided one, but force it */
         display: flex !important;
         flex-direction: column !important;
     }
-    /* Hide footer to reclaim space */
+    /* Hide footer to reclaim space for the graph */
     footer { display: none !important; }
 </style>
 
 <!-- Full Screen Layout Container (Using flex-1 from main_classes) -->
 <div class="flex flex-1 h-full w-full overflow-hidden">
-    
-    <!-- Sidebar: Controls (Fixed Width) -->
-    <div class="w-80 flex-none bg-gray-900 border-r border-gray-800 flex flex-col z-20 shadow-xl">
-        
-        <!-- Sidebar Header / Content Scrollable -->
-        <div class="flex-1 overflow-y-auto p-6">
-            <!-- Domain Selector -->
-            <div class="mb-6">
-                <label for="domain-select" class="block text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Select Target</label>
-                <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
-                    <option value="" selected disabled>Choose a domain...</option>
-                    {% if domains %}
-                        {% for d in domains %}
-                        <option value="{{ d.id }}">{{ d.domain }}</option>
-                        {% endfor %}
-                    {% else %}
-                        <option value="" disabled>No targets found</option>
-                    {% endif %}
+
+    <!-- Sidebar -->
+    <div class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-20 overflow-y-auto shrink-0">
+        <div class="p-4 space-y-6">
+            <!-- Target Select -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Target</label>
+                <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none">
+                    <option value="">Show Full Network</option>
+                    {% for t in domains %}
+                    <option value="{{ t.id }}">{{ t.domain }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
             <!-- Filters -->
-            <div class="mb-6">
-                <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Filters</h3>
-                <div class="space-y-3">
-                    <!-- Connected Checkbox -->
-                    <label class="flex items-center space-x-2 cursor-pointer group">
-                        <input type="checkbox" id="filter-connected" class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-700 bg-gray-800 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                        <span class="text-sm text-gray-300 group-hover:text-white transition">Hide Unconnected</span>
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Filters</label>
+                <div class="space-y-3 bg-gray-800/50 p-3 rounded-lg border border-gray-800">
+                     <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="filter-connected" class="form-checkbox bg-gray-900 border-gray-700 text-indigo-500 rounded focus:ring-indigo-500">
+                        <span class="text-sm text-gray-300">Connected Only</span>
                     </label>
-                    
-                    <!-- Online Status Dropdown -->
+                     
                     <div>
-                         <label for="filter-online" class="block text-xs text-gray-500 mb-1">Online Status</label>
-                         <select id="filter-online" class="w-full bg-gray-800 border border-gray-700 text-white text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2">
-                            <option value="all">Show All</option>
-                            <option value="online">Online Only</option>
-                            <option value="offline">Offline Only</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Legend -->
-            <div class="mb-6">
-                <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Legend</h3>
-                <div class="space-y-3 text-xs text-gray-300">
-                    <div class="flex items-center gap-3">
-                        <div class="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50"></div>
-                        <span>Target (Domain Root)</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></div>
-                        <span>Subdomain</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-3 h-3 rounded-sm bg-orange-500 shadow-sm shadow-orange-500/50"></div>
-                        <span>IP Address</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="w-2.5 h-2.5 bg-cyan-500 rotate-45 shadow-sm shadow-cyan-500/50 ms-0.5"></div>
-                        <span>Resources (MX, NS, CNAME)</span>
+                         <span class="text-xs text-gray-500 block mb-1">Status</span>
+                         <select id="filter-online" class="w-full bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded p-2 focus:border-indigo-500 outline-none">
+                             <option value="all">All Targets</option>
+                             <option value="true">Online Only</option>
+                             <option value="false">Offline/Unknown</option>
+                         </select>
                     </div>
                 </div>
             </div>
 
             <!-- Actions -->
-            <div class="mb-6 border-t border-gray-800 pt-4">
-                 <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Analysis</h3>
-                 <button onclick="loadGraph(null)" class="w-full px-3 py-2 mb-4 text-sm font-medium text-white bg-green-700 hover:bg-green-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Show Full Network
-                 </button>
-
-                 <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Export</h3>
-                 <div class="flex flex-col gap-2">
-                    <button onclick="exportGraph('svg')" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-700 hover:bg-indigo-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                        Visio (SVG)
-                    </button>
-                    <button onclick="exportGraph('excel')" class="w-full px-3 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-600 rounded-lg shadow transition flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                        Visio Data (Excel)
-                    </button>
-                    <!-- New High Res Button -->
-                    <button onclick="downloadHighRes()" class="w-full px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-500 rounded-lg shadow transition flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        High-Res Image (PNG)
-                    </button>
-                 </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Export</label>
+                <div class="flex gap-2">
+                     <button onclick="exportGraph('json')" class="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-xs py-2 rounded transition border border-gray-700">JSON</button>
+                     <button onclick="window.downloadHighRes()" class="flex-1 bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 text-xs py-2 rounded transition border border-indigo-800">PNG (HD)</button>
+                </div>
             </div>
-        </div>
 
-        <!-- Sidebar Footer (Stats) -->
-        <div id="stats" class="hidden p-4 border-t border-gray-800 bg-gray-900 z-10">
-             <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold tracking-wider">Statistics</h3>
-             <div class="flex justify-between text-sm text-gray-300 mb-1">
-                 <span>Nodes</span>
-                 <span id="node-count" class="font-mono text-white">0</span>
-             </div>
-             <div class="flex justify-between text-sm text-gray-300">
-                 <span>Connections</span>
-                 <span id="edge-count" class="font-mono text-white">0</span>
-             </div>
-        </div>
-        
-        <div id="loading" class="hidden p-4 text-center text-sm font-bold text-indigo-400 animate-pulse bg-gray-900 border-t border-gray-800">
-            Mapping Infrastructure...
-        </div>
-        
-        <!-- High Res Processing Overlay -->
-        <div id="export-loading" class="hidden fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
-            <div class="text-white font-bold text-lg">Rendering High-Res Image...</div>
-            <div class="text-gray-400 text-sm">Please wait</div>
+             <!-- Legend -->
+             <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Legend</label>
+                <div class="space-y-2 text-xs text-gray-300 bg-gray-800/50 p-3 rounded-lg border border-gray-800">
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rounded-full" style="background-color: #3b82f6;"></span> 
+                        <span>Target Root</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rounded-full" style="background-color: #a855f7;"></span> 
+                        <span>Subdomain</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0" style="background-color: #f97316;"></span> 
+                        <span>IP Address</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="block w-3 h-3 shrink-0 rotate-45" style="background-color: #06b6d4;"></span> 
+                        <span>Resource</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Info -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Controls</label>
+                <div class="text-xs text-gray-400 space-y-1">
+                    <p><span class="font-bold text-gray-300">Scroll:</span> Zoom In/Out</p>
+                    <p><span class="font-bold text-gray-300">Drag:</span> Pan View</p>
+                    <p><span class="font-bold text-gray-300">Click:</span> Select Node</p>
+                </div>
+            </div>
+
+            <!-- About Info -->
+            <div>
+                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">About This Graph</label>
+                <div class="text-xs text-gray-400 space-y-3 bg-gray-800/30 p-3 rounded-lg border border-gray-800">
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">Where is this data from?</span>
+                        Collected via passive subdomain enumeration (CT logs) and active DNS resolution.
+                    </div>
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">What am I seeing?</span>
+                        A topology map linking domains to their subdomains, IP addresses, and infrastructure resources (MX, NS records).
+                    </div>
+                    <div>
+                        <span class="block font-bold text-gray-300 mb-0.5">Use Cases</span>
+                        Analyze attack surface, identify shared hosting, or spot exposed dev/staging environments.
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
-
+    
     <!-- Main Content: Graph Area (Flex Grow) -->
     <div class="flex-1 relative min-w-0 bg-gray-950">
         <!-- Vis.js Container -->
