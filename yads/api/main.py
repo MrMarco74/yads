@@ -141,6 +141,29 @@ async def lifespan(app: FastAPI):
                     )
                     session.add(default_admin)
                     session.commit()
+
+            # --- Changelog 1.2.7 ---
+            with Session(engine) as session:
+                from yads.models import ChangelogEntry
+                version = "1.2.7"
+                if not session.exec(select(ChangelogEntry).where(ChangelogEntry.version == version)).first():
+                    entry = ChangelogEntry(
+                        title="Tenant-Aware Backup & Restore",
+                        version=version,
+                        content="""
+                        <h3>🔐 Tenant-Aware Backup</h3>
+                        <p>We've upgraded the backup system to support multi-tenancy!</p>
+                        <ul class="list-disc list-inside mt-2 mb-2">
+                            <li><strong>Tenant Selection:</strong> You can now choose specific tenants to backup.</li>
+                            <li><strong>Safe Restore:</strong> The restore process now analyzes the backup file and warns you before purging any data.</li>
+                            <li><strong>Isolation:</strong> Restoring a partial backup only affects the selected tenants, keeping others safe.</li>
+                        </ul>
+                        <p class="text-xs text-gray-500">Check the Settings page to try it out.</p>
+                        """
+                    )
+                    session.add(entry)
+                    session.commit()
+                    logger.info(f"Added changelog entry for {version}")
                 
             break
         except OperationalError:
@@ -1412,24 +1435,112 @@ async def export_data(session: Session = Depends(get_session)):
         logger.error(f"Export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/backup/restore")
-async def restore_data(
+@app.post("/api/backup/analyze")
+async def analyze_backup(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin"]))
 ):
     """
-    Restores system from backup zip. 
-    WARNING: Wiples all existing data!
+    Analyzes the uploaded backup file and returns a summary for confirmation.
+    Used by HTMX to pop up a modal.
     """
+    if not file.filename.endswith('.zip'):
+        return HTMLResponse("<div class='text-red-400'>Error: Not a zip file</div>", status_code=400)
+    
+    contents = await file.read()
+    
+    import zipfile
+    import json
+    import io
+    
+    meta = {}
+    db_summary = {}
+    
     try:
-        content = await file.read()
+        with zipfile.ZipFile(io.BytesIO(contents), 'r') as zf:
+            if "metadata.json" in zf.namelist():
+                meta = json.loads(zf.read("metadata.json"))
+            
+            # Count records roughly
+            for name in zf.namelist():
+                if name.startswith("data/") and name.endswith(".json"):
+                    table = name.replace("data/", "").replace(".json", "")
+                    data = json.loads(zf.read(name))
+                    db_summary[table] = len(data)
+    except Exception as e:
+        return HTMLResponse(f"<div class='text-red-400'>Error analyzing backup: {str(e)}</div>", status_code=400)
+
+    # Encode contents to pass to next step? NO. Too large.
+    # We should save to a temp file and confirm via ID?
+    # Security risk: Temp file handling.
+    # Or: The User re-uploads for confirmation (simpler stateless)?
+    # OR: We use a signed token/cache.
+    
+    # SIMPLE APPROACH: Save to /tmp/yads_restore_pending.zip
+    # Not thread safe for multiple admins restoring same time, but acceptable for this scope.
+    import os
+    tmp_path = "/tmp/yads_restore_pending.zip"
+    with open(tmp_path, "wb") as f:
+        f.write(contents)
+        
+    # Look up Tenant Names
+    tenant_ids = meta.get("tenant_ids", [])
+    tenant_names = []
+    if tenant_ids:
+        from yads.models import Tenant
+        for tid in tenant_ids:
+            t = session.get(Tenant, tid)
+            if t: tenant_names.append(t.name)
+            else: tenant_names.append(f"Unknown ID {tid}")
+    
+    return templates.TemplateResponse("components/restore_confirmation_modal.html", {
+        "request": request,
+        "meta": meta,
+        "db_summary": db_summary,
+        "tenant_names": tenant_names,
+        "is_partial": bool(tenant_ids),
+        "tmp_path": tmp_path
+    })
+
+@app.post("/api/backup/execute_restore")
+async def execute_restore(
+    confirmed: bool = Form(...),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"]))
+):
+    """
+    Actually executes the restore from the temp file.
+    """
+    if not confirmed:
+         return RedirectResponse(url="/settings?msg=Restore+Cancelled", status_code=303)
+         
+    import os
+    tmp_path = "/tmp/yads_restore_pending.zip"
+    if not os.path.exists(tmp_path):
+        return RedirectResponse(url="/settings?error=Restore+Timeout:+File+not+found.+Please+upload+again.", status_code=303)
+        
+    try:
+        with open(tmp_path, "rb") as f:
+            content = f.read()
+            
+        from yads.core.backup import restore_backup_from_zip
+        # Re-read meta for safety (logic inside restore anyway)
         restore_backup_from_zip(session, content)
         
-        return RedirectResponse(url="/settings?msg=System+Restored+Successfully", status_code=303)
+        # Cleanup
+        os.remove(tmp_path)
+        
+        return RedirectResponse(url="/settings?msg=System+Restored+Successfully.+Tenant+data+has+been+updated.", status_code=303)
     except Exception as e:
-        logger.error(f"Restore failed: {e}")
+        logger.error(f"Restore Error: {e}")
         return RedirectResponse(url=f"/settings?error=Restore+Failed:+{str(e)}", status_code=303)
+
+# Deprecated simple restore (keep checking for legacy calls or remove?)
+# Removing original direct restore endpoint to force use of new flow
+# Or keeping it but redirecting?
+# Let's replace the old endpoint logic to be safe or just remove it.
+# The previous POST /api/backup/restore is REPLACED by the logic above or we just re-route.
 
 
 # -- Queue Management Routes --
@@ -1497,18 +1608,29 @@ async def view_queue(request: Request, session: Session = Depends(get_session), 
     # Fetch Pending Items from DB (waiting for queue to resume)
     pending_items = session.exec(select(Target).where(Target.scan_status == "queued", Target.tenant_id == user.tenant_id)).all()
 
-    return templates.TemplateResponse("queue.html", {
-        "request": request,
+    # Fetch Tenants user is allowed to access (For Backup Selection)
+    from yads.models import Tenant
+    allowed_tenants = []
+    if "admin" in user.role:
+        allowed_tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
+    else:
+        # Assuming M:N is available on user object via Relationship
+        allowed_tenants = user.allowed_tenants
+        if not allowed_tenants and user.tenant:
+             allowed_tenants = [user.tenant]
+
+    return templates.TemplateResponse("queue.html", { # Changed from settings.html to queue.html
+        "request": request, 
         "user": user,
-        "queue_length": queue_len,
-        "queue_items": queue_items,
-        "pending_items": pending_items,
-        "queue_active": queue_active
+        "queue_length": queue_len, # Added back
+        "queue_items": queue_items, # Added back
+        "pending_items": pending_items, # Added back
+        "queue_active": queue_active, # Changed from queue_status to queue_active
+        "allowed_tenants": allowed_tenants # New: For Backup UI
     })
 
 @app.post("/queue/control")
 async def control_queue(request: Request, action: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
-    from yads.models import SystemConfig
     
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     if not config:

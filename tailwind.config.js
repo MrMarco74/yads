@@ -13,5 +13,18 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
+  safelist: [
+    // Force generation of these classes for documentation
+    { pattern: /prose-h[1-4]:text-orange-\d+/ },
+    { pattern: /border-orange-\d+\/\d+/ },
+    'text-orange-500',
+    'text-orange-400',
+    'text-orange-300',
+    'prose-h1:text-5xl',
+    'prose-h1:mt-16', 
+    'prose-h2:mt-24',
+  ],
 }

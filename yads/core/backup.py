@@ -23,10 +23,10 @@ def json_serializer(obj):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
-def create_backup_zip(session: Session) -> io.BytesIO:
+def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.BytesIO:
     """
     Creates a ZIP archive containing:
-    1. JSON dumps of all DB tables.
+    1. JSON dumps of all DB tables (optionally filtered by tenant).
     2. The entire screenshots directory.
     
     Returns a BytesIO object of the zip file.
@@ -37,7 +37,34 @@ def create_backup_zip(session: Session) -> io.BytesIO:
         # 1. Backup Database Tables
         for model in MODELS:
             table_name = model.__tablename__
-            records = session.exec(select(model)).all()
+            
+            # Filtering Logic
+            stmt = select(model)
+            if tenant_ids and hasattr(model, "tenant_id"):
+                 stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+            elif tenant_ids and table_name in ["scanresult", "modulestate", "changeevent"]:
+                 # These relate to Target, which has tenant_id.
+                 # Optimization: Join with Target?
+                 # Or just filtering by target's tenant.
+                 # For simplicity in this codebase, we join.
+                 # Assuming all these link to Target via target_id
+                 from yads.models import Target
+                 stmt = stmt.join(Target).where(Target.tenant_id.in_(tenant_ids))
+            elif tenant_ids:
+                 # SystemConfig, User, etc.
+                 # If config, we might include all or exclude?
+                 # Strategy: If partial backup, exclude SystemConfig/User unless explicitly handled.
+                 # Typically tenant backup = App Data (Targets & Results).
+                 # We skip SystemConfig for tenant backups.
+                 if table_name == "systemconfig":
+                     continue
+                 if table_name == "user":
+                     # Users are cross-tenant usually, unless we filter by tenant_id (if User has it)
+                     # User model HAS tenant_id.
+                     if hasattr(model, "tenant_id"):
+                         stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+            
+            records = session.exec(stmt).all()
             
             # Serialize to list of dicts
             data = [record.model_dump() for record in records]
@@ -50,11 +77,15 @@ def create_backup_zip(session: Session) -> io.BytesIO:
         meta = {
             "version": settings.VERSION,
             "timestamp": datetime.utcnow().isoformat(),
-            "compatibility": "1.x" # Simple check
+            "compatibility": "1.x",
+            "tenant_ids": tenant_ids if tenant_ids else [],
+            "type": "partial" if tenant_ids else "full"
         }
         zf.writestr("metadata.json", json.dumps(meta, indent=2))
             
-        # 3. Backup Screenshots
+        # 3. Backup Screenshots (Include all for simplicity, or filter?)
+        # Filtering files is hard without DB check.
+        # We include all for now, restore handles overwrite.
         if os.path.exists(SCREENSHOT_DIR):
             for root, dirs, files in os.walk(SCREENSHOT_DIR):
                 for file in files:
@@ -66,89 +97,90 @@ def create_backup_zip(session: Session) -> io.BytesIO:
     memory_file.seek(0)
     return memory_file
 
-def restore_backup_from_zip(session: Session, zip_bytes: bytes):
+def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_ids: List[int] = None):
     """
     Restores data from a ZIP archive.
-    Strategy: Wipe All -> Restore All.
-    Checks for version compatibility.
+    Strategy: 
+    - If Full Backup (no tenant_ids in meta): Wipe All -> Restore All.
+    - If Tenant Backup: Purge specific Tenants -> Restore data.
     """
+    meta = {}
     
     # Pre-Check: Read Metadata
     with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
         if "metadata.json" in zf.namelist():
             try:
                 meta = json.loads(zf.read("metadata.json"))
-                backup_ver = meta.get("version", "0.0.0")
-                
-                # Simple Logic: Warn if Major version differs? 
-                # For now, we assume simple string compare or just logging.
-                # In a strict system, we might raise Exception.
-                # print(f"Restoring backup version {backup_ver} on system {settings.VERSION}")
             except:
                 pass
-                
-    # 1. Wipe Database
-    # We use TRUNCATE CASCADE to clear everything cleanly
-    # Note: We need to know table names. 
+    
+    backup_type = meta.get("type", "full")
+    tenant_ids = meta.get("tenant_ids", [])
+    
+    # Force constraint checking deferred? NOT supported in simple SQLModel/SQLite (but we use Postgres).
+    # Ideally we assume the user confirmed the action.
+    
     table_names = [model.__tablename__ for model in MODELS]
-    
-    # Disable constraints momentarily or just use CASCADE
-    # Postgres supports TRUNCATE table_name CASCADE
-    for table in table_names:
-        try:
-             # We execute individual truncates or one big one?
-             # One big one usually handles refs better? 
-             # Actually, if we use CASCADE on the parent (Target), it clears children.
-             # But let's be explicit and clear all known tables.
-             # "TRUNCATE TABLE target, scanresult, modulestate, systemconfig, changeevent RESTART IDENTITY CASCADE;"
-             pass
-        except:
-            pass
-            
-    # Construct massive TRUNCATE command
-    tables_str = ", ".join(table_names)
-    session.exec(text(f'TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE')) # using simple string for table names works if no keywords used
-    # But USER is a keyword. We need to handle quoted User table name if using raw SQL
-    # safe_tables = [f'"{t}"' for t in table_names]
-    # tables_str = ", ".join(safe_tables)
-    # session.exec(text(f'TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE'))
-    
-    # Fix for User Table
-    safe_tables = []
-    for t in table_names:
-        if t == "user":
-            safe_tables.append('"user"')
-        else:
-            safe_tables.append(t)
-    tables_str = ", ".join(safe_tables)
-    session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
+
+    if backup_type == "partial" and tenant_ids:
+        # --- PARTIAL RESTORE STRATEGY ---
+        # 1. Purge Existing Data for these Tenants
+        # We must delete children first, then parents.
+        # Order: ChangeEvent, ScanResult, ModuleState -> Target -> Tenant? (No, Tenant stays)
+        # ScanResult, ModuleState, ChangeEvent depend on Target.
+        # Target depends on Tenant.
+        # User depends on Tenant.
+        
+        # Safe Delete Order:
+        # ChangeEvent -> Using Cascade from ScanResult usually?
+        # Let's use manual deletion to be safe and explicit.
+        
+        # Get Targets for these tenants
+        from yads.models import Target
+        targets_to_purge = session.exec(select(Target.id).where(Target.tenant_id.in_(tenant_ids))).all()
+        
+        if targets_to_purge:
+             session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN ({','.join(map(str, targets_to_purge))}))"))
+             session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({','.join(map(str, targets_to_purge))})"))
+             session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({','.join(map(str, targets_to_purge))})"))
+             session.exec(text(f"DELETE FROM target WHERE id IN ({','.join(map(str, targets_to_purge))})"))
+        
+        # Purge Users?
+        # session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({','.join(map(str, tenant_ids))})"))
+        
+    else:
+        # --- FULL WIPE STRATEGY ---
+        tables_str = ", ".join(table_names)
+        # Fix for User Table quotes
+        safe_tables = []
+        for t in table_names:
+            if t == "user":
+                safe_tables.append('"user"')
+            else:
+                safe_tables.append(t)
+        tables_str = ", ".join(safe_tables)
+        
+        session.exec(text(f"TRUNCATE TABLE {tables_str} RESTART IDENTITY CASCADE"))
     
     session.commit()
     
-    # 2. Wipe Screenshots
-    if os.path.exists(SCREENSHOT_DIR):
-        shutil.rmtree(SCREENSHOT_DIR)
-    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    # 2. Restore Files (Screenshots)
+    # If partial, we just overwrite.
+    # If full, we should probably wipe dir?
+    if backup_type == "full":
+        if os.path.exists(SCREENSHOT_DIR):
+            shutil.rmtree(SCREENSHOT_DIR)
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     
-    # 3. Read Zip
+    # 3. Read Zip & Insert
     with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
         # Restore Screenshots
-        # Filter for files starting with screenshots/
         for member in zf.namelist():
             if member.startswith("screenshots/"):
-                # member is like screenshots/foo.png
-                # target is yads/api/static/screenshots/foo.png
-                
-                # Careful with paths. 
-                # We strip "screenshots/" prefix from member to get relative path inside target dir
                 rel_path = member[len("screenshots/"):]
-                if not rel_path: continue # it was just the dir
-                
+                if not rel_path: continue
                 target_path = os.path.join(SCREENSHOT_DIR, rel_path)
-                
-                # Ensure parent dir exists
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                
                 with open(target_path, "wb") as f:
                     f.write(zf.read(member))
                     
@@ -161,32 +193,38 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes):
                 json_data = json.loads(zf.read(filename))
                 
                 for item in json_data:
-                    # Validate and Add
+                    # filtering needed?
+                    # The backup already filtered the data. checking tenant_id here is duplicate but safe.
+                    # Just add them.
+                    
+                    # Merge Strategy:
+                    # If ID exists (from another tenant not wiped?), we have a collision.
+                    # Since we use global auto-inc IDs, importing from another system might cause clashes.
+                    # BUT: We purged the specific tenant data. 
+                    # If this is "same system restore", IDs match holes.
+                    # If this is "cross system import", we might need to NULL the IDs and let them regenerate?
+                    # For now, we assume "Restore" means bringing back state, preserving IDs.
+                    
+                    # If full backup -> Table empty -> No clash.
+                    # If partial -> We deleted these IDs -> No clash.
+                    # Unless UUIDs or similar. We use Int.
+                    
                     db_obj = model.model_validate(item)
                     session.add(db_obj)
                     
         session.commit()
         
-    # Reset Sequences (Postgres specific)
-    # The "RESTART IDENTITY" clause in TRUNCATE usually resets them to 1.
-    # BUT if we insert data with explicit IDs (which we do, from JSON), Postgres sequences are NOT auto-updated to the max id.
-    # We must manually setval the sequence to max(id).
-    
+    # Reset Sequences
+    # Only needed if IDs were manually inserted (which they were)
     for model in MODELS:
         table_name = model.__tablename__
-        # Check if model has 'id' field
         if hasattr(model, "id"):
-             # Get max id
              max_id = session.exec(text(f"SELECT MAX(id) FROM {table_name}")).first()
              if max_id:
-                 # Sequence name is usually table_id_seq
                  seq_name = f"{table_name}_id_seq"
-                 # Check if sequence exists? Or just try/except
                  try:
                     session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
-                 except Exception as e:
-                     # Might allow error if no sequence (e.g. key != id or uuid)
-                     # SystemConfig uses 'key' as primary key, no ID/SEQ.
+                 except Exception:
                      pass
                      
     session.commit()

@@ -11,12 +11,56 @@
         </div>
 
         <!-- Rendered Markdown Content -->
-        <article class="prose prose-invert prose-lg max-w-none 
-                        prose-headings:text-indigo-300 prose-headings:font-bold
+        <!-- Rendered Markdown Content -->
+        
+        <style>
+            /* Direct Override for Documentation Styles */
+            .doc-content h1 { 
+                font-size: 3rem !important; 
+                line-height: 1.2 !important; 
+                color: #f97316 !important; /* orange-500 */
+                margin-top: 4.5rem !important; 
+                margin-bottom: 2rem !important; 
+                border-bottom: 2px solid rgba(249, 115, 22, 0.5) !important;
+                padding-bottom: 0.2rem !important;
+            }
+            .doc-content h2 { 
+                font-size: 2.25rem !important; 
+                color: #fb923c !important; /* orange-400 */
+                margin-top: 2rem !important; 
+                margin-bottom: 1.5rem !important;
+                border-bottom: 1px solid #374151 !important;
+                padding-bottom: 0.2rem !important;
+            }
+            .doc-content h3 { 
+                font-size: 1.5rem !important; 
+                color: #fdba74 !important; /* orange-300 */
+                margin-top: 3rem !important; 
+                margin-bottom: 1rem !important;
+            }
+            .doc-content p {
+                 margin-bottom: 1.5rem !important;
+                 line-height: 1.8 !important;
+                 color: #d1d5db !important; /* gray-300 */
+            }
+            .doc-content ul, .doc-content ol {
+                margin-top: 1.5rem !important;
+                margin-bottom: 1.5rem !important;
+            }
+            .doc-content li {
+                margin-bottom: 0.5rem !important;
+            }
+            .doc-content pre {
+                margin-top: 2rem !important;
+                margin-bottom: 2rem !important;
+            }
+        </style>
+
+        <article class="doc-content prose prose-invert prose-lg max-w-none 
                         prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
                         prose-strong:text-white prose-strong:font-bold
-                        prose-code:text-pink-300 prose-code:bg-gray-900 prose-code:px-1 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
-                        prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700">
+                        prose-code:text-pink-300 prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+                        prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700 prose-pre:shadow-lg">
             {{ content | safe }}
         </article>
         

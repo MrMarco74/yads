@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+    
+    <!-- Header -->
+    <div class="mb-12 text-center">
+        <h1 class="text-4xl font-extrabold text-white sm:text-5xl tracking-tight">
+            System Changelog
+        </h1>
+        <p class="mt-4 text-xl text-gray-400">
+            History of features, improvements, and fixes for YADS.
+        </p>
+    </div>
+
+    <!-- Timeline Container -->
+    <div class="relative border-l-2 border-gray-800 ml-4 md:ml-6 space-y-24">
+        {% for entry in entries %}
+        <div class="relative pl-8 md:pl-12">
+            
+            <!-- Timeline Dot (Removed) -->
+            <!-- <div class="absolute -left-[9px] top-1 h-5 w-5 rounded-full border-4 border-gray-900 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div> -->
+
+            <!-- Content Card -->
+            <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-2">
+                <h2 class="text-2xl font-bold text-white mb-1 sm:mb-0">
+                    {{ entry.title }}
+                </h2>
+                <div class="flex items-center gap-3">
+                    <span class="px-2.5 py-0.5 rounded-md text-sm font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-700/50">
+                        v{{ entry.version }}
+                    </span>
+                    <time class="text-sm text-gray-500 font-mono">
+                        {{ entry.published_at.strftime('%Y-%m-%d') }}
+                    </time>
+                </div>
+            </div>
+
+            <div class="bg-gray-800/50 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors shadow-lg">
+                <article class="prose prose-invert prose-blue max-w-none 
+                                prose-headings:text-gray-200 prose-headings:font-semibold
+                                prose-p:text-gray-300 prose-p:leading-relaxed
+                                prose-li:text-gray-400
+                                prose-strong:text-white
+                                prose-code:text-pink-300 prose-code:bg-gray-900/50 prose-code:px-1 prose-code:rounded">
+                    {{ entry.content | safe }}
+                </article>
+            </div>
+        </div>
+        {% else %}
+        <div class="pl-8 text-gray-500 italic">No changelog entries found.</div>
+        {% endfor %}
+    </div>
+
+    <!-- Back Button -->
+    <div class="mt-16 text-center">
+        <a href="/" class="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Dashboard
+        </a>
+    </div>
+
+</div>
+{% endblock %}
