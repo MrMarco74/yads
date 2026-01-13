@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+    <!-- Icon based on status code -->
+    <div class="mb-8 relative">
+        <div class="absolute inset-0 bg-red-500/20 blur-2xl rounded-full animate-pulse"></div>
+        {% if status_code == 403 or status_code == 401 %}
+            <svg class="w-24 h-24 text-red-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        {% elif status_code == 404 %}
+            <svg class="w-24 h-24 text-amber-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        {% else %}
+            <svg class="w-24 h-24 text-red-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        {% endif %}
+    </div>
+
+    <h1 class="text-4xl font-extrabold text-white mb-2 tracking-tight">
+        {% if status_code == 403 %}
+            Access Denied
+        {% elif status_code == 401 %}
+            Authentication Required
+        {% elif status_code == 404 %}
+            Page Not Found
+        {% else %}
+            Something Went Wrong
+        {% endif %}
+    </h1>
+    
+    <div class="text-xl text-slate-400 mb-8 max-w-md">
+        {% if detail %}
+            {{ detail }}
+        {% else %}
+            We couldn't process your request. Please try again or contact support if the problem persists.
+        {% endif %}
+    </div>
+
+    <div class="flex gap-4">
+        <a href="javascript:history.back()" class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all font-medium">
+            Go Back
+        </a>
+        <a href="/" class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/20 transition-all">
+            Return to Dashboard
+        </a>
+    </div>
+    
+    <div class="mt-12 text-xs text-slate-600 font-mono">
+        Error Code: {{ status_code }}
+    </div>
+</div>
+{% endblock %}

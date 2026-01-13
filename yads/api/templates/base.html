@@ -29,191 +29,187 @@
       }
     </style>
   </head>
-  <body class="min-h-screen font-sans antialiased flex flex-col">
-    {% if user %}
-    <nav
-      class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50"
-    >
-      <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16">
-          <div class="flex items-center">
-            <a href="/" class="flex-shrink-0 flex items-center gap-3">
-              <img src="/static/logo.jpg" alt="YADS Logo" class="h-10 w-auto rounded-lg shadow-lg shadow-cyan-500/20">
-
-            </a>
-            <!-- Search Bar (Visible to all) -->
-            <div class="hidden md:flex ml-4 flex-1 max-w-xs">
-                 <form action="/search" method="GET" class="w-full relative">
-                    <input type="text" name="q" 
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-4 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-                           placeholder="Search...">
-                    <svg class="w-4 h-4 text-gray-500 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </form>
-            </div>
-
-            <div class="hidden md:block">
-              <div class="ml-4 flex items-baseline space-x-4">
-                <a
-                  href="/"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >Dashboard</a
-                >
-                <a
-                  href="/targets/table"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >Table View</a
-                >
-
-                <a
-                  href="/visualizations/network-graph"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >Network Graph</a
-                >
-                <a
-                  href="/analytics"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-yellow-400"
-                  >Analytics</a
-                >
-                <a
-                  href="/visualizations/redirect-graph"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-indigo-400"
-                  >Spiderweb</a
-                >
-                <a
-                  href="/help"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-cyan-400"
-                  >Documentation</a
-                >
-                <a
-                  href="/changelog"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-green-400 text-left"
-                  >Recent Changes</a
-                >
-                {% if user.role != 'viewer' %}
-                <a
-                  href="/logs"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >System Logs</a
-                >
-                <a
-                  href="/queue"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >Queue</a
-                >
-                {% endif %}
-                
-                {% if user.role == 'admin' or user.role == 'tenant_admin' %}
-                <!-- Admin Section Separator -->
-                <div class="h-6 w-px bg-gray-700 mx-2"></div>
-                
-                <a
-                  href="/users/"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-purple-400"
-                  >Users</a
-                >
-                {% if user.role == 'admin' %}
-                <a
-                  href="/settings"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  >Settings</a
-                >
-                {% endif %}
-                {% if not user.tenant_id %}
-                <a
-                  href="/tenants/"
-                  class="hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors text-pink-400"
-                  >Tenants</a
-                >
-                {% endif %}
-                {% endif %}
-
-              </div> <!-- End space-x-4 -->
-            </div> <!-- End hidden md:block -->
-          </div> <!-- End flex items-center (Left Side) -->
-
-          <!-- Right Side: User Info, Tenant Switcher, System Status -->
-          <div class="flex items-center gap-4">
-            
-            <!-- Context Switcher -->
-            {% if user.allowed_tenants and user.allowed_tenants|length > 1 %}
-            <form action="/auth/switch-tenant?next=/" method="post" class="flex items-center gap-2 border border-gray-600 rounded px-2 py-1 bg-gray-800">
-                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tenant</label>
-                <div class="relative">
-                    <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-gray-800 text-xs text-white font-medium pr-6 outline-none focus:text-blue-400 transition-colors cursor-pointer">
-                        <!-- Default/Disabled option if needed, but usually we have a selection -->
-                        {% if user.role == 'admin' %}
-                        <option value="" class="bg-gray-800 text-white" {% if not user.tenant_id %}selected{% endif %}>[Platform Admin]</option>
-                        {% endif %}
-                        
-                        {% for t in user.allowed_tenants %}
-                        <option value="{{ t.id }}" class="bg-gray-800 text-white" {% if user.tenant_id == t.id %}selected{% endif %}>{{ t.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-gray-400">
-                         <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
-                    </div>
-                </div>
-            </form>
-            {% elif user.role == 'admin' %}
-             <form action="/auth/switch-tenant?next=/" method="post" class="flex items-center gap-2 border border-purple-700/50 rounded px-2 py-1 bg-purple-900/20">
-                <label class="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Context</label>
-                <div class="relative">
-                    <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-transparent text-xs text-purple-200 font-medium pr-6 outline-none focus:text-white transition-colors cursor-pointer">
-                         <option value="" class="bg-gray-900 text-white" {% if not user.tenant_id %}selected{% endif %}>Platform Admin</option>
-                         {% if user.tenant %}
-                         <option value="{{ user.tenant.id }}" class="bg-gray-900 text-white" selected>{{ user.tenant.name }}</option>
-                         {% endif %}
-                    </select>
-                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-purple-400">
-                         <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
-                    </div>
-                </div>
-            </form>
-            {% elif user.tenant %}
-                 <div class="flex items-center gap-2 border border-gray-700 rounded px-2 py-1 bg-gray-800">
-                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Tenant</span>
-                    <span class="text-xs text-gray-300 font-medium">{{ user.tenant.name }}</span>
-                 </div>
-            {% endif %}
-
-            <div class="h-6 w-px bg-gray-800 mx-1"></div>
-
-            <div class="flex flex-col items-end">
-                 <span class="text-xs font-bold text-white leading-none">{{ user.username }}</span>
-                 <span class="text-[9px] text-gray-500 uppercase tracking-wider leading-none mt-1">{{ user.role }}</span>
-            </div>
-            
-            {% if not user.mfa_enabled %}
-               <a href="/mfa/setup" class="text-yellow-500 hover:text-yellow-400 text-xs font-medium transition-colors" title="Enable MFA">⚠️ MFA</a>
-            {% endif %}
-            
-            <a href="/logout" class="text-gray-400 hover:text-white transition-colors" title="Logout">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-            </a>
-
-            <div>
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-900/50 text-green-400 border border-green-800 shadow-lg shadow-green-900/20">
-                Online
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-    {% endif %}
-
-    <main class="flex-grow {% block main_classes %}w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}">
-      {% block content %}{% endblock %}
-    </main>
+  <body class="bg-slate-950 text-slate-50 font-sans antialiased selection:bg-cyan-500/30">
     
-    <footer class="border-t border-gray-800 bg-gray-900/50 backdrop-blur-sm mt-8 py-4">
-      <div class="max-w-[95%] mx-auto px-4 flex justify-between items-center text-xs text-gray-500">
-        <p>&copy; 2025 YADS Security. All rights reserved.</p>
-        <p class="font-mono">Build: v{{ settings.VERSION }} ({{ now_utc }})</p>
-      </div>
-    </footer>
+    {% if user %}
+        <!-- Sidebar -->
+        {% include 'components/sidebar.html' %}
+    {% endif %}
+    
+    <!-- Main Content Wrapper -->
+    <div class="min-h-screen transition-all duration-300 flex flex-col {% if user %}sm:ml-64{% else %}items-center justify-center{% endif %}">
+        
+        {% if user %}
+        <!-- Top Header -->
+        <header class="h-16 z-30 flex items-center justify-between px-4 sm:px-6 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0">
+            <!-- Left: Mobile Toggle & Title/Breadcrumb Placeholder -->
+            <div class="flex items-center gap-4">
+                <button data-drawer-target="sidebar-multi-level-sidebar" data-drawer-toggle="sidebar-multi-level-sidebar" aria-controls="sidebar-multi-level-sidebar" type="button" class="inline-flex items-center p-2 text-sm text-slate-500 rounded-lg sm:hidden hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-600">
+                    <span class="sr-only">Open sidebar</span>
+                    <svg class="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                       <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
+                    </svg>
+                 </button>
+                 <!-- Global Search (Visible on Desktop) -->
+                 <div class="hidden md:block w-72">
+                    <form action="/search" method="GET" class="w-full relative">
+                        <input type="text" name="q" 
+                               class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors placeholder-slate-600"
+                               placeholder="Search targets, IPs, CVEs... (Cmd+K)">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </div>
+                    </form>
+                 </div>
+            </div>
+
+            <!-- Right: Context Controls -->
+            <div class="flex items-center gap-4">
+                <!-- Tenant Switcher -->
+                {% if user.allowed_tenants or user.role == 'admin' %}
+                <form action="/auth/switch-tenant?next={{ request.path }}" method="post" class="flex items-center gap-2 border border-slate-700/50 rounded-lg px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 transition-colors">
+                    <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Context</label>
+                    <div class="relative">
+                        <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-transparent text-xs text-slate-300 font-medium pr-6 outline-none focus:text-cyan-400 cursor-pointer">
+                            {% if user.role == 'admin' %}
+                            <option value="" class="bg-slate-900" {% if not user.tenant_id %}selected{% endif %}>[Platform Admin]</option>
+                            {% endif %}
+                            
+                            {% set tenants_list = user.allowed_tenants %}
+                            {% if user.role == 'admin' %}
+                                {% set tenants_list = get_available_tenants() %}
+                            {% endif %}
+                            
+                            {% for t in tenants_list %}
+                            <option value="{{ t.id }}" class="bg-slate-900" {% if user.tenant_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-0 text-slate-500">
+                             <svg class="h-3 w-3 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
+                        </div>
+                    </div>
+                </form>
+                {% endif %}
+                <!-- Notification Bell with Dropdown -->
+                <div class="relative" 
+                     x-data="{ 
+                        open: false,
+                        notifications: [],
+                        async init() {
+                            await this.fetchNotifications();
+                            // Poll every 60s
+                            setInterval(() => this.fetchNotifications(), 60000);
+                        },
+                        async fetchNotifications() {
+                            try {
+                                const response = await fetch('/notifications/');
+                                if (response.ok) {
+                                    const all = await response.json();
+                                    const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                                    this.notifications = all.filter(n => !dismissed.includes(n.id));
+                                }
+                            } catch (e) {
+                                console.error('Failed to fetch notifications:', e);
+                            }
+                        },
+                        remove(id) {
+                            this.notifications = this.notifications.filter(n => n.id !== id);
+                            const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                            if (!dismissed.includes(id)) {
+                                dismissed.push(id);
+                                localStorage.setItem('read_notifications', JSON.stringify(dismissed));
+                            }
+                        },
+                        markAllRead() {
+                            const ids = this.notifications.map(n => n.id);
+                            const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                            const newDismissed = [...new Set([...dismissed, ...ids])];
+                            localStorage.setItem('read_notifications', JSON.stringify(newDismissed));
+                            this.notifications = [];
+                        }
+                     }">
+                    <button @click="open = !open" @click.outside="open = false" class="relative p-2 text-slate-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <!-- Pulse (only if notifications exist) -->
+                        <span x-show="notifications.length > 0" class="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-900 animate-pulse"></span>
+                    </button>
+
+                    <!-- Dropdown Panel (Fixed Width: 600px via inline style to ensure sizing) -->
+                    <div x-show="open" 
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="transform opacity-0 scale-95"
+                         x-transition:enter-end="transform opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         x-transition:leave-start="transform opacity-100 scale-100"
+                         x-transition:leave-end="transform opacity-0 scale-95"
+                         class="absolute right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden" 
+                         style="display: none; width: 600px; max-width: 90vw;">
+                        
+                        <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Notifications <span x-text="'(' + notifications.length + ')'" class="text-slate-500 ml-1"></span></h3>
+                            <button @click="markAllRead()" class="text-xs text-blue-400 hover:text-blue-300">Mark all read</button>
+                        </div>
+
+                        <div class="max-h-[30rem] overflow-y-auto">
+                            <template x-for="item in notifications" :key="item.id">
+                                <div class="p-5 border-b border-slate-800 hover:bg-slate-800/50 transition-colors group relative">
+                                    <!-- Dismiss Button -->
+                                    <button @click.stop="remove(item.id)" class="absolute top-4 right-4 p-1 text-slate-500 hover:text-white bg-slate-800/50 hover:bg-slate-700 rounded-md transition-colors z-10" title="Dismiss">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+
+                                    <div class="flex gap-4">
+                                        <div class="flex-shrink-0 mt-1">
+                                            <div :class="`h-10 w-10 rounded-full bg-${item.color}-500/10 text-${item.color}-400 flex items-center justify-center border border-${item.color}-500/20`">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div class="pr-8"> <!-- Padding right for dismiss button -->
+                                            <h4 class="text-lg font-semibold text-white group-hover:text-blue-300 transition-colors" x-text="item.title"></h4>
+                                            <p class="text-sm text-slate-300 mt-1.5 leading-relaxed" x-text="item.text"></p>
+                                            <p class="text-xs text-slate-500 mt-2" x-text="item.time"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <!-- Empty State -->
+                            <div x-show="notifications.length === 0" class="p-8 text-center text-slate-500">
+                                <p>No new notifications</p>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 border-t border-slate-800 bg-slate-950/50 text-center">
+                            <a href="/changelog" class="text-sm font-medium text-slate-500 hover:text-white transition-colors">View full changelog</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        {% endif %}
+
+        <!-- Main Content Area -->
+        <main class="flex-grow {% if user %}p-4 sm:p-6 lg:p-8{% else %}w-full flex justify-center items-center{% endif %}">
+            {% block content %}{% endblock %}
+        </main>
+
+        {% if user %}
+        <!-- Footer -->
+        <footer class="border-t border-slate-800 py-6 mt-auto">
+            <div class="flex justify-between items-center px-4 sm:px-6 text-xs text-slate-600">
+                <p>&copy; 2025 YADS Enterprise Security.</p>
+                <div class="flex gap-4">
+                    <span class="font-mono text-slate-700">v{{ settings.VERSION }}</span>
+                    <span>{{ now_utc }}</span>
+                </div>
+            </div>
+        </footer>
+        {% endif %}
+    </div>
 
     <!-- RECENT CHANGES MODAL (Removed in favor of /changelog page) -->
     

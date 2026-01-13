@@ -55,9 +55,18 @@ async def view_user_guide(
     
     from yads.config import settings
     
+
     return templates.TemplateResponse("help.html", {
         "request": request,
         "content": html_content,
         "user": user,
         "settings": settings  # Fix: Pass settings for base.html footer
     })
+
+@router.get("/roadmap", response_class=HTMLResponse)
+async def view_roadmap(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """
+    Renders the Roadmap page.
+    """
+    from yads.config import settings
+    return templates.TemplateResponse("roadmap.html", {"request": request, "user": user, "settings": settings})

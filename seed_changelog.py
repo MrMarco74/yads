@@ -62,6 +62,30 @@ def seed_changelog():
             )
             session.add(entry3)
         
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.3.1").first():
+            entry4 = ChangelogEntry(
+                title="YADS v1.3.1: Scheduling & Logging Enhancements",
+                version="1.3.1",
+                content="""
+                <h3>📅 Scheduling System</h3>
+                <ul>
+                    <li><strong>New Scheduling UI:</strong> Users can now configure daily or weekly scan schedules directly from the Target Details page.</li>
+                    <li><strong>Automated Scanning:</strong> The backend scheduler now automatically queues scans based on defined schedules.</li>
+                </ul>
+                <h3>📊 Logging & Analysis</h3>
+                <ul>
+                    <li><strong>Tenant-Aware Logging:</strong> Logs are now tagged with tenant IDs for better isolation and troubleshooting.</li>
+                    <li><strong>Restricted Log Access:</strong> Log viewing is now secured via RBAC, ensuring tenants only see their own logs.</li>
+                </ul>
+                <h3>🛡️ System Stability</h3>
+                <ul>
+                    <li><strong>Safe Migrations:</strong> Database migration scripts have been verified to ensure zero data loss during updates.</li>
+                </ul>
+                """
+            )
+            session.add(entry4)
+        
+
         session.commit()
         print("Changelog seeded successfully.")
 

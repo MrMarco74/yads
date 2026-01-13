@@ -6,7 +6,7 @@
     <div class="flex items-center justify-between mb-8">
         <div>
             <h1 class="text-3xl font-bold text-white">Target Overview</h1>
-            <p class="text-gray-400 text-sm">Manage and scan multiple targets.</p>
+            <p class="text-slate-400 text-sm">Manage and scan multiple targets.</p>
         </div>
         <div class="flex gap-3">
              {% if user.role != 'viewer' %}
@@ -38,42 +38,42 @@
 
     <!-- Import Modal -->
     <div id="import-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center z-50">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center">
                 <h3 class="text-xl font-bold text-white">Import Targets</h3>
-                <button onclick="document.getElementById('import-modal').classList.add('hidden')" class="text-gray-400 hover:text-white transition-colors">
+                <button onclick="document.getElementById('import-modal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             <form action="/targets/import" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-2">Upload File (.txt, .csv)</label>
-                    <input type="file" name="file_upload" accept=".txt,.csv" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 border border-gray-700 rounded-lg cursor-pointer bg-gray-900 focus:outline-none">
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Upload File (.txt, .csv)</label>
+                    <input type="file" name="file_upload" accept=".txt,.csv" class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 border border-slate-700 rounded-lg cursor-pointer bg-slate-950 focus:outline-none">
                 </div>
                 
                 <div class="relative">
                     <div class="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div class="w-full border-t border-gray-700"></div>
+                        <div class="w-full border-t border-slate-700"></div>
                     </div>
                     <div class="relative flex justify-center">
-                        <span class="bg-gray-800 px-2 text-xs text-gray-500 uppercase">Or paste text</span>
+                        <span class="bg-slate-900 px-2 text-xs text-slate-500 uppercase">Or paste text</span>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-2">Domains (one per line)</label>
-                    <textarea name="targets_raw" rows="8" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm placeholder-gray-600" placeholder="example.com&#10;sub.domain.org&#10;another-target.net"></textarea>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Domains (one per line)</label>
+                    <textarea name="targets_raw" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm placeholder-slate-600" placeholder="example.com&#10;sub.domain.org&#10;another-target.net"></textarea>
                 </div>
                 
                 <div class="flex items-center gap-2 mb-4">
-                    <input type="checkbox" id="verify_dns" name="verify_dns" value="true" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800">
-                    <label for="verify_dns" class="text-sm text-gray-300">Verify DNS records (A/AAAA) before importing</label>
+                    <input type="checkbox" id="verify_dns" name="verify_dns" value="true" checked class="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-offset-slate-800">
+                    <label for="verify_dns" class="text-sm text-slate-300">Verify DNS records (A/AAAA) before importing</label>
                 </div>
                 <!-- Hidden current URL to redirect back -->
                 <input type="hidden" name="next" value="/targets/table">
                 
                 <div class="flex justify-end gap-3 pt-2">
-                    <button type="button" onclick="document.getElementById('import-modal').classList.add('hidden')" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors">Cancel</button>
+                    <button type="button" onclick="document.getElementById('import-modal').classList.add('hidden')" class="px-4 py-2 bg-slate-800 hover:bg-gray-600 text-slate-200 rounded-lg transition-colors">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg shadow-blue-500/20 transition-all">Import Domains</button>
                 </div>
             </form>
@@ -91,22 +91,22 @@
     {% endif %}
 
     <!-- Filter Bar -->
-    <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 flex flex-wrap items-center gap-4 mb-6">
-        <div class="text-sm font-medium text-gray-400">Filters:</div>
+    <div class="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 flex flex-wrap items-center gap-4 mb-6">
+        <div class="text-sm font-medium text-slate-400">Filters:</div>
         
         <form id="filter-form" action="/targets/table" method="GET" class="flex flex-wrap items-center gap-4 flex-1">
             <!-- Filter: Domain -->
             <div class="relative">
                 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
                 <input type="text" name="filter_domain" value="{{ filter_domain or '' }}" placeholder="Filter domains (*...)" 
-                       class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 pl-10 p-2.5"
+                       class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 pl-10 p-2.5"
                        onkeydown="if(event.key === 'Enter'){ event.preventDefault(); submitFilter(); }">
             </div>
             <!-- Filter: Online -->
             <div class="relative">
-                <select name="filter_online" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                <select name="filter_online" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                     <option value="all" {% if filter_online == 'all' %}selected{% endif %}>All Status</option>
                     <option value="online" {% if filter_online == 'online' %}selected{% endif %}>Online Only</option>
                     <option value="offline" {% if filter_online == 'offline' %}selected{% endif %}>Offline Only</option>
@@ -116,7 +116,7 @@
 
             <!-- Filter: Last Scan -->
             <div class="relative">
-                <select name="filter_last_scan" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                <select name="filter_last_scan" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                     <option value="all" {% if filter_last_scan == 'all' %}selected{% endif %}>Any Time</option>
                     <option value="24h" {% if filter_last_scan == '24h' %}selected{% endif %}>Last 24 Hours</option>
                     <option value="7d" {% if filter_last_scan == '7d' %}selected{% endif %}>Last 7 Days</option>
@@ -126,7 +126,7 @@
             
             <!-- Filter: Tags -->
             <div class="relative">
-                 <select name="filter_tag" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
+                 <select name="filter_tag" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
                     <option value="" {% if not filter_tag %}selected{% endif %}>Values...</option>
                     {% for tag in unique_tags %}
                         <option value="{{ tag }}" {% if filter_tag == tag %}selected{% endif %}>{{ tag }}</option>
@@ -136,7 +136,7 @@
             
             <!-- Filter: Scope -->
             <div class="relative">
-                <select name="filter_scope" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                <select name="filter_scope" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                     <option value="all" {% if filter_scope == 'all' %}selected{% endif %}>Scope: All</option>
                     <option value="external" {% if filter_scope == 'external' %}selected{% endif %}>External Only</option>
                     <option value="internal" {% if filter_scope == 'internal' %}selected{% endif %}>Internal Only</option>
@@ -145,7 +145,7 @@
 
             <!-- Filter: Root Domain -->
             <div class="relative">
-                 <select name="filter_root_domain" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 p-2.5">
+                 <select name="filter_root_domain" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 p-2.5">
                     <option value="" {% if not filter_root_domain %}selected{% endif %}>Root Domain...</option>
                     {% for root in unique_root_domains %}
                         <option value="{{ root }}" {% if filter_root_domain == root %}selected{% endif %}>{{ root }}</option>
@@ -172,7 +172,7 @@
             
             <!-- Filter: Web Probe -->
             <div class="relative">
-                <select name="filter_web_probe" onchange="submitFilter()" class="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                <select name="filter_web_probe" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                     <option value="all" {% if filter_web_probe == 'all' %}selected{% endif %}>Web Probe: All</option>
                     <option value="active" {% if filter_web_probe == 'active' %}selected{% endif %}>Web Active</option>
                     <option value="inactive" {% if filter_web_probe == 'inactive' %}selected{% endif %}>Web Inactive</option>
@@ -192,77 +192,77 @@
         </form>
     </div>
 
-    <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl shadow-lg relative">
+    <div class="bg-slate-900/50 border border-slate-700/50 rounded-xl shadow-lg relative">
         <form id="bulk-form" action="/targets/bulk/scan" method="POST">
             <!-- Bulk Actions Bar -->
-            <div class="p-3 bg-gray-900/30 border-b border-gray-700/50 flex flex-wrap items-center gap-3 rounded-t-xl relative z-30">
-                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">With Selected:</span>
+            <div class="p-3 bg-slate-950/30 border-b border-slate-700/50 flex flex-wrap items-center gap-3 rounded-t-xl relative z-30">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">With Selected:</span>
                 
                 <!-- Scan Options Dropdown -->
                 <div class="relative">
-                    <button type="button" onclick="document.getElementById('scan-options-dropdown').classList.toggle('hidden')" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5 border border-gray-600">
+                    <button type="button" onclick="document.getElementById('scan-options-dropdown').classList.toggle('hidden')" class="px-3 py-1.5 bg-slate-800 hover:bg-gray-600 text-slate-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5 border border-slate-600">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                         Options
                         <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div id="scan-options-dropdown" class="hidden absolute top-full left-0 mt-1 w-64 bg-gray-800 border border-gray-600 rounded shadow-xl z-50 p-2 max-h-[60vh] overflow-y-auto">
-                        <div class="text-xs font-semibold text-gray-400 mb-2 px-1">Scan Types</div>
+                    <div id="scan-options-dropdown" class="hidden absolute top-full left-0 mt-1 w-64 bg-slate-900 border border-slate-600 rounded shadow-xl z-50 p-2 max-h-[60vh] overflow-y-auto">
+                        <div class="text-xs font-semibold text-slate-400 mb-2 px-1">Scan Types</div>
                         <div class="space-y-1">
                              <!-- Full Scan Option -->
                             <label class="flex items-center gap-2 px-1 py-1 hover:bg-red-900/30 rounded cursor-pointer border border-red-900/50 bg-red-900/10 mb-2">
-                                <input type="checkbox" name="scan_types" value="full_scan" class="rounded bg-gray-900 border-red-500 text-red-500 focus:ring-0 w-3.5 h-3.5">
+                                <input type="checkbox" name="scan_types" value="full_scan" class="rounded bg-slate-950 border-red-500 text-red-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs font-bold text-red-400">FULL SCAN (Run Everything)</span>
                             </label>
 
-                            <hr class="border-gray-700 mb-2">
+                            <hr class="border-slate-700 mb-2">
 
-                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="subdomain_scanner" {% if 'subdomain_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Subdomain Recon</span>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="subdomain_scanner" {% if 'subdomain_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Subdomain Recon</span>
                             </label>
-                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="dns_scanner" {% if 'dns_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">DNS Records (Simple)</span>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="dns_scanner" {% if 'dns_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">DNS Records (Simple)</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="web_analyzer" {% if 'web_analyzer' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Web Analyzer</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="web_analyzer" {% if 'web_analyzer' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Web Analyzer</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="typosquat_scanner" {% if 'typosquat_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Typosquatting</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="typosquat_scanner" {% if 'typosquat_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Typosquatting</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="cve_scanner" {% if 'cve_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">CVE Scanner</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cve_scanner" {% if 'cve_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">CVE Scanner</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="infrastructure_scanner" {% if 'infrastructure_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Infrastructure</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="infrastructure_scanner" {% if 'infrastructure_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Infrastructure</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="ssl_scanner" {% if 'ssl_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">SSL Scanner</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="ssl_scanner" {% if 'ssl_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">SSL Scanner</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="visual_osint" {% if 'visual_osint' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Visual OSINT</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="visual_osint" {% if 'visual_osint' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Visual OSINT</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="wayback_scanner" {% if 'wayback_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Wayback Machine</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="wayback_scanner" {% if 'wayback_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Wayback Machine</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="crawler" {% if 'crawler' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Site Crawler</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="crawler" {% if 'crawler' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Site Crawler</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="tld_scanner" {% if 'tld_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">TLD Scanner</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="tld_scanner" {% if 'tld_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">TLD Scanner</span>
                             </label>
-                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="port_scanner" {% if 'port_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-200">Port Scan (Web Probe)</span>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="port_scanner" {% if 'port_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Port Scan (Web Probe)</span>
                             </label>
                         </div>
                     </div>
@@ -273,13 +273,13 @@
                     Scan Now
                 </button>
                 
-                <div class="h-4 w-px bg-gray-700 mx-2"></div>
+                <div class="h-4 w-px bg-slate-800 mx-2"></div>
                 
                 <div class="flex items-center gap-2">
                     <input type="text" name="tag" placeholder="New Tag..." 
                            onkeydown="if(event.key === 'Enter'){ event.preventDefault(); document.getElementById('btn-bulk-tag').click(); }"
-                           class="bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 w-32">
-                    <button id="btn-bulk-tag" type="submit" formaction="/targets/bulk/tag" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5">
+                           class="bg-slate-900 border border-slate-600 text-white text-xs rounded px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 w-32">
+                    <button id="btn-bulk-tag" type="submit" formaction="/targets/bulk/tag" class="px-3 py-1.5 bg-slate-800 hover:bg-gray-600 text-slate-200 text-xs font-medium rounded transition-colors flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
                         Add Tag
                     </button>
@@ -287,38 +287,38 @@
             </div>
             <div class="overflow-x-auto rounded-b-xl">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-900/80 text-gray-400 text-xs uppercase font-semibold relative z-10">
+                    <thead class="bg-slate-950/80 text-slate-400 text-xs uppercase font-semibold relative z-10">
                         <tr>
-                            <th class="p-4 w-10">
-                                <input type="checkbox" id="select-all" class="rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
+                            <th class="p-2 w-10">
+                                <input type="checkbox" id="select-all" class="rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-offset-slate-900 focus:ring-indigo-600">
                             </th>
-                            <th class="p-4 w-12 text-center" title="Login Detected">🔑</th>
-                            <th class="p-4 w-1/4">Domain</th> <!-- explicitly wider -->
-                            <th class="p-4">Online</th>
-                            <th class="p-4">Probe</th>
-                            <th class="p-4">HTTP</th>
-                            <th class="p-4">HTTPS</th>
-                            <th class="p-4">Redir</th>
-                            <th class="p-4">Wildcard</th>
-                            <th class="p-4">TLDs</th>
-                            <th class="p-4">Status</th>
-                            <th class="p-4">Last Scan</th>
-                            <th class="p-4">DNS</th>
-                            <th class="p-4">SSL Cert</th>
-                            <th class="p-4">Cipher Compliance</th>
-                            <th class="p-4">Server / ASN</th>
-                            <th class="p-4">Secrets</th>
-                            <th class="p-4">CVEs</th>
-                            <th class="p-4">Takeover</th>
-                            <th class="p-4 text-right">Actions</th>
+                            <th class="p-2 w-12 text-center" title="Login Detected">🔑</th>
+                            <th class="p-2 w-1/4">Domain</th> <!-- explicitly wider -->
+                            <th class="p-2">Online</th>
+                            <th class="p-2">Probe</th>
+                            <th class="p-2">HTTP</th>
+                            <th class="p-2">HTTPS</th>
+                            <th class="p-2">Redir</th>
+                            <th class="p-2">Wildcard</th>
+                            <th class="p-2">TLDs</th>
+                            <th class="p-2">Status</th>
+                            <th class="p-2">Last Scan</th>
+                            <th class="p-2">DNS</th>
+                            <th class="p-2">SSL Cert</th>
+                            <th class="p-2">Cipher Compliance</th>
+                            <th class="p-2">Server / ASN</th>
+                            <th class="p-2">Secrets</th>
+                            <th class="p-2">CVEs</th>
+                            <th class="p-2">Takeover</th>
+                            <th class="p-2 text-right">Actions</th>
                         </tr>
                         <!-- Filter Row -->
-                        <tr class="bg-gray-800/50 border-b border-gray-700/50">
+                        <tr class="bg-slate-900/50 border-b border-slate-700/50">
                             <th class="p-2">
                                 <!-- No filter for checkbox -->
                             </th>
                             <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_login" style="min-width: 40px">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_login" style="min-width: 40px">
                                     <option value="all" {% if not filter_login or filter_login == 'all' %}selected{% endif %}>-</option>
                                     <option value="yes" {% if filter_login == 'yes' %}selected{% endif %}>Yes</option>
                                     <option value="no" {% if filter_login == 'no' %}selected{% endif %}>No</option>
@@ -327,12 +327,12 @@
                             <!-- Domain -->
                             <th class="p-2">
                                 <input type="text" placeholder="Filter..." value="{{ filter_domain or '' }}" 
-                                       class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
+                                       class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
                                        data-param="filter_domain">
                             </th>
                             <!-- Online -->
                             <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_online">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_online">
                                     <option value="all" {% if filter_online == 'all' %}selected{% endif %}>All</option>
                                     <option value="online" {% if filter_online == 'online' %}selected{% endif %}>On</option>
                                     <option value="offline" {% if filter_online == 'offline' %}selected{% endif %}>Off</option>
@@ -341,7 +341,7 @@
                             </th>
                              <!-- Probe -->
                             <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_web_probe">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_web_probe">
                                     <option value="all" {% if filter_web_probe == 'all' %}selected{% endif %}>All</option>
                                     <option value="active" {% if filter_web_probe == 'active' %}selected{% endif %}>Active</option>
                                     <option value="inactive" {% if filter_web_probe == 'inactive' %}selected{% endif %}>Inactive</option>
@@ -350,18 +350,18 @@
                             <!-- HTTP -->
                             <th class="p-2">
                                 <input type="text" placeholder="Code" value="{{ filter_http_status or '' }}"
-                                       class="column-filter w-12 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
+                                       class="column-filter w-12 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
                                        data-param="filter_http_status">
                             </th>
                             <!-- HTTPS -->
                             <th class="p-2">
                                 <input type="text" placeholder="Code" value="{{ filter_https_status or '' }}"
-                                       class="column-filter w-12 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
+                                       class="column-filter w-12 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[10px] text-white focus:border-indigo-500"
                                        data-param="filter_https_status">
                             </th>
                             <!-- Redir -->
                             <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_redirect">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_redirect">
                                     <option value="all" {% if not filter_redirect or filter_redirect == 'all' %}selected{% endif %}>-</option>
                                     <option value="yes" {% if filter_redirect == 'yes' %}selected{% endif %}>Yes</option>
                                     <option value="no" {% if filter_redirect == 'no' %}selected{% endif %}>No</option>
@@ -369,7 +369,7 @@
                             </th>
                             <!-- Wildcard -->
                             <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_wildcard">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_wildcard">
                                     <option value="all" {% if not filter_wildcard or filter_wildcard == 'all' %}selected{% endif %}>-</option>
                                     <option value="yes" {% if filter_wildcard == 'yes' %}selected{% endif %}>Yes</option>
                                     <option value="no" {% if filter_wildcard == 'no' %}selected{% endif %}>No</option>
@@ -379,7 +379,7 @@
                             <th class="p-2"></th>
                             <!-- Status -->
                             <th class="p-2">
-                                 <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_scan_status">
+                                 <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_scan_status">
                                     <option value="all" {% if not filter_scan_status or filter_scan_status == 'all' %}selected{% endif %}>All</option>
                                     <option value="idle" {% if filter_scan_status == 'idle' %}selected{% endif %}>Idle</option>
                                     <option value="queued" {% if filter_scan_status == 'queued' %}selected{% endif %}>Queued</option>
@@ -388,7 +388,7 @@
                             </th>
                             <!-- Last Scan -->
                             <th class="p-2">
-                                 <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_last_scan">
+                                 <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_last_scan">
                                     <option value="all" {% if filter_last_scan == 'all' %}selected{% endif %}>All</option>
                                     <option value="24h" {% if filter_last_scan == '24h' %}selected{% endif %}>24h</option>
                                     <option value="7d" {% if filter_last_scan == '7d' %}selected{% endif %}>7d</option>
@@ -398,14 +398,14 @@
                              <!-- Disabled filters for complex cols for now -->
                              <!-- DNS -->
                              <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_dns">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_dns">
                                     <option value="all" {% if not filter_dns or filter_dns == 'all' %}selected{% endif %}>-</option>
                                     <option value="active" {% if filter_dns == 'active' %}selected{% endif %}>Data</option>
                                 </select>
                              </th>
                              <!-- SSL -->
                              <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_ssl">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_ssl">
                                     <option value="all" {% if not filter_ssl or filter_ssl == 'all' %}selected{% endif %}>-</option>
                                     <option value="issues" {% if filter_ssl == 'issues' %}selected{% endif %}>Issues</option>
                                 </select>
@@ -416,16 +416,16 @@
                              <th class="p-2">
                                 <div class="flex flex-col gap-1">
                                     <input type="text" placeholder="Server" value="{{ filter_server or '' }}" 
-                                           class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
+                                           class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
                                            data-param="filter_server">
                                     <input type="text" placeholder="ASN" value="{{ filter_asn or '' }}" 
-                                           class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
+                                           class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-2 py-0.5 text-[10px] text-white focus:border-indigo-500"
                                            data-param="filter_asn">
                                 </div>
                              </th>
                              <!-- Secrets -->
                              <th class="p-2">
-                                <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_secrets">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_secrets">
                                     <option value="all" {% if not filter_secrets or filter_secrets == 'all' %}selected{% endif %}>-</option>
                                     <option value="found" {% if filter_secrets == 'found' %}selected{% endif %}>Found</option>
                                 </select>
@@ -434,7 +434,7 @@
                              <th class="p-2"></th>
                              <!-- Takeover -->
                              <th class="p-2">
-                                 <select class="column-filter w-full bg-gray-900 border border-gray-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_takeover">
+                                 <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_takeover">
                                     <option value="all" {% if not filter_takeover or filter_takeover == 'all' %}selected{% endif %}>-</option>
                                     <option value="found" {% if filter_takeover == 'found' %}selected{% endif %}>Found</option>
                                 </select>
@@ -444,25 +444,25 @@
                              <th class="p-2"></th> <!-- Actions column placeholder -->
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700/50 text-sm">
+                    <tbody class="divide-y divide-slate-700/50 text-sm">
                         {% for row in rows %}
-                        <tr class="hover:bg-gray-700/30 transition-colors group">
-                            <td class="p-4">
-                                <input type="checkbox" name="target_ids" value="{{ row.target.id }}" class="target-checkbox rounded bg-gray-800 border-gray-700 text-indigo-500 focus:ring-offset-gray-900 focus:ring-indigo-600">
+                        <tr class="hover:bg-slate-800/30 transition-colors group">
+                            <td class="p-2">
+                                <input type="checkbox" name="target_ids" value="{{ row.target.id }}" class="target-checkbox rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-offset-slate-900 focus:ring-indigo-600">
                             </td>
-                            <td class="p-4 text-center">
+                            <td class="p-2 text-center">
                                 {% if row.is_login_page %}
                                     <span title="Login/Auth Page Detected" class="cursor-help text-lg">🔑</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1" style="padding-left: {{ (row.depth or 0) * 1.5 }}rem;">
                                     <div class="flex items-center gap-2">
                                         {% if row.depth and row.depth > 0 %}
-                                            <span class="text-gray-600 select-none">↳</span>
+                                            <span class="text-slate-600 select-none">↳</span>
                                         {% endif %}
                                         
-                                        <a href="/targets/{{ row.target.id }}" class="{{ 'font-bold text-blue-100' if row.is_root else 'font-medium text-gray-200' }} hover:text-indigo-400 flex items-center gap-2 transition-colors">
+                                        <a href="/targets/{{ row.target.id }}" class="{{ 'font-bold text-blue-100' if row.is_root else 'font-medium text-slate-200' }} hover:text-indigo-400 flex items-center gap-2 transition-colors">
                                             {{ row.target.domain }}
                                         </a>
                                         
@@ -470,13 +470,13 @@
                                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-900/50 text-blue-200 border border-blue-500/30 select-none" title="Top-Level Domain">TLD</span>
                                         {% endif %}
                                         
-                                        <span class="text-xs font-normal text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
+                                        <span class="text-xs font-normal text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
                                     </div>
                                     
                                     <!-- Tags Area -->
                                     <div class="flex flex-wrap items-center gap-1.5 pl-0.5" id="tags-area-{{ row.target.id }}">
                                         {% for tag in row.target.tags %}
-                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700 text-gray-300 border border-gray-600 group-hover:border-gray-500">
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-600 group-hover:border-slate-500">
                                                 {{ tag }}
                                                 <button type="button" onclick="removeTag({{ row.target.id }}, '{{ tag }}')" class="hover:text-red-400 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
                                             </span>
@@ -484,14 +484,14 @@
                                         
                                         <!-- Add Tag Button -->
                                         <div class="relative">
-                                            <button type="button" onclick="toggleTagInput({{ row.target.id }})" class="text-gray-500 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button type="button" onclick="toggleTagInput({{ row.target.id }})" class="text-slate-500 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                             </button>
                                             <!-- Simple Popover Input (Hidden by default) -->
                                             <div id="tag-input-{{ row.target.id }}" class="hidden absolute left-0 bottom-full mb-1 z-10 w-32">
                                                 <input 
                                                     type="text" 
-                                                    class="w-full bg-gray-800 border border-gray-600 text-white text-xs rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500" 
+                                                    class="w-full bg-slate-900 border border-slate-600 text-white text-xs rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500" 
                                                     placeholder="Enter tag..."
                                                     onkeydown="handleTagSubmit(event, {{ row.target.id }})"
                                                     onblur="toggleTagInput({{ row.target.id }})" 
@@ -502,7 +502,7 @@
                                 </div>
                             </td>
                             <!-- ... Existing Columns ... -->
-                            <td class="p-4 whitespace-nowrap">
+                            <td class="p-2 whitespace-nowrap">
                                 <!-- Online Status -->
                                 {% if row.is_online == True %}
                                     <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-400 border border-green-500/30">
@@ -513,28 +513,28 @@
                                         Offline
                                     </span>
                                 {% else %}
-                                    <span class="text-gray-600">-</span>
+                                    <span class="text-slate-600">-</span>
                                 {% endif %}
                             </td>
                             <!-- Probe Column -->
-                            <td class="p-4 whitespace-nowrap font-mono text-xs text-center">
+                            <td class="p-2 whitespace-nowrap font-mono text-xs text-center">
                                 {% if row.port_scan %}
                                     {% if row.port_scan.get('is_active') %}
                                         <div class="flex flex-col gap-0.5">
                                             <span class="text-green-400">Active</span>
-                                            <div class="flex justify-center gap-1 text-[9px] text-gray-500">
+                                            <div class="flex justify-center gap-1 text-[9px] text-slate-500">
                                                 <span class="{{ 'text-green-300' if row.port_scan.get('http') == 'open' else 'text-red-900/50' }}">80</span>
                                                 <span class="{{ 'text-green-300' if row.port_scan.get('https') == 'open' else 'text-red-900/50' }}">443</span>
                                             </div>
                                         </div>
                                     {% else %}
-                                        <span class="text-gray-600">No Web</span>
+                                        <span class="text-slate-600">No Web</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="text-gray-700">-</span>
+                                    <span class="text-slate-700">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.http_status %}
                                     {% if row.http_status == 200 %}
                                         <span class="text-xs font-bold text-green-400">200</span>
@@ -546,10 +546,10 @@
                                         <span class="text-xs font-bold text-red-400">{{ row.http_status }}</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="text-gray-600">-</span>
+                                    <span class="text-slate-600">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.https_status %}
                                     {% if row.https_status == 200 %}
                                         <span class="text-xs font-bold text-green-400">200</span>
@@ -561,26 +561,26 @@
                                         <span class="text-xs font-bold text-red-400">{{ row.https_status }}</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="text-gray-600">-</span>
+                                    <span class="text-slate-600">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.https_redirect %}
                                     <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 {% else %}
-                                    <span class="text-gray-600 text-xs">-</span>
+                                    <span class="text-slate-600 text-xs">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.wildcard_detected %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-900 text-purple-200">
                                         Wildcard
                                     </span>
                                 {% else %}
-                                    <span class="text-gray-600 text-xs">-</span>
+                                    <span class="text-slate-600 text-xs">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.tld_stats %}
                                     <div class="flex items-center gap-2">
                                         {% if row.tld_stats.free_count > 0 %}
@@ -596,14 +596,14 @@
                                         {% endif %}
                                         
                                         {% if row.tld_stats.free_count == 0 and row.tld_stats.registered_count_diff_owner == 0 %}
-                                            <span class="text-gray-500 text-xs">0 / 0</span>
+                                            <span class="text-slate-500 text-xs">0 / 0</span>
                                         {% endif %}
                                     </div>
                                 {% else %}
-                                    <span class="text-gray-600 text-xs">-</span>
+                                    <span class="text-slate-600 text-xs">-</span>
                                 {% endif %}
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.target.scan_status == 'running' %}
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
                                         <span class="relative flex h-2 w-2">
@@ -617,7 +617,7 @@
                                         Queued
                                     </span>
                                 {% elif row.target.scan_status == 'idle' %}
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-600/50">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800/50 text-slate-300 border border-slate-600/50">
                                         Idle
                                     </span>
                                 {% else %}
@@ -626,7 +626,7 @@
                                     </span>
                                 {% endif %}
                             </td>
-                            <td class="p-4 text-gray-400 font-mono text-xs whitespace-nowrap">
+                            <td class="p-2 text-slate-400 font-mono text-xs whitespace-nowrap">
                                 {% if row.last_scan %}
                                     {{ row.last_scan.strftime('%Y-%m-%d %H:%M') }}
                                 {% else %}
@@ -635,61 +635,61 @@
                             </td>
                             
                             <!-- Detailed Columns -->
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1">
                                     {% if row.dns_ip %}
                                         <span class="text-white font-mono text-xs">{{ row.dns_ip }}</span>
                                     {% endif %}
                                     {% if row.dns_count > 0 %}
-                                        <span class="text-[10px] text-gray-500">{{ row.dns_count }} subdomains</span>
+                                        <span class="text-[10px] text-slate-500">{{ row.dns_count }} subdomains</span>
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1">
                                     {% if row.ssl_issuer %}
                                         <span class="text-white text-xs truncate max-w-[150px]" title="{{ row.ssl_issuer }}">{{ row.ssl_issuer }}</span>
-                                        <span class="text-[10px] text-gray-500">Exp: {{ row.ssl_expiry }}</span>
+                                        <span class="text-[10px] text-slate-500">Exp: {{ row.ssl_expiry }}</span>
                                     {% else %}
-                                        <span class="text-gray-600 text-xs">-</span>
+                                        <span class="text-slate-600 text-xs">-</span>
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex items-center gap-4">
                                     <div class="flex items-center gap-1.5" title="Compliant Ciphers">
                                         <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                         <span class="text-sm font-bold font-mono text-green-400">{{ row.cipher_compliant }}</span>
                                     </div>
-                                    <div class="bg-gray-700 h-5 w-px"></div>
+                                    <div class="bg-slate-800 h-5 w-px"></div>
                                     <div class="flex items-center gap-1.5" title="Non-Compliant Ciphers">
                                         <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                         <span class="text-sm font-bold font-mono text-red-400">{{ row.cipher_non_compliant }}</span>
                                     </div>
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1">
                                     {% if row.web_server %}
                                         <a href="?filter_server={{ row.web_server }}&filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or ''}}" class="text-white text-sm font-medium hover:text-indigo-400 hover:underline transition-colors" title="Filter by Server">{{ row.web_server }}</a>
                                     {% endif %}
                                     {% if row.asn %}
-                                        <a href="?filter_asn={{ row.asn }}&filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or ''}}" class="text-xs text-gray-500 hover:text-gray-300 hover:underline transition-colors block" title="Filter by ASN">ASN: {{ row.asn }}</a>
+                                        <a href="?filter_asn={{ row.asn }}&filter_online={{ filter_online }}&filter_last_scan={{ filter_last_scan }}&filter_tag={{ filter_tag or ''}}" class="text-xs text-slate-500 hover:text-slate-300 hover:underline transition-colors block" title="Filter by ASN">ASN: {{ row.asn }}</a>
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1.5 min-w-[60px]">
                                     {% if row.secrets_count > 0 %}
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-900/80 text-pink-200 border border-pink-500/50 shadow-sm shadow-pink-900/50 animate-pulse">
                                             FOUND: {{ row.secrets_count }}
                                         </span>
                                     {% else %}
-                                        <span class="text-gray-600 text-xs">-</span>
+                                        <span class="text-slate-600 text-xs">-</span>
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 <div class="flex flex-col gap-1.5 min-w-[80px]">
                                     {% if row.cve_stats and (row.cve_stats.critical > 0 or row.cve_stats.high > 0 or row.cve_stats.medium > 0 or row.cve_stats.low > 0) %}
                                         {% if row.cve_stats.critical > 0 %}
@@ -708,22 +708,22 @@
                                             </span>
                                         {% endif %}
                                     {% else %}
-                                        <span class="text-gray-600 text-xs">-</span>
+                                        <span class="text-slate-600 text-xs">-</span>
                                     {% endif %}
                                 </div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-2">
                                 {% if row.takeover_risks %}
                                     <div class="relative group">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-400 border border-red-500/30 animate-pulse cursor-help">
                                             {{ row.takeover_risks|length }} Risk(s)
                                         </span>
                                         <!-- Tooltip -->
-                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-gray-900 border border-gray-700 rounded-lg p-2 shadow-xl z-50">
-                                            <p class="text-xs font-bold text-gray-300 mb-1">Potential Takeovers:</p>
+                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 bg-slate-950 border border-slate-700 rounded-lg p-2 shadow-xl z-50">
+                                            <p class="text-xs font-bold text-slate-300 mb-1">Potential Takeovers:</p>
                                             <ul class="space-y-1">
                                                 {% for risk in row.takeover_risks %}
-                                                <li class="text-[10px] text-gray-400">
+                                                <li class="text-[10px] text-slate-400">
                                                     <span class="text-red-400 font-mono">{{ risk.subdomain or row.target.domain }}</span> 
                                                     &rarr; {{ risk.provider }}
                                                 </li>
@@ -732,11 +732,11 @@
                                         </div>
                                     </div>
                                 {% else %}
-                                    <span class="text-gray-600 text-xs">-</span>
+                                    <span class="text-slate-600 text-xs">-</span>
                                 {% endif %}
                             </td>
 
-                            <td class="p-4 text-right">
+                            <td class="p-2 text-right">
                                 {% if user.role != 'viewer' %}
                                 <button type="submit" form="single-scan-{{ row.target.id }}" class="text-indigo-400 hover:text-indigo-300 text-xs uppercase font-bold tracking-wider hover:underline">
                                     Scan
@@ -751,16 +751,16 @@
             
             <!-- Pagination Footer -->
             {% if pagination and pagination.total_count > 0 %}
-            <div class="px-6 py-4 border-t border-gray-700 bg-gray-900/40 flex items-center justify-between">
+            <div class="px-6 py-4 border-t border-slate-700 bg-slate-950/40 flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                    <span class="text-sm text-gray-400">
+                    <span class="text-sm text-slate-400">
                         Showing <span class="font-medium text-white">{{ pagination.start_item }}</span> to <span class="font-medium text-white">{{ pagination.end_item }}</span> of <span class="font-medium text-white">{{ pagination.total_count }}</span> targets
                     </span>
                     
                     <!-- Page Size Selector -->
-                    <div class="flex items-center gap-2 text-sm text-gray-400">
+                    <div class="flex items-center gap-2 text-sm text-slate-400">
                         <span>Show:</span>
-                        <select onchange="window.location.href='?page=1&limit='+this.value" class="bg-gray-800 border border-gray-700 text-white text-xs rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
+                        <select onchange="window.location.href='?page=1&limit='+this.value" class="bg-slate-900 border border-slate-700 text-white text-xs rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
                             <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10</option>
                             <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20</option>
                             <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50</option>
@@ -775,21 +775,21 @@
                 
                 <div class="flex gap-2">
                     {% if pagination.page > 1 %}
-                        <a href="?page={{ pagination.page - 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg border border-gray-700 transition-colors">
+                        <a href="?page={{ pagination.page - 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
                             Previous
                         </a>
                     {% else %}
-                        <button type="button" disabled class="px-4 py-2 bg-gray-800/50 text-gray-500 text-sm font-medium rounded-lg border border-gray-800 cursor-not-allowed">
+                        <button type="button" disabled class="px-4 py-2 bg-slate-900/50 text-slate-500 text-sm font-medium rounded-lg border border-slate-800 cursor-not-allowed">
                             Previous
                         </button>
                     {% endif %}
                     
                     {% if pagination.page < pagination.total_pages %}
-                        <a href="?page={{ pagination.page + 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg border border-gray-700 transition-colors">
+                        <a href="?page={{ pagination.page + 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
                             Next
                         </a>
                     {% else %}
-                        <button type="button" disabled class="px-4 py-2 bg-gray-800/50 text-gray-500 text-sm font-medium rounded-lg border border-gray-800 cursor-not-allowed">
+                        <button type="button" disabled class="px-4 py-2 bg-slate-900/50 text-slate-500 text-sm font-medium rounded-lg border border-slate-800 cursor-not-allowed">
                             Next
                         </button>
                     {% endif %}
@@ -799,7 +799,7 @@
             
             {% if not rows %}
             <div class="p-12 text-center">
-                <p class="text-gray-500 italic">No targets found. Add one on the Dashboard.</p>
+                <p class="text-slate-500 italic">No targets found. Add one on the Dashboard.</p>
             </div>
             {% endif %}
         </form>

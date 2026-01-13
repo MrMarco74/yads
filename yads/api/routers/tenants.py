@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Query, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, func, text
 
 from yads.database import get_session as get_db_session
@@ -17,61 +18,54 @@ from datetime import datetime
 templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-@router.get("/", response_class=HTMLResponse, dependencies=[Depends(PlatformAdminChecker())])
+def get_all_tenants():
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
+
+@router.get("/", response_class=HTMLResponse, dependencies=[Depends(RoleChecker(["admin"]))])
 async def list_tenants(request: Request, session: Session = Depends(get_db_session), user: User = Depends(get_current_user_html)):
-    tenants = session.exec(select(Tenant).order_by(Tenant.id)).all()
+    tenants = session.exec(
+        select(Tenant)
+        .options(selectinload(Tenant.users), selectinload(Tenant.targets), selectinload(Tenant.allowed_users))
+        .order_by(Tenant.id)
+    ).all()
     
-    # Enrich with counts (optional, but good for admin)
-    # This might be N+1 if not careful, but for tenants list (usually small) it's okay.
-    # Better: Join to get counts.
-    # For MVP, eager loading or simple iteration is fine if < 100 tenants.
+    all_users = session.exec(select(User).order_by(User.username)).all()
     
     return templates.TemplateResponse("tenants.html", {
-        "request": request,
-        "tenants": tenants,
-        "user": user
+        "request": request, 
+        "tenants": tenants, 
+        "user": user,
+        "all_users": all_users
     })
 
-@router.post("/add", dependencies=[Depends(PlatformAdminChecker())])
+@router.post("/add", dependencies=[Depends(RoleChecker(["admin"]))])
 async def add_tenant(request: Request, name: str = Form(...), session: Session = Depends(get_db_session)):
-    name = name.strip()
-    if not name:
-        return RedirectResponse(url="/tenants/?error=Name+required", status_code=303)
-        
-    existing = session.exec(select(Tenant).where(Tenant.name == name)).first()
-    if existing:
-        return RedirectResponse(url="/tenants/?error=Tenant+exists", status_code=303)
-        
-    tenant = Tenant(name=name)
-    session.add(tenant)
-    session.commit()
-    return RedirectResponse(url="/tenants/?msg=Tenant+created", status_code=303)
+    try:
+        tenant = Tenant(name=name)
+        session.add(tenant)
+        session.commit()
+        return RedirectResponse(url="/tenants?msg=Tenant created", status_code=303)
+    except Exception as e:
+        session.rollback()
+        return RedirectResponse(url=f"/tenants?error={str(e)}", status_code=303)
 
-@router.post("/update", dependencies=[Depends(PlatformAdminChecker())])
-async def update_tenant(
-    tenant_id: int = Form(...),
-    name: str = Form(...),
-    session: Session = Depends(get_db_session)
-):
-    name = name.strip()
-    if not name:
-        return RedirectResponse(url=f"/tenants/?error=Name+required", status_code=303)
-        
+@router.post("/update", dependencies=[Depends(RoleChecker(["admin"]))])
+async def update_tenant(tenant_id: int = Form(...), name: str = Form(...), session: Session = Depends(get_db_session)):
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
-        return RedirectResponse(url=f"/tenants/?error=Tenant+not+found", status_code=303)
-        
-    # Check if another tenant already has this name
-    existing = session.exec(select(Tenant).where(Tenant.name == name, Tenant.id != tenant_id)).first()
-    if existing:
-        return RedirectResponse(url=f"/tenants/?error=Tenant+name+already+exists", status_code=303)
-        
+        return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)
     tenant.name = name
     session.add(tenant)
     session.commit()
     return RedirectResponse(url="/tenants/?msg=Tenant+renamed", status_code=303)
 
-@router.post("/delete", dependencies=[Depends(PlatformAdminChecker())])
+@router.post("/delete", dependencies=[Depends(RoleChecker(["admin"]))])
 async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(get_db_session)):
     tenant = session.get(Tenant, tenant_id)
     if not tenant:

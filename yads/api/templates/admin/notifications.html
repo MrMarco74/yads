@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-white">System Notifications (Admin)</h1>
+            <p class="text-slate-400 mt-1">Broadcast announcements, updates, and alerts to all users.</p>
+        </div>
+        <a href="/dashboard" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors">
+            Back to Dashboard
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Create Notification Form -->
+        <div class="lg:col-span-1">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold text-white mb-4">Create Notification</h2>
+                <form action="/notifications/admin/create" method="POST" class="space-y-4">
+                    
+                    <!-- Title -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Title</label>
+                        <input type="text" name="title" required placeholder="e.g. System Update v1.4" 
+                               class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <!-- Text -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Message Body</label>
+                        <textarea name="text" required rows="3" placeholder="Brief description..." 
+                                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-blue-500 outline-none"></textarea>
+                    </div>
+
+                    <!-- Type -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Type</label>
+                        <select name="type" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="info">Info</option>
+                            <option value="update">Update</option>
+                            <option value="feature">New Feature</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="alert">Alert</option>
+                        </select>
+                    </div>
+
+                    <!-- Color -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Color Theme</label>
+                        <select name="color" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="blue">Blue</option>
+                            <option value="green">Green (Emerald)</option>
+                            <option value="purple">Purple</option>
+                            <option value="amber">Amber (Warning)</option>
+                            <option value="red">Red (Critical)</option>
+                        </select>
+                    </div>
+
+                    <!-- Icon Preset -->
+                    <div x-data="{ selected: 'info' }">
+                        <label class="block text-xs font-medium text-slate-400 mb-2">Icon</label>
+                        <input type="hidden" name="icon" :value="getIconPath(selected)">
+                        
+                        <div class="grid grid-cols-5 gap-2">
+                            <template x-for="icon in ['info', 'rocket', 'sparkles', 'wrench', 'alert']">
+                                <button type="button" 
+                                        @click="selected = icon"
+                                        :class="{'bg-blue-500/20 border-blue-500': selected === icon, 'bg-slate-950 border-slate-800 hover:border-slate-700': selected !== icon}"
+                                        class="p-2 rounded-lg border flex items-center justify-center transition-all h-10 w-10">
+                                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(icon)"></path>
+                                    </svg>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-lg transition-colors">
+                            Publish Notification
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- List Notifications -->
+        <div class="lg:col-span-2">
+            <h2 class="text-lg font-semibold text-white mb-4">Active Notifications</h2>
+            
+            {% if notifications %}
+            <div class="space-y-4">
+                {% for n in notifications %}
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-start gap-4">
+                    <!-- Icon Preview -->
+                    <div class="h-10 w-10 rounded-full flex-shrink-0 flex items-center justify-center border bg-{{ n.color }}-500/10 border-{{ n.color }}-500/20 text-{{ n.color }}-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ n.icon }}"></path>
+                        </svg>
+                    </div>
+                    
+                    <div class="flex-grow">
+                        <div class="flex items-center gap-2 mb-1">
+                            <h3 class="font-bold text-white">{{ n.title }}</h3>
+                            <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ n.type }}</span>
+                        </div>
+                        <p class="text-sm text-slate-400">{{ n.text }}</p>
+                        <p class="text-xs text-slate-600 mt-2">Posted on {{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+
+                    <div class="flex-shrink-0">
+                        <form action="/notifications/admin/delete/{{ n.id }}" method="POST" onsubmit="return confirm('Delete this notification?');">
+                            <button type="submit" class="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12 text-slate-500 bg-slate-900/50 border border-slate-800/50 rounded-xl">
+                <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                <p>No active notifications found.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function getIconPath(name) {
+        const icons = {
+            'info': 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+            'rocket': 'M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+            'sparkles': 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+            'wrench': 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
+            'alert': 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+        };
+        return icons[name] || icons['info'];
+    }
+</script>
+{% endblock %}

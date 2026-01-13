@@ -14,10 +14,10 @@ from yads.modules.report_generator import generate_report
 from yads.modules.brand_monitor import BrandMonitor
 
 from yads.config import settings
-from yads.models import Target, ScanResult, ModuleState, SystemConfig
+from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification
 from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
-from yads.api.routers import auth, analytics, users, tenants
+from yads.api.routers import auth, analytics, users, tenants, schedules
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException
 from yads.models import User
 
@@ -65,6 +65,15 @@ async def lifespan(app: FastAPI):
                     logger.info("Migrating schema: Adding last_login to user table")
                     session.rollback()
                     session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login TIMESTAMP WITHOUT TIME ZONE"))
+                    session.commit()
+
+                # Check for email column (v1.3.0)
+                try:
+                    session.exec(text("SELECT email FROM \"user\" LIMIT 1"))
+                except Exception:
+                    logger.info("Migrating schema: Adding email to user table")
+                    session.rollback()
+                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN email VARCHAR"))
                     session.commit()
                     
                 # Check if Target table has tenant_id column
@@ -164,13 +173,19 @@ async def lifespan(app: FastAPI):
                     logger.info(f"Added changelog entry for {version}")
                 
             break
-        except OperationalError:
+        except Exception:
             if i == max_retries - 1:
                 logger.error("Could not connect to database after retries.")
                 raise
             logger.warning(f"Database not ready... retrying ({i+1}/{max_retries})")
             time.sleep(2)
             
+    # --- Start Scheduler (Background Task) ---
+    from yads.core.scheduler import ScanScheduler
+    scheduler = ScanScheduler()
+    import asyncio
+    asyncio.create_task(scheduler.start())
+
     yield
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
@@ -183,6 +198,30 @@ templates = Jinja2Templates(directory="yads/api/templates")
 templates.env.globals['settings'] = settings
 from datetime import datetime
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+# Custom Filters
+def timestamp_to_time(value):
+    if not value:
+        return "-"
+    try:
+        dt = datetime.fromtimestamp(float(value))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except:
+        return str(value)
+
+templates.env.filters["timestamp_to_time"] = timestamp_to_time
+
+# -- Template Globals --
+def get_all_tenants():
+    # Helper to fetch all tenants for Platform Admin dropdown
+    # Must use separate session as this runs in Jinja context
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
 
 # -- CORS Setup --
 # Kept for dev compatibility, though strictly not needed for server-side rendering
@@ -201,17 +240,39 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 
 # -- Routers --
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications
 app.include_router(analytics.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tenants.router)
 app.include_router(changelog.router)
 app.include_router(help.router)
+app.include_router(profile.router)
+app.include_router(schedules.router)
+app.include_router(queue.router)
+app.include_router(notifications.router)
 
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):
     return RedirectResponse(url="/login")
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Check if request expects HTML (simple check)
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return templates.TemplateResponse("error.html", {
+            "request": request, 
+            "status_code": exc.status_code,
+            "detail": exc.detail,
+            "user": None # Context might not have user if auth failed, base.html handles this
+        }, status_code=exc.status_code)
+    
+    # Fallback to default JSON behavior
+    return JSONResponse(
+        {"detail": exc.detail}, 
+        status_code=exc.status_code
+    )
 
 
 # -- UI Routes --
@@ -223,7 +284,7 @@ async def bulk_scan_targets(
     request: Request,
     scan_types: List[str] = Form(default=[]), 
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "scanner"]))
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
 ):
     form = await request.form()
     target_ids = form.getlist("target_ids") 
@@ -282,7 +343,7 @@ async def bulk_import_targets(
     request: Request,
     file_upload: UploadFile = File(None),
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "scanner"]))
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
 ):
     form = await request.form()
     raw_text = form.get("targets_raw", "")
@@ -365,7 +426,7 @@ async def bulk_import_targets(
 async def bulk_delete_targets(
     target_ids: List[int] = Form(...),
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "scanner"]))
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
 ):
     """
     Deletes multiple targets and their associated data.
@@ -447,7 +508,7 @@ async def bulk_delete_targets(
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 @app.post("/targets/{target_id}/scan")
-async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
+async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))):
     # Tenant Scope Check
     target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
     if not target:
@@ -533,11 +594,20 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = config.value.lower() == "true" if config else False
 
+    # Fetch Recent Activity (ScanResults)
+    recent_activity = session.exec(
+        select(ScanResult).join(Target)
+        .where(Target.tenant_id == user.tenant_id)
+        .order_by(ScanResult.scanned_at.desc())
+        .limit(5)
+    ).all()
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "targets": targets,
         "active_scans": active_scans,
         "last_scans": last_scans,
+        "recent_activity": recent_activity, # Added
         "stats": {
             "active_targets": total_targets,
             "services_monitored": "-",  # Placeholder
@@ -647,7 +717,7 @@ async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, ses
 
 
 @app.get("/logs", response_class=HTMLResponse)
-async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["admin", "scanner"]))):
+async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["admin", "tenant_admin"]))):
     """
     Renders the Logs page with a list of available log files.
     """
@@ -658,10 +728,12 @@ async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["ad
         log_files = [f for f in os.listdir(log_dir) if f.endswith('.log')]
         log_files.sort()
     
-    # Default to yads-api.log if available, else first one, else yads.log
+    # Default to yads-api.log if available, else first one
     default_log = "yads-api.log"
     if default_log not in log_files and log_files:
         default_log = log_files[0]
+    elif not log_files:
+        default_log = ""
 
     return templates.TemplateResponse("logs.html", {
         "request": request,
@@ -671,8 +743,8 @@ async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["ad
     })
 
 @app.get("/api/logs/stream")
-async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleChecker(["admin", "scanner"]))):
-    """Reads the last 100 lines of the specified log file."""
+async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleChecker(["admin", "tenant_admin"]))):
+    """Reads the last 100 lines of the specified log file. Filters by tenant if not global admin."""
     log_dir = os.getenv("LOG_DIR", "logs")
     
     # Security: Ensure clean filename (basename only) to prevent traversal
@@ -682,10 +754,33 @@ async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleC
     if not os.path.exists(log_file):
         return {"logs": [f"Log file '{safe_filename}' not found."]}
     
-    async with aiofiles.open(log_file, mode='r') as f:
-        content = await f.read()
-        lines = content.splitlines()
-        return {"logs": lines[-100:]}
+    lines_to_return = []
+    
+    # Efficiently read last N lines
+    # For now, we read full file or chunk and filter. 
+    # Since we need to filter, reading just last 100 bytes is risky if we filter them all out.
+    # We'll read a reasonable tail size, say last 2000 lines, filter them, and return last 100 matches.
+    
+    try:
+        async with aiofiles.open(log_file, mode='r') as f:
+            # Reading all lines might be memory intensive for huge logs.
+            # But for YADS scale (<100MB logs usually due to rotation), it's okay for now.
+            content = await f.read()
+            lines = content.splitlines()
+            
+            # Filtering Logic
+            if user.role == "admin":
+                # Admin sees all
+                lines_to_return = lines
+            else:
+                # Tenant Admin sees only lines with [Tenant: ID]
+                tenant_tag = f"[Tenant: {user.tenant_id}]"
+                lines_to_return = [line for line in lines if tenant_tag in line]
+                
+            return {"logs": lines_to_return[-100:]}
+            
+    except Exception as e:
+        return {"logs": [f"Error reading log file: {str(e)}"]}
 
 @app.post("/targets/add", response_class=HTMLResponse)
 async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
@@ -756,7 +851,7 @@ async def get_scan_status(target_id: int):
     return {"status": "Unknown"}
 
 @app.get("/api/scans/{target_id}/logs")
-async def get_scan_logs(target_id: int):
+async def get_scan_logs(target_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Returns the recent log lines from Redis.
     """
@@ -764,6 +859,18 @@ async def get_scan_logs(target_id: int):
     import json
     r = redis.from_url(settings.REDIS_URL)
     
+    r = redis.from_url(settings.REDIS_URL)
+    
+    # Security Check
+    target = session.get(Target, target_id)
+    if not target:
+        return {"logs": []}
+        
+    if user.role != "admin" and target.tenant_id != user.tenant_id:
+        # Silently return empty or error? Error 403 is better but this is likely consumed by polling JS.
+        # Returning explicit error message in logs list is safer for UI feedback or just 403.
+        raise HTTPException(status_code=403, detail="Not authorized to view these logs")
+
     # Fetch List
     logs = r.lrange(f"scan:logs:{target_id}", 0, -1)
     parsed_logs = []
@@ -1550,198 +1657,9 @@ async def execute_restore(
 # The previous POST /api/backup/restore is REPLACED by the logic above or we just re-route.
 
 
-# -- Queue Management Routes --
-import redis
 
-@app.get("/queue", response_class=HTMLResponse)
-async def view_queue(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
-    # Connect to Redis to peek at the queue
-    # Celery default queue key is 'celery'
-    try:
-        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
-        queue_len = r.llen("celery")
-        # Peek top 50
-        raw_items = r.lrange("celery", 0, 49)
-        queue_items = []
-        import json
-        import base64
-        
-        for raw in raw_items:
-            try:
-                item_data = json.loads(raw)
-                # Try to get data from argsrepr first (easiest)
-                # Format: [1, 'domain', ['type1', 'type2']]
-                args_str = item_data.get('headers', {}).get('argsrepr', '')
-                
-                # If argsrepr exists, try to parse it safely or just format it
-                # Converting string representation to list can be risky with eval, 
-                # but we can try to parse it if it looks like JSON or just use string manipulation
-                
-                # Robust fallback: Decode Body
-                body_b64 = item_data.get('body')
-                if body_b64:
-                    # Celery default encoding is base64 for body
-                    body_str = base64.b64decode(body_b64).decode('utf-8')
-                    body_json = json.loads(body_str)
-                    args = body_json[0] # [id, domain, types]
-                    
-                    domain = args[1] if len(args) > 1 else "?"
-                    scan_types = args[2] if len(args) > 2 else ["All"]
-                    
-                    queue_items.append({
-                        "domain": domain,
-                        "scan_types": scan_types,
-                        "raw_id": item_data.get('headers', {}).get('id', '?')
-                    })
-                else:
-                     # Fallback to raw if body missing
-                     queue_items.append({"domain": "Unknown", "scan_types": args_str, "raw_id": "?"})
-                     
-            except Exception as e:
-                queue_items.append({"domain": "Parse Error", "scan_types": str(e), "raw_id": "?"})
 
-    except Exception as e:
-        queue_len = "Error connecting to Redis"
-        queue_items = []
 
-    # Check Active/Paused Config
-    from yads.models import SystemConfig
-    config = session.get(SystemConfig, "QUEUE_ACTIVE")
-    # Default to False (Paused) if not set, as per user request for "no auto start"
-    queue_active = False 
-    if config:
-        queue_active = config.value.lower() == "true"
-        
-    # Fetch Pending Items from DB (waiting for queue to resume)
-    pending_items = session.exec(select(Target).where(Target.scan_status == "queued", Target.tenant_id == user.tenant_id)).all()
-
-    # Fetch Tenants user is allowed to access (For Backup Selection)
-    from yads.models import Tenant
-    allowed_tenants = []
-    if "admin" in user.role:
-        allowed_tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
-    else:
-        # Assuming M:N is available on user object via Relationship
-        allowed_tenants = user.allowed_tenants
-        if not allowed_tenants and user.tenant:
-             allowed_tenants = [user.tenant]
-
-    return templates.TemplateResponse("queue.html", { # Changed from settings.html to queue.html
-        "request": request, 
-        "user": user,
-        "queue_length": queue_len, # Added back
-        "queue_items": queue_items, # Added back
-        "pending_items": pending_items, # Added back
-        "queue_active": queue_active, # Changed from queue_status to queue_active
-        "allowed_tenants": allowed_tenants # New: For Backup UI
-    })
-
-@app.post("/queue/control")
-async def control_queue(request: Request, action: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
-    
-    config = session.get(SystemConfig, "QUEUE_ACTIVE")
-    if not config:
-        config = SystemConfig(key="QUEUE_ACTIVE", value="false")
-        session.add(config)
-    
-    if action == "start":
-        # CRITICAL: Update DB to "true" BEFORE enabling consumer.
-        # Otherwise, eager workers pick up tasks, check DB, see "false", and abort immediately.
-        config.value = "true"
-        session.add(config)
-        session.commit()
-        
-        # Enable Consumer
-        celery_app.control.add_consumer('celery', reply=True)
-        
-        msg = "Queue+Processing+Resumed"
-        
-        # Return early since we committed already
-        return RedirectResponse(url=f"/queue?msg={msg}", status_code=303)
-    elif action == "clear":
-        # 1. Purge Redis Queue
-        purged = celery_app.control.purge()
-        
-        # 2. Clear DB Queue (mark as stopped/cancelled) - Tenant Scoped if we want? 
-        # But this is "Control Queue", usually Admin only. 
-        # Ideally an Admin clears queue for EVERYONE or just their tenant?
-        # If we are strictly multi-tenant, maybe just their tenant. 
-        # But queue is shared resource (worker). Clearing it affects all.
-        # Let's purge REDIS (global) but update DB for tenant only? That results in mismatch.
-        # "Control Queue" is arguably a Super-Admin feature.
-        # But for now, let's limit to tenant to be consistent with "Multi-Tenancy".
-        # If user is admin of tenant a customer, they shouldn't clear tasks for Sparkasse.
-        
-        # However, redis.purge() CLEARS EVERYTHING.
-        # We can't selectively purge Redis without iterating.
-        # For this iteration: Global Purge (Queue is shared infrastructure)
-        # But DB updates should probably touch all to match reality?
-        # If the queue is empty, ALL tasks are stopped.
-        
-        statement = select(Target).where(Target.scan_status == "queued")
-        # If we want to be nice, we only mark OUR targets as stopped.
-        # But if we purged Redis, EVERYONE'S tasks are gone.
-        # So we must mark ALL targets as stopped to reflect reality.
-        # Queue Control determines the state of the *Worker*, which is a singleton resource here.
-        # So we accept this is a "System Admin" generic action?
-        # The user's prompt implies "Multi-Tenancy" access control.
-        # A tenant admin shouldn't be able to stop the global scanner.
-        # But we don't have "Super Admin".
-        # Let's leave it global for now but acknowledge the limitation.
-        # Or better: Only update OUR targets, but warn that queue was purged.
-        
-        # Actually, let's do global DB update because the tasks actully died.
-        targets = session.exec(statement).all()
-        for t in targets:
-            t.scan_status = "stopped"
-            t.scan_progress = "Cleared from Queue"
-            session.add(t)
-            
-        msg = f"Queue+Cleared+(Purged:+{purged},+DB+Updated:+{len(targets)})"
-
-    elif action == "pause":
-         # Disable Consumer
-        celery_app.control.cancel_consumer('celery', reply=True)
-        config.value = "false"
-        msg = "Queue+Processing+Paused"
-    elif action == "stop":
-        # 1. Disable Consumer
-        celery_app.control.cancel_consumer('celery', reply=True)
-        config.value = "false"
-        
-        # 2. Purge Queue
-        try:
-            celery_app.control.purge()
-        except Exception:
-            pass
-            
-        # 3. Revoke Active Tasks
-        i = celery_app.control.inspect()
-        active = i.active()
-        if active:
-            for worker, tasks in active.items():
-                for task in tasks:
-                    celery_app.control.revoke(task['id'], terminate=True)
-        
-        # 4. Update DB Status
-        targets = session.exec(select(Target).where(Target.scan_status.in_(["running", "queued"]))).all()
-        for t in targets:
-            t.scan_status = "stopped"
-            t.scan_progress = "Emergency Stop by User"
-            session.add(t)
-            
-        msg = "System+Full+Stop+Executed"
-    else:
-        msg = "Invalid+Action"
-        
-        session.add(config)
-    session.commit()
-    
-    # Check if HTMX request (e.g. from Dashboard)
-    if request.headers.get("HX-Request"):
-        return await dashboard_stats(request, session, user)
-        
-    return RedirectResponse(url=f"/queue?msg={msg}", status_code=303)
 
 
 # -- Graph View --
@@ -2373,6 +2291,9 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
                 if cipher_name and cipher_name.lower() != "cipherset":
                     approved_ciphers_set.add(cipher_name)
 
+    # Fetch Schedule
+    from yads.models import ScanSchedule
+    schedule = session.exec(select(ScanSchedule).where(ScanSchedule.target_id == target_id)).first()
     
     return templates.TemplateResponse("target_detail.html", {
         "user": user,
@@ -2391,7 +2312,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "history_entries": history_entries, # Pass full history
         "current_history_id": history_id,
         "raw_results": jsonable_encoder([r.model_dump() for r in current_results]),
-        "approved_ciphers": approved_ciphers_set
+        "approved_ciphers": approved_ciphers_set,
+        "schedule": schedule
     })
 
 

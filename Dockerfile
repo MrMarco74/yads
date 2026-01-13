@@ -19,6 +19,7 @@ RUN apt-get clean && apt-get update --fix-missing && apt-get install -y --no-ins
     gnupg \
     nmap \
     graphviz \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
