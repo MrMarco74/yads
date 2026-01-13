@@ -120,9 +120,12 @@
             <div>
                 <label class="block mb-1 text-sm text-gray-400">Role</label>
                 <select name="role" class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
-                    <option value="viewer">Viewer</option>
+                    <option value="auditor">Auditor</option>
                     <option value="scanner">Scanner</option>
-                    <option value="admin">Admin</option>
+                    <option value="tenant_admin">Tenant Admin</option>
+                    {% if user.role == 'admin' %}
+                    <option value="admin">Platform Admin</option>
+                    {% endif %}
                 </select>
                 </select>
             </div>
@@ -168,7 +171,9 @@
                     <td class="px-6 py-4 font-medium text-white">{{ user.username }}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
                             {% if user.role == 'admin' %}bg-purple-900/50 text-purple-200 border border-purple-800
+                            {% elif user.role == 'tenant_admin' %}bg-teal-900/50 text-teal-200 border border-teal-800
                             {% elif user.role == 'scanner' %}bg-blue-900/50 text-blue-200 border border-blue-800
                             {% else %}bg-gray-700 text-gray-300 border border-gray-600{% endif %}">
                             {{ user.role }}

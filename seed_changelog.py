@@ -41,6 +41,27 @@ def seed_changelog():
             )
             session.add(entry2)
         
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.2.9").first():
+            entry3 = ChangelogEntry(
+                title="YADS v1.2.9: Multi-Tenancy & RBAC Extensions",
+                version="1.2.9",
+                content="""
+                <h3>🛡️ Security & Access Control</h3>
+                <ul>
+                    <li><strong>Tenant Admin Role:</strong> Introduced a new 'Tenant Admin' role capable of managing users within their own tenant.</li>
+                    <li><strong>Auditor Role:</strong> Renamed 'Viewer' to 'Auditor' to better reflect the role's purpose.</li>
+                    <li><strong>Scoped User Management:</strong> Platform Admins can now manage all users, while Tenant Admins are restricted to their specific tenant scope.</li>
+                    <li><strong>Password Resets:</strong> Improved password reset workflows for tenant-specific users.</li>
+                </ul>
+                <h3>💅 UI Improvements</h3>
+                <ul>
+                    <li><strong>Role Badges:</strong> Updated visual indicators for different user roles in the management table.</li>
+                    <li><strong>Navigation:</strong> Context-aware navigation links for Tenant Admins.</li>
+                </ul>
+                """
+            )
+            session.add(entry3)
+        
         session.commit()
         print("Changelog seeded successfully.")
 

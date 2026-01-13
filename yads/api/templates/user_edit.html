@@ -17,9 +17,12 @@
             <div>
                 <label class="block mb-2 text-sm text-gray-400">Role</label>
                 <select name="role" class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
-                    <option value="viewer" {% if user_to_edit.role == 'viewer' %}selected{% endif %}>Viewer</option>
+                    <option value="auditor" {% if user_to_edit.role == 'auditor' or user_to_edit.role == 'viewer' %}selected{% endif %}>Auditor</option>
                     <option value="scanner" {% if user_to_edit.role == 'scanner' %}selected{% endif %}>Scanner</option>
-                    <option value="admin" {% if user_to_edit.role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="tenant_admin" {% if user_to_edit.role == 'tenant_admin' %}selected{% endif %}>Tenant Admin</option>
+                    {% if user.role == 'admin' %}
+                    <option value="admin" {% if user_to_edit.role == 'admin' %}selected{% endif %}>Platform Admin</option>
+                    {% endif %}
                 </select>
             </div>
 
