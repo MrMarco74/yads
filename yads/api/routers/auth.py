@@ -14,6 +14,15 @@ import pyotp
 
 router = APIRouter()
 templates = Jinja2Templates(directory="yads/api/templates")
+
+def get_all_tenants():
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
 # Inject Globals
 from datetime import datetime
 templates.env.globals['settings'] = settings
