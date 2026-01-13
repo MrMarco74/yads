@@ -16,6 +16,15 @@ templates.env.globals['settings'] = settings
 from datetime import datetime
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
+def get_all_tenants():
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
+
 # Only Admins can access these routes
 admin_only = RoleChecker(["admin", "tenant_admin"])
 
@@ -284,4 +293,36 @@ async def edit_user(
     session.add(user)
     session.commit()
     
+    
     return RedirectResponse(url="/users/?msg=User+updated", status_code=303)
+
+@router.post("/tenants/update", dependencies=[Depends(admin_only)])
+async def update_user_tenants(
+    request: Request, 
+    user_id: int = Form(...), 
+    tenant_ids: list[int] = Form(default=[]), 
+    session: Session = Depends(get_db_session)
+):
+    user = session.get(User, user_id)
+    if not user:
+        return RedirectResponse(url="/users/?error=User+not+found", status_code=303)
+        
+    # Clear existing links
+    links = session.exec(select(UserTenantLink).where(UserTenantLink.user_id == user.id)).all()
+    for l in links:
+        session.delete(l)
+        
+    # Add new links
+    for tid in tenant_ids:
+        link = UserTenantLink(user_id=user.id, tenant_id=tid)
+        session.add(link)
+        
+    # Ensure active tenant context is preserved in allowed list
+    if user.tenant_id and user.tenant_id not in tenant_ids:
+        # Check if it was already added above (if tenant_ids contained it)
+        # If not, add it
+        link = UserTenantLink(user_id=user.id, tenant_id=user.tenant_id)
+        session.add(link)
+        
+    session.commit()
+    return RedirectResponse(url="/users/?msg=User+tenants+updated", status_code=303)

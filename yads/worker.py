@@ -10,6 +10,7 @@ from yads.core.logging_config import configure_logging
 from yads.modules.dns_scanner import SubdomainScanner, DNSRecordScanner
 from yads.modules.web_analyzer import WebAnalyzer
 from yads.modules.visual_osint import VisualOSINT
+from yads.core.splunk_logger import splunk_logger
 
 # Configure Logging
 logger = configure_logging("yads-worker")
@@ -119,6 +120,19 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                 parent_tenant_id = target.tenant_id
                 session.add(target)
                 session.commit()
+                
+                # Splunk Event: Scan Start
+                splunk_logger.send_security_event(
+                    action="scan_start",
+                    user="system:worker",
+                    mitre_id="TA0007", # Discovery
+                    details={
+                        "target_id": target_id,
+                        "domain": domain,
+                        "scan_types": scan_types
+                    },
+                    tenant_id=parent_tenant_id
+                )
             except Exception as e:
                 logger.error(f"[Worker] Failed to update start status: {e}")
                 session.rollback()

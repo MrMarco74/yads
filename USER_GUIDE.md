@@ -100,6 +100,17 @@ On the **Target Details** page, click **"New Scan"** to open the advanced select
 *   **Wayback Machine**: Looks for historical files and endpoints.
 *   **FULL SCAN**: Runs all available modules.
 
+### Scheduled Scans
+You can automate your reconnaissance by setting up a recurring schedule for any target.
+1.  Navigate to the **Target Details** page of the desired domain.
+2.  Locate the **Scheduling** card in the left sidebar.
+3.  Select **Daily** or **Weekly**.
+    *   **Daily**: Runs every 24 hours.
+    *   **Weekly**: Runs every 7 days.
+    *   **Disable**: Stops any future automated scans.
+
+*Note: Scheduled scans automatically execute the **FULL SCAN** profile to ensure comprehensive coverage.*
+
 ---
 
 ## 6. Analysis Modules

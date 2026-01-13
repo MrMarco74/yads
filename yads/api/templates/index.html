@@ -1,80 +1,182 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="space-y-8">
-    <!-- Stats Row -->
-    {% include "_dashboard_stats.html" %}
-
-    <!-- Active Scans Row -->
-    {% include "_active_scans.html" %}
-
-    <!-- Modal Container (Placeholder) -->
-    <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none empty:hidden">
-        <!-- Content injected here will need pointer-events-auto -->
+<div class="space-y-6">
+    
+    <!-- Row 0: Critical Attention (Moved to Top) -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden mb-8">
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
+                Critical Attention Needed
+            </h3>
+            <a href="/targets/table?filter=critical" class="text-xs text-blue-400 hover:text-blue-300 font-medium">View All Issues</a>
+        </div>
+        
+        <!-- Mock Data Table for High Risk Targets -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider">
+                    <tr>
+                        <th class="px-4 py-3 font-medium">Target</th>
+                        <th class="px-4 py-3 font-medium">Risk Score</th>
+                        <th class="px-4 py-3 font-medium">Issue</th>
+                        <th class="px-4 py-3 font-medium text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                     <!-- This would be dynamic in production, hardcoded placeholder for design -->
+                     {% if targets %}
+                        {% for target in targets[:3] %}
+                        <tr class="hover:bg-slate-800/30 transition-colors">
+                            <td class="px-4 py-3 font-medium text-slate-300">{{ target.domain }}</td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                    Medium
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-400">Routine Scan Required</td>
+                            <td class="px-4 py-3 text-right">
+                                <button class="text-blue-400 hover:text-white transition-colors">Investigate</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                     {% else %}
+                        <tr>
+                            <td colspan="4" class="px-4 py-8 text-center text-slate-500">
+                                No critical issues detected. System secure.
+                            </td>
+                        </tr>
+                     {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <!-- JavaScript to handle modal background click to close -->
+    <!-- Row 1: Key Metrics (Cockpit Header) -->
+    {% include "_dashboard_stats.html" %}
+
+    <!-- Row 2: Operational View -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column: Critical Attention (2/3 width) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+
+
+            <!-- Recent Activity / Timeline (Placeholder) -->
+             <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm p-4">
+                <h3 class="text-sm font-semibold text-white mb-4">Security Timeline</h3>
+                <div class="space-y-4">
+                    {% if recent_activity %}
+                        {% for activity in recent_activity %}
+                        <div class="flex gap-3">
+                            <div class="flex flex-col items-center">
+                                 <div class="h-2 w-2 rounded-full bg-blue-500 my-1"></div>
+                                 <div class="h-full w-px bg-slate-800"></div>
+                            </div>
+                            <div class="pb-4">
+                                 <p class="text-sm text-slate-300">
+                                     <span class="font-bold text-white">{{ activity.module_name|replace('_', ' ')|title }}</span> 
+                                     completed for <span class="font-medium text-slate-400">{{ activity.target.domain }}</span>.
+                                 </p>
+                                 <p class="text-xs text-slate-500" title="{{ activity.scanned_at }}">{{ activity.scanned_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="flex gap-3 opacity-50">
+                            <div class="flex flex-col items-center">
+                                 <div class="h-2 w-2 rounded-full bg-slate-700 my-1"></div>
+                            </div>
+                            <div>
+                                 <p class="text-xs text-slate-500">No recent activity detected.</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+             </div>
+
+        </div>
+
+        <!-- Right Column: Pipeline & Actions (1/3 width) -->
+        <div class="space-y-6">
+            
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-2 gap-3">
+                 <button class="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-600 transition-all group">
+                     <div class="p-2 rounded-lg bg-blue-500/10 text-blue-400 group-hover:text-white group-hover:bg-blue-500 mb-2 transition-colors">
+                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                     </div>
+                     <span class="text-xs font-medium text-slate-300">New Target</span>
+                 </button>
+                 <button class="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-600 transition-all group">
+                     <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:text-white group-hover:bg-indigo-500 mb-2 transition-colors">
+                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                     </div>
+                     <span class="text-xs font-medium text-slate-300">Generate Report</span>
+                 </button>
+            </div>
+
+            <!-- Active Scans Pipeline -->
+            {% include "_active_scans.html" %}
+
+            <!-- Compliance Pulse -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 shadow-sm">
+                 <div class="flex items-center justify-between mb-2">
+                     <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Compliance</h3>
+                        <!-- Info Tooltip -->
+                        <div x-data="{ show: false }" class="relative">
+                            <button @mouseenter="show = true" @mouseleave="show = false" class="text-slate-600 hover:text-slate-400 cursor-help focus:outline-none">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                            <div x-show="show" 
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 translate-y-1"
+                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                 class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 text-xs text-slate-300 pointer-events-none">
+                                <p class="font-semibold text-white mb-1">Compliance Score (Demo)</p>
+                                <p>This metric is currently a placeholder for valid SOC2 readiness checks based on scan results.</p>
+                                <div class="mt-2 pt-2 border-t border-slate-700/50">
+                                    <span class="text-cyan-400">Read docs &rarr;</span>
+                                </div>
+                            </div>
+                        </div>
+                     </div>
+                     <span class="text-xs font-bold text-emerald-400">SOC2 Ready</span>
+                 </div>
+                 <div class="flex items-end gap-2 mb-1">
+                     <span class="text-3xl font-bold text-white">94%</span>
+                     <span class="text-xs text-slate-500 mb-1">Passing</span>
+                 </div>
+                 <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-2">
+                     <div class="h-full bg-emerald-500 w-[94%]"></div>
+                 </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <!-- Modal Container -->
+    <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none empty:hidden"></div>
     <script>
         document.getElementById('modal-container').addEventListener('click', function(e) {
-            if (e.target === this) {
-                this.innerHTML = '';
-            }
+            if (e.target === this) this.innerHTML = '';
         });
-        // Make sure injected content enables pointer events
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
+                 const el = document.getElementById('modal-container');
                  if (mutation.addedNodes.length) {
-                     document.getElementById('modal-container').classList.remove('pointer-events-none');
-                     document.getElementById('modal-container').classList.add('pointer-events-auto', 'bg-black/50', 'backdrop-blur-sm');
+                     el.classList.remove('pointer-events-none');
+                     el.classList.add('pointer-events-auto', 'bg-black/80', 'backdrop-blur-sm');
                  } else {
-                     document.getElementById('modal-container').classList.add('pointer-events-none');
-                     document.getElementById('modal-container').classList.remove('pointer-events-auto', 'bg-black/50', 'backdrop-blur-sm');
+                     el.classList.add('pointer-events-none');
+                     el.classList.remove('pointer-events-auto', 'bg-black/80', 'backdrop-blur-sm');
                  }
             });
         });
         observer.observe(document.getElementById('modal-container'), { childList: true });
     </script>
-
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        <!-- Left: Target List -->
-        <div class="lg:col-span-2 space-y-6">
-            <h2 class="text-xl font-semibold text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
-                Monitored Domains
-            </h2>
-
-            <!-- Targets Container -->
-            <!-- Wrapped in a div that HTMX can target if needed, but inner content is valid -->
-            {% include "_target_list.html" %}
-            <!-- Removed inline grid logic -->
-
-        </div>
-
-        <!-- Right: Add Target -->
-        <div>
-            <!-- Right: Add Target -->
-        <div>
-            {% if user and user.role != 'viewer' %}
-            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 sticky top-24">
-                <h3 class="text-lg font-semibold text-white mb-4">Add New Target</h3>
-                <form action="/targets/add" method="POST">
-                    <div class="space-y-4">
-                        <div>
-                            <label for="domain" class="block text-sm font-medium text-gray-400 mb-1">Domain Name</label>
-                            <input type="text" name="domain" id="domain" placeholder="example.com" required
-                                class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
-                        </div>
-                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 px-4 rounded-lg shadow-lg shadow-indigo-500/20 transition-all transform hover:scale-[1.02]">
-                            Start Monitoring
-                        </button>
-                    </div>
-                </form>
-            </div>
-            {% endif %}
-        </div>
-
-    </div>
 </div>
 {% endblock %}

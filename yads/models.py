@@ -103,6 +103,7 @@ class SystemConfig(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
+    email: Optional[str] = Field(default=None) # Added in v1.3.0
     password_hash: str
     role: str = Field(default="auditor") # admin, tenant_admin, scanner, auditor
     is_active: bool = Field(default=True)
@@ -117,10 +118,10 @@ class User(SQLModel, table=True):
 
     # Multi-Tenancy
     tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id")
-    tenant: Optional[Tenant] = Relationship(back_populates="users")
+    tenant: Optional[Tenant] = Relationship(back_populates="users", sa_relationship_kwargs={"lazy": "selectin"})
     
     # Authorized Tenants (M:N)
-    allowed_tenants: List[Tenant] = Relationship(back_populates="allowed_users", link_model=UserTenantLink)
+    allowed_tenants: List[Tenant] = Relationship(back_populates="allowed_users", link_model=UserTenantLink, sa_relationship_kwargs={"lazy": "selectin"})
 
     # Changelog Tracking
     last_seen_changelog_id: Optional[int] = Field(default=0)
@@ -131,3 +132,22 @@ class ChangelogEntry(SQLModel, table=True):
     content: str  # HTML or Markdown
     version: str
     published_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Notification(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    text: str
+    type: str = Field(default="info") # update, feature, maintenance, info
+    color: str = Field(default="blue") # purple, emerald, amber, blue
+    icon: str # SVG path or identifier
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ScanSchedule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    target_id: int = Field(foreign_key="target.id", index=True)
+    frequency: str = Field(default="daily") # daily, weekly
+    next_run_at: datetime = Field(index=True)
+    last_run_at: Optional[datetime] = Field(default=None)
+    is_active: bool = Field(default=True)
+    
+    target: Target = Relationship(sa_relationship_kwargs={"lazy": "selectin"})

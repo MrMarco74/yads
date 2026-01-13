@@ -73,7 +73,7 @@ class SplunkHECLogger:
             # Requirements: Log to STDERR, do not crash app
             logger.error(f"Failed to send event to Splunk: {e}")
 
-    def send_event(self, data: Dict[str, Any], sourcetype: str = "json") -> None:
+    def send_event(self, data: Dict[str, Any], sourcetype: str = "json", tenant_id: Optional[int] = None) -> None:
         """
         Sends a generic event to Splunk.
         """
@@ -86,9 +86,14 @@ class SplunkHECLogger:
             "sourcetype": sourcetype,
             "event": data
         }
+        
+        # Inject Tenant ID if provided
+        if tenant_id is not None:
+            payload["event"]["tenant_id"] = tenant_id
+
         self._send_payload(payload)
 
-    def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None) -> None:
+    def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
         """
         Sends a structured Security Event compliant with common CIM fields and MITRE context.
         """
@@ -107,6 +112,9 @@ class SplunkHECLogger:
             "details": details,
             "app": "YADS"
         }
+        
+        if tenant_id is not None:
+            event_data["tenant_id"] = tenant_id
 
         # Sending as 'yads:security' sourcetype for easy filtering
         self.send_event(event_data, sourcetype="yads:security")

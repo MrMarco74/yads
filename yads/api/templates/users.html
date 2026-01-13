@@ -21,12 +21,13 @@
     <!-- Create User -->
     <div class="p-6 mb-8 bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
         <h2 class="mb-4 text-xl font-semibold text-gray-200">Create New User</h2>
-        <form action="/users/create" method="post" class="flex flex-wrap items-end gap-4">
-            <div>
+        <form action="/users/create" method="post" class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            <div class="lg:col-span-3">
                 <label class="block mb-1 text-sm text-gray-400">Username</label>
-                <input type="text" name="username" required class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+                <input type="text" name="username" required class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
             </div>
-            <div>
+            
+            <div class="lg:col-span-3">
                 <label class="block mb-1 text-sm text-gray-400">Password</label>
                 <div class="flex flex-col gap-2">
                      <div class="flex gap-2">
@@ -42,84 +43,10 @@
                     <p id="strength-text" class="text-[10px] text-gray-500 font-mono text-right h-4">Min 8 chars</p>
                 </div>
             </div>
-            <script>
-                function checkStrength() {
-                    const val = document.getElementById("new_user_password").value;
-                    const bar = document.getElementById("strength-bar");
-                    const txt = document.getElementById("strength-text");
-                    
-                    if (!val) {
-                        bar.style.width = "0%";
-                        bar.className = "bg-gray-600 h-1.5 rounded-full transition-all duration-300";
-                        txt.textContent = "";
-                        return;
-                    }
 
-                    // BSI-like check:
-                    // Length < 8: Weak
-                    // Length >= 8 + Complexity: Medium
-                    // Length >= 12 + Complexity: Strong (BSI Recommendation for standard protection is often 8 complex or 12+ simple phrases, but effectively 12+ complex is solid)
-                    
-                    let score = 0;
-                    if (val.length >= 8) score += 1;
-                    if (val.length >= 12) score += 1;
-                    if (val.length >= 16) score += 1;
-                    
-                    // Complexity
-                    if (/[A-Z]/.test(val)) score += 1;
-                    if (/[a-z]/.test(val)) score += 1;
-                    if (/[0-9]/.test(val)) score += 1;
-                    if (/[^A-Za-z0-9]/.test(val)) score += 1;
-
-                    // Max Score potential: 3 (len) + 4 (comp) = 7
-                    // Mapping to UI
-                    // < 3: Weak
-                    // 3-4: Moderate
-                    // 5-6: Strong
-                    // 7: Very Strong
-                    
-                    let color = "bg-red-600";
-                    let label = "Weak";
-                    let width = "10%";
-                    
-                    if (val.length < 8) {
-                        label = "Too Short (<8)";
-                        width = "10%";
-                    } else if (score < 4) {
-                        color = "bg-orange-500";
-                        label = "Weak";
-                        width = "30%";
-                    } else if (score < 6) {
-                        color = "bg-yellow-400";
-                        label = "Moderate";
-                        width = "60%";
-                    } else {
-                        color = "bg-green-500";
-                        label = "Strong (BSI Compliant)";
-                        width = "100%";
-                    }
-                    
-                    bar.className = `${color} h-1.5 rounded-full transition-all duration-300`;
-                    bar.style.width = width;
-                    txt.textContent = label;
-                    txt.className = `text-[10px] font-mono text-right h-4 ${color.replace('bg-', 'text-')}`;
-                }
-
-                function generateRandomPassword() {
-                    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-                    let password = "";
-                    for (let i = 0; i < 20; i++) {
-                        password += chars.charAt(Math.floor(Math.random() * chars.length));
-                    }
-                    const input = document.getElementById("new_user_password");
-                    input.value = password;
-                    input.type = "text"; // Show
-                    checkStrength(); // Update meter
-                }
-            </script>
-            <div>
+            <div class="lg:col-span-2">
                 <label class="block mb-1 text-sm text-gray-400">Role</label>
-                <select name="role" class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+                <select name="role" class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
                     <option value="auditor">Auditor</option>
                     <option value="scanner">Scanner</option>
                     <option value="tenant_admin">Tenant Admin</option>
@@ -127,13 +54,12 @@
                     <option value="admin">Platform Admin</option>
                     {% endif %}
                 </select>
-                </select>
             </div>
             
             {% if not user.tenant_id %}
-            <div>
+            <div class="lg:col-span-2">
                 <label class="block mb-1 text-sm text-gray-400">Tenant</label>
-                <select name="target_tenant_id" class="px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
+                <select name="target_tenant_id" class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
                     <option value="">-- Platform Admin --</option>
                     {% for t in tenants %}
                     <option value="{{ t.id }}">{{ t.name }}</option>
@@ -142,11 +68,13 @@
             </div>
             {% endif %}
 
-            <div class="flex items-center mb-3">
-                <input type="checkbox" name="force_change" value="true" id="force_change" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2">
-                <label for="force_change" class="ml-2 text-sm font-medium text-gray-400">Force Password Change</label>
+            <div class="lg:col-span-2 flex flex-col justify-end h-full pb-[26px]"> <!-- pb aligns with input height roughly -->
+                <div class="flex items-center mb-2">
+                    <input type="checkbox" name="force_change" value="true" id="force_change" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2">
+                    <label for="force_change" class="ml-2 text-xs font-medium text-gray-400">Force PW Change</label>
+                </div>
+                <button type="submit" class="w-full h-[42px] px-4 font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/30 text-sm">Create User</button>
             </div>
-            <button type="submit" class="h-9 px-4 font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/30 text-sm mb-1">Create User</button>
         </form>
     </div>
 
@@ -237,6 +165,13 @@
                             <input type="password" name="new_password" placeholder="New Password" required class="w-32 px-2 py-1 text-sm bg-gray-900 border border-gray-600 rounded text-gray-200 focus:outline-none focus:border-blue-500">
                             <button class="px-2 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors">Set PW</button>
                         </form>
+                        
+                        <div class="mt-2 text-right">
+                             <button onclick="openManageTenants({{ user.id }}, '{{ user.username }}', {{ user.allowed_tenants|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-teal-100 bg-teal-900/50 border border-teal-800 rounded hover:bg-teal-800 transition-colors inline-flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                                Tenants
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -244,4 +179,89 @@
         </table>
     </div>
 </div>
+
+<!-- Manage Tenants Modal -->
+<div id="manageTenantsModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all h-[500px] flex flex-col">
+        <div class="p-6 border-b border-gray-700/50">
+            <h3 class="text-xl font-bold text-white mb-1">Manage User Tenants</h3>
+            <p class="text-gray-400 text-sm">Select tenants accessible by <span id="manageTenantsUserName" class="font-bold text-teal-400"></span>.</p>
+        </div>
+        
+        <form action="/users/tenants/update" method="POST" id="manageTenantsForm" class="flex-1 flex flex-col min-h-0">
+            <input type="hidden" name="user_id" id="manageTenantsUserId">
+            
+            <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                <div class="space-y-2">
+                    {% for t in tenants %}
+                    <label class="flex items-center p-3 rounded-lg border border-gray-700/50 bg-gray-900/30 hover:bg-gray-700/30 cursor-pointer transition-colors group">
+                        <input type="checkbox" name="tenant_ids" value="{{ t.id }}" class="tenant-checkbox w-5 h-5 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-gray-900 bg-gray-700">
+                        <div class="ml-3 flex flex-col">
+                            <span class="text-gray-200 font-medium group-hover:text-white">{{ t.name }}</span>
+                            <span class="text-xs text-gray-500">ID: {{ t.id }}</span>
+                        </div>
+                    </label>
+                    {% else %}
+                    <div class="text-center text-gray-500 italic py-4">No tenants found available for assignment.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-700/50 bg-gray-800/50 flex items-center justify-between gap-3">
+                 <div class="text-xs text-gray-500">
+                    <span id="selectedTenantCount">0</span> selected
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeManageTenantsModal()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-teal-500/20 transition-all transform hover:-translate-y-0.5">
+                        Save Assignments
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openManageTenants(id, username, allowedIds) {
+        document.getElementById('manageTenantsUserId').value = id;
+        document.getElementById('manageTenantsUserName').textContent = username;
+        
+        // Reset and check appropriate boxes
+        document.querySelectorAll('.tenant-checkbox').forEach(cb => {
+            cb.checked = allowedIds.includes(parseInt(cb.value));
+        });
+        
+        updateSelectedTenantCount();
+        document.getElementById('manageTenantsModal').classList.remove('hidden');
+    }
+
+    function closeManageTenantsModal() {
+        document.getElementById('manageTenantsModal').classList.add('hidden');
+    }
+    
+    // Update count helper
+    function updateSelectedTenantCount() {
+        const count = document.querySelectorAll('.tenant-checkbox:checked').length;
+        document.getElementById('selectedTenantCount').textContent = count;
+    }
+    document.querySelectorAll('.tenant-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedTenantCount);
+    });
+
+    // Close on escape
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeManageTenantsModal();
+    });
+
+    // Close on click outside
+    document.getElementById('manageTenantsModal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('manageTenantsModal')) closeManageTenantsModal();
+    });
+</script>
+
 {% endblock %}

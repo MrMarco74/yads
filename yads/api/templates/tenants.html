@@ -59,6 +59,7 @@
                     </td>
                     <td class="px-6 py-4 space-x-2 flex items-center">
                         <button onclick="openRenameModal({{ tenant.id }}, '{{ tenant.name }}')" class="px-3 py-1 text-xs font-bold text-blue-100 bg-blue-900/50 border border-blue-800 rounded hover:bg-blue-800 transition-colors">Rename</button>
+                        <button onclick="openManageUsers({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.allowed_users|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-teal-100 bg-teal-900/50 border border-teal-800 rounded hover:bg-teal-800 transition-colors">Users</button>
                         <form action="/tenants/delete" method="post" class="inline" onsubmit="return confirm('DANGER: This will delete ALL users, targets, and scan results for this tenant. Continue?');">
                             <input type="hidden" name="tenant_id" value="{{ tenant.id }}">
                             <button class="px-3 py-1 text-xs font-bold text-red-100 bg-red-900/50 border border-red-800 rounded hover:bg-red-800 transition-colors">Delete</button>
@@ -109,6 +110,52 @@
     </div>
 </div>
 
+<!-- Manage Users Modal -->
+<div id="manageUsersModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all h-[500px] flex flex-col">
+        <div class="p-6 border-b border-gray-700/50">
+            <h3 class="text-xl font-bold text-white mb-1">Manage Tenant Users</h3>
+            <p class="text-gray-400 text-sm">Select users who can access <span id="manageUsersTenantName" class="font-bold text-teal-400"></span>.</p>
+        </div>
+        
+        <form action="/tenants/users/update" method="POST" id="manageUsersForm" class="flex-1 flex flex-col min-h-0">
+            <input type="hidden" name="tenant_id" id="manageUsersTenantId">
+            
+            <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                <div class="space-y-2">
+                    {% for u in all_users %}
+                    <label class="flex items-center p-3 rounded-lg border border-gray-700/50 bg-gray-900/30 hover:bg-gray-700/30 cursor-pointer transition-colors group">
+                        <input type="checkbox" name="user_ids" value="{{ u.id }}" class="user-checkbox w-5 h-5 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-gray-900 bg-gray-700">
+                        <div class="ml-3 flex flex-col">
+                            <span class="text-gray-200 font-medium group-hover:text-white">{{ u.username }}</span>
+                            <span class="text-xs text-gray-500">{{ u.role }}</span>
+                        </div>
+                    </label>
+                    {% else %}
+                    <div class="text-center text-gray-500 italic py-4">No users found in the system.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-700/50 bg-gray-800/50 flex items-center justify-between gap-3">
+                 <div class="text-xs text-gray-500">
+                    <span id="selectedCount">0</span> users selected
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeManageUsersModal()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-teal-500/20 transition-all transform hover:-translate-y-0.5">
+                        Save Assignments
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function openRenameModal(id, name) {
         document.getElementById('renameTenantId').value = id;
@@ -121,14 +168,46 @@
         document.getElementById('renameModal').classList.add('hidden');
     }
 
+    function openManageUsers(id, name, allowedIds) {
+        document.getElementById('manageUsersTenantId').value = id;
+        document.getElementById('manageUsersTenantName').textContent = name;
+        
+        // Reset and check appropriate boxes
+        document.querySelectorAll('.user-checkbox').forEach(cb => {
+            cb.checked = allowedIds.includes(parseInt(cb.value));
+        });
+        
+        updateSelectedCount();
+        document.getElementById('manageUsersModal').classList.remove('hidden');
+    }
+
+    function closeManageUsersModal() {
+        document.getElementById('manageUsersModal').classList.add('hidden');
+    }
+    
+    // Update count helper
+    function updateSelectedCount() {
+        const count = document.querySelectorAll('.user-checkbox:checked').length;
+        document.getElementById('selectedCount').textContent = count;
+    }
+    document.querySelectorAll('.user-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+
     // Close on escape
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeRenameModal();
+        if (e.key === 'Escape') {
+            closeRenameModal();
+            closeManageUsersModal();
+        }
     });
 
     // Close on click outside
     document.getElementById('renameModal').addEventListener('click', (e) => {
         if (e.target === document.getElementById('renameModal')) closeRenameModal();
+    });
+    document.getElementById('manageUsersModal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('manageUsersModal')) closeManageUsersModal();
     });
 </script>
 {% endblock %}

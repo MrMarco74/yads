@@ -14,37 +14,57 @@
     </div>
 
     <!-- Timeline Container -->
-    <div class="relative border-l-2 border-gray-800 ml-4 md:ml-6 space-y-32 mt-12">
+    <div class="relative border-l-2 border-slate-800 ml-4 md:ml-6 space-y-8 mt-12 pb-12">
         {% for entry in entries %}
-        <div class="relative pl-8 md:pl-12 pt-12">
+        <div x-data="{ open: {{ 'true' if loop.first else 'false' }} }" class="relative pl-8 md:pl-12">
             
-            <!-- Timeline Dot (Removed) -->
-            <!-- <div class="absolute -left-[9px] top-1 h-5 w-5 rounded-full border-4 border-gray-900 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div> -->
+            <!-- Timeline Dot -->
+            <div class="absolute -left-[5px] top-6 h-2.5 w-2.5 rounded-full ring-4 ring-slate-950" 
+                 :class="open ? 'bg-indigo-500' : 'bg-slate-600'"></div>
 
-            <!-- Content Card -->
-            <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-2 mt-8">
-                <h2 class="text-2xl font-bold text-white mb-1 sm:mb-0">
-                    {{ entry.title }}
-                </h2>
-                <div class="flex items-center gap-3">
-                    <span class="px-2.5 py-0.5 rounded-md text-sm font-medium bg-indigo-900/50 text-indigo-200 border border-indigo-700/50">
-                        v{{ entry.version }}
-                    </span>
-                    <time class="text-sm text-gray-500 font-mono">
-                        {{ entry.published_at.strftime('%Y-%m-%d') }}
-                    </time>
+            <!-- Header Card (Clickable) -->
+            <div @click="open = !open" 
+                 class="group cursor-pointer bg-slate-900 border border-slate-800 hover:border-slate-600 rounded-xl p-4 transition-all duration-200">
+                
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+                              :class="open ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'">
+                            v{{ entry.version }}
+                        </span>
+                        <h2 class="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">
+                            {{ entry.title }}
+                        </h2>
+                    </div>
+                    
+                    <div class="flex items-center gap-4 text-sm text-slate-500">
+                        <time class="hidden sm:block font-mono">
+                            {{ entry.published_at.strftime('%Y-%m-%d') }}
+                        </time>
+                        <!-- Chevron -->
+                        <svg class="w-5 h-5 transition-transform duration-200" 
+                             :class="{'rotate-180': open}" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-gray-800/50 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors shadow-lg">
-                <article class="prose prose-invert prose-blue max-w-none 
-                                prose-headings:text-gray-200 prose-headings:font-semibold
-                                prose-p:text-gray-300 prose-p:leading-relaxed
-                                prose-li:text-gray-400
-                                prose-strong:text-white
-                                prose-code:text-pink-300 prose-code:bg-gray-900/50 prose-code:px-1 prose-code:rounded">
-                    {{ entry.content | safe }}
-                </article>
+            <!-- Content (Collapsible) -->
+            <div x-show="open" 
+                 x-collapse
+                 class="mt-4 pl-2">
+                <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-800/50 shadow-inner">
+                    <article class="prose prose-invert prose-sm max-w-none 
+                                    prose-headings:text-slate-200 prose-headings:font-semibold
+                                    prose-p:text-slate-300 prose-p:leading-relaxed
+                                    prose-li:text-slate-400
+                                    prose-strong:text-white
+                                    prose-code:text-indigo-300 prose-code:bg-slate-950 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono">
+                        {{ entry.content | safe }}
+                    </article>
+                </div>
             </div>
         </div>
         {% else %}
@@ -53,8 +73,8 @@
     </div>
 
     <!-- Back Button -->
-    <div class="mt-16 text-center">
-        <a href="/" class="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+    <div class="mt-8 text-center border-t border-slate-800 pt-8">
+        <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             Back to Dashboard
         </a>

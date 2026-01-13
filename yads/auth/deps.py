@@ -91,6 +91,7 @@ class RoleChecker:
             return user
             
         raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
             detail="Operation not permitted"
         )
 
@@ -104,6 +105,6 @@ class PlatformAdminChecker:
             return user
         
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status.HTTP_403_FORBIDDEN,
             detail="Requires Platform Admin privileges"
         )

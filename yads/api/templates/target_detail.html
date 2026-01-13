@@ -135,6 +135,47 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <!-- SCHEDULING CARD -->
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 shadow-lg mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white">Scheduling</h3>
+                    <span id="schedule-status-badge">
+                        {% if schedule %}
+                            <span class="text-emerald-400 font-medium" title="Next: {{ schedule.next_run_at.strftime('%Y-%m-%d') }}">
+                                {% if schedule.frequency == 'daily' %}🌞 Daily
+                                {% elif schedule.frequency == 'weekly' %}📆 Weekly
+                                {% else %}📅 {{ schedule.frequency|title }}
+                                {% endif %}
+                            </span>
+                        {% else %}
+                            <span class="text-slate-400">Not Scheduled</span>
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-2">
+                    <button hx-post="/schedule/set" 
+                            hx-vals='{"target_id": "{{ target.id }}", "frequency": "daily"}'
+                            hx-target="#schedule-status-badge"
+                            class="bg-gray-900 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded border border-gray-700 transition-colors">
+                        Daily
+                    </button>
+                    <button hx-post="/schedule/set" 
+                            hx-vals='{"target_id": "{{ target.id }}", "frequency": "weekly"}'
+                            hx-target="#schedule-status-badge"
+                            class="bg-gray-900 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded border border-gray-700 transition-colors">
+                        Weekly
+                    </button>
+                     <button hx-post="/schedule/set" 
+                            hx-vals='{"target_id": "{{ target.id }}", "frequency": "none"}'
+                            hx-target="#schedule-status-badge"
+                            class="bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs py-2 rounded border border-red-900/50 transition-colors">
+                        Disable
+                    </button>
+                </div>
+                 <p class="text-[10px] text-gray-500 mt-2 text-center">Auto-runs "Full Scan" profile.</p>
+            </div>
         </div>
 
         <!-- MAIN CONTENT -->
