@@ -17,7 +17,7 @@ from datetime import datetime
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
 # Only Admins can access these routes
-admin_only = RoleChecker(["admin"])
+admin_only = RoleChecker(["admin", "tenant_admin"])
 
 @router.get("/", response_class=HTMLResponse, dependencies=[Depends(admin_only)])
 async def list_users(request: Request, session: Session = Depends(get_db_session), current_user: User = Depends(get_current_user)):
@@ -80,7 +80,7 @@ async def set_session_timeout(
 async def create_user(
     username: str = Form(...),
     password: str = Form(...),
-    role: str = Form("viewer"),
+    role: str = Form("auditor"),
     target_tenant_id: Optional[int] = Form(None), # From Dropdown
     force_change: bool = Form(False),
     session: Session = Depends(get_db_session),
@@ -88,16 +88,26 @@ async def create_user(
 ):
     # Determine correct tenant_id (Active Context)
     final_tenant_id = current_user.tenant_id
-    if current_user.tenant_id is None:
-        # Platform Admin can assign anyone
-        # If target_tenant_id is provided (int), use it.
-        # If None, it creates a new Platform Admin! (Be careful)
-        final_tenant_id = target_tenant_id
-    else:
-        # Regular Tenant Admin MUST NOT be able to change tenant
-        pass
+    
+    # Permission Check: Role Assignment
+    if current_user.role == 'tenant_admin':
+        # Tenant Admin can only access their own tenant
+        final_tenant_id = current_user.tenant_id
         
-    # Check duplicate (Global? Or Tenant? Unique constraint is global on username)
+        # Cannot create Platform Admin
+        if role == 'admin':
+             return RedirectResponse(url="/users/?error=Permission+denied:+Cannot+create+Platform+Admin", status_code=303)
+             
+    elif current_user.tenant_id is None:
+        # Platform Admin can assign anyone
+        # If target_tenant_id is provided, use it.
+        final_tenant_id = target_tenant_id
+        
+        # If creating an 'admin' with a tenant_id, that's technically a "Superuser in a Tenant" 
+        # but typically we want 'tenant_admin' for that. 
+        # But we let Platform Admin do whatever.
+
+    # Check duplicate (Global Unique on username)
     existing = session.exec(select(User).where(User.username == username)).first()
     if existing:
         return RedirectResponse(url="/users/?error=Username+exists", status_code=303)
@@ -125,13 +135,27 @@ async def create_user(
 
 @router.post("/delete", dependencies=[Depends(admin_only)])
 async def delete_user(user_id: int = Form(...), session: Session = Depends(get_db_session), current_user: User = Depends(get_current_user)):
-    # Ensure target user belongs to admin's tenant
-    user = session.exec(select(User).where(User.id == user_id, User.tenant_id == current_user.tenant_id)).first()
-    if user:
-        if user.username == "admin": 
-             return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
-        session.delete(user)
-        session.commit()
+    # Fetch User
+    user = session.get(User, user_id)
+    if not user:
+         # Silent fail or redirect
+         return RedirectResponse(url="/users/?error=User+not+found", status_code=303)
+
+    # Permission Check
+    if current_user.tenant_id is not None:
+         # Tenant Admin: Must own the user
+         if user.tenant_id != current_user.tenant_id:
+              return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+         # Cannot delete Admin/Platform Admin (shouldn't be in tenant anyway but safety)
+         if user.role == 'admin':
+              return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
+    
+    # Platform Admin can delete anyone (except maybe self or super admin logic? existing check was specific)
+    if user.username == "admin": 
+         return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
+         
+    session.delete(user)
+    session.commit()
     return RedirectResponse(url="/users/?msg=User+deleted", status_code=303)
 
 @router.post("/reset_password", dependencies=[Depends(admin_only)])
@@ -141,8 +165,16 @@ async def reset_password(
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ):
-    user = session.exec(select(User).where(User.id == user_id, User.tenant_id == current_user.tenant_id)).first()
+    user = session.get(User, user_id)
     if user:
+        # Permission Check
+        if current_user.tenant_id is not None:
+             if user.tenant_id != current_user.tenant_id:
+                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+             # Optional: Prevent resetting Admin password by Tenant Admin?
+             if user.role == 'admin':
+                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+
         user.password_hash = get_password_hash(new_password)
         session.add(user)
         session.commit()
@@ -150,8 +182,13 @@ async def reset_password(
 
 @router.post("/reset_mfa", dependencies=[Depends(admin_only)])
 async def reset_mfa(user_id: int = Form(...), session: Session = Depends(get_db_session), current_user: User = Depends(get_current_user)):
-    user = session.exec(select(User).where(User.id == user_id, User.tenant_id == current_user.tenant_id)).first()
+    user = session.get(User, user_id)
     if user:
+        # Permission Check
+        if current_user.tenant_id is not None:
+             if user.tenant_id != current_user.tenant_id:
+                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+        
         user.mfa_enabled = False
         user.mfa_secret = None
         session.add(user)
@@ -199,10 +236,19 @@ async def edit_user(
     if not user:
          return RedirectResponse(url="/users/?error=User+not+found", status_code=303)
          
-    if current_user.tenant_id is not None:
+    if current_user.role == 'tenant_admin':
         # Tenant Admin trying to edit
         if user.tenant_id != current_user.tenant_id:
              return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+             
+        # Prevent editing Platform Admins (even if they are context-switched?)
+        if user.role == 'admin':
+             return RedirectResponse(url="/users/?error=Permission+denied:+Cannot+edit+Admin", status_code=303)
+             
+        # Prevent elevating to Admin
+        if role == 'admin':
+             return RedirectResponse(url="/users/?error=Permission+denied:+Cannot+assign+Admin+role", status_code=303)
+
         # Prevent changing tenant things
         user.role = role
         session.add(user)

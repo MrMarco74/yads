@@ -12,7 +12,7 @@ def reset_password(username, new_password):
         user = session.exec(select(User).where(User.username == username)).first()
         if not user:
             print(f"User '{username}' not found! Creating new user...")
-            from yads.auth.security import get_password_hash
+            # from yads.auth.security import get_password_hash
             user = User(username=username, password_hash=get_password_hash(new_password), role="admin")
             session.add(user)
             session.commit()
