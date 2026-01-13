@@ -1,5 +1,5 @@
 include:
-  - project: "IaC/ci-templates"
+  - project: "iac/ci-templates"
     file: "security-and-deploy.yml"
 
 variables:
