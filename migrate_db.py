@@ -1,5 +1,6 @@
 from sqlmodel import text
 from yads.database import engine
+from yads.core.seeding import seed_changelog
 
 def migrate():
     """
@@ -130,6 +131,14 @@ def migrate():
                 print("   Notification already exists.")
         except Exception as e:
             print(f"   Error creating notification: {e}")
+
+        # 9. Seed Changelog
+        print(">> Seeding Changelog...")
+        try:
+            seed_changelog()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error seeding changelog: {e}")
 
 if __name__ == "__main__":
     migrate()

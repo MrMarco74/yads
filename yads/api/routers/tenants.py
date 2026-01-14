@@ -1,4 +1,5 @@
 
+from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -64,6 +65,28 @@ async def update_tenant(tenant_id: int = Form(...), name: str = Form(...), sessi
     session.add(tenant)
     session.commit()
     return RedirectResponse(url="/tenants/?msg=Tenant+renamed", status_code=303)
+
+@router.post("/users/update", dependencies=[Depends(RoleChecker(["admin"]))])
+async def update_tenant_users(
+    tenant_id: int = Form(...),
+    user_ids: List[int] = Form(default=[]),
+    session: Session = Depends(get_db_session)
+):
+    tenant = session.get(Tenant, tenant_id)
+    if not tenant:
+        return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)
+    
+    # Get users
+    if user_ids:
+        users = session.exec(select(User).where(User.id.in_(user_ids))).all()
+    else:
+        users = []
+        
+    tenant.allowed_users = users
+    session.add(tenant)
+    session.commit()
+    
+    return RedirectResponse(url=f"/tenants/?msg=Users+assigned+to+{tenant.name}", status_code=303)
 
 @router.post("/delete", dependencies=[Depends(RoleChecker(["admin"]))])
 async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(get_db_session)):

@@ -41,6 +41,23 @@ def seed_changelog():
             )
             session.add(entry2)
         
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.2.7").first():
+            entry_127 = ChangelogEntry(
+                title="Tenant-Aware Backup & Restore",
+                version="1.2.7",
+                content="""
+                <h3>🔐 Tenant-Aware Backup</h3>
+                <p>We've upgraded the backup system to support multi-tenancy!</p>
+                <ul class="list-disc list-inside mt-2 mb-2">
+                    <li><strong>Tenant Selection:</strong> You can now choose specific tenants to backup.</li>
+                    <li><strong>Safe Restore:</strong> The restore process now analyzes the backup file and warns you before purging any data.</li>
+                    <li><strong>Isolation:</strong> Restoring a partial backup only affects the selected tenants, keeping others safe.</li>
+                </ul>
+                <p class="text-xs text-gray-500">Check the Settings page to try it out.</p>
+                """
+            )
+            session.add(entry_127)
+
         if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.2.9").first():
             entry3 = ChangelogEntry(
                 title="YADS v1.2.9: Multi-Tenancy & RBAC Extensions",

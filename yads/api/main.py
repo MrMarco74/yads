@@ -11,7 +11,10 @@ import aiofiles
 from datetime import datetime
 from yads.modules.visual_osint import VisualOSINT
 from yads.modules.report_generator import generate_report
+from yads.modules.visual_osint import VisualOSINT
+from yads.modules.report_generator import generate_report
 from yads.modules.brand_monitor import BrandMonitor
+from yads.core.seeding import seed_changelog
 
 from yads.config import settings
 from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification
@@ -149,28 +152,10 @@ async def lifespan(app: FastAPI):
                     session.add(default_admin)
                     session.commit()
 
-            # --- Changelog 1.2.7 ---
-            with Session(engine) as session:
-                from yads.models import ChangelogEntry
-                version = "1.2.7"
-                if not session.exec(select(ChangelogEntry).where(ChangelogEntry.version == version)).first():
-                    entry = ChangelogEntry(
-                        title="Tenant-Aware Backup & Restore",
-                        version=version,
-                        content="""
-                        <h3>🔐 Tenant-Aware Backup</h3>
-                        <p>We've upgraded the backup system to support multi-tenancy!</p>
-                        <ul class="list-disc list-inside mt-2 mb-2">
-                            <li><strong>Tenant Selection:</strong> You can now choose specific tenants to backup.</li>
-                            <li><strong>Safe Restore:</strong> The restore process now analyzes the backup file and warns you before purging any data.</li>
-                            <li><strong>Isolation:</strong> Restoring a partial backup only affects the selected tenants, keeping others safe.</li>
-                        </ul>
-                        <p class="text-xs text-gray-500">Check the Settings page to try it out.</p>
-                        """
-                    )
-                    session.add(entry)
                     session.commit()
-                    logger.info(f"Added changelog entry for {version}")
+            
+            # --- Seed Changelog ---
+            seed_changelog()
                 
             break
         except Exception:
