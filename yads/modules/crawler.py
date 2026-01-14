@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Set, Deque
 from collections import deque, Counter
 
 from yads.core.base import BaseScannerModule
+from yads.config import settings
+from yads.models import SystemConfig
+from sqlmodel import select
 
 class Crawler(BaseScannerModule):
     @property
@@ -19,15 +22,48 @@ class Crawler(BaseScannerModule):
         """
         logger = logging.getLogger("yads.modules.crawler")
         
-        # Configuration (Could be moved to settings later)
-        MAX_PAGES = 50
-        DEPTH_LIMIT = 2
-        DELAY = 1.0 # seconds
+        # Configuration (Defaults)
+        MAX_PAGES = 100
+        DEPTH_LIMIT = 3
+        DELAY = 0.5 
+        TIMEOUT = 5
+
+        # Override from Settings
+        if self.db:
+            try:
+                # Delay
+                delay_conf = self.db.get(SystemConfig, "WEB_RATE_LIMIT_DELAY")
+                if delay_conf:
+                    DELAY = float(delay_conf.value)
+                
+                # Timeout
+                timeout_conf = self.db.get(SystemConfig, "WEB_REQUEST_TIMEOUT")
+                if timeout_conf:
+                    TIMEOUT = int(timeout_conf.value)
+            except Exception as e:
+                logger.warning(f"Failed to load settings: {e}")
+
+        HEADERS = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
         
         # State
         start_url = target
         if not start_url.startswith("http"):
              start_url = f"https://{target}"
+             
+        # Initial Check (Fallback to HTTP if HTTPS fails, to avoid 0s scan)
+        try:
+            requests.get(start_url, headers=HEADERS, timeout=TIMEOUT, verify=False)
+        except:
+            if start_url.startswith("https"):
+                fallback = start_url.replace("https://", "http://")
+                try:
+                    requests.get(fallback, headers=HEADERS, timeout=TIMEOUT, verify=False)
+                    start_url = fallback
+                    logger.info(f"HTTPS failed, falling back to {start_url}")
+                except:
+                    pass # Let the main loop handle it (and fail/log error node)
         
         # Normalize start_url to ensure we stay on domain
         parsed_start = urlparse(start_url)
@@ -77,7 +113,10 @@ class Crawler(BaseScannerModule):
                 if pages_processed > 1:
                     time.sleep(DELAY)
                     
-                resp = requests.get(current_url, timeout=5, verify=False) # Skip SSL verify for broader coverage
+                if pages_processed > 1:
+                    time.sleep(DELAY)
+                    
+                resp = requests.get(current_url, headers=HEADERS, timeout=TIMEOUT, verify=False) # Skip SSL verify for broader coverage
                 status = resp.status_code
                 content_type = resp.headers.get('Content-Type', '')
                 
@@ -138,7 +177,7 @@ class Crawler(BaseScannerModule):
         dead_ends = [
             {"url": node['id'], "title": node['title']} 
             for node in nodes 
-            if outgoing_internal_map[node['id']] == 0 and node['status'] == 200
+            if outgoing_internal_map[node['id']] == 0 and node['status'] == 200 and node.get('type') != 'internal_error'
         ]
         
         # 2. Collector Domains (Top 10)
@@ -152,8 +191,7 @@ class Crawler(BaseScannerModule):
             },
             "dead_ends": dead_ends,
             "collectors": collectors,
-            # We omit full nodes/edges list to keep DB size manageable, 
-            # but we could store them if we implemented the graph viz later.
-            # For now, just the analysis.
-            "sample_nodes": nodes[:5] # Debug sample
+            "edges": edges, # Persist edges for graph viz
+            "nodes": nodes, # Persist nodes (optional, but good for context)
+            "sample_nodes": nodes[:5] 
         }
