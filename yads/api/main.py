@@ -2441,7 +2441,10 @@ async def upload_target_logo(
 
 @app.get("/settings", response_class=HTMLResponse)
 async def view_settings(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):
-    from yads.models import SystemConfig
+    from yads.models import SystemConfig, Tenant
+
+    # Fetch tenants for Export UI
+    allowed_tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
     
     # Defaults
     auto_queue = settings.AUTO_QUEUE_SUBDOMAINS
@@ -2562,6 +2565,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     if spass_conf: smtp_password = spass_conf.value
 
     return templates.TemplateResponse("settings.html", {
+        "allowed_tenants": allowed_tenants,
         "user": user,
         "request": request,
         "auto_queue": auto_queue,
@@ -3257,15 +3261,7 @@ async def get_network_graph(
                             add_edge(src_id, dst_id, "link")
                     except:
                         pass
-                add_edge(tgt_node_id, sub_id, "")
-                
-                # Link Subdomain -> IPs
-                for ip in sub.get("ips", []):
-                    ip_id = f"ip_{ip}"
-                    add_node(ip_id, ip, "ip", 5)
 
-
-                    add_edge(sub_id, ip_id, "A")
 
     # Filter Empty (Unconnected) Nodes
     if filter_empty:
