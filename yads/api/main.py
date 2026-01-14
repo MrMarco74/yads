@@ -3241,6 +3241,13 @@ async def get_network_graph(
                         src_id = get_host_node(src_host, t.domain, tgt_node_id)
                         dst_id = get_host_node(dst_host, t.domain, tgt_node_id)
                         
+                        # [NEW] Handle External Destination
+                        if src_id and not dst_id:
+                            # Source is internal, Dest is external -> Show link
+                            dst_id = f"ext_{dst_host}"
+                            if dst_id not in nodes:
+                                add_node(dst_id, dst_host, "external", 1) # Type external, smaller size
+                        
                         if src_id and dst_id and src_id != dst_id:
                             # Ensure nodes exist (if they weren't found by subdomain scanner yet)
                             # This implicitly adds them if the crawler found them but DNS scanner didn't
