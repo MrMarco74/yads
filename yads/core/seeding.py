@@ -102,6 +102,61 @@ def seed_changelog():
             )
             session.add(entry4)
         
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.3.4").first():
+            entry5 = ChangelogEntry(
+                title="YADS v1.3.4: External Links Analysis & Reports",
+                version="1.3.4",
+                content="""
+                <h3>🌍 External Links Analysis</h3>
+                <p>New analytics view to identify third-party dependencies!</p>
+                <ul>
+                    <li><strong>Detection:</strong> Automatically lists all external domains (not in your targets) found via Crawler links or DNS records.</li>
+                    <li><strong>Tenant-Aware:</strong> Respects your tenant scope, showing only links from your targets.</li>
+                </ul>
+                <h3>📄 PDF Export</h3>
+                <ul>
+                    <li><strong>Export Reports:</strong> You can now export the External Links report to a professional PDF format for sharing.</li>
+                </ul>
+                """
+            )
+            session.add(entry5)
+
+        # Combine 1.3.5, 1.3.6, 1.3.7 into 1.4.0 per user request
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.4.0").first():
+            entry_140 = ChangelogEntry(
+                title="YADS v1.4.0: Critical Analytics & Performance Update",
+                version="1.4.0",
+                content="""
+                <h3>🛡️ Critical Analytics HUD</h3>
+                <ul>
+                    <li><strong>Functional "Critical Attention" Block:</strong> The dashboard now highlights <i>real</i> Urgent threats (Expired SSL, Critical CVEs, Public Buckets) in the top widget.</li>
+                    <li><strong>System Secure State:</strong> If no critical issues are found, the dashboard clearly indicates a secure status.</li>
+                </ul>
+                <h3>📊 SOC2 Compliance Engine</h3>
+                <p>The Compliance widget is now fully operational!</p>
+                <ul>
+                    <li><strong>Real-Time Scoring:</strong> Calculates a readiness score (0-100%) based on active scan findings.</li>
+                    <li><strong>Penalties:</strong> Deducts points for security lapses like Expired SSL (-20), Critical CVEs (-15), and Risky Ports (-10).</li>
+                </ul>
+                <h3>⚡ Performance Optimizations</h3>
+                <ul>
+                    <li><strong>External Links Page:</strong> Refactored to load instantly. Data is now calculated asynchronously in the background with a visual progress indicator.</li>
+                </ul>
+                <h3>🛠️ Maintenance</h3>
+                <ul>
+                    <li><strong>Ghost Target Cleanup:</strong> Added tools to identify and cleanup targets with invalid IP states.</li>
+                </ul>
+                <h3>🕸️ Network Analysis</h3>
+                <ul>
+                    <li><strong>Dead Links Analysis:</strong> New dashboard to identify unreachable targets and orphaned domains (not linked from anywhere).</li>
+                    <li><strong>Graph Filters:</strong> Added filters to the Network Graph to toggle "Web Links" visibility and "Gray out DNS" connections.</li>
+                </ul>
+                """
+            )
+            session.add(entry_140)
+
+
+        
 
         session.commit()
         print("Changelog seeded successfully.")

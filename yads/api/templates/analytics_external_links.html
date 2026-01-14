@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">External Links Analysis</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Identify third-party domains and external dependencies linked from your targets.
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="/analytics/external-links/export" class="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export PDF
+            </a>
+            <span id="scope-count-val" class="inline-flex items-center rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-400 ring-1 ring-inset ring-cyan-400/20">
+                Scope: Loading...
+            </span>
+            <span id="found-count-val" class="inline-flex items-center rounded-md bg-pink-400/10 px-2 py-1 text-xs font-medium text-pink-400 ring-1 ring-inset ring-pink-400/20">
+                Found: -
+            </span>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-blue-200/80 space-y-1">
+            <p class="font-medium text-blue-300">About this View</p>
+            <p>
+                This report lists unique domains found during scans (Crawler links, DNS records) that are <strong>not</strong> part of your defined Target list or their subdomains.
+                These often represent third-party services, CDNs, partner sites, or potentially malicious external references.
+            </p>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-4">External Domain</th>
+                        <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4">Sources (Found In)</th>
+                        <th class="px-6 py-4 text-right">Occurrences</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50" hx-trigger="load" hx-get="/analytics/external-links/rows" hx-swap="innerHTML">
+                    <!-- Loading State -->
+                    <tr class="htmx-indicator-show">
+                    <!-- HTMX will preserve this or we replace innerHTML? 
+                         Actually hx-swap="innerHTML" replaces content. 
+                         So we put the loading state strictly inside. 
+                         The indicator class behavior is trickier on innerHTML swap if we want it to DISAPPEAR.
+                         Better: Use standard hx-indicator logic.
+                         The tbody has hx-trigger="load". It will fire request.
+                         While request is flight, we want to show something.
+                         If we put content here, it is displayed. When content returns, it replaces this.
+                         So simply putting the loading row here is sufficient! It will be overwritten.
+                    -->
+                        <td colspan="4" class="px-6 py-20 text-center">
+                             <div class="max-w-sm mx-auto flex flex-col items-center">
+                                  <div class="h-1.5 w-48 bg-slate-800 rounded-full overflow-hidden mb-3 relative">
+                                      <div class="absolute inset-y-0 left-0 bg-blue-500 w-1/3 animate-[shimmer_1s_infinite_linear]" style="animation: progress 1.5s infinite ease-in-out; width: 50%;"></div>
+                                  </div> 
+                                  <p class="text-slate-400 font-medium animate-pulse">Analyzing Connectivity...</p>
+                                  <p class="text-xs text-slate-600 mt-1">Correlating crawler links and DNS records</p>
+                             </div>
+                             <style>
+                                 @keyframes progress {
+                                     0% { left: -50%; }
+                                     100% { left: 100%; }
+                                 }
+                             </style>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination / Footer can go here if needed -->
+        <div class="px-6 py-3 border-t border-slate-800 bg-slate-950/30 text-xs text-slate-500 flex justify-between">
+            <span id="footer-count-val">Loading results...</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

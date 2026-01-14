@@ -147,6 +147,54 @@ def migrate():
                 print("   Notification already exists.")
         except Exception as e:
             print(f"   Error creating notification: {e}")
+            
+        # 11. Create Notification for v1.3.4
+        print(">> Checking/Creating v1.3.4 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.3.4'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.3.4',
+                        'External Links Analysis & PDF Export now live! Check Analytics.',
+                        'update',
+                        'cyan',
+                        'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+            
+        # 12. Create Notification for v1.4.0
+        print(">> Checking/Creating v1.4.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.4.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.4.0',
+                        'Major Update: Critical Analytics HUD, SOC2 Scoring & Performance Fixes. See Settings->Changelog.',
+                        'update',
+                        'indigo',
+                        'M13 10V3L4 14h7v7l9-11h-7z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
 
         # 9. Seed Changelog
         print(">> Seeding Changelog...")

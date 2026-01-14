@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">Dead Links Analysis</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Identify unreachable targets and orphaned domains that are not linked from your other properties.
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="scope-count-val" class="inline-flex items-center rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-400 ring-1 ring-inset ring-cyan-400/20">
+                Scope: Loading...
+            </span>
+             <span id="unreachable-count-val" class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">
+                Unreachable: -
+            </span>
+            <span id="orphan-count-val" class="inline-flex items-center rounded-md bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-400 ring-1 ring-inset ring-amber-400/20">
+                Orphans: -
+            </span>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-red-900/20 border border-red-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div class="text-sm text-red-200/80 space-y-1">
+            <p class="font-medium text-red-300">Analysis Risks</p>
+            <p>
+                <strong>Unreachable Targets</strong>: These domains failed recent scans (DNS resolution or HTTP connection). They may be offline or misconfigured.<br>
+                <strong>Orphaned Targets</strong>: These domains exist in your inventory but were not found as links on any other scanned target. They may be legacy sites or hidden assets.
+            </p>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-4">Target Domain</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Issue Type</th>
+                        <th class="px-6 py-4 text-right">Last Check</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50" hx-trigger="load" hx-get="/analytics/dead-links/rows" hx-swap="innerHTML">
+                    <!-- Loading State -->
+                     <tr>
+                        <td colspan="4" class="px-6 py-20 text-center">
+                             <div class="max-w-sm mx-auto flex flex-col items-center">
+                                  <div class="h-1.5 w-48 bg-slate-800 rounded-full overflow-hidden mb-3 relative">
+                                      <div class="absolute inset-y-0 left-0 bg-red-500 w-1/3 animate-[shimmer_1s_infinite_linear]" style="animation: progress 1.5s infinite ease-in-out; width: 50%;"></div>
+                                  </div> 
+                                  <p class="text-slate-400 font-medium animate-pulse">Analyzing Target Reachability...</p>
+                                  <p class="text-xs text-slate-600 mt-1">Checking crawler graphs and scan results</p>
+                             </div>
+                             <style>
+                                 @keyframes progress {
+                                     0% { left: -50%; }
+                                     100% { left: 100%; }
+                                 }
+                             </style>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="px-6 py-3 border-t border-slate-800 bg-slate-950/30 text-xs text-slate-500 flex justify-between">
+            <span id="footer-count-val">Loading results...</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
