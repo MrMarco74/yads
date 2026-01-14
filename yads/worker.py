@@ -10,7 +10,9 @@ from yads.core.logging_config import configure_logging
 from yads.modules.dns_scanner import SubdomainScanner, DNSRecordScanner
 from yads.modules.web_analyzer import WebAnalyzer
 from yads.modules.visual_osint import VisualOSINT
+from yads.modules.visual_osint import VisualOSINT
 from yads.core.splunk_logger import splunk_logger
+from yads.core.webhook_service import webhook_service
 
 # Configure Logging
 logger = configure_logging("yads-worker")
@@ -448,7 +450,16 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                                              session.commit() # Commit to get ID
                                              session.refresh(new_target)
                                              new_found += 1
+                                             session.refresh(new_target)
+                                             new_found += 1
                                              print(f"[Worker] Discovered and added new target from SSL: {edomain}")
+                                             
+                                             # Webhook: New Asset
+                                             webhook_service.trigger_event(parent_tenant_id, "new_asset", {
+                                                 "domain": edomain,
+                                                 "source": "ssl_scanner",
+                                                 "parent": domain
+                                             })
                                  
                                  if new_found > 0:
                                      print(f"[Worker] SSL Discovery added {new_found} new targets.")
@@ -637,6 +648,13 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                                      logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {scan_types}")
                                  else:
                                      logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
+                                 
+                                     # Webhook: New Asset
+                                     webhook_service.trigger_event(parent_tenant_id, "new_asset", {
+                                         "domain": sub_domain,
+                                         "source": "subdomain_discovery",
+                                         "parent": domain
+                                     })
                      
                      if new_targets_count > 0:
                          logger.info(f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. Queued: {queued_count}.")
@@ -656,6 +674,14 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
             except Exception as e:
                  logger.error(f"[Worker] Failed to update finish status: {e}")
                  session.rollback()
+
+        if 'parent_tenant_id' in locals():
+            webhook_service.trigger_event(parent_tenant_id, "scan_finished", {
+                "target_id": target_id,
+                "domain": domain,
+                "status": "completed",
+                "modules": scan_types
+            })
 
         logger.info(f"[Worker] Finished scan for {domain}")
     

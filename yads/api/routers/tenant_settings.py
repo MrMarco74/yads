@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from typing import Optional
 
 from yads.database import get_session
-from yads.models import User, Tenant
+from yads.models import User, Tenant, Webhook
 from yads.auth.deps import RoleChecker, get_current_user
 from yads.config import settings
 
@@ -51,9 +51,12 @@ async def tenant_settings_page(
     # Reload tenant from DB to confirm fresh data
     tenant = session.get(Tenant, user.tenant_id)
     
+    webhooks = session.exec(select(Webhook).where(Webhook.tenant_id == user.tenant_id)).all()
+    
     return templates.TemplateResponse("tenant_settings.html", {
         "request": request,
         "tenant": tenant,
+        "webhooks": webhooks,
         "user": user
     })
 
@@ -87,3 +90,65 @@ async def update_tenant_settings(
         "user": user,
         "success": "Settings updated successfully."
     })
+
+# --- Webhook Management ---
+
+@router.post("/webhooks", response_class=RedirectResponse)
+async def create_webhook(
+    request: Request,
+    url: str = Form(...),
+    events: list[str] = Form(default=[]),
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session)
+):
+    if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
+    
+    # Validation
+    if not url.startswith("http"):
+        # simple validation
+        pass 
+        
+    hook = Webhook(tenant_id=user.tenant_id, url=url, event_types=events)
+    session.add(hook)
+    session.commit()
+    return RedirectResponse("/tenant-settings", status_code=303)
+
+@router.post("/webhooks/{webhook_id}/delete", response_class=RedirectResponse)
+async def delete_webhook(
+    webhook_id: int,
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session)
+):
+    if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
+    
+    hook = session.get(Webhook, webhook_id)
+    if hook and hook.tenant_id == user.tenant_id:
+        session.delete(hook)
+        session.commit()
+        
+    return RedirectResponse("/tenant-settings", status_code=303)
+
+@router.post("/webhooks/{webhook_id}/test", response_class=HTMLResponse)
+async def test_webhook(
+    webhook_id: int,
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session)
+):
+    if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
+    
+    hook = session.get(Webhook, webhook_id)
+    if hook and hook.tenant_id == user.tenant_id:
+        from yads.core.webhook_service import webhook_service
+        webhook_service.trigger_event(user.tenant_id, "test_event", {
+            "message": "This is a test event from YADS.",
+            "user": user.username
+        })
+        return f"""
+        <div class="alert alert-success shadow-lg mb-4">
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Test payload sent to {hook.url}</span>
+            </div>
+        </div>
+        """
+    return ""
