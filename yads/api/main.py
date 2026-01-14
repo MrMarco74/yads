@@ -225,7 +225,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 
 # -- Routers --
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint
 app.include_router(analytics.router)
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -236,6 +236,7 @@ app.include_router(profile.router)
 app.include_router(schedules.router)
 app.include_router(queue.router)
 app.include_router(notifications.router)
+app.include_router(osint.router)
 
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):

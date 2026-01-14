@@ -12,11 +12,13 @@ Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers a
 4.  [Target Management](#4-target-management)
 5.  [Running Scans](#5-running-scans)
 6.  [Analysis Modules](#6-analysis-modules)
-7.  [Visualizations](#7-visualizations)
-8.  [Data Management & Reports](#8-data-management--reports)
-9.  [User Management & Security](#9-user-management--security)
-10. [Multi-Tenancy](#10-multi-tenancy)
-11. [System Settings & Queue](#11-system-settings--queue)
+6.  [Analysis Modules](#6-analysis-modules)
+7.  [OSINT Brand Monitoring](#7-osint-brand-monitoring)
+8.  [Visualizations](#8-visualizations)
+9.  [Data Management & Reports](#9-data-management--reports)
+10. [User Management & Security](#10-user-management--security)
+11. [Multi-Tenancy](#11-multi-tenancy)
+12. [System Settings & Queue](#12-system-settings--queue)
 
 ---
 
@@ -139,7 +141,28 @@ Visits the page as a real user.
 
 ---
 
-## 7. Visualizations
+## 7. OSINT Brand Monitoring
+
+**(New in v1.3.2)**
+
+The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.
+
+### Reverse Image Search
+1.  **Upload**: Drag and drop your official logo (PNG/JPG) into the search zone.
+2.  **Analysis**: The system simulates a reverse image search to find domains hosting visually similar images.
+    *   *Note*: Currently uses a simulation mode for testing.
+3.  **Result Filtering**:
+    *   **Unknown**: Domains not currently in your target list. You can import these with one click.
+    *   **Monitored**: Domains you are already tracking.
+
+### License & Quotas
+This feature is licensed separately per tenant.
+*   **Locked State**: If you see a "Locked" icon in the sidebar, your tenant has not purchased this add-on.
+*   **Usage Limits**: Your admin sets a monthly search quota. If exceeded, searches will be blocked until the next cycle.
+
+---
+
+## 8. Visualizations
 
 ### Network Graph
 An interactive node-graph showing relationships between Domains, IPs, and ASNs.
@@ -161,7 +184,7 @@ Visualizes redirect chains.
 
 ---
 
-## 8. Data Management & Reports
+## 9. Data Management & Reports
 
 ### Exporting Data
 *   **PDF Report**: On the Target Details page, download a professionally formatted PDF summary.
@@ -174,7 +197,7 @@ Visualizes redirect chains.
 
 ---
 
-## 9. User Management & Security
+## 10. User Management & Security
 
 *(Admin Only)*
 
@@ -195,7 +218,7 @@ Go to **Users** in the navbar.
 
 ---
 
-## 10. Multi-Tenancy
+## 11. Multi-Tenancy
 
 YADS supports multiple isolated environments (Tenants).
 *   **Isolation**: Targets, Results, and Users are scoped to a Tenant.
@@ -205,7 +228,7 @@ YADS supports multiple isolated environments (Tenants).
 
 ---
 
-## 11. System Settings & Queue
+## 12. System Settings & Queue
 
 *(Admin Only)*
 
@@ -220,7 +243,7 @@ YADS supports multiple isolated environments (Tenants).
 
 ---
 
-## 12. Best Practices
+## 13. Best Practices
 
 To get the most out of YADS, consider these tips:
 > **💡 Pro Tip**: Schedule regular scans during off-peak hours to minimize network impact.
@@ -231,7 +254,7 @@ To get the most out of YADS, consider these tips:
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 ### Common Issues
 
@@ -249,7 +272,7 @@ To get the most out of YADS, consider these tips:
 
 ---
 
-## 14. Support
+## 15. Support
 
 For technical support or to report bugs:
 *   **Internal Wiki**: [Link to internal wiki]
@@ -257,4 +280,4 @@ For technical support or to report bugs:
 
 ---
 
-*Verified for YADS v1.2.8*
+*Verified for YADS v1.3.2*
