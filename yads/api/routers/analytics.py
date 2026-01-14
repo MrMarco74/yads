@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, func, text
 from typing import Dict, List, Any
 from datetime import datetime
@@ -6,6 +8,7 @@ from yads.database import engine
 from yads.database import engine
 from yads.models import Target, ScanResult, User
 from yads.auth.deps import get_current_active_user
+from yads.config import settings
 
 router = APIRouter(prefix="/api/stats", tags=["analytics"])
 
@@ -491,3 +494,353 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
         "best_target": scored_targets[0],
         "all_scores": scored_targets[:5]
     }
+
+# -- UI Router --
+ui_router = APIRouter(prefix="/analytics")
+templates = Jinja2Templates(directory="yads/api/templates")
+
+# Helper for templates (needed for base.html)
+def get_all_tenants():
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
+
+
+def _get_external_links_data(session: Session, user: User):
+    """
+    Helper to fetch and process external links data for given user context.
+    Returns: (scope_count, final_list, tenant_name)
+    """
+    # 1. Define Scope (Tenant Targets)
+    target_query = select(Target)
+    tenant_name = "Global"
+    
+    if user.tenant_id:
+        target_query = target_query.where(Target.tenant_id == user.tenant_id)
+        if user.tenant:
+             tenant_name = user.tenant.name
+        else:
+             # Fetch if lazy loading issue
+             from yads.models import Tenant
+             t = session.get(Tenant, user.tenant_id)
+             if t: tenant_name = t.name
+             
+    elif user.role != "admin":
+        target_query = target_query.where(Target.tenant_id == None)
+        tenant_name = "Personal"
+        
+    targets = session.exec(target_query).all()
+    scope_domains = set(t.domain for t in targets)
+    target_map = {t.id: t.domain for t in targets}
+    
+    # 2. Collect Data
+    # Fetch results from crawler and dns_scanner
+    if not targets:
+        return 0, [], tenant_name
+        
+        
+    print(f"[DEBUG_EXT_LINKS] Fetching scan results for {len(targets)} targets...")
+    # ORM Query (Safer than raw SQL string injection)
+    statement = select(ScanResult.target_id, ScanResult.module_name, ScanResult.data).where(
+        ScanResult.module_name.in_(['crawler', 'dns_scanner']),
+        ScanResult.target_id.in_([t.id for t in targets])
+    )
+    results = session.exec(statement).all()
+    print(f"[DEBUG_EXT_LINKS] Fetched {len(results)} scan results. Starting processing...")
+        
+    external_links = {} # {domain: {count: int, sources: set, types: set}}
+    
+    from urllib.parse import urlparse
+    
+    # Optimization: Use set for fast lookup of internal scopes
+    # Check if domain or any of its parents are in scope
+    def is_internal(domain):
+        if domain in scope_domains:
+            return True
+        
+        parts = domain.split('.')
+        # Check all parent domains
+        # e.g. sub.example.com -> check example.com
+        for i in range(1, len(parts)):
+            parent = ".".join(parts[i:])
+            if parent in scope_domains:
+                return True
+        return False
+    
+    for idx, row in enumerate(results):
+        tid, mod, data = row
+        t_domain = target_map.get(tid)
+        
+        if not data: continue
+        
+        # Debug loop progress for large datasets
+        # output every 100 rows
+        if idx % 100 == 0:
+             print(f"[DEBUG_EXT_LINKS] Processing row {idx}/{len(results)} (Module: {mod})")
+
+        found_domains = []
+        
+        if mod == 'crawler':
+            edges = data.get("edges", [])
+            for edge in edges:
+                dst = edge.get("target", "")
+                try:
+                    parsed = urlparse(dst)
+                    if parsed.netloc:
+                        # Strip port if present
+                        d = parsed.netloc.split(':')[0]
+                        if d: found_domains.append((d, "link"))
+                except: pass
+                
+        elif mod == 'dns_scanner':
+            records = data.get("records", {})
+            # MX
+            for mx in records.get("MX", []):
+                # "10 mail.example.com"
+                parts = mx.split()
+                val = parts[-1] if parts else mx
+                found_domains.append((val.rstrip('.'), "MX"))
+            # NS
+            for ns in records.get("NS", []):
+                found_domains.append((ns.rstrip('.'), "NS"))
+            # CNAME
+            for cn in records.get("CNAME", []):
+                found_domains.append((cn.rstrip('.'), "CNAME"))
+                
+        # Process Found
+        for domain, link_type in found_domains:
+            domain = domain.lower()
+            if not is_internal(domain):
+                if domain not in external_links:
+                    external_links[domain] = {
+                        "domain": domain,
+                        "count": 0,
+                        "sources": set(),
+                        "types": set()
+                    }
+                
+                external_links[domain]["count"] += 1
+                external_links[domain]["sources"].add(t_domain)
+                external_links[domain]["types"].add(link_type)
+                
+    # Convert sets to lists
+    final_list = []
+    for d, info in external_links.items():
+        final_list.append({
+            "domain": d,
+            "count": info["count"],
+            "sources": sorted(list(info["sources"])),
+            "types": sorted(list(info["types"]))
+        })
+        
+    # Sort by count desc
+    final_list.sort(key=lambda x: x["count"], reverse=True)
+    
+    print(f"[DEBUG_EXT_LINKS] Finished processing. Returning {len(final_list)} external domains.")
+    return len(scope_domains), final_list, tenant_name
+
+@ui_router.get("/external-links", response_class=HTMLResponse)
+async def view_external_links(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Renders the shell page for External Links. Data is loaded via HTMX.
+    """
+    # Just render the shell. Counters will be updated via OOB.
+    return templates.TemplateResponse("analytics_external_links.html", {
+        "request": request,
+        "external_links": [], # Empty initially
+        "user": user,
+        "scope_count": "-", # Placeholder
+        "settings": settings
+    })
+
+@ui_router.get("/external-links/rows", response_class=HTMLResponse)
+async def get_external_links_rows(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    HTMX endpoint calculates heavy data and returns table rows + OOB counters.
+    """
+    try:
+        scope_count, final_list, _ = _get_external_links_data(session, user)
+        
+        return templates.TemplateResponse("_external_links_rows.html", {
+            "request": request,
+            "external_links": final_list,
+            "scope_count": scope_count
+        })
+    except Exception as e:
+        import traceback
+        error_msg = f"Error in get_external_links_rows: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg) # Print to stdout to ensure capture
+        # return a safe error row
+        return HTMLResponse(f"""
+        <tr>
+            <td colspan="4" class="px-6 py-12 text-center text-red-500">
+                <p class="font-bold">Server Error</p>
+                <p class="text-xs mt-2 text-left font-mono whitespace-pre-wrap bg-red-950/30 p-4 rounded">{error_msg}</p>
+            </td>
+        </tr>
+        """)
+
+@ui_router.get("/external-links/export")
+async def export_external_links(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports the External Links report to PDF.
+    """
+    from fastapi.responses import Response
+    from yads.modules.report_generator import generate_external_links_report
+    
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user)
+    
+    pdf_bytes = generate_external_links_report(scope_count, final_list, tenant_name)
+    
+    return Response(content=bytes(pdf_bytes), media_type="application/pdf", headers={
+        "Content-Disposition": 'attachment; filename="external_links_report.pdf"'
+    })
+
+
+def _get_dead_links_data(session: Session, user: User):
+    """
+    Helper to identify Dead (Unreachable) and Unlinked (Orphan) targets.
+    """
+    # 1. Tenant Scope
+    target_query = select(Target)
+    if user.tenant_id:
+        target_query = target_query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        target_query = target_query.where(Target.tenant_id == None)
+        
+    targets = session.exec(target_query).all()
+    targets_map = {t.id: t for t in targets}
+    target_ids = set(targets_map.keys())
+    
+    dead_links = []
+    
+    # --- A. Unreachable Targets ---
+    # Targets with latest web/infra scan indicating failure
+    # We fetch latest web_analyzer results
+    unreachable_ids = set()
+    
+    scan_stmt = select(ScanResult).where(
+        ScanResult.target_id.in_(target_ids),
+        ScanResult.module_name == 'web_analyzer'
+    ).order_by(ScanResult.scanned_at.desc())
+    
+    # Efficient: Group by target in python or DISTINCT ON in SQL
+    # DISTINCT ON is Postgres specific but supported by YADS stack
+    from sqlalchemy import text
+    # Let's use python loop for safety and detailed analysis
+    results = session.exec(scan_stmt).all()
+    processed_targets = set()
+    
+    for res in results:
+        if res.target_id in processed_targets: continue
+        processed_targets.add(res.target_id)
+        
+        # Check status
+        if not res.data: continue
+        status = res.data.get("status_code")
+        
+        is_dead = False
+        details = ""
+        
+        if status == 0 or status is None:
+            is_dead = True
+            details = "No HTTP Response"
+        elif str(status).startswith("5"):
+            is_dead = True
+            details = f"Server Error ({status})"
+            
+        if is_dead:
+            unreachable_ids.add(res.target_id)
+            dead_links.append({
+                "id": res.target_id,
+                "domain": targets_map[res.target_id].domain,
+                "type": "unreachable",
+                "details": details,
+                "last_checked": res.scanned_at.strftime("%Y-%m-%d")
+            })
+            
+    # --- B. Orphaned Targets ---
+    # Targets that are NOT linked to by any other target in the system (within scope)
+    # 1. Build set of ALL referenced domains from 'crawler' results of in-scope targets
+    referenced_domains = set()
+    
+    crawler_results = session.exec(select(ScanResult).where(
+        ScanResult.target_id.in_(target_ids),
+        ScanResult.module_name == 'crawler'
+    )).all()
+    
+    from urllib.parse import urlparse
+    
+    for res in crawler_results:
+        # Get edges
+        data = res.data or {}
+        edges = data.get("edges", [])
+        for edge in edges:
+            dst = edge.get("target")
+            if not dst: continue
+            try:
+                # Extract domain
+                parsed = urlparse(dst)
+                if parsed.netloc:
+                     d = parsed.netloc.split(':')[0]
+                     referenced_domains.add(d)
+            except: pass
+            
+    # 2. Check each target if it is in referenced_domains
+    unlinked_count = 0
+    for tid, t in targets_map.items():
+        if tid in unreachable_ids: continue # Don't double count if it's dead anyway (optional decision)
+        
+        # Check if domain or any subdomain variant is in referenced list?
+        # Exact match for now
+        if t.domain not in referenced_domains:
+            # Also check if www.domain is there
+            if f"www.{t.domain}" not in referenced_domains:
+                 unlinked_count += 1
+                 dead_links.append({
+                    "id": t.id,
+                    "domain": t.domain,
+                    "type": "orphan",
+                    "details": "Not linked from any other scanned target",
+                    "last_checked": "-"
+                 })
+
+    # Stats
+    unreachable_count = len(unreachable_ids)
+    
+    # Sort: Unreachable first, then Orphans
+    dead_links.sort(key=lambda x: (x["type"] != "unreachable", x["domain"]))
+    
+    return len(targets), unreachable_count, unlinked_count, dead_links
+
+
+@ui_router.get("/dead-links", response_class=HTMLResponse)
+async def view_dead_links(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Renders the shell for Dead Links Analysis.
+    """
+    return templates.TemplateResponse("analytics_dead_links.html", {
+        "request": request,
+        "user": user,
+        "settings": settings,
+    })
+
+@ui_router.get("/dead-links/rows", response_class=HTMLResponse)
+async def get_dead_links_rows(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    HTMX endpoint for table rows.
+    """
+    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user)
+    
+    return templates.TemplateResponse("_dead_links_rows.html", {
+        "request": request,
+        "dead_links": dead_links,
+        "scope_count": scope_count,
+        "unreachable_count": unreachable_count,
+        "orphan_count": orphan_count
+    })
+

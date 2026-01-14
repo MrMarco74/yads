@@ -27,12 +27,28 @@
                     </a>
                 </li>
                 <li>
-                    <a href="/analytics" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics' in request.path %}bg-slate-800 text-white{% endif %}">
+                    <a href="/analytics" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/analytics' %}bg-slate-800 text-white{% endif %}">
                         <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
                         </svg>
                         <span class="ml-3 text-sm font-medium">Analytics</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/analytics/external-links" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/external-links' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">External Links</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/analytics/dead-links" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/dead-links' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.732 17H6a2 2 0 01-2-2V9a2 2 0 012-2h4.553M16 16v-3m0 0v-3l-3 6m3-6l3 6m-3-6c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Dead Links</span>
                     </a>
                 </li>
             </ul>

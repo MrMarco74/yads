@@ -1,4 +1,6 @@
 # YADS - Comprehensive User Guide
+**Version:** 1.4.0
+**Last Updated:** 2026-01-14
 
 Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
@@ -53,6 +55,7 @@ Navigate to your YADS instance (e.g., `https://yads.your-domain.com`).
 
 The Dashboard is your command center.
 
+*   **Critical Attention HUD**: A prominent alert block at the top highlighting immediate threats (e.g. Expired SSL, Critical Vulnerabilities). If the system is secure, this block will confirm it.
 *   **Stats Cards**: Fast view of Total Targets, Active Scans, and Queue status.
 *   **Target List**: A paginated table of all your monitored domains.
     *   **Status Indicators**: Shows if a scan is `Idle`, `Queued`, `Running`, or `Failed`.
@@ -139,6 +142,17 @@ Visits the page as a real user.
 *   **Active Brute-force**: Tries common subdomain names.
 *   **Dangling CNAMEs**: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).
 
+### SOC2 Compliance Engine
+**(New in v1.3.5)**
+Real-time scoring of your infrastructure's compliance readiness.
+*   **Score**: Calculated dynamically (0-100%) based on active scan results.
+*   **Penalties**:
+    *   **Expired SSL**: -20 pts
+    *   **Critical CVEs**: -15 pts
+    *   **Risky Ports**: -10 pts (e.g. 21, 23, 3389 open to internet)
+    *   **Public Buckets**: -25 pts
+*   **Insights**: Hover over the score widget on the Dashboard to see specific failings.
+
 ---
 
 ## 7. OSINT Brand Monitoring
@@ -175,6 +189,9 @@ This feature is licensed separately per tenant.
 An interactive node-graph showing relationships between Domains, IPs, and ASNs.
 *   **Plot Graph**: Click the "Plot Graph" button in the sidebar to fetch and display data.
 *   **Context Messaging**: If no data is available for the selected filters, the system will provide specific feedback (e.g., "Has this target been scanned?").
+*   **Filters**:
+    *   **Show Web Links**: Toggle visibility of HTTP-based edges.
+    *   **Gray out DNS**: Fades DNS connections to gray to highlight the web structure.
 *   **Clusters**: See which domains share the same hosting infrastructure.
 *   **Zoom/Pan**: Navigate large infrastructures easily.
 
@@ -187,7 +204,24 @@ High-level metrics for management.
 ### Spiderweb (Redirect Graph)
 Visualizes redirect chains.
 *   **Entry Points**: See where users land after typing a domain.
-*   **Loops**: Identify configuration errors causing infinite redirects.
+
+
+### External Links Analysis
+The **External Links** view helps you identify third-party dependencies and potential shadow IT.
+- **Access**: Go to `Analytics > External Links` in the sidebar.
+- **Purpose**: Lists all domains found during scans (via Crawler or DNS) that are **not** part of your defined Targets.
+- **Features**:
+    - **Scope Awareness**: Automatically excludes your own targets/subdomains.
+    - **Sources**: Shows which of your targets link to the external domain.
+    - **Type**: Indicates if the link was found via a webpage link (`link`), Mail Exchange record (`MX`), Nameserver (`NS`), etc.
+    - **Export**: Click "Export PDF" to download a summary report.
+
+### Dead Links Analysis
+**(New in v1.4.0)**
+Identify health issues within your own inventory.
+- **Access**: Go to `Analytics > Dead Links`.
+- **Unreachable Targets**: Lists targets that failed recent scans (Offline or Server Error).
+- **Orphaned Targets**: Lists targets in your inventory that are **not linked to** by any other target in your scope. Useful for finding forgotten assets.
 
 ---
 
@@ -287,4 +321,4 @@ For technical support or to report bugs:
 
 ---
 
-*Verified for YADS v1.3.2*
+*Verified for YADS v1.4.0*

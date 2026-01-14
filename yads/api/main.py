@@ -15,6 +15,7 @@ from yads.modules.visual_osint import VisualOSINT
 from yads.modules.report_generator import generate_report
 from yads.modules.brand_monitor import BrandMonitor
 from yads.core.seeding import seed_changelog
+from yads.modules.compliance import ComplianceScorer
 
 from yads.config import settings
 from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification
@@ -227,6 +228,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings
 app.include_router(analytics.router)
+app.include_router(analytics.ui_router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tenants.router)
@@ -583,6 +585,117 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = config.value.lower() == "true" if config else False
 
+    # Compliance Calculation
+    # Fetch LATEST results for ALL visible targets (for this tenant)
+    # This might be heavy if thousands of targets, but acceptable for MVP optimization.
+    # We reuse 'targets' (paginated) for display, but for compliance we need ALL targets' data?
+    # Strictly speaking, compliance score should reflect the WHOLE infrastructure.
+    # So we need a query for all targets + their latest results.
+    
+    # Optimization: We only fetch what ComplianceScorer needs.
+    # Using raw SQL to get latest row per (target, module) efficiently.
+    compliance_stats = {"score": 0, "grade": "F", "passing_controls": 0, "failures": []}
+    
+    try:
+        if total_targets > 0:
+            query_compliance = f"""
+                SELECT DISTINCT ON (s.target_id, s.module_name) 
+                    s.target_id, s.module_name, s.data 
+                FROM scanresult s
+                JOIN target t ON s.target_id = t.id
+                WHERE s.module_name IN ('ssl_scanner', 'web_analyzer', 'cve_scanner', 'infrastructure_scanner', 'port_scanner')
+                AND t.tenant_id {f"= {user.tenant_id}" if user.tenant_id else "IS NULL"}
+                ORDER BY s.target_id, s.module_name, s.scanned_at DESC
+            """
+            # Fetch all targets for the map (not paginated)
+            all_targets_query = select(Target).where(Target.tenant_id == user.tenant_id)
+            all_targets = session.exec(all_targets_query).all()
+            
+            comp_results = session.exec(text(query_compliance)).all()
+            
+            # Convert raw rows to pseudo-ScanResult objects or dicts for the scorer
+            # Scorer expects List[ScanResult] with .target_id, .module_name, .data
+            class MockResult:
+                def __init__(self, tid, mod, d):
+                    self.target_id = tid
+                    self.module_name = mod
+                    self.data = d
+            
+            mock_results = [MockResult(r[0], r[1], r[2]) for r in comp_results]
+            
+            scorer = ComplianceScorer()
+            compliance_stats = scorer.calculate_score(all_targets, mock_results)
+
+            # --- Critical Attention Calculation ---
+            # Reuse mock_results to find critical issues
+            critical_map = {}
+            target_lookup = {t.id: t for t in all_targets}
+            
+            for res in mock_results:
+                reason = None
+                risk = "High"
+                
+                # Check SSL Expiry
+                if res.module_name == "ssl_scanner":
+                    if res.data.get("expired"):
+                        reason = "SSL Certificate Expired"
+                        risk = "Critical"
+                    elif res.data.get("grade") in ["F", "T", "M"]:
+                        reason = "Weak SSL Configuration"
+                        risk = "High"
+                        
+                # Check Critical CVEs
+                elif res.module_name in ["cve_scanner", "web_analyzer"]:
+                    cves = res.data.get("cves", [])
+                    max_cvss = 0
+                    for cve in cves:
+                        try:
+                            score = float(cve.get("cvss", 0))
+                            if score > max_cvss: max_cvss = score
+                        except: pass
+                    
+                    if max_cvss >= 9.0:
+                        reason = f"Critical Vulnerability (CVSS {max_cvss})"
+                        risk = "Critical"
+                    elif max_cvss >= 7.0:
+                        reason = f"High Vulnerability (CVSS {max_cvss})"
+                        risk = "High"
+                
+                # Check Public Buckets
+                elif res.module_name == "infrastructure_scanner":
+                    buckets = res.data.get("buckets", [])
+                    if any(b.get("status") == "Public" for b in buckets):
+                        reason = "Public Cloud Storage Bucket"
+                        risk = "Critical"
+
+                if reason and res.target_id in target_lookup:
+                    # Priority: Critical > High
+                    # If target already in map, only update if new risk is higher
+                    if res.target_id in critical_map:
+                        current = critical_map[res.target_id]
+                        if current["risk_score"] == "High" and risk == "Critical":
+                            critical_map[res.target_id].update({"risk_score": risk, "issue": reason})
+                    else:
+                        t = target_lookup[res.target_id]
+                        critical_map[res.target_id] = {
+                            "id": t.id,
+                            "domain": t.domain,
+                            "risk_score": risk,
+                            "issue": reason,
+                            "action": "Investigate"
+                        }
+            
+            critical_targets = list(critical_map.values())
+            # Sort: Critical first
+            critical_targets.sort(key=lambda x: x["risk_score"], reverse=True) # C > H alphabetically? No. Critical < High alphabetically.
+            # Custom sort
+            critical_targets.sort(key=lambda x: 0 if x["risk_score"] == "Critical" else 1)
+            
+    except Exception as e:
+        logger.error(f"Compliance/Critical Calc Failed: {e}")
+        # specific fallback?
+        pass
+
     # Fetch Recent Activity (ScanResults)
     recent_activity = session.exec(
         select(ScanResult).join(Target)
@@ -591,8 +704,13 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
         .limit(5)
     ).all()
 
+    # Ensure critical_targets is defined if logic skipped/failed
+    if 'critical_targets' not in locals():
+        critical_targets = []
+
     return templates.TemplateResponse("index.html", {
         "request": request,
+        "critical_targets": critical_targets, # Added
         "targets": targets,
         "active_scans": active_scans,
         "last_scans": last_scans,
@@ -602,7 +720,10 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             "services_monitored": "-",  # Placeholder
             "total_scans": total_scans_count,
             "queue_length": queue_len,
-            "queue_active": queue_active
+            "queue_active": queue_active,
+            "compliance": compliance_stats
+        },
+        "pagination": {
         },
         "pagination": {
             "page": page,

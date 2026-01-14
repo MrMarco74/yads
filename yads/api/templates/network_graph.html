@@ -62,6 +62,16 @@
                         <input type="checkbox" id="filter-connected" class="form-checkbox bg-gray-900 border-gray-700 text-indigo-500 rounded focus:ring-indigo-500">
                         <span class="text-sm text-gray-300">Connected Only</span>
                     </label>
+
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="filter-show-links" class="form-checkbox bg-gray-900 border-gray-700 text-blue-500 rounded focus:ring-blue-500" checked>
+                        <span class="text-sm text-gray-300">Show Web Links</span>
+                    </label>
+
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="filter-gray-dns" class="form-checkbox bg-gray-900 border-gray-700 text-gray-500 rounded focus:ring-gray-500">
+                        <span class="text-sm text-gray-300">Gray out DNS</span>
+                    </label>
                      
                     <div>
                          <span class="text-xs text-gray-500 block mb-1">Status</span>
@@ -191,6 +201,62 @@
 
 <script>
     let network = null;
+    window.nodesDataSet = null;
+    window.edgesDataSet = null;
+
+    // Filter Logic
+    window.updateEdgeStyles = function() {
+        if (!window.edgesDataSet) return;
+
+        const showLinks = document.getElementById('filter-show-links').checked;
+        const grayDns = document.getElementById('filter-gray-dns').checked;
+
+        const allEdges = window.edgesDataSet.get();
+        const updates = [];
+
+        allEdges.forEach(edge => {
+            const isLink = (edge.label === 'link');
+            const isDns = !isLink; 
+            
+            let update = { id: edge.id };
+            let changed = false;
+            
+            // 1. Visibility (Links)
+            if (isLink) {
+                const shouldHide = !showLinks;
+                if (edge.hidden !== shouldHide) {
+                    update.hidden = shouldHide;
+                    changed = true;
+                }
+            }
+            
+            // 2. Color (DNS)
+            if (isDns) {
+                if (grayDns) {
+                    // Gray out
+                    // Only apply if not already gray
+                    if (!edge.color || edge.color.color !== '#4b5563') {
+                        update.color = { color: '#4b5563', highlight: '#4b5563', opacity: 0.1 };
+                        update.font = { color: '#6b7280' }; // Dim label too
+                        changed = true;
+                    }
+                } else {
+                    // Reset to inherit
+                    if (edge.color && edge.color.color === '#4b5563') {
+                        update.color = null; 
+                        update.font = { color: '#9ca3af' };
+                        changed = true;
+                    }
+                }
+            }
+            
+            if (changed) updates.push(update);
+        });
+
+        if (updates.length > 0) {
+            window.edgesDataSet.update(updates);
+        }
+    }
     
     // Global access for button
     window.loadGraph = function(targetId) {
@@ -260,8 +326,14 @@
                 }
 
                 // Initialize Vis.js
-                const nodes = new vis.DataSet(data.nodes);
-                const edges = new vis.DataSet(data.edges);
+                window.nodesDataSet = new vis.DataSet(data.nodes);
+                window.edgesDataSet = new vis.DataSet(data.edges);
+                
+                // Initial Style Apply
+                updateEdgeStyles();
+
+                const nodes = window.nodesDataSet;
+                const edges = window.edgesDataSet;
                 
                 const options = {
                     nodes: {
@@ -503,6 +575,10 @@
         domSelect.addEventListener('change', () => loadGraph());
         filterConnected.addEventListener('change', () => loadGraph());
         filterOnline.addEventListener('change', () => loadGraph());
+        
+        // Visual Filters (No reload needed)
+        document.getElementById('filter-show-links').addEventListener('change', () => window.updateEdgeStyles());
+        document.getElementById('filter-gray-dns').addEventListener('change', () => window.updateEdgeStyles());
         
         // Initial resize check just in case
         setTimeout(() => {

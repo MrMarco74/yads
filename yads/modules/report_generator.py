@@ -211,3 +211,46 @@ def generate_report(target_domain: str, scan_results: Dict[str, Any]) -> bytes:
         pdf.add_typosquat_section(typo_scanner)
 
     return pdf.output()
+
+def generate_external_links_report(scope_count: int, external_links: List[Dict[str, Any]], tenant_name: str = "Unknown") -> bytes:
+    """
+    Generates a PDF report for External Links Analysis.
+    """
+    pdf = PDFReport(f"External Links Analysis ({tenant_name})")
+    
+    # Overview Section
+    pdf.chapter_title("Overview")
+    pdf.set_font('helvetica', '', 11)
+    pdf.cell(0, 5, f"Analysis Scope: {scope_count} Targets", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, f"External Domains Found: {len(external_links)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5)
+    
+    # Table Section
+    pdf.chapter_title("External Domains List")
+    
+    # Table Header
+    pdf.set_font('helvetica', 'B', 10)
+    pdf.set_fill_color(240, 240, 240)
+    # Col widths: Domain(80), Type(30), Sources(50), Count(20)
+    pdf.cell(80, 8, "Domain", border=1, fill=True)
+    pdf.cell(30, 8, "Type", border=1, fill=True)
+    pdf.cell(50, 8, "Sources (First 3)", border=1, fill=True)
+    pdf.cell(20, 8, "Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font('courier', '', 9)
+    
+    for item in external_links:
+        domain = item.get("domain", "")[:45] # Truncate if too long
+        types = ", ".join(item.get("types", []))
+        sources = item.get("sources", [])
+        source_str = ", ".join(sources[:2]) # Just show first 2 to fit
+        if len(sources) > 2: source_str += "..."
+        count = str(item.get("count", 0))
+        
+        pdf.cell(80, 8, domain, border=1)
+        pdf.cell(30, 8, types, border=1)
+        pdf.cell(50, 8, source_str, border=1)
+        pdf.cell(20, 8, count, border=1, new_x="LMARGIN", new_y="NEXT")
+        
+    return pdf.output()
+
