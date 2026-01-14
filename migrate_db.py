@@ -108,20 +108,32 @@ def migrate():
         except Exception as e:
             print(f"   Error creating scanschedule: {e}")
 
-        # 8. Create Notification for v1.3.1
-        print(">> Checking/Creating v1.3.1 Notification...")
+        # 9. Update Tenant Table: OSINT Fields
+        print(">> Checking Tenant table: OSINT fields...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_enabled BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_max INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_used INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_cost_per_search FLOAT DEFAULT 0.0;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # 10. Create Notification for v1.3.2
+        print(">> Checking/Creating v1.3.2 Notification...")
         try:
             # Check if exists
-            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.3.1'"))
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.3.2'"))
             if not result.fetchone():
                 conn.execute(text("""
                     INSERT INTO notification (title, text, type, color, icon, created_at)
                     VALUES (
-                        'System Update v1.3.1',
-                        'Scheduling, Logging Enhancements & More! Check the Changelog.',
+                        'System Update v1.3.2',
+                        'OSINT Brand Monitoring & Licensing now available! Check the Changelog.',
                         'update',
                         'blue',
-                        'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+                        'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
                         (now() at time zone 'utc')
                     );
                 """))
