@@ -58,6 +58,32 @@
                         <span class="ml-3 text-sm font-medium">Spiderweb</span>
                     </a>
                 </li>
+                <!-- OSINT Search (Licensed) -->
+            <li>
+                {% set osint_active = 'osint' in request.path %}
+                {% set osint_locked = not (user.role == 'admin' or (user.tenant and user.tenant.osint_enabled)) %}
+                
+                <a href="/osint" class="flex items-center p-2 rounded-lg group transition-colors 
+                    {% if osint_locked %}text-slate-600 hover:bg-slate-800/50 cursor-pointer{% elif osint_active %}bg-slate-800 text-white{% else %}text-slate-300 hover:bg-slate-800{% endif %}">
+                    
+                    <div class="relative">
+                        <svg class="w-5 h-5 transition duration-75 {% if osint_locked %}text-slate-600{% elif osint_active %}text-white{% else %}text-slate-400 group-hover:text-white{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {% if osint_locked %}
+                        <div class="absolute -top-1 -right-1 bg-slate-900 rounded-full p-0.5">
+                            <svg class="w-2.5 h-2.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <span class="ml-3 text-sm font-medium">OSINT Search</span>
+                    {% if osint_locked %}
+                        <span class="ml-auto text-xs border border-slate-700 rounded px-1.5 py-0.5 text-slate-600">Locked</span>
+                    {% endif %}
+                </a>
+            </li>
                 <li>
                     <a href="/schedule/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/schedule/' in request.path %}bg-slate-800 text-white{% endif %}">
                         <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">

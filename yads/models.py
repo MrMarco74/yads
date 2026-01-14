@@ -14,6 +14,12 @@ class Tenant(SQLModel, table=True):
     name: str = Field(index=True, unique=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
+    # OSINT Licensing
+    osint_enabled: bool = Field(default=False)
+    osint_quota_max: int = Field(default=0)
+    osint_quota_used: int = Field(default=0)
+    osint_cost_per_search: float = Field(default=0.0)
+    
     # Relationships
     users: List["User"] = Relationship(back_populates="tenant")
     targets: List["Target"] = Relationship(back_populates="tenant")

@@ -57,14 +57,26 @@ async def add_tenant(request: Request, name: str = Form(...), session: Session =
         return RedirectResponse(url=f"/tenants?error={str(e)}", status_code=303)
 
 @router.post("/update", dependencies=[Depends(RoleChecker(["admin"]))])
-async def update_tenant(tenant_id: int = Form(...), name: str = Form(...), session: Session = Depends(get_db_session)):
+async def update_tenant(
+    tenant_id: int = Form(...), 
+    name: str = Form(...),
+    osint_enabled: bool = Form(False),
+    osint_quota: int = Form(0),
+    osint_cost: float = Form(0.0),
+    session: Session = Depends(get_db_session)
+):
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
         return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)
+    
     tenant.name = name
+    tenant.osint_enabled = osint_enabled
+    tenant.osint_quota_max = osint_quota
+    tenant.osint_cost_per_search = osint_cost
+    
     session.add(tenant)
     session.commit()
-    return RedirectResponse(url="/tenants/?msg=Tenant+renamed", status_code=303)
+    return RedirectResponse(url="/tenants/?msg=Tenant+updated", status_code=303)
 
 @router.post("/users/update", dependencies=[Depends(RoleChecker(["admin"]))])
 async def update_tenant_users(
