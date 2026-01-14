@@ -147,11 +147,18 @@ Visits the page as a real user.
 
 The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.
 
+### Google Cloud Setup (Prerequisite)
+To use this feature, your Tenant Admin must configure the **Google Cloud Vision API**:
+1.  **Enable API**: In your Google Cloud Console, enable the **"Cloud Vision API"**.
+2.  **API Key**: Create an API Key in "Credentials".
+    *   *Important*: If you restrict your API Key (recommended), ensure **Cloud Vision API** is checked in the list of allowed APIs.
+3.  **Billing**: The Cloud Vision API requires an active Billing Account linked to the project (even for the free tier).
+
 ### Reverse Image Search
-1.  **Upload**: Drag and drop your official logo (PNG/JPG) into the search zone.
-2.  **Analysis**: The system simulates a reverse image search to find domains hosting visually similar images.
-    *   *Note*: Currently uses a simulation mode for testing.
-3.  **Result Filtering**:
+1.  **Preparation**: Ensure your Tenant Admin has configured the **Google Cloud Vision API** keys in the Tenant Settings.
+2.  **Upload**: Drag and drop your official logo (PNG/JPG) into the search zone.
+3.  **Analysis**: The system uses Google's **Vision API (Web Detection)** to find exact copies or visually similar images across the entire web.
+4.  **Result Filtering**:
     *   **Unknown**: Domains not currently in your target list. You can import these with one click.
     *   **Monitored**: Domains you are already tracking.
 
