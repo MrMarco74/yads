@@ -126,7 +126,13 @@ async def osint_search(
         if tenant.osint_quota_used >= tenant.osint_quota_max:
              return f"<div class='text-red-400 p-4 border border-red-800 rounded bg-red-900/20'>Quota Exceeded used ({tenant.osint_quota_used}/{tenant.osint_quota_max}). Please contact admin.</div>"
 
-        # Increment for this batch (Counting 1 batch as 1 search or per file? Let's say per request for simplicity)
+        # Determine Config (Tenant > System)
+        api_key = tenant.google_api_key if tenant.google_api_key else GOOGLE_SEARCH_API_KEY
+        cx = tenant.google_cse_cx if tenant.google_cse_cx else GOOGLE_SEARCH_CX
+        
+        print(f"DEBUG: OSINT Using Key: {'(Tenant)' if tenant.google_api_key else '(System)'}")
+
+        # Increment for this batch
         tenant.osint_quota_used += 1
         session.add(tenant)
         session.commit()
@@ -137,9 +143,8 @@ async def osint_search(
             print(f"DEBUG: Processing file {file.filename}")
             
             # Use Stub if configured, else Mock
-            # For this task: "Build Option 1, but trigger no scan"
-            # We use the Stub which internally falls back to Mock for consistent UI behavior
-            results = google_search_stub(file.filename, GOOGLE_SEARCH_API_KEY, GOOGLE_SEARCH_CX)
+            # Pass the determining configuration
+            results = google_search_stub(file.filename, api_key, cx)
             
             all_found_domains.update(results)
             
