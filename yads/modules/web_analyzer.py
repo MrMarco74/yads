@@ -180,6 +180,7 @@ class WebAnalyzer(BaseScannerModule):
             "https_redirect": False,
             "cves": [],
             "secrets": [],
+            "api_endpoints": [],
             "is_login_page": False
         }
         
@@ -326,6 +327,41 @@ class WebAnalyzer(BaseScannerModule):
                     })
                     self.logger.warning(f"Potential Secret Found: {name}")
 
+    def _scan_api_endpoints(self, content: str, results: Dict[str, Any], page=None):
+        """
+        Scans for API endpoints and documentation.
+        """
+        api_patterns = {
+            "Swagger/OpenAPI": r"swagger\.json|openapi\.yaml|/api-docs|swagger-ui",
+            "GraphQL": r"/graphql\b|query\s*\{|mutation\s*\{",
+            "REST API (Versioned)": r"/api/v\d+/",
+            "WSDL/SOAP": r"\.wsdl\b|\.asmx\b",
+            "Health Check": r"/health\b|/actuator/health",
+        }
+        
+        found = []
+        
+        # 1. Regex on Content
+        for type_name, regex in api_patterns.items():
+            if re.search(regex, content, re.IGNORECASE):
+                found.append({"type": type_name, "source": "content_regex"})
+                
+        # 2. Check Intercepted Requests (if page available)
+        # We can't easily access request history from here unless we tracked it during goto
+        # But we can check links in the page
+        if page:
+             try:
+                 links = page.locator("a").evaluate_all("list => list.map(el => el.href)")
+                 for link in links:
+                     for type_name, regex in api_patterns.items():
+                         if re.search(regex, link, re.IGNORECASE):
+                             # Avoid dups
+                             if not any(f['type'] == type_name for f in found):
+                                 found.append({"type": type_name, "source": "link", "url": link})
+             except: pass
+
+        results["api_endpoints"] = found
+
     def _check_cve(self, product_string: str, results: Dict[str, Any]):
         """
         Parses product string (e.g. 'nginx/1.18.0 (Ubuntu)') and looks up CVEs.
@@ -394,6 +430,7 @@ class WebAnalyzer(BaseScannerModule):
                 
                 # 0. Secret Scanning
                 self._scan_secrets(content, results)
+                self._scan_api_endpoints(content, results, page)
                 
                 # 0.5 Login Page Detection
                 try:

@@ -204,5 +204,24 @@ def migrate():
         except Exception as e:
             print(f"   Error seeding changelog: {e}")
 
+        # 13. Create Webhook Table
+        print(">> Creating webhook table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS webhook (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    url VARCHAR NOT NULL,
+                    event_types JSONB DEFAULT '[]'::jsonb,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_webhook_tenant_id ON webhook (tenant_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating webhook table: {e}")
+
 if __name__ == "__main__":
     migrate()

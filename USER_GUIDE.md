@@ -142,6 +142,13 @@ Visits the page as a real user.
 *   **Active Brute-force**: Tries common subdomain names.
 *   **Dangling CNAMEs**: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).
 
+### API Discovery
+**(New in v1.4.0)**
+Part of the Web Analyzer, this module automatically detects:
+*   **Documentation**: Finds `swagger.json`, `openapi.yaml`, and WSDL files.
+*   **Endpoints**: Identifies GraphQL endpoints (`/graphql`) and versioned REST paths (`/api/v1/`).
+*   **Results**: displayed in the **Web Analysis** card on the Target Details page.
+
 ### SOC2 Compliance Engine
 **(New in v1.3.5)**
 Real-time scoring of your infrastructure's compliance readiness.
@@ -265,7 +272,16 @@ YADS supports multiple isolated environments (Tenants).
 *   **Isolation**: Targets, Results, and Users are scoped to a Tenant.
 *   **Switching**: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
 *   **Management**: Admins can rename tenants and manage memberships via the **Tenants** page.
+*   **Management**: Admins can rename tenants and manage memberships via the **Tenants** page.
 *   **Platform Admin**: An Admin without a specific tenant sees *everything* and can manage the tenants themselves.
+
+### Webhook Notifications
+**(New in v1.4.0)**
+Tenants can configure real-time webhooks to integrate with external systems (Slack, Discord, Tines, etc.).
+1.  Go to **Tenant Settings**.
+2.  Scroll to the **Webhook Notifications** card.
+3.  Add a URL and select events (e.g., `scan_finished`, `new_asset`).
+4.  Use the **Test** button to verify connectivity.
 
 ---
 

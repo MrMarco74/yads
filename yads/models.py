@@ -30,6 +30,7 @@ class Tenant(SQLModel, table=True):
     
     # Authorized Users (M:N)
     allowed_users: List["User"] = Relationship(back_populates="allowed_tenants", link_model=UserTenantLink)
+    webhooks: List["Webhook"] = Relationship(back_populates="tenant")
 
 class Target(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -161,3 +162,13 @@ class ScanSchedule(SQLModel, table=True):
     is_active: bool = Field(default=True)
     
     target: Target = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+
+class Webhook(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    url: str
+    event_types: List[str] = Field(default=[], sa_column=Column(JSONB)) # ["scan_finished", "vuln_found", "new_asset"]
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    tenant: Tenant = Relationship(back_populates="webhooks")
