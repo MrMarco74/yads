@@ -115,7 +115,7 @@ def migrate():
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_max INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_used INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_cost_per_search FLOAT DEFAULT 0.0;"))
-            # BYOK
+            # BYOK (Vision API uses api_key; cse_cx is fallback/optional)
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_api_key VARCHAR;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_cse_cx VARCHAR;"))
             

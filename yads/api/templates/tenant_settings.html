@@ -57,15 +57,18 @@
                     <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
                         <ol class="list-decimal list-outside space-y-3 ml-3">
                             <li>
-                                <div class="font-medium text-white mb-1">Get API Key</div>
+                                <div class="font-medium text-white mb-1">Get API Key & Enable Vision API</div>
                                 Go to the <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">Google Cloud Console</a>.
-                                Create a project, then go to <em>APIs & Services > Credentials > Create Credentials > API Key</em>.
-                                <br><span class="text-gray-500 italic">Make sure to enable the "Custom Search API" in the library.</span>
+                                <ul class="list-disc ml-4 mt-1 text-gray-400">
+                                    <li>Create an API Key under <em>APIs & Services > Credentials</em>.</li>
+                                    <li><strong>Important:</strong> If using "API Restrictions", add <strong>"Cloud Vision API"</strong> to the allowed list.</li>
+                                    <li>Go to <em>APIs & Services > Library</em> and enable the <strong>"Cloud Vision API"</strong>.</li>
+                                    <li><span class="text-yellow-500/80">Note:</span> This API requires an active Billing Account (free tier available).</li>
+                                </ul>
                             </li>
                             <li>
-                                <div class="font-medium text-white mb-1">Get Search Engine ID (CX)</div>
-                                Go to <a href="https://programmablesearchengine.google.com/controlpanel/all" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">Programmable Search Engine</a>.
-                                Create a new engine, enable "Search the entire web", and copy the "Search engine ID" (CX).
+                                <div class="font-medium text-white mb-1">Search Engine ID (CX)</div>
+                                <span class="text-gray-500 italic">Optional for Image Search.</span> Used only if you want to use text-based fallback search features in future updates.
                             </li>
                         </ol>
                     </div>
