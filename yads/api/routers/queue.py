@@ -9,6 +9,7 @@ from yads.database import get_session
 from yads.models import User, SystemConfig
 from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
+import logging
 
 router = APIRouter(
     prefix="/queue",
@@ -156,8 +157,30 @@ async def view_queue(
 # Admin/Scanner Only for Controls
 scanner_only = RoleChecker(["admin", "tenant_admin", "scanner"])
 
+
+
+@router.get("/widget", response_class=HTMLResponse)
+async def get_queue_widget(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
+    """
+    Returns a small HTML fragment with Queue Status and Controls.
+    Used for the global header.
+    """
+    if user.role not in ["admin", "tenant_admin", "scanner"]:
+        return ""
+
+    conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+    queue_active = True
+    if conf and conf.value.lower() == "false":
+        queue_active = False
+
+    return templates.TemplateResponse("components/queue_widget.html", {
+        "request": request,
+        "queue_active": queue_active
+    })
+
 @router.post("/control", dependencies=[Depends(scanner_only)])
 async def control_queue(
+    request: Request,
     action: str = Form(...),
     session: Session = Depends(get_session)
 ):
@@ -171,14 +194,77 @@ async def control_queue(
 
     if action == "pause":
         conf.value = "false"
-        # Stop Consumer
         celery_app.control.cancel_consumer('celery', reply=True)
     elif action == "resume":
         conf.value = "true"
-        # Start Consumer - CRITICAL for processing
         celery_app.control.add_consumer('celery', reply=True)
         
     session.add(conf)
     session.commit()
     
+    # HTMX Support: Return updated widget if requested
+    if request.headers.get("HX-Request"):
+        return templates.TemplateResponse("components/queue_widget.html", {
+            "request": request,
+            "queue_active": action == "resume"
+        })
+
     return RedirectResponse(url="/queue", status_code=303)
+
+
+
+@router.post("/purge", dependencies=[Depends(scanner_only)])
+async def purge_queue(
+    request: Request,
+    session: Session = Depends(get_session)
+):
+    """
+    Panic: Clear the queue.
+    """
+    import redis
+    scan_logger = logging.getLogger("yads-api")
+    
+    try:
+        # 1. Purge via Celery Control (Broker)
+        celery_app = Celery("yads_purge", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        purged_count = celery_app.control.purge()
+        
+        # 2. Force Clear Redis List 'celery' (just in case)
+        r = redis.from_url(settings.REDIS_URL)
+        r_count = r.delete("celery")
+        
+        scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}")
+        
+    except Exception as e:
+        scan_logger.error(f"Failed to purge queue: {e}")
+        # Even on error, we might want to return the widget if HTMX, but let's stick to redirect for error visibility or handle IT
+        # For simplicity, if HTMX, we just return the widget and maybe log to console/toast?
+        # The user wants the layout fixed. 
+        if request.headers.get("HX-Request"):
+             # Get current state for widget re-render
+             conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+             queue_active = True
+             if conf and conf.value.lower() == "false":
+                 queue_active = False
+                 
+             return templates.TemplateResponse("components/queue_widget.html", {
+                "request": request,
+                "queue_active": queue_active
+             })
+
+        return RedirectResponse(url=f"/queue?error=Purge+Failed:+{e}", status_code=303)
+
+    # HTMX Support: Return updated widget
+    if request.headers.get("HX-Request"):
+         # Get current state for widget re-render
+         conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+         queue_active = True
+         if conf and conf.value.lower() == "false":
+             queue_active = False
+             
+         return templates.TemplateResponse("components/queue_widget.html", {
+            "request": request,
+            "queue_active": queue_active
+         })
+
+    return RedirectResponse(url="/queue?msg=Queue+Cleared", status_code=303)

@@ -65,6 +65,9 @@
 
             <!-- Right: Context Controls -->
             <div class="flex items-center gap-4">
+                <!-- Queue Widget (Polls every 30s) -->
+                <div hx-get="/queue/widget" hx-trigger="load, every 30s" hx-swap="outerHTML"></div>
+
                 <!-- Tenant Switcher -->
                 {% if user.allowed_tenants or user.role == 'admin' %}
                 <form action="/auth/switch-tenant?next={{ request.path }}" method="post" class="flex items-center gap-2 border border-slate-700/50 rounded-lg px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 transition-colors">

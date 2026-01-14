@@ -312,8 +312,10 @@ async def bulk_scan_targets(
                 
                 # Always dispatch to Redis (even if paused, it waits there).
                 # This ensures arguments (scan_types) are preserved.
-                # Bulk scan is also a MANUAL action.
-                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types, True])
+                # Bulk scan is also a MANUAL action, BUT we now RESPECT the queue pause.
+                # If Queue is Paused, valid consumer won't pick it up OR worker will abort if it checks DB.
+                # We set ignore_queue_pause=False (default).
+                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types])
                 count += 1
         except Exception as e:
             logger.error(f"Failed to queue target {tid_str}: {e}")
@@ -527,8 +529,8 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     
     # Always dispatch to Redis (even if paused, it waits there).
     # This ensures argments are preserved.
-    # We pass ignore_queue_pause=True because this is a MANUAL action by the user.
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types, True])
+    # We pass ignore_queue_pause=False so it respects the "Stop All" state.
+    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types])
     
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 
@@ -3090,6 +3092,8 @@ async def get_network_graph(
     Integrates DNS records and Subdomains.
     """
     from sqlmodel import or_, and_
+    from urllib.parse import urlparse
+
     
     
     # Filter by user's tenant
@@ -3145,7 +3149,7 @@ async def get_network_graph(
         # We check both dns_scanner and subdomain_scanner results
         scans = session.exec(select(ScanResult).where(
             ScanResult.target_id == t.id,
-            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner"])
+            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner", "crawler"])
         ).order_by(ScanResult.scanned_at.desc())).all()
         
         # Process latest of each type
@@ -3198,6 +3202,61 @@ async def get_network_graph(
                 
                 sub_id = f"sub_{sub_name}"
                 add_node(sub_id, sub_name.replace(f".{t.domain}", ""), "subdomain", 2) # Label: sub only
+                add_edge(tgt_node_id, sub_id, "sub")
+                
+                # IPs for sub
+                for ip in sub.get("ips", []):
+                     ip_id = f"ip_{ip}"
+                     add_node(ip_id, ip, "ip", 5)
+                     add_edge(sub_id, ip_id, "A")
+
+            # C. Crawler Links (Edges)
+            if scan.module_name == "crawler":
+                crawl_edges = data.get("edges", [])
+                for edge in crawl_edges:
+                    src_url = edge.get("source")
+                    dst_url = edge.get("target")
+                    if not src_url or not dst_url: continue
+                    
+                    try:
+                        src_host = urlparse(src_url).netloc
+                        dst_host = urlparse(dst_url).netloc
+                        
+                        # Determine Node IDs
+                        def get_host_node(host, domain, base_id):
+                            if host == domain or host == f"www.{domain}":
+                                return base_id # Map www to root for cleaner graph? Or keep separate? 
+                                # Let's keep separate but consistent naming
+                            
+                            if host == domain: return base_id
+                            
+                            if host.endswith(f".{domain}"):
+                                return f"sub_{host}"
+                            return None # External or unrelated
+                        
+                        src_id = get_host_node(src_host, t.domain, tgt_node_id)
+                        dst_id = get_host_node(dst_host, t.domain, tgt_node_id)
+                        
+                        if src_id and dst_id and src_id != dst_id:
+                            # Ensure nodes exist (if they weren't found by subdomain scanner yet)
+                            # This implicitly adds them if the crawler found them but DNS scanner didn't
+                            if src_id not in nodes:
+                                if src_id == tgt_node_id:
+                                    pass # Already added
+                                else:
+                                    lbl = src_host.replace(f".{t.domain}", "")
+                                    add_node(src_id, lbl, "subdomain", 2)
+                            
+                            if dst_id not in nodes:
+                                if dst_id == tgt_node_id:
+                                    pass
+                                else:
+                                    lbl = dst_host.replace(f".{t.domain}", "")
+                                    add_node(dst_id, lbl, "subdomain", 2)
+
+                            add_edge(src_id, dst_id, "link")
+                    except:
+                        pass
                 add_edge(tgt_node_id, sub_id, "")
                 
                 # Link Subdomain -> IPs
