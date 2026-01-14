@@ -108,13 +108,17 @@ def migrate():
         except Exception as e:
             print(f"   Error creating scanschedule: {e}")
 
-        # 9. Update Tenant Table: OSINT Fields
-        print(">> Checking Tenant table: OSINT fields...")
+        # 9. Update Tenant Table: OSINT Fields & BYOK
+        print(">> Checking Tenant table: OSINT fields & BYOK...")
         try:
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_enabled BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_max INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_used INTEGER DEFAULT 0;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_cost_per_search FLOAT DEFAULT 0.0;"))
+            # BYOK
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_api_key VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_cse_cx VARCHAR;"))
+            
             conn.commit()
             print("   Success.")
         except Exception as e:

@@ -20,6 +20,10 @@ class Tenant(SQLModel, table=True):
     osint_quota_used: int = Field(default=0)
     osint_cost_per_search: float = Field(default=0.0)
     
+    # OSINT BYOK (Bring Your Own Key)
+    google_api_key: Optional[str] = Field(default=None)
+    google_cse_cx: Optional[str] = Field(default=None)
+    
     # Relationships
     users: List["User"] = Relationship(back_populates="tenant")
     targets: List["Target"] = Relationship(back_populates="tenant")
