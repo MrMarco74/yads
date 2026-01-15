@@ -196,6 +196,55 @@ def migrate():
         except Exception as e:
             print(f"   Error creating notification: {e}")
 
+        # 13. Create Notification for v1.5.0
+        print(">> Checking/Creating v1.5.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.5.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.5.0',
+                        'Deep Security Update: Nuclei Vulns, Stealth Nmap, and Compliance Grading! Check Changelog.',
+                        'update',
+                        'purple',
+                        'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
+
+        # 14. Create Notification for v1.5.1
+        print(">> Checking/Creating v1.5.1 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.5.1'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.5.1',
+                        'Critical Update: Queue Stability & Zombie Status Fixes. Check Changelog.',
+                        'update',
+                        'green',
+                        'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
         # 9. Seed Changelog
         print(">> Seeding Changelog...")
         try:

@@ -234,7 +234,11 @@
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="cve_scanner" {% if 'cve_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-slate-200">CVE Scanner</span>
+                                <span class="text-xs text-slate-200">CVE Scanner (Passive)</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="nuclei_scanner" {% if 'nuclei_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200 font-bold text-indigo-400">Nuclei Vulnerability Scan (Active)</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="infrastructure_scanner" {% if 'infrastructure_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
@@ -257,12 +261,20 @@
                                 <span class="text-xs text-slate-200">Site Crawler</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="content_discovery" {% if 'content_discovery' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200">Content Discovery (Fuzzing)</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="tld_scanner" {% if 'tld_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-slate-200">TLD Scanner</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="port_scanner" {% if 'port_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
-                                <span class="text-xs text-slate-200">Port Scan (Web Probe)</span>
+                                <span class="text-xs text-slate-200">Quick Web Probe (80/443)</span>
+                            </label>
+                             <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="nmap_scanner" {% if 'nmap_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-200 font-bold text-indigo-400">Stealth Nmap Scan (Slow)</span>
                             </label>
                         </div>
                     </div>
@@ -309,6 +321,7 @@
                             <th class="p-2">Server / ASN</th>
                             <th class="p-2">Secrets</th>
                             <th class="p-2">CVEs</th>
+                            <th class="p-2">Nuclei</th>
                             <th class="p-2">Takeover</th>
                             <th class="p-2 text-right">Actions</th>
                         </tr>
@@ -431,6 +444,8 @@
                                 </select>
                              </th>
                              <!-- CVEs -->
+                             <th class="p-2"></th>
+                             <!-- Nuclei -->
                              <th class="p-2"></th>
                              <!-- Takeover -->
                              <th class="p-2">
@@ -707,6 +722,36 @@
                                                 MED: {{ row.cve_stats.medium }}
                                             </span>
                                         {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-600 text-xs">-</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="p-2">
+                                <div class="flex flex-col gap-1.5 min-w-[80px]">
+                                    {% if row.nuclei_stats and (row.nuclei_stats.critical > 0 or row.nuclei_stats.high > 0 or row.nuclei_stats.medium > 0 or row.nuclei_stats.low > 0) %}
+                                        {% if row.nuclei_stats.critical > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/80 text-white border border-red-500 shadow-sm shadow-red-900/50">
+                                                CRIT: {{ row.nuclei_stats.critical }}
+                                            </span>
+                                        {% endif %}
+                                        {% if row.nuclei_stats.high > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-900/80 text-orange-200 border border-orange-500/50">
+                                                HIGH: {{ row.nuclei_stats.high }}
+                                            </span>
+                                        {% endif %}
+                                         {% if row.nuclei_stats.medium > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/30 text-yellow-300 border border-yellow-600/30">
+                                                MED: {{ row.nuclei_stats.medium }}
+                                            </span>
+                                        {% endif %}
+                                        {% if row.nuclei_stats.low > 0 %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/30 text-blue-300 border border-blue-600/30">
+                                                LOW: {{ row.nuclei_stats.low }}
+                                            </span>
+                                        {% endif %}
+                                    {% elif row.nuclei_stats %}
+                                         <span class="text-slate-500 text-xs text-center" title="Scan Complete, No Issues">✓ Clean</span>
                                     {% else %}
                                         <span class="text-slate-600 text-xs">-</span>
                                     {% endif %}

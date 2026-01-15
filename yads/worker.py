@@ -21,8 +21,33 @@ logger = configure_logging("yads-worker")
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 celery_app.conf.worker_hijack_root_logger = False
 
+from celery.signals import worker_ready, worker_process_init
+
+@worker_ready.connect
+def on_worker_ready(sender=None, **kwargs):
+    """
+    On Startup: Check DB and pause consumer if needed.
+    """
+    logger.info("[Worker] Signal: Worker Ready. Checking Queue State...")
+    try:
+        with Session(engine) as session:
+            from yads.models import SystemConfig
+            conf = session.exec(select(SystemConfig).where(SystemConfig.key == "QUEUE_ACTIVE")).first()
+            if conf and conf.value.lower() == "false":
+                logger.warning("[Worker] startup: Queue is PAUSED in DB. Cancelling consumer.")
+                sender.app.control.cancel_consumer('celery', reply=False, destination=[sender.hostname])
+            else:
+                logger.info("[Worker] startup: Queue is ACTIVE.")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to check queue state on startup: {e}")
+
+
 # Database access for worker
-engine = create_engine(settings.DATABASE_URL)
+
+# Database access for worker
+# Use shared engine to prevent pool exhaustion when imported by API
+from yads.database import engine
+
 
 import io
 
@@ -53,16 +78,18 @@ class LogCapture:
 
 import socket
 
-@celery_app.task(name="yads.worker.run_all_scans")
-def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ignore_queue_pause: bool = False):
+@celery_app.task(name="yads.worker.run_all_scans", bind=True)
+def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = None, ignore_queue_pause: bool = False):
     """
     Main orchestration task.
     Runs configured scanners for the given target.
     If scan_types is None, runs all available scanners.
     """
+    bind = True # Required for self.retry to work? No, need to change decorator
+
     if scan_types is None:
         # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["subdomain_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner"]
+        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
@@ -94,20 +121,32 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
             conf_val = conf.value if conf else "None"
             logger.info(f"[Worker] Checking QUEUE_ACTIVE for {domain}. DB Value: '{conf_val}', IgnorePause: {ignore_queue_pause}")
             
-            if not ignore_queue_pause and (conf and conf.value == "false"):
-                logger.warning(f"[Worker] Queue is PAUSED (Stop All). Aborting scan for {domain} (ID: {target_id}).")
-                # Ensure status is stopped
-                try:
-                    target = session.get(Target, target_id)
-                    if target:
-                        target.scan_status = "stopped"
-                        target.scan_progress = "Aborted by Stop All"
-                        session.add(target)
-                        session.commit()
-                except Exception as e:
-                    logger.error(f"[Worker] Failed to update stop status: {e}")
+            # DEFAULT TO PAUSED IF CONFIG IS MISSING (Safety First)
+            is_paused = True 
+            if conf and conf.value.lower() == "true":
+                is_paused = False
+            
+            if ignore_queue_pause:
+                is_paused = False
+
+            if is_paused:
+                logger.warning(f"[Worker] Queue is PAUSED. Re-queuing scan for {domain} (ID: {target_id}).")
+                # Instead of aborting (which drops the task), we retry it later.
+                # This keeps it in the system but delays it.
+                # Max retries? If unlimited, it will loop. 
+                # Better: Ensure consumer is cancelled, then retry ONCE to put it back in queue?
+                # Or just raise Retry?
                 
-                return
+                # Check if we should actually cancel the consumer here too?
+                # on_worker_ready handles startup, but if it was missed:
+                # Just retry. Do NOT cancel consumer here, as it risks the worker becoming "deaf" 
+                # if it misses the resume signal.
+                # A 60s retry loop is acceptable overhead.
+                logger.warning(f"[Worker] Queue is PAUSED. Re-queuing scan for {domain} (ID: {target_id}).")
+                
+                # Retry in 60 seconds
+                raise self.retry(countdown=60, max_retries=None)
+
 
             # Update Status to Running
             try:
@@ -145,7 +184,8 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
             has_https = False
             
             # Only perform checks if web modules are requested
-            if any(x in scan_types for x in ["web_analyzer", "visual_osint", "ssl_scanner"]):
+            web_modules = ["web_analyzer", "visual_osint", "ssl_scanner", "nuclei_scanner", "crawler", "content_discovery"]
+            if any(x in scan_types for x in web_modules):
                 logger.info(f"[Worker] Pre-checking web ports for {domain}...")
                 has_http = check_port(domain, 80)
                 has_https = check_port(domain, 443)
@@ -246,6 +286,36 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
                         logger.error(f"[Worker] Error in Web Analyzer: {e}")
                         session.rollback()
 
+            # 2b. Run Nuclei Vulnerability Scanner (Active)
+            # (New in v1.5.0)
+            if "nuclei_scanner" in scan_types:
+                if not (has_http or has_https):
+                    logger.info("[Worker] Skipping Nuclei: Port 80/443 closed.")
+                else:
+                    try:
+                        t = session.get(Target, target_id)
+                        if t:
+                            t.scan_progress = "Running Nuclei Scanner..."
+                            session.add(t)
+                            session.commit()
+
+                        from yads.modules.nuclei_scanner import NucleiScanner
+                        nu = NucleiScanner(db_session=session)
+                        logger.info(f"[Worker] Step 2b: Running {nu.module_name}...")
+                        with LogCapture() as logs:
+                            logger.info(f"Starting {nu.module_name} for {domain}")
+                            result = nu.process(target_id, domain)
+                            captured_logs = logs.get_logs()
+                        
+                        if result and hasattr(result, 'log_content'):
+                            result.log_content = captured_logs
+                            session.add(result)
+                            session.commit()
+                            print(f"[Worker] {nu.module_name} finished.")
+                    except Exception as e:
+                        logger.error(f"[Worker] Error in Nuclei Scanner: {e}")
+                        session.rollback()
+
             # 3. Run Typosquat Scanner (Independent of Web)
             if "typosquat_scanner" in scan_types:
                 try:
@@ -332,6 +402,33 @@ def run_all_scans(target_id: int, domain: str, scan_types: list[str] = None, ign
 
                 except Exception as e:
                     logger.error(f"[Worker] Error in Port Scanner: {e}", exc_info=True)
+                    session.rollback()
+
+            # 4c. Run Nmap Stealth Scanner
+            # (New in v1.5.0)
+            if "nmap_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Stealth Nmap Scan..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.nmap_scanner import NmapScanner
+                    nmap_mod = NmapScanner(db_session=session)
+                    logger.info(f"[Worker] Step 4c: Running {nmap_mod.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {nmap_mod.module_name} for {domain}")
+                        result = nmap_mod.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {nmap_mod.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Nmap Stealth Scanner: {e}")
                     session.rollback()
 
             # 5. Run Visual OSINT

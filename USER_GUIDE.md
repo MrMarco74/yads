@@ -1,6 +1,6 @@
 # YADS - Comprehensive User Guide
-**Version:** 1.4.0
-**Last Updated:** 2026-01-14
+**Version:** 1.5.1
+**Last Updated:** 2026-01-15
 
 Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
@@ -139,8 +139,30 @@ Visits the page as a real user.
 
 ### DNS & Subdomain
 *   **Passive Recon**: Uses public logs (CT) to find subdomains without touching the target.
-*   **Active Brute-force**: Tries common subdomain names.
-*   **Dangling CNAMEs**: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).
+    *   **Active Brute-force**: Tries common subdomain names.
+    *   **Dangling CNAMEs**: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).
+
+### Vulnerability Scanning (Active)
+
+**(New in v1.5.0)**
+YADS now integrates **Nuclei** for active vulnerability detection.
+*   **Capabilities**: Scans for 5000+ known vulnerabilities (CVEs), misconfigurations, and exposed panels.
+*   **Severity**: Findings are categorized as Critical, High, Medium, Low, or Info.
+*   **Usage**: Select "Nuclei Vulnerability Scan" in the *New Scan* modal.
+
+### Stealth Port Scanning
+
+**(New in v1.5.0)**
+*   **Stealth Mode**: Uses Nmap with evasion flags (`-sS`, `-T2`, `-D RND:5`) to probe ports without triggering IDS/IPS.
+*   **Slow & Safe**: Designed for stealth, this scan takes longer but reduces detection risk.
+
+### JavaScript SAST
+
+**(New in v1.5.0)**
+*   **Static Analysis**: Automatically downloads and analyzes client-side JavaScript files.
+*   **Sink Detection**: Identifies potential DOM XSS sinks (e.g. `innerHTML`, `document.write`).
+*   **Route Discovery**: Extracts hidden API routes from JS code.
+
 
 ### API Discovery
 **(New in v1.4.0)**
@@ -205,8 +227,18 @@ An interactive node-graph showing relationships between Domains, IPs, and ASNs.
 ### Analytics Dashboard
 High-level metrics for management.
 *   **World Map**: Physical location of all assets.
-*   **Tech Distribution**: charts showing most common technologies (e.g., "80% Nginx").
-*   **Risk Overview**: Summary of critical vulnerabilities across the portfolio.
+    *   **Tech Distribution**: charts showing most common technologies (e.g., "80% Nginx").
+    *   **Risk Overview**: Summary of critical vulnerabilities across the portfolio.
+
+### Compliance & Grading
+**(New in v1.5.0)**
+Found at the top of every **Target Detail** page:
+*   **Security Grade (A-F)**: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
+*   **Risk Factors**: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
+*   **Compliance Gaps**: Maps technical findings to industry standards:
+    *   **OWASP Top 10**: e.g. A05 (Misconfiguration), A02 (Crypto Failures).
+    *   **GDPR / ISO 27001**: Detects PII exposure and secrets.
+
 
 ### Spiderweb (Redirect Graph)
 Visualizes redirect chains.
@@ -290,8 +322,8 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 *(Admin Only)*
 
 ### Queue Control
-*   **Pause/Resume**: Stop the background worker from processing new scans. Useful for maintenance.
-*   **Clear Queue**: Remove all pending jobs.
+*   **Pause/Resume**: Stop the background worker from processing new scans. The worker will check for the Resume signal every 60 seconds.
+*   **Clear Queue**: PANIC BUTTON. Cancels all pending and running scans and resets their status to "Idle" in the database. Use this if the system gets stuck.
 *   **System Reset**: Reverts the system to a "Clean State". This removes all scan data and tenants, but preserves user accounts and system configurations.
 
 ### Configuration
@@ -317,7 +349,7 @@ To get the most out of YADS, consider these tips:
 
 #### 🛑 Scan stuck in "Pending"
 *   **Cause**: The background worker might be paused or overloaded.
-*   **Fix**: Check **Settings > Queue Control** and ensure the queue is active. Check **active workers** count.
+*   **Fix**: Check **Settings > Queue Control** and ensure the queue is active. Check **active workers** count. The worker auto-heals every 60 seconds if it was paused.
 
 #### ⚠️ "Web Analyzer" failed
 *   **Cause**: Target might be offline or blocking the scanner.
