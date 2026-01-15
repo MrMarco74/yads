@@ -283,7 +283,7 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "full_scan"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
     final_types = [t for t in scan_types_selected if t in valid_types]
     
     if "full_scan" in final_types:
@@ -510,7 +510,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "full_scan"]
+    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
     selected_types = [t for t in scan_types if t in valid_types]
     
     if "full_scan" in selected_types:
@@ -1396,7 +1396,9 @@ async def view_target_table(
         web = next((r for r in results if r.module_name == 'web_analyzer'), None)
         infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
         tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
+        tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
         port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
+        nuclei_scan = next((r for r in results if r.module_name == 'nuclei_scanner'), None)
         
         # Online Status Logic (Mirroring the Filter Logic)
         is_online = None 
@@ -1444,6 +1446,7 @@ async def view_target_table(
             "takeover_risks": dns.data.get("takeover_risks", []) if (dns and dns.data) else [],
             "tld_stats": tld_scan.data if (tld_scan and tld_scan.data) else None,
             "port_scan": port_scan.data if (port_scan and port_scan.data) else None,
+            "nuclei_stats": nuclei_scan.data.get("stats") if (nuclei_scan and nuclei_scan.data) else None,
             "last_scan": results[0].scanned_at if results else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results])),
@@ -2300,6 +2303,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     return StreamingResponse(output_pdf, headers=headers, media_type='application/pdf')
 
 
+from yads.core.compliance import calculate_security_grade, generate_compliance_report
 
 @app.get("/targets/{target_id}", response_class=HTMLResponse)
 async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
@@ -2357,7 +2361,11 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         latest_crawler = next((r for r in history_entries if r.module_name == 'crawler'), None)
         latest_cd = next((r for r in history_entries if r.module_name == 'content_discovery'), None)
         latest_tld = next((r for r in history_entries if r.module_name == 'tld_scanner'), None)
-        current_results = [r for r in [latest_subdomain, latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld] if r]
+        latest_port = next((r for r in history_entries if r.module_name == 'port_scanner'), None)
+        latest_nmap = next((r for r in history_entries if r.module_name == 'nmap_scanner'), None)
+        latest_nuclei = next((r for r in history_entries if r.module_name == 'nuclei_scanner'), None)
+        
+        current_results = [r for r in [latest_subdomain, latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld, latest_port, latest_nmap, latest_nuclei] if r]
 
     
     # Extract specific results for template
@@ -2376,6 +2384,20 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     crawler_result = next((r for r in current_results if r.module_name == 'crawler'), None)
     content_discovery_result = next((r for r in current_results if r.module_name == 'content_discovery'), None)
     tld_result = next((r for r in current_results if r.module_name == 'tld_scanner'), None)
+    port_result = next((r for r in current_results if r.module_name == 'port_scanner'), None)
+    nmap_result = next((r for r in current_results if r.module_name == 'nmap_scanner'), None)
+    nuclei_result = next((r for r in current_results if r.module_name == 'nuclei_scanner'), None)
+
+    # -- Compliance & Grading --
+    comp_input = {
+        "web_result": web_result,
+        "ssl_result": ssl_result,
+        "nmap_result": nmap_result,
+        "nuclei_result": nuclei_result,
+        "port_result": port_result
+    }
+    security_grade = calculate_security_grade(comp_input)
+    compliance_report = generate_compliance_report(comp_input)
 
     # -- Cipher Compliance Setup --
     from yads.models import SystemConfig
@@ -2419,6 +2441,11 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "crawler_result": crawler_result,
         "content_discovery_result": content_discovery_result,
         "tld_result": tld_result,
+        "port_result": port_result,
+        "nmap_result": nmap_result,
+        "nuclei_result": nuclei_result,
+        "security_grade": security_grade,
+        "compliance_report": compliance_report,
         "history_entries": history_entries, # Pass full history
         "current_history_id": history_id,
         "raw_results": jsonable_encoder([r.model_dump() for r in current_results]),
@@ -2561,6 +2588,27 @@ async def upload_target_logo(
          return RedirectResponse(url=f"/targets/{target_id}?error=Upload+failed", status_code=303)
 
 # -- Settings Routes --
+
+@app.post("/admin/tools/nuclei-update")
+async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker(["admin"]))):
+    """
+    Manually triggers 'nuclei -ut' to update vulnerability templates.
+    """
+    import subprocess
+    logger.info(f"Admin {user.username} triggered Nuclei template update.")
+    try:
+        # Run update command
+        proc = subprocess.Popen(["nuclei", "-ut"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = proc.communicate(timeout=600) # 10 min timeout
+        
+        if proc.returncode == 0:
+            last_line = stdout.splitlines()[-1] if stdout.strip() else "Templates are up to date."
+            return HTMLResponse(content=f'<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2 animate-fade-in">{last_line}</div>')
+        else:
+            return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Update failed ({proc.returncode}): {stderr[:100]}</div>')
+    except Exception as e:
+        logger.error(f"Nuclei update failed: {e}")
+        return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Error: {str(e)}</div>')
 
 @app.get("/settings", response_class=HTMLResponse)
 async def view_settings(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):

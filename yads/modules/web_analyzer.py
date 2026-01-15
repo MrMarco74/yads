@@ -181,6 +181,11 @@ class WebAnalyzer(BaseScannerModule):
             "cves": [],
             "secrets": [],
             "api_endpoints": [],
+            "js_analysis": {
+                "files_analyzed": [],
+                "findings": []
+            },
+            "api_specs": [],
             "is_login_page": False
         }
         
@@ -356,11 +361,62 @@ class WebAnalyzer(BaseScannerModule):
                      for type_name, regex in api_patterns.items():
                          if re.search(regex, link, re.IGNORECASE):
                              # Avoid dups
-                             if not any(f['type'] == type_name for f in found):
+                             if not any(f.get('url') == link for f in found):
                                  found.append({"type": type_name, "source": "link", "url": link})
+                                 
+                                 # If it's Swagger, try to parse it immediately
+                                 if type_name == "Swagger/OpenAPI":
+                                     self._fetch_and_parse_swagger(link, results)
              except: pass
 
         results["api_endpoints"] = found
+
+    def _fetch_and_parse_swagger(self, url: str, results: Dict[str, Any]):
+        """
+        Attempts to download and parse a Swagger/OpenAPI Definition.
+        """
+        try:
+            # Check if already parsed
+            if any(s['url'] == url for s in results.get("api_specs", [])):
+                return
+
+            r = requests.get(url, timeout=5, verify=False)
+            if r.status_code != 200: return
+            
+            spec = None
+            try:
+                spec = r.json()
+            except:
+                pass # Could try YAML later if needed
+            
+            if not spec or not isinstance(spec, dict):
+                return
+                
+            # Basic Validation (Swagger 2.0 or OpenAPI 3.0)
+            if not ("swagger" in spec or "openapi" in spec):
+                return
+                
+            endpoints = []
+            paths = spec.get("paths", {})
+            for path, methods in paths.items():
+                # Extract methods (get, post, etc.)
+                active_methods = [m.upper() for m in methods.keys() if m.lower() in ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']]
+                endpoints.append({
+                    "path": path,
+                    "methods": active_methods
+                })
+                
+            if endpoints:
+                results["api_specs"].append({
+                    "url": url,
+                    "version": spec.get("info", {}).get("version", "unknown"),
+                    "title": spec.get("info", {}).get("title", "Unknown API"),
+                    "endpoints": endpoints
+                })
+                self.logger.info(f"Parsed Swagger Spec at {url}: {len(endpoints)} endpoints found.")
+
+        except Exception as e:
+            self.logger.error(f"Swagger Parse Error: {e}")
 
     def _check_cve(self, product_string: str, results: Dict[str, Any]):
         """
@@ -430,7 +486,11 @@ class WebAnalyzer(BaseScannerModule):
                 
                 # 0. Secret Scanning
                 self._scan_secrets(content, results)
+                self._scan_secrets(content, results)
                 self._scan_api_endpoints(content, results, page)
+                
+                # 0.1 JS SAST Analysis
+                self._scan_js_files(page, url, results)
                 
                 # 0.5 Login Page Detection
                 try:
@@ -654,3 +714,86 @@ class WebAnalyzer(BaseScannerModule):
                 browser.close()
         except Exception as e:
             results["headless_error"] = str(e)
+
+    def _scan_js_files(self, page, base_url: str, results: Dict[str, Any]):
+        """
+        Fetches and statically analyzes referenced JS files for sinks and routes.
+        """
+        try:
+            # Get all script srcs
+            scripts = page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
+            
+            # Patterns
+            sinks = {
+                "Dangerous Sink (innerHTML)": r"\.innerHTML\s*=",
+                "Dangerous Sink (outerHTML)": r"\.outerHTML\s*=",
+                "Dangerous Sink (document.write)": r"document\.write\(",
+                "Dangerous Func (eval)": r"\beval\(",
+                "Dangerous Sink (location assignment)": r"location\.(href|search)\s*=",
+                "Open Redirect Potential": r"window\.location\s*="
+            }
+            
+            # Simple heuristic for routes: strings starting with /api, /v1, etc.
+            # Avoid overly generic paths.
+            route_pattern = r"['\"](\/api\/[\w\-\/]+|\/v\d\/[\w\-\/]+|\/graphql|\/admin\/[\w\-\/]+)['\"]"
+            
+            analyzed_count = 0
+            # Limit analysis
+            max_files = 10
+            
+            from urllib.parse import urlparse
+            base_domain = urlparse(base_url).netloc
+            
+            for src in scripts:
+                if analyzed_count >= max_files: break
+                
+                # Filter: Only scan same-origin or relevant subdomains logic?
+                # For now, simplistic: if it contains the domain name OR is relative (which playwright resolves to absolute, so check domain)
+                src_domain = urlparse(src).netloc
+                if base_domain not in src_domain and "cdn" in src_domain:
+                    # Skip generic CDNs
+                    continue
+                
+                if src in results["js_analysis"]["files_analyzed"]:
+                    continue
+                
+                try:
+                    # Fetch
+                    r = requests.get(src, timeout=5, verify=False)
+                    if r.status_code == 200:
+                        content = r.text
+                        results["js_analysis"]["files_analyzed"].append(src)
+                        analyzed_count += 1
+                        
+                        # Check Sinks
+                        for name, regex in sinks.items():
+                            if re.search(regex, content):
+                                results["js_analysis"]["findings"].append({
+                                    "file": src,
+                                    "type": "sink",
+                                    "name": name,
+                                    "severity": "medium", # SAST is prone to FP, so medium default
+                                    "details": f"Found pattern: {regex}"
+                                })
+                        
+                        # Check Routes
+                        matches = re.finditer(route_pattern, content)
+                        for m in matches:
+                            route = m.group(1)
+                            # Avoid duplicates globally or per file?
+                            # Let's add if unique
+                            if not any(f.get('route') == route for f in results["js_analysis"]["findings"]):
+                                results["js_analysis"]["findings"].append({
+                                    "file": src,
+                                    "type": "route",
+                                    "name": "Hidden API Route",
+                                    "severity": "info",
+                                    "route": route,
+                                    "details": f"Discovered potential endpoint: {route}"
+                                })
+
+                except Exception as e:
+                    pass
+                    
+        except Exception as e:
+            self.logger.error(f"JS Analysis failed: {e}")

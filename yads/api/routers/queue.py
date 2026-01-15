@@ -230,11 +230,54 @@ async def purge_queue(
         purged_count = celery_app.control.purge()
         
         # 2. Force Clear Redis List 'celery' (just in case)
-        r = redis.from_url(settings.REDIS_URL)
+        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
         r_count = r.delete("celery")
         
-        scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}")
+        # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
+        scan_logger.warning("Revoking all active and reserved tasks...")
+        i = celery_app.control.inspect()
+        if i:
+             # Stop Reserved (Pre-fetched but not started)
+             reserved = i.reserved()
+             if reserved:
+                for worker, tasks in reserved.items():
+                    for task in tasks:
+                        t_id = task.get("id")
+                        scan_logger.info(f"Revoking RESERVED task: {t_id}")
+                        celery_app.control.revoke(t_id, terminate=True)
+
+             # Stop Active (Currently running)
+             active = i.active()
+             if active:
+                for worker, tasks in active.items():
+                    for task in tasks:
+                        t_id = task.get("id")
+                        scan_logger.info(f"Revoking ACTIVE task: {t_id}")
+                        # terminate=True kills the worker process executing the task
+                        celery_app.control.revoke(t_id, terminate=True)
         
+        scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}, Redis Deleted: {r_count}")
+        
+        # 4. RESET Database Status (The Missing Link)
+        # Fixes "Zombie" statuses in the UI for tasks that were just deleted
+        from yads.models import Target
+        from sqlmodel import or_
+        
+        # Reset all 'queued' or 'running' targets to 'idle'
+        # or_() needs col expression
+        statement = select(Target).where(or_(Target.scan_status == "queued", Target.scan_status == "running"))
+        zombies = session.exec(statement).all()
+        
+        reset_count = 0
+        for z in zombies:
+            z.scan_status = "idle" 
+            z.scan_progress = "Stopped by Queue Purge"
+            session.add(z)
+            reset_count += 1
+            
+        session.commit()
+        scan_logger.warning(f"Reset {reset_count} zombie targets in DB.")
+
     except Exception as e:
         scan_logger.error(f"Failed to purge queue: {e}")
         # Even on error, we might want to return the widget if HTMX, but let's stick to redirect for error visibility or handle IT

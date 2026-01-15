@@ -112,16 +112,13 @@ def seed_changelog():
                 <ul>
                     <li><strong>Detection:</strong> Automatically lists all external domains (not in your targets) found via Crawler links or DNS records.</li>
                     <li><strong>Tenant-Aware:</strong> Respects your tenant scope, showing only links from your targets.</li>
-                </ul>
-                <h3>📄 PDF Export</h3>
-                <ul>
-                    <li><strong>Export Reports:</strong> You can now export the External Links report to a professional PDF format for sharing.</li>
+                    <li><strong>PDF Export:</strong> You can now export the External Links report to a professional PDF format for sharing.</li>
                 </ul>
                 """
             )
             session.add(entry5)
 
-        # Combine 1.3.5, 1.3.6, 1.3.7 into 1.4.0 per user request
+        # 1.4.0
         if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.4.0").first():
             entry_140 = ChangelogEntry(
                 title="YADS v1.4.0: Critical Analytics & Performance Update",
@@ -140,23 +137,55 @@ def seed_changelog():
                 </ul>
                 <h3>⚡ Performance Optimizations</h3>
                 <ul>
-                    <li><strong>External Links Page:</strong> Refactored to load instantly. Data is now calculated asynchronously in the background with a visual progress indicator.</li>
-                </ul>
-                <h3>🛠️ Maintenance</h3>
-                <ul>
-                    <li><strong>Ghost Target Cleanup:</strong> Added tools to identify and cleanup targets with invalid IP states.</li>
+                    <li><strong>External Links Page:</strong> Refactored to load instantly. Data is now calculated asynchronously in the background.</li>
                 </ul>
                 <h3>🕸️ Network Analysis</h3>
                 <ul>
-                    <li><strong>Dead Links Analysis:</strong> New dashboard to identify unreachable targets and orphaned domains (not linked from anywhere).</li>
-                    <li><strong>Graph Filters:</strong> Added filters to the Network Graph to toggle "Web Links" visibility and "Gray out DNS" connections.</li>
+                    <li><strong>Dead Links Analysis:</strong> New dashboard to identify unreachable targets and orphaned domains.</li>
+                    <li><strong>Graph Filters:</strong> Added filters to the Network Graph to toggle "Web Links" visibility.</li>
                 </ul>
                 """
             )
             session.add(entry_140)
 
+        # 1.5.0 - DEEP SECURITY UPDATE
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.5.0").first():
+            entry_150 = ChangelogEntry(
+                title="YADS v1.5.0: Deep Security & Compliance Update",
+                version="1.5.0",
+                content="""
+                <h3>🚀 Deep Security Features</h3>
+                <ul>
+                    <li><strong>Nuclei Vulnerability Integration:</strong> Active scanning for 5000+ known vulnerabilities using ProjectDiscovery's Nuclei. Findings are categorized instantly (Critical, High, Medium).</li>
+                    <li><strong>Stealth Nmap Scan:</strong> New "Stealth" option using evasion flags (<i>-sS, -T2, -D RND:5</i>) for undetectable port scanning.</li>
+                    <li><strong>JS SAST Analysis:</strong> Static Analysis of client-side JavaScript to detect DOM XSS sinks (<i>innerHTML, eval</i>) and hidden API routes.</li>
+                </ul>
+                <h3>📊 Reporting & Compliance</h3>
+                <ul>
+                    <li><strong>Security Grade Mapping:</strong> Aggregates all scan data into an <strong>A-F Grade</strong> with clear risk factor deductions.</li>
+                    <li><strong>Compliance Dashboard:</strong> Automatically maps findings to standards like <strong>OWASP Top 10</strong> and <strong>GDPR/ISO27001</strong>.</li>
+                    <li><strong>Swagger/OpenAPI Parser:</strong> Automatically detects and displays API endpoints from <i>swagger.json</i> files.</li>
+                </ul>
+                """
+            )
+            session.add(entry_150)
 
-        
+
+        # 1.5.1 - STABILITY UPDATE
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.5.1").first():
+            entry_151 = ChangelogEntry(
+                title="YADS v1.5.1: Critical Stability & Queue Reliability",
+                version="1.5.1",
+                content="""
+                <h3>🛠️ Critical Stability Fixes</h3>
+                <ul>
+                    <li><strong>Queue Reliability:</strong> Fixed a race condition where the background worker could become unresponsive to "Resume" commands. It now self-heals automatically.</li>
+                    <li><strong>Zombie Status Fix:</strong> The "Clear Queue" button now correctly resets the status of all stuck jobs in the database, removing "Zombie" badges from the UI.</li>
+                    <li><strong>Connection Limits:</strong> Optimised database connection pooling to prevent Server Errors (500) during heavy loads.</li>
+                </ul>
+                """
+            )
+            session.add(entry_151)
 
         session.commit()
         print("Changelog seeded successfully.")

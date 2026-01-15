@@ -15,6 +15,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - .:/app
+      - nuclei_templates:/root/nuclei-templates
     depends_on:
       - db
       - redis
@@ -36,6 +37,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - .:/app
+      - nuclei_templates:/root/nuclei-templates
     depends_on:
       - db
       - redis
@@ -69,6 +71,7 @@ services:
 
 volumes:
   postgres_data:
+  nuclei_templates:
 
 networks:
   yads-net:

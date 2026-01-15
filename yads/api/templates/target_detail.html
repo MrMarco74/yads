@@ -52,18 +52,26 @@
                                 <input type="checkbox" name="scan_types" value="typosquat_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
                                 <span class="text-sm text-gray-300">Typosquat Scanner</span>
                             </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="cve_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">CVE Vulnerability Scanner</span>
-                            </label>
+                             <label class="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" name="scan_types" value="cve_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                 <span class="text-sm text-gray-300">CVE Scanner (Passive)</span>
+                             </label>
+                             <label class="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" name="scan_types" value="nuclei_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                 <span class="text-sm font-bold text-indigo-400">Nuclei Vulnerability Scan (Active)</span>
+                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="infrastructure_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
                                 <span class="text-sm text-gray-300">Infrastructure</span>
                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="ssl_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">SSL</span>
-                            </label>
+                                 <input type="checkbox" name="scan_types" value="ssl_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                 <span class="text-sm text-gray-300">SSL</span>
+                             </label>
+                             <label class="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" name="scan_types" value="visual_osint" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
+                                 <span class="text-sm text-gray-300">Visual OSINT</span>
+                             </label>
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" name="scan_types" value="wayback_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
                                 <span class="text-sm text-gray-300">Wayback Machine</span>
@@ -80,9 +88,13 @@
                                 <input type="checkbox" name="scan_types" value="tld_scanner" class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
                                 <span class="text-sm text-gray-300">TLD Scanner</span>
                             </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="port_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Port Scan (Web Probe)</span>
+                            <label class="flex items-center space-x-2 p-3 bg-gray-800 rounded hover:bg-gray-700 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="port_scanner" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-gray-600">
+                                <span class="text-sm font-medium text-gray-300">Quick Web Probe (80/443)</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 bg-gray-800 rounded hover:bg-gray-700 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="nmap_scanner" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-gray-600">
+                                <span class="text-sm font-medium text-gray-300">Stealth Nmap Scan (Slow)</span>
                             </label>
                         </div>
                         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-lg transition-colors">
@@ -580,7 +592,76 @@
                 </div>
                 
                 {% if web_result and (web_result.data.emails or web_result.data.phones or web_result.data.socials or web_result.data.documents) %}
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- COMPLIANCE & GRADING DASHBOARD -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
+            <!-- Overall Grade -->
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 backdrop-blur-sm flex flex-col items-center justify-center relative overflow-hidden">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-4">Security Grade</h3>
+                
+                {% set g = security_grade.grade %}
+                {% set color = 'emerald' %}
+                {% if g == 'B' %}{% set color = 'blue' %}
+                {% elif g == 'C' %}{% set color = 'yellow' %}
+                {% elif g == 'D' %}{% set color = 'orange' %}
+                {% elif g == 'F' %}{% set color = 'red' %}
+                {% endif %}
+                
+                <div class="relative z-10 text-center">
+                    <span class="text-8xl font-black text-white drop-shadow-lg" style="text-shadow: 0 0 30px {{ 'rgba(16, 185, 129, 0.5)' if g == 'A' else 'rgba(59, 130, 246, 0.5)' if g == 'B' else 'rgba(234, 179, 8, 0.5)' if g == 'C' else 'rgba(249, 115, 22, 0.5)' if g == 'D' else 'rgba(239, 68, 68, 0.5)' }};">
+                        {{ g }}
+                    </span>
+                    <div class="mt-2 text-2xl font-bold text-{{color}}-400">{{ security_grade.score }}/100</div>
+                </div>
+                
+                <!-- Background decoration -->
+                <div class="absolute inset-0 bg-{{color}}-500/10 blur-3xl rounded-full transform scale-150 z-0"></div>
+            </div>
+
+            <!-- Risk Factors (Deductions) -->
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 backdrop-blur-sm md:col-span-1">
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Risk Factors</h3>
+                {% if security_grade.deductions %}
+                <ul class="space-y-2">
+                    {% for ded in security_grade.deductions %}
+                    <li class="flex items-start gap-2 text-sm text-gray-300">
+                        <svg class="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>{{ ded }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="h-full flex flex-col items-center justify-center text-gray-500">
+                    <svg class="w-12 h-12 mb-2 opacity-50 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span class="text-sm">No significant deductions.</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Compliance Violations -->
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 backdrop-blur-sm md:col-span-1 overflow-y-auto max-h-[250px]">
+                 <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Compliance Gaps</h3>
+                 {% if compliance_report %}
+                    <table class="w-full text-left text-xs mb-2">
+                        <tbody class="divide-y divide-gray-700/50">
+                        {% for issue in compliance_report %}
+                            <tr class="group hover:bg-white/5">
+                                <td class="py-2">
+                                    <div class="text-gray-300 font-semibold">{{ issue.control }}</div>
+                                    <div class="text-[10px] text-gray-500">{{ issue.standard }} &bull; <span class="text-{{ 'red' if issue.severity=='Critical' else 'orange' if issue.severity=='High' else 'yellow' if issue.severity=='Medium' else 'blue' }}-400">{{ issue.severity }}</span></div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                 {% else %}
+                    <div class="text-center text-gray-500 mt-8">
+                        <span class="text-sm">No standard violations mapped.</span>
+                    </div>
+                 {% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         
                         <!-- CONTACTS -->
                         <div class="space-y-4">
