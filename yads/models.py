@@ -23,6 +23,10 @@ class Tenant(SQLModel, table=True):
     # OSINT BYOK (Bring Your Own Key)
     google_api_key: Optional[str] = Field(default=None)
     google_cse_cx: Optional[str] = Field(default=None)
+    nuclei_api_key: Optional[str] = Field(default=None)
+    
+    # Session Management
+    session_timeout_minutes: int = Field(default=60) # Default 1 hour
     
     # Relationships
     users: List["User"] = Relationship(back_populates="tenant")

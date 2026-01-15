@@ -108,8 +108,17 @@ def migrate():
         except Exception as e:
             print(f"   Error creating scanschedule: {e}")
 
-        # 9. Update Tenant Table: OSINT Fields & BYOK
-        print(">> Checking Tenant table: OSINT fields & BYOK...")
+        # 8. Update User Table: email
+        print(">> Checking User table: email...")
+        try:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS email VARCHAR;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # 9. Update Tenant Table: OSINT Fields & BYOK & Session Management
+        print(">> Checking Tenant table: OSINT fields, BYOK & Session Mgmt...")
         try:
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_enabled BOOLEAN DEFAULT FALSE;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS osint_quota_max INTEGER DEFAULT 0;"))
@@ -118,6 +127,11 @@ def migrate():
             # BYOK (Vision API uses api_key; cse_cx is fallback/optional)
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_api_key VARCHAR;"))
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_cse_cx VARCHAR;"))
+            # Nuclei Pro
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS nuclei_api_key VARCHAR;"))
+            
+            # Session Management
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS session_timeout_minutes INTEGER DEFAULT 60;"))
             
             conn.commit()
             print("   Success.")
@@ -245,7 +259,7 @@ def migrate():
         except Exception as e:
             print(f"   Error creating notification: {e}")
 
-        # 9. Seed Changelog
+        # 15. Seed Changelog
         print(">> Seeding Changelog...")
         try:
             seed_changelog()
@@ -253,7 +267,7 @@ def migrate():
         except Exception as e:
             print(f"   Error seeding changelog: {e}")
 
-        # 13. Create Webhook Table
+        # 16. Create Webhook Table
         print(">> Creating webhook table (if not exists)...")
         try:
             conn.execute(text("""

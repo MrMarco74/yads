@@ -87,12 +87,33 @@ async def login(
 
     # Success    # Create Token
     token_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    tm_conf = session.get(SystemConfig, "ACCESS_TOKEN_EXPIRE_MINUTES")
-    if tm_conf:
-         try:
-             token_minutes = int(tm_conf.value)
-         except:
-             pass
+    
+    # 1. Tenant-Specific Override (Prioritize User's Tenant)
+    if user.tenant_id:
+         # Need to fetch tenant settings. 
+         # user.tenant might be lazy loaded or not loaded.
+         from yads.models import Tenant
+         tenant_ctx = session.get(Tenant, user.tenant_id)
+         if tenant_ctx and tenant_ctx.session_timeout_minutes:
+             token_minutes = tenant_ctx.session_timeout_minutes
+    
+    # 2. System Level Override (Only if Tenant didn't set it? Or maybe System overrides Tenant?)
+    # Usually System Admin Config > Default, but Tenant Config > System Default?
+    # Logic: Tenant Config > System Config (if we want tenant specific) OR System Config > Tenant Config.
+    # Requirement: "Give tenant admin the possibility to choose". So Tenant Config wins.
+    # But if Tenant Config is default (60) and System Config is changed?
+    # We'll assume if user.tenant_id is set, use tenant specific.
+    # If not (Platform Admin), use System Config.
+    
+    if not user.tenant_id:
+        tm_conf = session.get(SystemConfig, "ACCESS_TOKEN_EXPIRE_MINUTES")
+        if tm_conf:
+            try:
+                token_minutes = int(tm_conf.value)
+            except:
+                pass
+
+
              
     access_token = create_access_token(
         subject=user.username, 

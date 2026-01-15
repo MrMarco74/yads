@@ -3266,8 +3266,11 @@ async def get_network_graph(
     Returns graph data (nodes, edges) for the Network Relationship visualization.
     Integrates DNS records and Subdomains.
     """
-    from sqlmodel import or_, and_
+    from sqlmodel import or_, and_, text
     from urllib.parse import urlparse
+    
+    RISKY_PORTS = {21, 23, 445, 3389, 5900, 22, 1433, 3306} # FTP, Telnet, SMB, RDP, VNC, SSH, MSSQL, MySQL
+
 
     
     
@@ -3295,19 +3298,32 @@ async def get_network_graph(
         
     targets = session.exec(query).all()
     
-    nodes = {} # id -> {id, label, group, val}
+    nodes = {} # id -> {id, label, group, val, risk_level, risk_details}
     edges = [] # {from, to, arrows, label?}
     
     unique_edge_keys = set()
     
-    def add_node(nid, label, group, value=1):
+    def add_node(nid, label, group, value=1, risk_level=0, risk_details=""):
         if nid not in nodes:
-            nodes[nid] = {"id": nid, "label": label, "group": group, "value": value}
+            nodes[nid] = {
+                "id": nid, 
+                "label": label, 
+                "group": group, 
+                "value": value,
+                "risk_level": risk_level,
+                "risk_details": risk_details
+            }
         else:
-            # Maybe upgrade group or increase value?
+            # Upgrade group or value
             if nodes[nid]["group"] == "ip" and group == "server":
                  nodes[nid]["group"] = "server"
             nodes[nid]["value"] = max(nodes[nid]["value"], value)
+            
+            # Upgrade Risk Level (Take Max)
+            if risk_level > nodes[nid]["risk_level"]:
+                nodes[nid]["risk_level"] = risk_level
+                nodes[nid]["risk_details"] = risk_details
+
             
     def add_edge(src, dst, label=""):
         key = f"{src}-{dst}-{label}"
@@ -3320,11 +3336,10 @@ async def get_network_graph(
         tgt_node_id = f"target_{t.id}"
         add_node(tgt_node_id, t.domain, "target", 20)
         
-        # 2. Get DNS Scan Results (Includes Subdomain Scanner results usually if merged, but check module name)
-        # We check both dns_scanner and subdomain_scanner results
+        # 2. Get Scan Results (DNS, Nuclei, Nmap, Crawler)
         scans = session.exec(select(ScanResult).where(
             ScanResult.target_id == t.id,
-            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner", "crawler"])
+            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner", "crawler", "nuclei_scanner", "nmap_scanner"])
         ).order_by(ScanResult.scanned_at.desc())).all()
         
         # Process latest of each type
@@ -3439,6 +3454,48 @@ async def get_network_graph(
                             add_edge(src_id, dst_id, "link")
                     except:
                         pass
+                        
+            # D. Risk Analysis (Nuclei & Nmap)
+            # These apply to the MAIN target node (tgt_node_id)
+            # Limitation: We don't know exactly which subdomain is vulnerable unless it was scanned as a separate target.
+            
+            # Nuclei Check
+            if scan.module_name == "nuclei_scanner":
+                findings = data.get("findings", [])
+                max_risk = 0
+                detail = ""
+                for f in findings:
+                    severity = f.get("info", {}).get("severity", "low").lower()
+                    if severity == "critical":
+                        max_risk = 3
+                        detail = f"Critical: {f.get('info', {}).get('name')}"
+                        break # Stop at max
+                    elif severity == "high" and max_risk < 2:
+                        max_risk = 2
+                        detail = f"High: {f.get('info', {}).get('name')}"
+                    elif severity == "medium" and max_risk < 1:
+                        max_risk = 1
+                        detail = f"Medium: {f.get('info', {}).get('name')}"
+                
+                if max_risk > 0:
+                     add_node(tgt_node_id, t.domain, "target", 20, risk_level=max_risk, risk_details=detail)
+
+            # Nmap Check (Open Risky Ports)
+            if scan.module_name == "nmap_scanner":
+                open_ports = data.get("open_ports", [])
+                risk_found = False
+                bad_ports = []
+                for p in open_ports:
+                    pid = p.get("port")
+                    if pid in RISKY_PORTS:
+                        risk_found = True
+                        bad_ports.append(str(pid))
+                
+                if risk_found:
+                    detail = f"Risky Ports: {', '.join(bad_ports)}"
+                    # Risky ports = High Risk (2)
+                    add_node(tgt_node_id, t.domain, "target", 20, risk_level=2, risk_details=detail)
+
 
 
     # Filter Empty (Unconnected) Nodes
