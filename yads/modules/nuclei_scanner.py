@@ -34,33 +34,63 @@ class NucleiScanner(BaseScannerModule):
             results["error"] = "Nuclei binary not found"
             return results
 
+        # ----------------------------------------------------
+        # Get Tenant Context for Nuclei Pro Key
+        # ----------------------------------------------------
+        from yads.models import Target, Tenant
+        from sqlmodel import select
+        
+        nuclei_key = None
+        # We need to find the tenant for this target.
+        # Assumption: 'target' argument is just a string URL/Domain.
+        # In a real worker, we might have the target_id passed or we can query by domain.
+        
+        if self.db_session:
+             # Try to find target by domain (exact match logic for now)
+             # Strip protocol for domain matching if needed, but Target.domain is usually just domain
+             domain_part = target.replace("https://", "").replace("http://", "").split("/")[0]
+             
+             # Try exact match first
+             db_target = self.db_session.exec(select(Target).where(Target.domain == domain_part)).first()
+             if not db_target:
+                 # Try finding by looking if target contains domain? 
+                 # For now, simplistic lookup. A better way would be passing target_id to run_scan, 
+                 # but BaseScannerModule interface uses string.
+                 pass
+             
+             if db_target and db_target.tenant_id:
+                 tenant = self.db_session.get(Tenant, db_target.tenant_id)
+                 if tenant and tenant.nuclei_api_key:
+                     nuclei_key = tenant.nuclei_api_key
+                     self.logger.info(f"Using Nuclei Pro API Key for Tenant: {tenant.name}")
+
         self.logger.info(f"Starting Nuclei scan for {target}...")
         
         # Prepare target URL (ensure protocol)
         target_url = target
         if not target_url.startswith("http"):
-             # We assume https preferred, but nuclei can handle hostnames too usually.
-             # Better to give it the hostname and let it decide? Or probe?
-             # If we give 'example.com', nuclei usually probes.
              pass
         
         # Command Structure
         # -json: JSON output line by line
         # -silent: No banner
         # -nc: No colors (easier to parse if strict)
-        # -as: Automatic scan (optional, but good) -> Removed for predictability, sticking to default logic.
         cmd = ["nuclei", "-u", target_url, "-j", "-silent", "-nc"]
         
-        # Flags for optimization?
-        # Maybe limit rate?
-        # cmd.extend(["-rate-limit", "150"]) 
+        # Inject Key if present
+        env_vars = os.environ.copy()
+        if nuclei_key:
+            # Option 1: Env Var (Preferred)
+            env_vars["PDCP_API_KEY"] = nuclei_key
+            # Option 2: CLI Flag (less secure in process list)
+            # cmd.extend(["-auth-key", nuclei_key]) 
         
         self.logger.info(f"Executing: {' '.join(cmd)}")
         
         try:
             # 20 minutes timeout - Nuclei can be long if many templates
             self.logger.info(f"Command started: {' '.join(cmd)}")
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env_vars)
             stdout, stderr = proc.communicate(timeout=1200) 
             self.logger.info(f"Command finished. Return code: {proc.returncode}") 
             
