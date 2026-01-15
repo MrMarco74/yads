@@ -37,7 +37,7 @@
     {% endif %}
     
     <!-- Main Content Wrapper -->
-    <div class="min-h-screen transition-all duration-300 flex flex-col {% if user %}sm:ml-64{% else %}items-center justify-center{% endif %}">
+    <div class="transition-all duration-300 flex flex-col {% if user %}sm:ml-64{% else %}items-center justify-center{% endif %} {% block wrapper_classes %}min-h-screen{% endblock %}">
         
         {% if user %}
         <!-- Top Header -->
@@ -196,7 +196,7 @@
         {% endif %}
 
         <!-- Main Content Area -->
-        <main class="flex-grow {% if user %}p-4 sm:p-6 lg:p-8{% else %}w-full flex justify-center items-center{% endif %}">
+        <main class="flex-grow {% block main_classes %}{% if user %}p-4 sm:p-6 lg:p-8{% else %}w-full flex justify-center items-center{% endif %}{% endblock %}">
             {% block content %}{% endblock %}
         </main>
 
