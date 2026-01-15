@@ -2,17 +2,12 @@
 
 {% block title %}Redirect Spiderweb{% endblock %}
 
-{% block main_classes %}flex-1 w-full bg-gray-900 overflow-hidden relative flex flex-col{% endblock %}
+{% block wrapper_classes %}h-screen overflow-hidden{% endblock %}
+
+{% block main_classes %}flex-1 w-full bg-gray-900 overflow-hidden relative flex flex-col min-h-0{% endblock %}
 
 {% block content %}
 <style>
-    /* Force body to be a flex column filling the screen */
-    body {
-        height: 100vh !important;
-        overflow: hidden !important;
-        display: flex !important;
-        flex-direction: column !important;
-    }
     footer { display: none !important; }
 </style>
 
