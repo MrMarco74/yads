@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YADS - Yet Another DAST Solution | Enterprise Security Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --accent: #10b981;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        /* Base Styles */
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 {
+            margin-top: 0;
+            line-height: 1.2;
+        }
+
+        h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -1px; }
+        h2 { font-size: 2.5rem; font-weight: 700; color: #fff; margin-bottom: 2rem; }
+        h3 { font-size: 1.5rem; font-weight: 600; color: var(--primary); }
+
+        p { color: var(--text-muted); font-size: 1.125rem; margin-bottom: 1.5rem; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Utilities */
+        .text-gradient {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+
+        .btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px 0 var(--primary-glow);
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px 0 var(--primary-glow); }
+
+        /* Hero Section */
+        header {
+            padding: 8rem 0 6rem;
+            text-align: center;
+            background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        /* Image Containers */
+        .screenshot-container {
+            margin: 4rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            transition: transform 0.5s ease;
+        }
+        .screenshot-container:hover { transform: scale(1.02); }
+        .screenshot-container img {
+            width: 100%;
+            display: block;
+        }
+
+        /* Content Sections */
+        section { padding: 6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+        .feature-card h4 { color: #fff; margin-bottom: 0.5rem; font-size: 1.25rem; }
+        .feature-card ul { padding-left: 1.5rem; color: var(--text-muted); }
+        .feature-card li { margin-bottom: 0.5rem; }
+
+        /* Feature Lists */
+        .scan-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
+        }
+        .tag-new { background: rgba(16, 185, 129, 0.2); color: var(--accent); }
+        .tag-core { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+
+        /* Footer */
+        footer { padding: 4rem 0; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-up { animation: fadeUp 0.8s ease-out forwards; opacity: 0; }
+        .delay-1 { animation-delay: 0.2s; }
+        .delay-2 { animation-delay: 0.4s; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Hero -->
+    <header>
+        <div class="container">
+            <span class="hero-badge animate-up">YADS v1.5.0 ist live</span>
+            <h1 class="animate-up delay-1">Sicherheit, die man <span class="text-gradient">sehen</span> kann.</h1>
+            <p class="animate-up delay-2" style="max-width: 700px; margin: 1.5rem auto;">
+                Schluss mit unübersichtlichen Tabellen. YADS ist die moderne Reconnaissance-Platform für Teams, die ihre Attack Surface verstehen, analysieren und absichern wollen. Modular. Skalierbar. Open Source.
+            </p>
+            <a href="#features" class="btn animate-up delay-2">Plattform erkunden</a>
+
+            <div class="screenshot-container animate-up delay-2">
+                <img src="product_screenshots/screencapture-localhost-8000-2026-01-15-11_23_05.png" alt="YADS Dashboard Interface">
+            </div>
+        </div>
+    </header>
+
+    <!-- Core Philosophy / Intro -->
+    <section id="intro">
+        <div class="container text-center">
+            <h2>Mehr als nur ein Port-Scanner</h2>
+            <p style="max-width: 800px; margin: 0 auto;">
+                YADS aggregiert Daten aus verschiedensten Quellen zu einem <strong>Single Pane of Glass</strong>. 
+                Es wurde entwickelt, um die Lücke zwischen manueller Penetration-Testing-Recherche und vollautomatisiertem Vulnerability Management zu schließen. 
+                Vom ersten DNS-Request bis zum fertigen Management-Report – alles in einer UI.
+            </p>
+        </div>
+    </section>
+
+    <!-- Scan Engine Deep Dive -->
+    <section>
+        <div class="container">
+            <h2>🛡️ Die Scanning Engine</h2>
+            <p>Unter der Haube arbeitet ein leistungsstarkes, modulares Framework, das kontinuierlich erweitert wird. Wählen Sie präzise, welche Tests für welches Asset laufen sollen.</p>
+            
+            <div class="scan-types">
+                <div class="feature-card">
+                    <h4><span class="tag tag-core">CORE</span> Reconnaissance</h4>
+                    <p>Die Basis jeder Sicherheitsanalyse. YADS findet, was Sie vergessen haben.</p>
+                    <ul>
+                        <li><strong>Subdomain Enumeration:</strong> Passive (CT Logs) & aktive Brute-Force Methoden.</li>
+                        <li><strong>DNS Analyse:</strong> A, AAAA, MX, TXT, NS Records und Zone Transfers.</li>
+                        <li><strong>Port Scanning:</strong> TCP/UDP Scans auf die Top 1000 Ports oder Full-Range.</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><span class="tag tag-core">WEB</span> Web Analyzer</h4>
+                    <p>Simuliert einen echten User-Besuch mit einem Headless-Browser.</p>
+                    <ul>
+                        <li><strong>Tech Stack Detection:</strong> Erkennt CMS, Frameworks (React, Vue), Webserver (Nginx, Apache).</li>
+                        <li><strong>Screenshot Engine:</strong> Automatische Full-Page Screenshots für visuelle Verifikation.</li>
+                        <li><strong>Header Analyse:</strong> Prüft Security Headers (HSTS, CSP, X-Frame-Options).</li>
+                        <li><strong>API Discovery:</strong> Findet Swagger/OpenAPI Specs und GraphQL Endpunkte.</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card">
+                    <h4><span class="tag tag-new">NEU</span> Vulnerability & DAST</h4>
+                    <p>Aktive Suche nach bekannten Schwachstellen.</p>
+                    <ul>
+                        <li><strong>Nuclei Integration:</strong> Template-basiertes Scannen auf 5000+ CVEs und Misconfigurations.</li>
+                        <li><strong>JS SAST:</strong> Statische Analyse von Client-Side JavaScript auf Secrets und DOM XSS Sinks.</li>
+                        <li><strong>Stealth Mode:</strong> Langsame, fragmentierte Scans zur Umgehung von WAFs und IDS.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visualizations -->
+    <section>
+        <div class="container">
+            <div class="grid-2">
+                <div>
+                    <h2>🕸️ Visualisierung komplexer Daten</h2>
+                    <h3>Network Graph</h3>
+                    <p>
+                        In großen Infrastrukturen verliert man schnell den Überblick. Der Network Graph macht Zusammenhänge sofort sichtbar. 
+                        Es handelt sich nicht um ein statisches Bild, sondern um eine interaktive <strong>Force-Directed Graph</strong> Simulation.
+                    </p>
+                    <ul>
+                        <li><strong>Relationship Mapping:</strong> Sehen Sie, welche Domains auf derselben IP hosten.</li>
+                        <li><strong>Proaktives Clustering:</strong> Erkennen Sie Schatten-IT Cluster sofort.</li>
+                        <li><strong>Filter:</strong> Blenden Sie DNS-Layer aus, um sich auf Web-Verbindungen zu konzentrieren.</li>
+                    </ul>
+                </div>
+                <div class="screenshot-container">
+                    <img src="product_screenshots/screencapture-localhost-8000-visualizations-network-graph-2026-01-15-11_24_33.png" alt="Netzwerk Graph Visualisierung">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Analytics & Intelligence -->
+    <section>
+        <div class="container">
+            <div class="grid-2">
+                <div class="screenshot-container">
+                    <img src="product_screenshots/screencapture-localhost-8000-analytics-2026-01-15-11_23_29.png" alt="Analytics Dashboard">
+                </div>
+                <div>
+                    <h2>📊 Analytics & Insights</h2>
+                    <p>Daten sind gut, Verständnis ist besser. Unsere Analytics-Suite aggregiert Millionen von Datenpunkten zu handlungsrelevanten Informationen.</p>
+                    
+                    <div class="feature-card">
+                        <h4>Geo- & Tech-Intelligence</h4>
+                        <p>Wo stehen Ihre Server physikalisch? Welche Länder hosten Ihre kritischen Daten? Welche Webserver-Versionen dominieren Ihr Netzwerk?</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <h4>Dead Links & Hijacking</h4>
+                        <p>
+                            Finden Sie "tote" Links in Ihren Anwendungen, bevor es Ihre Nutzer tun. YADS identifiziert zudem 
+                            <strong>Dangling DNS Records</strong> (Subdomain Hijacking), die auf nicht mehr existente Cloud-Ressourcen zeigen.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- OSINT -->
+    <section>
+        <div class="container text-center">
+            <h2>🕵️ OSINT Brand Monitoring</h2>
+            <p style="margin-bottom: 3rem;">
+                Ihre Marke endet nicht auf Ihren eigenen Servern. YADS nutzt die <strong>Google Cloud Vision API</strong>, um das Internet nach visuellen Kopien Ihrer Logos und Assets zu durchsuchen.
+            </p>
+            <div class="screenshot-container" style="max-width: 900px; margin: 0 auto;">
+                <img src="product_screenshots/screencapture-localhost-8000-osint-2026-01-15-11_28_26.png" alt="OSINT Brand Monitoring">
+            </div>
+            <div class="grid-2" style="margin-top: 3rem; text-align: left;">
+                <div class="feature-card">
+                    <h4>Phishing Detection</h4>
+                    <p>Finden Sie betrügerische Seiten, die Ihr Design kopieren, noch bevor eine Domain-Blacklist sie erfasst.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Schatten-Marketing</h4>
+                    <p>Entdecken Sie alte Marketing-Landingpages von Agenturen, die nie abgeschaltet wurden.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Management & Reporting -->
+    <section>
+        <div class="container">
+            <h2>📑 Reporting & Management</h2>
+            <div class="scan-types">
+                <div class="feature-card">
+                    <h4>Multi-Tenancy</h4>
+                    <p>Ideal für MSPs und Konzerne. Trennen Sie Daten strikt nach Mandanten (Kunden/Abteilungen), behalten Sie aber als Platform-Admin den Gesamtüberblick.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Scheduling & Automation</h4>
+                    <p>"Set and Forget". Definieren Sie Scan-Intervalle (Täglich, Wöchentlich) und Compliance-Policies. Lassen Sie YADS arbeiten.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Export Formate</h4>
+                    <p>
+                        <strong>PDF Management Summary:</strong> Hochglanz-Reports für das C-Level.<br>
+                        <strong>Excel/CSV Raw Data:</strong> Vollständige Datensätze für Analysten und Import in SIEM-Systeme.
+                    </p>
+                </div>
+            </div>
+            <div class="screenshot-container">
+                <img src="product_screenshots/screencapture-localhost-8000-schedule-2026-01-15-11_25_19.png" alt="Scheduling Interface">
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA / Footer -->
+    <footer>
+        <div class="container">
+            <h2>Bereit für den besseren Überblick?</h2>
+            <p>Installieren Sie YADS in weniger als 5 Minuten via Docker.</p>
+            <br>
+            <a href="#" class="btn">Dokumentation lesen</a>
+            <hr style="margin: 4rem 0; border-color: var(--border);">
+            <p>&copy; 2026 YADS Security Project. Open Source & Proud.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
