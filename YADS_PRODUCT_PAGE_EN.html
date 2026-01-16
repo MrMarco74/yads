@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YADS - Yet Another DAST Solution</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f6f8;
+        }
+        header {
+            text-align: center;
+            padding: 40px 0;
+            background-color: #fff;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        h2 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            color: #2c3e50;
+            margin-top: 40px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 25px;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+        section {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        ul {
+            padding-left: 20px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .hero {
+            font-size: 1.2em;
+            color: #555;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>YADS - Yet Another DAST Solution</h1>
+        <p class="hero">The Comprehensive Platform for Automated Vulnerability Scanning and Asset Management.</p>
+        <p>YADS is a powerful security solution designed to monitor, analyze, and protect your digital infrastructure.</p>
+    </header>
+
+    <section id="dashboard">
+        <h2>🚀 Dashboard & Overview</h2>
+        <p>The Dashboard provides an instant overview of the security status of your monitored assets. See active scans, critical vulnerabilities, and key statistics at a glance.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-2026-01-15-11_23_05.png" alt="Dashboard Overview">
+    </section>
+
+    <section id="visualization">
+        <h2>🕸️ Network Visualization</h2>
+        <p>Understand the relationships within your infrastructure with our interactive Network Graph. Identify dependencies, visualize connections between hosts, and visually detect potential attack paths.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-visualizations-network-graph-2026-01-15-11_24_33.png" alt="Network Graph Visualization">
+        <h3>Features:</h3>
+        <ul>
+            <li>Interactive nodes and edges</li>
+            <li>Filter by connection types</li>
+            <li>Export functions</li>
+        </ul>
+    </section>
+
+    <section id="targets">
+        <h2>🎯 Target Management</h2>
+        <p>Manage all your targets in one place. Add new hosts, categorize assets, and keep track of the scan status of each individual endpoint.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-targets-table-2026-01-15-11_24_08.png" alt="Target Management Table">
+    </section>
+
+    <section id="analytics">
+        <h2>📊 Analytics & Reporting</h2>
+        <p>YADS provides deep insights into your security data.</p>
+
+        <h3>General Analytics</h3>
+        <p>Detailed evaluations of scans and results help you recognize trends.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-analytics-2026-01-15-11_23_29.png" alt="Analytics Dashboard">
+
+        <h3>Dead Links Analysis</h3>
+        <p>Identify dead links that could pose a security risk or negatively affect user experience.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-analytics-dead-links-2026-01-15-11_23_54.png" alt="Dead Links Analysis">
+
+        <h3>External Links</h3>
+        <p>Monitor which external resources your applications are linking to.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-analytics-external-links-2026-01-15-11_23_43.png" alt="External Links Analysis">
+    </section>
+
+    <section id="scheduling">
+        <h2>📅 Scheduling & Automation</h2>
+        <p>Automate your security scans. Schedule regular checks (daily, weekly) to ensure your infrastructure is continuously monitored without requiring manual intervention.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-schedule-2026-01-15-11_25_19.png" alt="Scan Scheduler">
+    </section>
+
+    <section id="queue">
+        <h2>⏳ Queue Management</h2>
+        <p>Keep control of running and pending tasks. The Queue Manager shows you exactly which scans are currently executing and what is queued next.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-queue-2026-01-15-11_25_34.png" alt="Queue Management">
+    </section>
+
+    <section id="osint">
+        <h2>🕵️ OSINT - Open Source Intelligence</h2>
+        <p>Utilize integrated OSINT tools to gather publicly available information about your targets and identify potential information leaks.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-osint-2026-01-15-11_28_26.png" alt="OSINT Results">
+    </section>
+
+    <section id="management">
+        <h2>👥 Multi-Tenancy & User Management</h2>
+        <p>YADS is built for teams and organizations of any size.</p>
+
+        <h3>Tenants</h3>
+        <p>Logical separation of data and resources through multi-tenancy.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-tenants-2026-01-15-11_27_29.png" alt="Tenant Management">
+
+        <h3>Users</h3>
+        <p>Manage access rights and user accounts centrally.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-users-2026-01-15-11_26_24.png" alt="User Management">
+    </section>
+
+    <section id="settings">
+        <h2>⚙️ Settings & Configuration</h2>
+        <p>Customize YADS to your specific needs.</p>
+
+        <h3>Global Settings</h3>
+        <p>Configure system-wide parameters.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-settings-2026-01-15-11_27_13.png" alt="Global Settings">
+
+        <h3>Tenant Settings</h3>
+        <p>Specific configurations per tenant.</p>
+        <img src="product_screenshots/screencapture-localhost-8000-tenant-settings-2026-01-15-11_26_09.png" alt="Tenant Settings">
+    </section>
+
+    <footer>
+        <p>&copy; 2026 YADS - Your Security in Focus.</p>
+    </footer>
+
+</body>
+</html>

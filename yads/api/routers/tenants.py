@@ -110,13 +110,24 @@ async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(g
     # Delete users, targets, results linked to tenant.
     # WARN: Destructive.
     
-    # 1. Delete Results & States & Targets
+    # 1. Delete dependent data linked to Targets (ChangeEvents, ScanResults, Schedules, ModuleStates)
+    # 1a. ChangeEvents (sub-dependency of ScanResult)
+    session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN (SELECT id FROM target WHERE tenant_id = {tenant_id}))"))
+    
+    # 1b. ScanResults & ModuleStates & Schedules
     session.exec(text(f"DELETE FROM scanresult WHERE target_id IN (SELECT id FROM target WHERE tenant_id = {tenant_id})"))
     session.exec(text(f"DELETE FROM modulestate WHERE target_id IN (SELECT id FROM target WHERE tenant_id = {tenant_id})"))
+    session.exec(text(f"DELETE FROM scanschedule WHERE target_id IN (SELECT id FROM target WHERE tenant_id = {tenant_id})"))
+    
+    # 1c. Targets
     session.exec(text(f"DELETE FROM target WHERE tenant_id = {tenant_id}"))
     
-    # 2. Delete Users
-    session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id = {tenant_id}"))
+    # 2. Delete Tenant Resources (Webhooks, User Links)
+    session.exec(text(f"DELETE FROM webhook WHERE tenant_id = {tenant_id}"))
+    session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id = {tenant_id}"))
+    
+    # 3. Delete Users (excluding Platform Admins)
+    session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id = {tenant_id} AND role != 'admin'"))
     
     # 3. Delete Tenant
     session.delete(tenant)
