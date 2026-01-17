@@ -41,6 +41,20 @@ def on_worker_ready(sender=None, **kwargs):
     except Exception as e:
         logger.error(f"[Worker] Failed to check queue state on startup: {e}")
 
+@worker_process_init.connect
+def on_worker_process_init(**kwargs):
+    """
+    On Worker Process Start: Dispose existing DB engine connections.
+    This ensures each forked worker process gets a fresh connection pool,
+    preventing 'PGRES_TUPLES_OK' and other multiprocessing DB errors.
+    """
+    from yads.database import engine
+    logger.info("[Worker] Signal: Process Init. Disposing DB engine to reset pool.")
+    try:
+        engine.dispose()
+    except Exception as e:
+        logger.error(f"[Worker] Failed to dispose engine on process init: {e}")
+
 
 # Database access for worker
 
