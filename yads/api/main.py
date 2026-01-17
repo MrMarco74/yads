@@ -1862,12 +1862,17 @@ async def view_graph_page(request: Request, session: Session = Depends(get_sessi
     """
     Renders the Graph View page.
     """
-    targets = session.exec(select(Target)).all()
+    # Filter by user's tenant
+    if user.role == "admin" and not user.tenant_id:
+        targets = session.exec(select(Target)).all()
+    else:
+        targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
+        
     return templates.TemplateResponse("graph.html", {"request": request, "targets": targets, "user": user})
 
 
 @app.get("/api/graph/{target_id}")
-async def get_graph_data(target_id: int, session: Session = Depends(get_session)):
+async def get_graph_data(target_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Returns nodes and edges for the graph visualization.
     """
@@ -1875,6 +1880,11 @@ async def get_graph_data(target_id: int, session: Session = Depends(get_session)
     if not target:
         return {"error": "Target not found"}
 
+    # Tenant Check
+    if user.role != "admin" or user.tenant_id:
+        if target.tenant_id != user.tenant_id:
+             return {"error": "Unauthorized access to target"}
+             
     nodes = []
     edges = []
     
@@ -3339,6 +3349,7 @@ async def get_network_graph(
     target_id: Optional[int] = None, 
     filter_empty: bool = False,
     filter_online: str = "all",
+    include_web_links: bool = False,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user)
 ):
@@ -3350,7 +3361,10 @@ async def get_network_graph(
     from urllib.parse import urlparse
     
     # Filter by user's tenant
-    query = select(Target).where(Target.tenant_id == user.tenant_id)
+    if user.role == "admin" and not user.tenant_id:
+        query = select(Target)
+    else:
+        query = select(Target).where(Target.tenant_id == user.tenant_id)
     
     # 1. Online/Offline Filter (using subquery to filter Targets)
     if filter_online != "all":
@@ -3454,14 +3468,14 @@ async def get_network_graph(
         # Fetch Scan Results for edges
         if not target_ids: break # Safety
         
+        # Modules to fetch
+        modules = ['dns_scanner', 'subdomain_scanner', 'infrastructure_scanner', 'web_analyzer']
+        if include_web_links:
+            modules.append('crawler')
+
         results = session.exec(select(ScanResult).where(
             ScanResult.target_id == t_id,
-            or_(
-                ScanResult.module_name == 'dns_scanner',
-                ScanResult.module_name == 'subdomain_scanner',
-                ScanResult.module_name == 'infrastructure_scanner',
-                ScanResult.module_name == 'crawler'
-            )
+            ScanResult.module_name.in_(modules)
         ).order_by(ScanResult.scanned_at.desc())).all()
         
         latest_res = {}
@@ -3575,6 +3589,43 @@ async def get_network_graph(
                                     }
                                 })
                       except: pass
+
+            # Web Analyzer (Redirects)
+            elif mod == 'web_analyzer':
+                chain = res.data.get("redirect_chain", [])
+                if chain:
+                    prev_node = source
+                    for i, hop_url in enumerate(chain):
+                        # Clean URL
+                        hop_node = hop_url.replace("https://", "").replace("http://", "").rstrip('/')
+                        if hop_node == source: continue # Skip if same as source (e.g. self-redirect)
+                        
+                        is_risk_edge = source_risk["is_compromised"]
+                        hop_risk = get_risk(hop_node)
+                        
+                        # Node Type
+                        ntype = "redirector"
+                        if i == len(chain) - 1: ntype = "landing"
+
+                        if hop_node not in nodes:
+                             nodes[hop_node] = {
+                                 "data": {
+                                     "id": hop_node, "label": hop_node, "type": ntype,
+                                     "risk_score": hop_risk["risk_score"],
+                                     "compromised": hop_risk["is_compromised"],
+                                     "risk_reasons": ", ".join(list(set(hop_risk["reasons"])))
+                                }
+                            }
+                        
+                        # Add Edge
+                        edges.append({
+                            "data": {
+                                "source": prev_node, "target": hop_node, "label": "redirects_to",
+                                "is_risk": is_risk_edge
+                            }
+                        })
+                        
+                        prev_node = hop_node
 
     # Filter Empty
     if filter_empty:
