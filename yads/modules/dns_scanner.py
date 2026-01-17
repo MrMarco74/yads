@@ -62,11 +62,19 @@ class DNSRecordScanner(BaseScannerModule):
         # 1. Fetch Records
         for rtype in record_types:
             try:
-                # Handle special cases for DMARC
-                query_target = f"_dmarc.{target}" if rtype == 'DMARC' else target
+                # Handle special cases for DMARC - It's a TXT record on _dmarc subdomain
+                if rtype == 'DMARC':
+                     query_target = f"_dmarc.{target}"
+                     q_type = 'TXT'
+                else:
+                     query_target = target
+                     q_type = rtype
+
+                answers = resolver.resolve(query_target, q_type)
                 
-                answers = resolver.resolve(query_target, rtype)
-                results["records"][rtype] = [str(r) for r in answers]
+                # Store results
+                # For DMARC, we store it under 'DMARC' key even though we queried TXT
+                results["records"][rtype] = [str(r).strip('"') for r in answers]
                 
                 if rtype == 'NS':
                      results["nameservers"] = [str(r) for r in answers]
@@ -96,12 +104,58 @@ class DNSRecordScanner(BaseScannerModule):
             except Exception as e:
                 pass # Silent ignore for standard record missing
 
-        # 1b. SPF fallback (from TXT)
-        if 'TXT' in results["records"] and isinstance(results["records"]['TXT'], list):
-            spf_records = [r for r in results["records"]['TXT'] if "v=spf1" in r]
-            if spf_records:
-                if 'SPF' not in results["records"] or not results["records"]['SPF']:
-                    results["records"]['SPF'] = spf_records
+        # 1b. Structuring Email Security Data (SPF & DMARC)
+        email_sec = {
+            "spf": {"present": False, "record": None, "status": "missing"},
+            "dmarc": {"present": False, "record": None, "policy": "none", "status": "missing"}
+        }
+
+        # Parse SPF
+        # Look in TXT records of the main domain
+        if 'TXT' in results["records"]:
+            for r in results["records"]['TXT']:
+                if r.startswith("v=spf1") or "v=spf1" in r:
+                    email_sec["spf"]["present"] = True
+                    email_sec["spf"]["record"] = r
+                    
+                    if "-all" in r:
+                        email_sec["spf"]["status"] = "strong" # Hard Fail
+                    elif "~all" in r:
+                        email_sec["spf"]["status"] = "softfail"
+                    elif "+all" in r:
+                        email_sec["spf"]["status"] = "insecure" # Allow all
+                    elif "?all" in r:
+                         email_sec["spf"]["status"] = "neutral"
+                    else:
+                        email_sec["spf"]["status"] = "moderate" # Redirect or other
+                    break
+        
+        # Parse DMARC
+        # Look in DMARC results (which we fetched as TXT from _dmarc)
+        if 'DMARC' in results["records"]:
+             for r in results["records"]['DMARC']:
+                 if r.startswith("v=DMARC1") or "v=DMARC1" in r:
+                     email_sec["dmarc"]["present"] = True
+                     email_sec["dmarc"]["record"] = r
+                     
+                     # Extract Policy
+                     import re
+                     p_match = re.search(r"p=(none|quarantine|reject)", r)
+                     if p_match:
+                         policy = p_match.group(1)
+                         email_sec["dmarc"]["policy"] = policy
+                         
+                         if policy == "reject":
+                             email_sec["dmarc"]["status"] = "secure"
+                         elif policy == "quarantine":
+                             email_sec["dmarc"]["status"] = "moderate"
+                         else:
+                             email_sec["dmarc"]["status"] = "monitoring" # p=none
+                     else:
+                         email_sec["dmarc"]["status"] = "invalid"
+                     break
+        
+        results["email_security"] = email_sec
                     
         return results
     

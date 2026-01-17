@@ -1,5 +1,5 @@
 <aside 
-    class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0 border-r border-slate-800 bg-slate-900"
+    class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0 border-r border-slate-800 bg-slate-900 flex flex-col"
     aria-label="Sidebar"
 >
     <!-- Brand -->
@@ -12,7 +12,7 @@
     </div>
 
     <!-- Navigation -->
-    <div class="h-[calc(100vh-4rem)] overflow-y-auto py-4 px-3 space-y-6">
+    <div class="flex-1 overflow-y-auto py-4 px-3 space-y-6">
         
         <!-- Section: Overview -->
         <div>
@@ -51,6 +51,22 @@
                         <span class="ml-3 text-sm font-medium">Dead Links</span>
                     </a>
                 </li>
+                <li>
+                    <a href="/analytics/hijacking" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/hijacking' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Hijacking Risks</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/analytics/tech-radar" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/tech-radar' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Tech Radar</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -72,6 +88,14 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                         <span class="ml-3 text-sm font-medium">Spiderweb</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/queue" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/queue' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Scan Queue</span>
                     </a>
                 </li>
                 <!-- OSINT Search (Licensed) -->
@@ -108,22 +132,71 @@
                         <span class="ml-3 text-sm font-medium">Schedules</span>
                     </a>
                 </li>
+                <!-- Reports Dropdown -->
                 <li>
-                <li>
-                    <a href="/queue" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/queue' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Scan Queue</span>
-                    </a>
-                </li>
-                <li>
-                   <a href="#" class="flex items-center p-2 text-slate-500 rounded-lg hover:bg-slate-800/50 cursor-not-allowed group transition-colors" title="Upcoming Feature">
-                        <svg class="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Reports</span>
-                    </a>
+                    <details class="group" {% if '/reports' in request.path or '/compliance' in request.path or '/ports' in request.path or '/email-security' in request.path or '/secrets' in request.path or '/tech-drift' in request.path or '/cert-timeline' in request.path or '/asr' in request.path or '/cloud-assets' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none">
+                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Reports</span>
+                            <svg class="w-4 h-4 text-slate-500 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </summary>
+                        <ul class="pl-2 mt-1 space-y-1">
+                             <li>
+                                <a href="/reports" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if request.path == '/reports' %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Overview</span>
+                                </a>
+                            </li>
+                             <li>
+                                <a href="/compliance" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/compliance' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Compliance</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/ports" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/ports' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Port Exposure</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/email-security" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/email-security' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Email Security</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/secrets" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/secrets' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Sensitive Data</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/tech-drift" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/tech-drift' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Tech Drift</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/cert-timeline" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cert-timeline' in request.path and not '/inventory' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Cert Timeline</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/cert-timeline/inventory" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cert-timeline/inventory' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">SSL Inventory</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/asr" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/asr' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Cleanup List</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/cloud-assets" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cloud-assets' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">Cloud Assets</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </details>
                 </li>
             </ul>
         </div>
@@ -227,29 +300,28 @@
              </ul>
         </div>
         {% endif %}
-        
-        <!-- User Profile (Bottom) -->
-        <div class="absolute bottom-0 left-0 w-full p-4 border-t border-slate-800 bg-slate-900/50">
-             <a href="/profile" class="flex items-center gap-3 p-2 -m-2 rounded-lg hover:bg-slate-800 transition-colors group">
-                 <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white group-hover:bg-indigo-600 transition-colors">
-                     {{ user.username[:2].upper() }}
-                 </div>
-                 <div class="flex-1 min-w-0">
-                     <p class="text-xs font-medium text-white truncate">{{ user.username }}</p>
-                     <p class="text-[10px] text-slate-500 truncate group-hover:text-indigo-300">{{ user.role }}</p>
-                 </div>
-                 <div class="text-slate-400 group-hover:text-white">
-                      <!-- Gear icon for profile -->
-                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                     </svg>
-                 </div>
-             </a>
-             <div class="mt-2 text-center border-t border-slate-800 pt-2">
-                 <a href="/logout" class="block w-full text-[10px] text-slate-500 hover:text-red-400 uppercase tracking-wider font-semibold">Sign Out</a>
-             </div>
-        </div>
+    </div>
 
+    <!-- User Profile (Bottom - Sticky) -->
+    <div class="p-4 border-t border-slate-800 bg-slate-900 mt-auto">
+         <a href="/profile" class="flex items-center gap-3 p-2 -m-2 rounded-lg hover:bg-slate-800 transition-colors group">
+             <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white group-hover:bg-indigo-600 transition-colors">
+                 {{ user.username[:2].upper() }}
+             </div>
+             <div class="flex-1 min-w-0">
+                 <p class="text-xs font-medium text-white truncate">{{ user.username }}</p>
+                 <p class="text-[10px] text-slate-500 truncate group-hover:text-indigo-300">{{ user.role }}</p>
+             </div>
+             <div class="text-slate-400 group-hover:text-white">
+                  <!-- Gear icon for profile -->
+                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                 </svg>
+             </div>
+         </a>
+         <div class="mt-2 text-center border-t border-slate-800 pt-2">
+             <a href="/logout" class="block w-full text-[10px] text-slate-500 hover:text-red-400 uppercase tracking-wider font-semibold">Sign Out</a>
+         </div>
     </div>
 </aside>

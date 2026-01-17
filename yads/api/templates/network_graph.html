@@ -1,685 +1,226 @@
 {% extends "base.html" %}
 
-{% block title %}Network Relationships Graph{% endblock %}
-
-{# 
-   CRITICAL LAYOUT OVERRIDES 
-   -------------------------
-   We strip all default padding and sizing from the base template blocks 
-   to take full manual control of the viewport.
-#}
-
-{% block wrapper_classes %}h-screen w-screen overflow-hidden p-0 m-0{% endblock %}
-
-{% block main_classes %}h-full w-full p-0 m-0 overflow-hidden relative flex flex-col{% endblock %}
-
 {% block content %}
+<div class="h-[calc(100vh-8rem)] flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Network Graph (Spiderweb)</h1>
+            <p class="text-sm text-slate-400">Visualizing relationships between domains, subdomains, IPs, and external links.</p>
+        </div>
+        <div class="flex items-center gap-4">
+             <!-- Attack Path Toggle -->
+            <label class="relative inline-flex items-center cursor-pointer group">
+                <input type="checkbox" id="attackPathToggle" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                <span class="ml-3 text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Attack Paths</span>
+            </label>
 
-<!-- 
-    Robust Footer Removal 
-    Ensures no vertical space is stolen by the footer.
--->
-<style> footer { display: none !important; } </style>
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const footer = document.querySelector('footer');
-        if(footer) footer.remove();
-    });
-</script>
-
-<!-- 
-    MAIN LAYOUT CONTAINER 
-    Height: calc(100vh - 64px) -> Screen Height minus Header Height (64px)
-    Layout: Flex Row (Sidebar | Graph)
--->
-<div class="flex flex-row w-full bg-gray-950" style="height: calc(100vh - 64px);">
-
-    <!-- LEFT: SIDEBAR (Fixed Width) -->
-    <div class="w-72 shrink-0 h-full bg-gray-900 border-r border-gray-800 flex flex-col z-20 overflow-y-auto custom-scrollbar">
-        <div class="p-4 space-y-6">
-            
-            <!-- Target Selector -->
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Target Scope</label>
-                <select id="domain-select" class="w-full bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none transition-colors">
-                    <option value="">Show Full Network</option>
-                    {% for t in domains %}
-                    <option value="{{ t.id }}">{{ t.domain }}</option>
-                    {% endfor %}
-                </select>
-                <button onclick="loadGraph()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold py-2.5 rounded-lg shadow-lg shadow-indigo-500/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    Refresh Graph
-                </button>
-            </div>
-
-            <!-- Stats Module -->
-            <div id="stats" class="hidden animate-fade-in">
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Network Stats</label>
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="bg-gray-800/40 p-2 rounded border border-gray-800 text-center">
-                        <span id="node-count" class="block text-xl font-bold text-white">0</span>
-                        <span class="text-[10px] text-gray-500 uppercase font-bold">Nodes</span>
-                    </div>
-                    <div class="bg-gray-800/40 p-2 rounded border border-gray-800 text-center">
-                        <span id="edge-count" class="block text-xl font-bold text-white">0</span>
-                        <span class="text-[10px] text-gray-500 uppercase font-bold">Connections</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Controls / Filters -->
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">View Controls</label>
-                <div class="space-y-3 bg-gray-800/40 p-3 rounded-lg border border-gray-800">
-                    
-                    <!-- Checkboxes -->
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative flex items-center">
-                            <input type="checkbox" id="filter-connected" class="peer h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-gray-900 transition mb-0.5">
-                        </div>
-                        <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Connected Only</span>
-                    </label>
-
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative flex items-center">
-                            <input type="checkbox" id="filter-show-links" class="peer h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-600 focus:ring-offset-gray-900 transition mb-0.5" checked>
-                        </div>
-                        <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Show Web Links</span>
-                    </label>
-
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative flex items-center">
-                            <input type="checkbox" id="filter-gray-dns" class="peer h-4 w-4 rounded border-gray-600 bg-gray-700 text-gray-500 focus:ring-gray-500 focus:ring-offset-gray-900 transition mb-0.5">
-                        </div>
-                        <span class="text-sm text-gray-300 group-hover:text-white transition-colors">Dim DNS Records</span>
-                    </label>
-
-                    <label class="flex items-center space-x-3 cursor-pointer group">
-                        <div class="relative flex items-center">
-                            <input type="checkbox" id="filter-attack-paths" class="peer h-4 w-4 rounded border-red-900 bg-gray-900 text-red-600 focus:ring-red-600 focus:ring-offset-gray-900 transition mb-0.5">
-                        </div>
-                        <span class="text-sm text-red-400 font-bold group-hover:text-red-300 transition-colors">Show Attack Paths</span>
-                    </label>
-
-                    <!-- Status Select -->
-                    <div class="pt-1">
-                        <span class="text-[10px] text-gray-500 uppercase font-bold mb-1 block">Availability Filter</span>
-                        <select id="filter-online" class="w-full bg-gray-900 border border-gray-700 text-gray-400 text-xs rounded p-2 focus:border-indigo-500 focus:text-gray-200 outline-none transition-colors">
-                             <option value="all">All Targets</option>
-                             <option value="true">Online Only</option>
-                             <option value="false">Offline/Unknown</option>
-                        </select>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- Export -->
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Export Data</label>
-                <div class="flex gap-2">
-                     <button onclick="exportGraph('json')" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-xs py-2 rounded transition border border-gray-700">JSON</button>
-                     <button onclick="window.downloadHighRes()" class="flex-1 bg-indigo-950/50 hover:bg-indigo-900/50 text-indigo-400 hover:text-indigo-300 text-xs py-2 rounded transition border border-indigo-900/50">PNG (8K)</button>
-                </div>
-            </div>
-
-             <!-- Legend -->
-             <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legend</label>
-                <div class="space-y-2 text-xs text-gray-400 bg-gray-800/40 p-3 rounded-lg border border-gray-800">
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-full" style="background-color: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.5);"></span> 
-                        <span>Target Root</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-full" style="background-color: #a855f7;"></span> 
-                        <span>Subdomain</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-[1px]" style="background-color: #f97316;"></span> 
-                        <span>IP Address</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2 h-2 shrink-0 rotate-45 transform origin-center" style="background-color: #06b6d4;"></span> 
-                        <span>Resource (MX, NS)</span>
-                    </div>
-                </div>
-                
-                <!-- Risk Legend (Hidden by default) -->
-                <div id="risk-legend" class="hidden mt-3 space-y-2 text-xs text-gray-300 bg-red-950/20 p-3 rounded-lg border border-red-900/30">
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-full border border-red-400" style="background-color: #dc2626; box-shadow: 0 0 8px rgba(220,38,38,0.6);"></span> 
-                        <span class="text-red-200">Critical Risk</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-full border border-orange-300" style="background-color: #f97316;"></span> 
-                        <span class="text-orange-200">High Risk</span>
-                    </div>
-                     <div class="flex items-center gap-2">
-                        <span class="block w-2.5 h-2.5 shrink-0 rounded-full border border-yellow-300" style="background-color: #eab308;"></span> 
-                        <span class="text-yellow-200">Medium Risk</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- About -->
-            <div class="mt-auto pt-4 border-t border-gray-800">
-                <div class="text-[10px] text-gray-600">
-                    Use scroll to zoom, drag to pan. Click nodes for details.
-                </div>
-            </div>
-            
+            <select id="layoutSelect" class="bg-slate-800 text-white text-sm rounded-lg border border-slate-700 p-2.5">
+                <option value="cose">Force Directed (Cose)</option>
+                <option value="circle">Circle</option>
+                <option value="breadthfirst">Tree</option>
+                <option value="grid">Grid</option>
+            </select>
+             <button onclick="cy.fit()" class="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700">
+                Fit to Screen
+            </button>
         </div>
     </div>
-    
-    <!-- RIGHT: GRAPH AREA (Flex Grow) -->
-    <div class="flex-1 relative h-full bg-gray-950 overflow-hidden">
-        
-        <!-- Vis.js Container -->
-        <div id="mynetwork" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></div>
-        
-        <!-- Floating Zoom Controls -->
-        <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-30">
-            <button onclick="network.moveTo({scale: network.getScale() + 0.3})" class="p-2.5 bg-gray-800/80 backdrop-blur text-gray-300 rounded-full shadow-xl hover:bg-gray-700 hover:text-white transition border border-gray-700">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-            </button>
-            <button onclick="network.moveTo({scale: network.getScale() - 0.3})" class="p-2.5 bg-gray-800/80 backdrop-blur text-gray-300 rounded-full shadow-xl hover:bg-gray-700 hover:text-white transition border border-gray-700">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
-            </button>
-            <button onclick="network.fit({animation: {duration: 600, easingFunction: 'easeInOutQuad'}})" class="p-2.5 bg-gray-800/80 backdrop-blur text-indigo-400 rounded-full shadow-xl hover:bg-gray-700 hover:text-indigo-300 transition border border-gray-700">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-            </button>
-        </div>
+
+    <!-- Graph Container -->
+    <div class="flex-1 bg-slate-900 rounded-xl border border-slate-800 relative overflow-hidden">
+        <div id="cy" class="w-full h-full block"></div>
         
         <!-- Loading Overlay -->
-        <div id="loading" class="hidden absolute inset-0 z-40 bg-gray-950/80 backdrop-blur-sm flex items-center justify-center transition-opacity duration-300">
-            <div class="text-center p-8 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl">
-                <div class="relative w-16 h-16 mx-auto mb-6">
-                    <div class="absolute inset-0 border-4 border-indigo-500/20 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-t-indigo-500 rounded-full animate-spin"></div>
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">Analyzing Network Toplogy</h3>
-                <p class="text-indigo-400 text-sm animate-pulse">Building graph nodes and edges...</p>
-            </div>
+        <div id="loading" class="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-10 transition-opacity duration-300">
+             <div class="flex flex-col items-center">
+                <svg class="animate-spin h-10 w-10 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-white font-medium">Building Graph...</span>
+             </div>
         </div>
 
-        <!-- Export Loading Overlay -->
-        <div id="export-loading" class="hidden absolute inset-0 z-50 bg-gray-950/95 backdrop-blur-md flex items-center justify-center">
-            <div class="text-center">
-                 <div class="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-                 <h2 class="text-2xl font-bold text-white mb-2">Generating High-Res Image</h2>
-                 <p class="text-gray-400">Rendering 8K snapshot...</p>
+        <!-- Legend -->
+        <div class="absolute bottom-4 left-4 bg-slate-900/90 border border-slate-700 p-3 rounded-lg text-xs text-white z-20 backdrop-blur-sm">
+            <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> Domain</div>
+            <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 rounded-full bg-sky-500"></span> Subdomain</div>
+            <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> IP Address</div>
+            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-500"></span> External/Link</div>
+             <div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700 text-red-400 font-bold" id="riskLegend" style="display:none;">
+                <span class="w-3 h-3 rounded-full bg-red-600 animate-pulse"></span> Compromised / Risk
             </div>
         </div>
-
     </div>
-
 </div>
 
-<!-- VIS.JS LIBRARY -->
-<script type="text/javascript" src="/static/vendor/vis-network.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
 
-<!-- GRAPH LOGIC -->
 <script>
-    // State
-    let network = null;
-    window.nodesDataSet = null;
-    window.edgesDataSet = null;
+    let cy = null;
 
-    /**
-     * Initialization & Event Listeners
-     */
-    document.addEventListener('DOMContentLoaded', function() {
-        // UI References
-        const domSelect = document.getElementById('domain-select');
-        const filterConnected = document.getElementById('filter-connected');
-        const filterOnline = document.getElementById('filter-online');
-        
-        // Data Load Triggers
-        domSelect.addEventListener('change', () => loadGraph());
-        filterConnected.addEventListener('change', () => loadGraph());
-        filterOnline.addEventListener('change', () => loadGraph());
-        
-        // Visual Filter Triggers (Client-side only)
-        document.getElementById('filter-show-links').addEventListener('change', () => window.updateEdgeStyles());
-        document.getElementById('filter-gray-dns').addEventListener('change', () => window.updateEdgeStyles());
-        document.getElementById('filter-attack-paths').addEventListener('change', () => window.updateEdgeStyles());
-        
-        // Initial Auto-Load (Small delay to ensure layout painted)
-        setTimeout(() => {
-             loadGraph();
-        }, 100);
-    });
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const resp = await fetch('/api/visualizations/network');
+            const data = await resp.json();
+            
+            // Hide loading
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 300);
 
-    /**
-     * Load Graph Data from API
-     */
-    window.loadGraph = function(targetId) {
-        // UI Elements
-        const container = document.getElementById('mynetwork');
-        const loading = document.getElementById('loading');
-        const stats = document.getElementById('stats');
-        
-        // Params
-        const domSelect = document.getElementById('domain-select');
-        const filterConnected = document.getElementById('filter-connected').checked;
-        const filterOnline = document.getElementById('filter-online').value;
+            if (data.nodes.length === 0) {
+                 // specific empty state?
+            }
 
-        // Handle Args
-        if (targetId === undefined) targetId = domSelect.value;
-        else domSelect.value = targetId || ""; // Sync dropdown if arg provided
-
-        // Reset UI
-        loading.classList.remove('hidden');
-        stats.classList.add('hidden');
-
-        // Destroy existing
-        if (network) {
-            network.destroy();
-            network = null;
-        }
-
-        // URL construction
-        let url = `/api/visualizations/network?filter_empty=${filterConnected}&filter_online=${filterOnline}`;
-        if (targetId) url += `&target_id=${targetId}`;
-
-        console.log("Fetching Graph Data:", url);
-
-        fetch(url)
-            .then(res => {
-                if (!res.ok) throw new Error(`API Error ${res.status}`);
-                return res.json();
-            })
-            .then(data => {
-                // Success
-                loading.classList.add('hidden');
-                stats.classList.remove('hidden');
-
-                // Update Stats
-                document.getElementById('node-count').innerText = data.nodes.length;
-                document.getElementById('edge-count').innerText = data.edges.length;
-
-                // Empty State Handler
-                if (data.nodes.length === 0) {
-                     alert("No nodes found for this selection.");
-                     return;
-                }
-
-                // Init DataSets
-                window.nodesDataSet = new vis.DataSet(data.nodes);
-                window.edgesDataSet = new vis.DataSet(data.edges);
-
-                // Apply initial filters
-                updateEdgeStyles();
-
-                // Render
-                renderVisNetwork(container);
-            })
-            .catch(err => {
-                console.error(err);
-                loading.classList.add('hidden');
-                alert("Failed to load graph: " + err.message);
-            });
-    }
-
-    /**
-     * Render Vis.js Network
-     */
-    function renderVisNetwork(container) {
-        const data = {
-            nodes: window.nodesDataSet,
-            edges: window.edgesDataSet
-        };
-
-        const options = {
-            nodes: {
-                shape: 'dot',
-                scaling: { min: 10, max: 30, label: { min: 8, max: 20 } },
-                font: { size: 14, face: 'Ui-sans-serif', color: '#e5e7eb', strokeWidth: 2, strokeColor: '#1f2937' },
-                borderWidth: 2,
-                shadow: true
-            },
-            layout: {
-                improvedLayout: false,
-                randomSeed: 42
-            },
-            edges: {
-                width: 1,
-                color: { inherit: 'from', opacity: 0.5 },
-                smooth: { type: 'dynamic', roundness: 0.5 },
-                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-                font: { align: 'middle', size: 10, strokeWidth: 0, color: '#9ca3af', background: '#111827' }
-            },
-            groups: {
-                target: { color: { background: '#3b82f6', border: '#1d4ed8' }, size: 30, font: { size: 18 } },
-                subdomain: { color: { background: '#a855f7', border: '#7e22ce' }, size: 20 },
-                ip: { color: { background: '#f97316', border: '#c2410c' }, shape: 'square', size: 15 },
-                resource: { color: { background: '#06b6d4', border: '#0891b2' }, shape: 'diamond', size: 12 }
-            },
-            physics: {
-                stabilization: {
-                    enabled: true,
-                    iterations: 1000,
-                    updateInterval: 25,
-                    onlyDynamicEdges: false,
-                    fit: true
+            cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: {
+                    nodes: data.nodes,
+                    edges: data.edges
                 },
-                solver: 'forceAtlas2Based',
-                forceAtlas2Based: {
-                    gravitationalConstant: -80,
-                    centralGravity: 0.005,
-                    springLength: 150,
-                    springConstant: 0.08,
-                    damping: 0.4,
-                    avoidOverlap: 0
-                },
-                maxVelocity: 50,
-                minVelocity: 0.1,
-                timestep: 0.35
-            },
-            interaction: {
-                tooltipDelay: 200,
-                hideEdgesOnDrag: true,
-                hover: true,
-                navigationButtons: false,
-                keyboard: true,
-                zoomView: true
-            }
-        };
-
-        // Create Network
-        network = new vis.Network(container, data, options);
-
-        // Events
-        network.on("click", function(params) {
-            if (params.nodes.length > 0) {
-                console.log("Clicked Node:", params.nodes[0]);
-                // Future: Open details sidepanel or modal
-            }
-        });
-
-        // Camera Logic: Ensure visibility
-        network.once("afterDrawing", () => {
-             console.log("Redraw complete, fitting...");
-             network.fit({ animation: { duration: 500 } });
-        });
-        
-        network.once("stabilizationIterationsDone", () => {
-            console.log("Stabilization complete, fitting...");
-            network.fit();
-        });
-    }
-
-    /**
-     * Client-Side Filtering (Edges & Nodes)
-     */
-    window.updateEdgeStyles = function() {
-        if (!window.edgesDataSet) return;
-
-        const showLinks = document.getElementById('filter-show-links').checked;
-        const grayDns = document.getElementById('filter-gray-dns').checked;
-        const showAttackPaths = document.getElementById('filter-attack-paths').checked;
-        
-        // Risk Legend Toggle
-        const riskLegend = document.getElementById('risk-legend');
-        if (showAttackPaths) riskLegend.classList.remove('hidden');
-        else riskLegend.classList.add('hidden');
-
-        // 1. Edge Updates
-        const allEdges = window.edgesDataSet.get();
-        const edgeUpdates = [];
-
-        allEdges.forEach(edge => {
-            let update = { id: edge.id };
-            let changed = false;
-            
-            const isLink = (edge.label === 'link');
-            const isDns = !isLink; 
-            
-            // Visibility
-            if (isLink) {
-                if (edge.hidden !== !showLinks) {
-                    update.hidden = !showLinks;
-                    changed = true;
-                }
-            }
-
-            // Colors (Attack Path > GrayDNS > Default)
-            // Determine Target Color
-            let targetColor = null; // Default (inherit)
-            let targetOpacity = 0.5;
-            let targetWidth = 1;
-
-            // Attack Path Logic (Source Node Risk High?)
-            if (showAttackPaths) {
-                 const srcNode = window.nodesDataSet.get(edge.from);
-                 if (srcNode && srcNode.risk_level >= 2) {
-                     targetColor = '#ef4444'; // Red
-                     targetOpacity = 1.0;
-                     targetWidth = 3;
-                 }
-            }
-            
-            // Gray DNS Logic (if not attack path red)
-            if (targetColor === null && isDns && grayDns) {
-                targetColor = '#374151'; // Gray-700
-                targetOpacity = 0.2;
-            }
-
-            // Apply Edge Color Update
-            if (targetColor) {
-                 update.color = { color: targetColor, opacity: targetOpacity };
-                 update.width = targetWidth;
-                 changed = true;
-            } else {
-                 // Reset to defaults
-                 update.color = null; // Inherit
-                 update.width = 1;
-                 changed = true;
-            }
-            
-            if (changed) edgeUpdates.push(update);
-        });
-        if (edgeUpdates.length) window.edgesDataSet.update(edgeUpdates);
-
-        // 2. Node Updates (Risk Colors)
-        const allNodes = window.nodesDataSet.get();
-        const nodeUpdates = [];
-        
-        const groups = {
-            target: { background: '#3b82f6', border: '#1d4ed8' },
-            subdomain: { background: '#a855f7', border: '#7e22ce' },
-            ip: { background: '#f97316', border: '#c2410c' },
-            resource: { background: '#06b6d4', border: '#0891b2' }
-        };
-
-        allNodes.forEach(node => {
-             let update = { id: node.id };
-             let changed = false;
-
-             if (showAttackPaths && node.risk_level > 0) {
-                 // Risk Coloring
-                 let bg = '#eab308'; // Medium
-                 if (node.risk_level >= 3) bg = '#dc2626'; // Critical
-                 else if (node.risk_level === 2) bg = '#f97316'; // High
-                 
-                 update.color = { 
-                     background: bg, 
-                     border: bg,
-                     highlight: { background: bg, border: bg }
-                 };
-                 // Add halo
-                 update.shadow = { enabled: true, color: bg, size: 15 };
-                 changed = true;
-             } else {
-                 // Reset to Group Default
-                 const def = groups[node.group] || groups['target'];
-                 update.color = { 
-                     background: def.background, 
-                     border: def.border,
-                     highlight: { background: def.background, border: def.border }
-                 };
-                 update.shadow = { enabled: true, color: 'rgba(0,0,0,0.5)', size: 10 };
-                 changed = true;
-             }
-             if (changed) nodeUpdates.push(update);
-        });
-        if (nodeUpdates.length) window.nodesDataSet.update(nodeUpdates);
-    }
-
-    /**
-     * Export / Screenshot Logic (High Res)
-     */
-    window.exportGraph = function(format) {
-         if (format === 'json') {
-             // ... existing JSON logic ...
-             const url = `/api/visualizations/network/export?format=json`;
-             window.location.href = url;
-         }
-    }
-
-    window.downloadHighRes = function() {
-        if (!network) return alert("No graph loaded to export.");
-        
-        const loadingOverlay = document.getElementById('export-loading');
-        const container = document.getElementById('mynetwork');
-        
-        // Show loading
-        loadingOverlay.classList.remove('hidden');
-
-        // Capture original state
-        setTimeout(() => {
-            try {
-                // 1. Emulate High-Res environment
-                const originalOptions = { nodes: { font: { size: 14 } } }; // assumption
-                const largeSize = { width: '8000px', height: '8000px' };
-                
-                // Keep styles to restore later
-                const originalStyle = {
-                    width: container.style.width,
-                    height: container.style.height,
-                    position: container.style.position,
-                    zIndex: container.style.zIndex
-                };
-
-                // Hack: Force container to be massive
-                container.style.width = largeSize.width;
-                container.style.height = largeSize.height;
-                container.style.position = 'absolute'; // Break out of flex
-                container.style.zIndex = '-9999'; // Hide behind everything
-                
-                // 2. Set Font to 16px
-                network.setOptions({ nodes: { font: { size: 16 } } });
-                
-                // 3. Resize and Fit
-                network.setSize(largeSize.width, largeSize.height);
-                network.fit({ animation: false });
-                
-                // 4. Wait for render (vis.js simulation might need a tick)
-                setTimeout(() => {
-                    // 5. Draw Legend & Capture
-                    const canvas = container.querySelector('canvas');
-                    if (!canvas) throw new Error("Canvas not found");
-                    
-                    const ctx = canvas.getContext('2d');
-
-                    // Draw Background (gray-950 matching app theme)
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'destination-over';
-                    ctx.fillStyle = "#030712"; 
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.restore();
-                    
-                    // Legend Drawing
-                    ctx.save();
-                    // Position: Bottom Left with 50px margin
-                    const lx = 50; 
-                    const ly = canvas.height - 350; // Height of legend box approx 300px
-                    
-                    // Box Background
-                    ctx.fillStyle = "rgba(17, 24, 39, 0.9)"; // gray-900 with opacity
-                    ctx.shadowColor = "rgba(0,0,0,0.5)";
-                    ctx.shadowBlur = 20;
-                    ctx.fillRect(lx, ly, 500, 300);
-                    ctx.strokeStyle = "#374151"; // gray-700 border
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(lx, ly, 500, 300);
-                    
-                    // Legend Title
-                    ctx.fillStyle = "#9ca3af"; // gray-400
-                    ctx.font = "bold 24px ui-sans-serif, system-ui";
-                    ctx.fillText("LEGEND", lx + 30, ly + 50);
-                    
-                    // Items
-                    const items = [
-                        { color: "#3b82f6", label: "Target (Domain Root)", shape: "circle" },
-                        { color: "#a855f7", label: "Subdomain", shape: "circle" },
-                        { color: "#f97316", label: "IP Address", shape: "square" },
-                        { color: "#06b6d4", label: "Resources (MX, NS)", shape: "diamond" }
-                    ];
-                    
-                    let currY = ly + 100;
-                    items.forEach(item => {
-                        ctx.fillStyle = item.color;
-                        ctx.shadowBlur = 0;
-                        
-                        // Draw Shape
-                        if (item.shape === "circle") {
-                            ctx.beginPath();
-                            ctx.arc(lx + 50, currY, 12, 0, 2 * Math.PI);
-                            ctx.fill();
-                        } else if (item.shape === "square") {
-                            ctx.fillRect(lx + 38, currY - 12, 24, 24);
-                        } else if (item.shape === "diamond") {
-                            ctx.save();
-                            ctx.translate(lx + 50, currY);
-                            ctx.rotate(45 * Math.PI / 180);
-                            ctx.fillRect(-10, -10, 20, 20); // rotated square
-                            ctx.restore();
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': '#64748b',
+                            'label': 'data(label)',
+                            'color': '#cbd5e1',
+                            'font-size': '10px',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'width': '20px',
+                            'height': '20px',
+                            'text-wrap': 'wrap',
+                             'text-max-width': '80px'
                         }
-                        
-                        // Label
-                        ctx.fillStyle = "#e5e7eb"; // text-gray-200
-                        ctx.font = "28px ui-sans-serif, system-ui";
-                        ctx.fillText(item.label, lx + 90, currY + 10);
-                        
-                        currY += 50; // Spacing
+                    },
+                    {
+                        selector: 'node[type="domain"]',
+                        style: {
+                            'background-color': '#6366f1',
+                            'width': '40px',
+                            'height': '40px',
+                            'font-weight': 'bold',
+                             'font-size': '12px'
+                        }
+                    },
+                    {
+                         selector: 'node[type="subdomain"]',
+                         style: { 'background-color': '#0ea5e9', 'width': '15px', 'height': '15px' }
+                    },
+                    {
+                         selector: 'node[type="ip"]',
+                         style: { 'background-color': '#10b981', 'shape': 'rectangle', 'width': '25px', 'height': '25px' }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 1,
+                            'line-color': '#334155',
+                            'target-arrow-color': '#334155',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'opacity': 0.5
+                        }
+                    },
+                    // Attack Path Styles
+                    {
+                        selector: '.compromised-node',
+                        style: {
+                            'background-color': '#dc2626', // Red
+                            'border-width': 2,
+                            'border-color': '#fca5a5',
+                            'text-outline-color': '#dc2626',
+                            'text-outline-width': 2,
+                            'z-index': 999
+                        }
+                    },
+                    {
+                        selector: '.risk-edge',
+                        style: {
+                            'line-color': '#ef4444',
+                            'target-arrow-color': '#ef4444',
+                            'width': 2,
+                            'opacity': 1
+                        }
+                    }
+                ],
+                layout: {
+                    name: 'cose',
+                    animate: true,
+                    padding: 50,
+                    nodeRepulsion: 4500,
+                    idealEdgeLength: 50
+                }
+            });
+            
+            // Tooltip via Titles (simple)
+            cy.on('mouseover', 'node', function(event) {
+                const node = event.target;
+                const riskInfo = node.data('compromised') ? `\n⚠️ RISK: ${node.data('risk_reasons')}` : '';
+                document.body.title = `${node.data('label')} (${node.data('type')})${riskInfo}`; 
+                // Quick hack for native tooltip, better to use tippy.js in real prod but this is simple.
+            });
+
+            // Toggle Logic
+            const toggle = document.getElementById('attackPathToggle');
+            const riskLegend = document.getElementById('riskLegend');
+            
+            toggle.addEventListener('change', (e) => {
+                const showAttackPath = e.target.checked;
+                
+                if (showAttackPath) {
+                    riskLegend.style.display = 'flex';
+                    
+                    // Highlight Compromised Nodes
+                    cy.batch(() => {
+                         cy.nodes().forEach(node => {
+                              if (node.data('compromised')) {
+                                   node.addClass('compromised-node');
+                              } else {
+                                  // Dim others?
+                                  node.style('opacity', 0.2);
+                              }
+                         });
+                         
+                         // Highlight Risk Edges
+                         cy.edges().forEach(edge => {
+                              if (edge.data('is_risk')) {
+                                   edge.addClass('risk-edge');
+                              } else {
+                                  edge.style('opacity', 0.1);
+                              }
+                         });
+                         
+                         // Ensure non-compromised nodes connected to risk edges are visible?
+                         // Or just highlight the path.
+                         // Logic above: Dim everything else.
+                         
+                         // Special case: If a node is NOT compromised but part of a risk edge (destination), keep it visible
+                         cy.edges('.risk-edge').targets().style('opacity', 1);
+                         cy.edges('.risk-edge').sources().style('opacity', 1);
                     });
                     
-                    ctx.restore();
-                    
-                    // 6. Download
-                    const dataUrl = canvas.toDataURL("image/png");
-                    
-                    const a = document.createElement('a');
-                    a.href = dataUrl;
-                    a.download = `network_graph_${Date.now()}.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    // 7. Restore
-                    container.style.width = originalStyle.width;
-                    container.style.height = originalStyle.height;
-                    container.style.position = originalStyle.position;
-                    container.style.zIndex = originalStyle.zIndex;
-                    
-                    network.setOptions(originalOptions);
-                    network.setSize('100%', '100%');
-                    network.fit({ animation: false });
+                } else {
+                    riskLegend.style.display = 'none';
+                    cy.batch(() => {
+                        cy.nodes().removeClass('compromised-node').style('opacity', 1);
+                        cy.edges().removeClass('risk-edge').style('opacity', 0.5);
+                    });
+                }
+            });
 
-                    loadingOverlay.classList.add('hidden');
-                    
-                }, 1000); // 1s wait for large layout to stabilize/render
-                
-            } catch (e) {
-                console.error(e);
-                alert("Export failed: " + e.message);
-                loadingOverlay.classList.add('hidden');
-            }
-        }, 100);
-    }
+            // Layout Select
+            document.getElementById('layoutSelect').addEventListener('change', (e) => {
+                cy.layout({ name: e.target.value, animate: true }).run();
+            });
 
+        } catch (e) {
+            console.error("Graph Error:", e);
+            document.getElementById('loading').innerHTML = `<span class="text-red-500">Error loading graph</span>`;
+        }
+    });
 </script>
 {% endblock %}

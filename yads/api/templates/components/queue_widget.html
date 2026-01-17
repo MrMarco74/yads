@@ -26,6 +26,8 @@
     
     <!-- Clear Queue Button -->
     <button hx-post="/queue/purge"
+            hx-target="#queue-widget"
+            hx-swap="outerHTML"
             hx-confirm="WARNING: This will delete ALL pending tasks in the queue. Are you sure?"
             class="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
             title="Clear Queue">

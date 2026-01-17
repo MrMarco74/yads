@@ -187,6 +187,64 @@ def seed_changelog():
             )
             session.add(entry_151)
 
+        # 1.5.2 - REPORTING SUITE
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.5.2").first():
+            entry_152 = ChangelogEntry(
+                title="YADS v1.5.2: Centralized Reporting Suite",
+                version="1.5.2",
+                content="""
+                <h3>📊 Centralized Reporting Hub</h3>
+                <ul>
+                    <li><strong>New Reports Dashboard:</strong> A dedicated page (<i>/reports</i>) bundling all system exports in one place.</li>
+                    <li><strong>Detailed Compliance Report:</strong> An interactive and printable breakdown of your SOC2 readiness score, including a full "Improvement Plan" checklist.</li>
+                    <li><strong>Target CSV Export:</strong> You can now export your entire raw target inventory to CSV for external analysis.</li>
+                </ul>
+                <h3>📄 PDF Exports</h3>
+                <ul>
+                    <li><strong>Infrastructure Report:</strong> Professional PDF executive summary of your cloud footprint and risks.</li>
+                    <li><strong>External Links Report:</strong> PDF export for third-party dependency analysis.</li>
+                </ul>
+                """
+            )
+            session.add(entry_152)
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.6.1").first():
+            entry_161 = ChangelogEntry(
+                title="YADS v1.6.1: Report Fixes & Missing Analytics",
+                version="1.6.1",
+                content="""
+                <h3>🐛 UI Fixes & Improvements</h3>
+                <ul>
+                    <li><strong>Reports Layout:</strong> Fixed a layout issue where the "Cloud Assets" card was misplaced in the dashboard grid.</li>
+                    <li><strong>Missing Reports:</strong> Added dedicated cards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong> reports which were previously hidden.</li>
+                </ul>
+                <h3>📘 Documentation</h3>
+                <ul>
+                    <li><strong>Updated User Guide:</strong> Documentation updated to include details on the new analytics reports.</li>
+                </ul>
+                """
+            )
+            session.add(entry_161)
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.7.0").first():
+            entry_170 = ChangelogEntry(
+                title="YADS v1.7.0: Attack Paths & Dark Mode",
+                version="1.7.0",
+                content="""
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>Attack Path Visualization:</strong> New layer in the Network Graph to highlight risky edges and potential compromise chains.</li>
+                    <li><strong>Day/Night Mode:</strong> You can now toggle between Light and Dark themes for better visibility.</li>
+                     <li><strong>Analytics Extensions:</strong> New dashboards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong>.</li>
+                </ul>
+                <h3>🐛 Improvements</h3>
+                <ul>
+                    <li><strong>Network Graph:</strong> Improved performance and added "Attack Path" filters.</li>
+                </ul>
+                """
+            )
+            session.add(entry_170)
+
         session.commit()
         print("Changelog seeded successfully.")
 

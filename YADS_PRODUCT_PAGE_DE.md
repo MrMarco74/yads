@@ -2,7 +2,7 @@
 
 **Sicherheit, die man sehen kann.**
 
-> **Status:** v1.5.0 Live
+> **Status:** v1.7.0 Live
 > **Lizenz:** Open Source
 
 Schluss mit unübersichtlichen Tabellen. YADS ist die moderne Reconnaissance-Platform für Teams, die ihre Attack Surface verstehen, analysieren und absichern wollen. Modular. Skalierbar. Open Source.
@@ -13,7 +13,7 @@ Schluss mit unübersichtlichen Tabellen. YADS ist die moderne Reconnaissance-Pla
 
 YADS aggregiert Daten aus verschiedensten Quellen zu einem **Single Pane of Glass**. Es wurde entwickelt, um die Lücke zwischen manueller Penetration-Testing-Recherche und vollautomatisiertem Vulnerability Management zu schließen. Vom ersten DNS-Request bis zum fertigen Management-Report – alles in einer UI.
 
-![Dashboard Overview](product_screenshots/screencapture-localhost-8000-2026-01-15-11_23_05.png)
+![Dashboard Overview](product_screenshots/dashboard_dark.png)
 
 ---
 
@@ -45,7 +45,17 @@ Simuliert einen echten User-Besuch mit einem Headless-Browser.
 
 In großen Infrastrukturen verliert man schnell den Überblick. Der Network Graph macht Zusammenhänge sofort sichtbar via **Force-Directed Graph**.
 
-![Network Graph](product_screenshots/screencapture-localhost-8000-visualizations-network-graph-2026-01-15-11_24_33.png)
+![Network Graph](product_screenshots/network_graph.png)
+
+### 🚀 Attack Path Visualization (NEU)
+Nicht alle Schwachstellen sind gleich gefährlich. YADS kombiniert Netzwerk-Topologie mit Vulnerability-Daten, um **Attack Paths** zu visualisieren. 
+
+*   **Identifizierung kritischer Pfade:** Sehen Sie sofort, wie ein Angreifer von einem "low-risk" Asset zu Ihrer Kronjuwelen gelangen könnte.
+*   **Priorisierung:** Fokussieren Sie Ihre Ressourcen auf die Schließung von Pfaden, die echten Schaden anrichten können.
+
+![Attack Path Visualization](product_screenshots/network_attack_path.png)
+
+
 
 *   **Relationship Mapping:** Sehen Sie, welche Domains auf derselben IP hosten.
 *   **Proaktives Clustering:** Erkennen Sie Schatten-IT Cluster sofort.
@@ -57,13 +67,14 @@ In großen Infrastrukturen verliert man schnell den Überblick. Der Network Grap
 
 Daten sind gut, Verständnis ist besser.
 
-![Analytics](product_screenshots/screencapture-localhost-8000-analytics-2026-01-15-11_23_29.png)
+![Analytics](product_screenshots/tech_radar.png)
 
 ### Geo- & Tech-Intelligence
-Wo stehen Ihre Server physikalisch? Welche Länder hosten Ihre kritischen Daten? Welche Webserver-Versionen dominieren Ihr Netzwerk?
+Wo stehen Ihre Server physikalisch? Welche Länder hosten Ihre kritischen Daten? Das **Technology Radar** zeigt Ihnen sofort, welche Webserver-Versionen und Frameworks Ihr Netzwerk dominieren – ideal für Compliance-Audits.
+![Hijacking](product_screenshots/hijacking.png)
 
 ### Dead Links & Hijacking
-Finden Sie "tote" Links in Ihren Anwendungen. YADS identifiziert zudem **Dangling DNS Records**, die auf nicht mehr existente Cloud-Ressourcen zeigen.
+Finden Sie "tote" Links in Ihren Anwendungen. YADS identifiziert zudem **Broken Link Hijacking** Kandidaten: Externe Links, die auf nicht mehr existente Domains zeigen und von Angreifern registriert werden könnten, um Ihre Nutzer anzugreifen (Supply Chain Attack).
 
 ---
 
@@ -82,6 +93,7 @@ Ihre Marke endet nicht auf Ihren eigenen Servern. YADS nutzt die **Google Cloud 
 
 *   **Multi-Tenancy:** Trennen Sie Daten strikt nach Mandanten (Kunden/Abteilungen).
 *   **Scheduling:** "Set and Forget". Definieren Sie Scan-Intervalle.
+*   **Day/Night Mode:** Augenfreundlich. Wechseln Sie nahtlos zwischen Light- und Dark-Mode für lange Analyse-Sessions.
 *   **Export:** PDF Management Summaries und Excel/CSV Raw Data Export.
 
 ![Scheduling](product_screenshots/screencapture-localhost-8000-schedule-2026-01-15-11_25_19.png)

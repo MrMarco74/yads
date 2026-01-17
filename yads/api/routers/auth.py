@@ -297,8 +297,9 @@ async def switch_tenant(
     
     # Special Case: Platform Admin (who might not have links but has superpower?)
     # If I am a Platform Admin (tenant_id is None), I can switch to ANY tenant.
-    is_platform_admin = (current_user.role == 'admin' and current_user.tenant_id is None)
-    # BUT wait, the request is for mrmarco who is NOT platform admin but has multiple tenants.
+    # UPDATE: User requested that any 'admin' role user can switch to any tenant, 
+    # even if they are currently inside a tenant context.
+    is_platform_admin = (current_user.role == 'admin')
     
     if link or is_platform_admin:
         current_user.tenant_id = tid

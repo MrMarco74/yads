@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
+from typing import Optional
 import logging
 
 from yads.database import get_session
@@ -54,7 +55,8 @@ async def list_schedules(
 async def set_schedule(
     request: Request,
     target_id: int = Form(...),
-    frequency: str = Form(...), # "daily", "weekly", "none" (to delete)
+    frequency: str = Form(...), # "daily", "weekly", "custom", "none"
+    cron_expression: Optional[str] = Form(None),
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
 ):
@@ -79,14 +81,25 @@ async def set_schedule(
         return "<span class='text-slate-400'>Not Scheduled</span>"
 
     now = datetime.utcnow()
-    next_run = now + timedelta(days=1)
+    next_run = now + timedelta(days=1) # Default fallback
+    
     if frequency == "weekly":
         next_run = now + timedelta(weeks=1)
+    elif frequency == "custom":
+        if not cron_expression:
+            return "<div class='text-red-500'>Missing Cron Expression</div>"
+        try:
+            from croniter import croniter
+            iter = croniter(cron_expression, now)
+            next_run = iter.get_next(datetime)
+        except Exception as e:
+            return f"<div class='text-red-500'>Invalid Cron: {str(e)}</div>"
 
     if not schedule:
         schedule = ScanSchedule(
             target_id=target_id,
             frequency=frequency,
+            cron_expression=cron_expression if frequency == "custom" else None,
             next_run_at=next_run,
             is_active=True
         )
@@ -94,9 +107,8 @@ async def set_schedule(
         logger.info(f"New schedule created for target {target_id} ({frequency}) by {user.username}")
     else:
         schedule.frequency = frequency
+        schedule.cron_expression = cron_expression if frequency == "custom" else None
         schedule.is_active = True
-        # Only update next_run if it was in the past or user wants reset? 
-        # For simplicity, always reset next_run on config change to ensure it runs from now
         schedule.next_run_at = next_run
         session.add(schedule)
         logger.info(f"Schedule updated for target {target_id} ({frequency}) by {user.username}")
@@ -106,5 +118,6 @@ async def set_schedule(
     icon = "📅"
     if frequency == "daily": icon = "🌞"
     elif frequency == "weekly": icon = "📆"
+    elif frequency == "custom": icon = "⚙️"
     
-    return f"<span class='text-emerald-400 font-medium' title='Next: {next_run.strftime('%Y-%m-%d')}'>{icon} {frequency.title()}</span>"
+    return f"<span class='text-emerald-400 font-medium' title='Next: {next_run.strftime('%Y-%m-%d %H:%M UTC')}'>{icon} {frequency.title()}</span>"

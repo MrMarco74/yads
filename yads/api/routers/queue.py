@@ -235,12 +235,17 @@ async def purge_queue(
         
         # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
         scan_logger.warning("Revoking all active and reserved tasks...")
+        # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
+        scan_logger.warning("Revoking all active and reserved tasks...")
         i = celery_app.control.inspect()
+        
+        # Inspector can be None or return None types if no workers responding
         if i:
              # Stop Reserved (Pre-fetched but not started)
              reserved = i.reserved()
              if reserved:
                 for worker, tasks in reserved.items():
+                    if not tasks: continue
                     for task in tasks:
                         t_id = task.get("id")
                         scan_logger.info(f"Revoking RESERVED task: {t_id}")
@@ -250,11 +255,14 @@ async def purge_queue(
              active = i.active()
              if active:
                 for worker, tasks in active.items():
+                    if not tasks: continue
                     for task in tasks:
                         t_id = task.get("id")
                         scan_logger.info(f"Revoking ACTIVE task: {t_id}")
                         # terminate=True kills the worker process executing the task
                         celery_app.control.revoke(t_id, terminate=True)
+        else:
+            scan_logger.warning("Celery Inspector failed/timed out. Could not revoke running tasks (ghosts may remain until worker restart).")
         
         scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}, Redis Deleted: {r_count}")
         
