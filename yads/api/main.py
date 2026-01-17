@@ -3569,6 +3569,18 @@ async def get_network_graph(
                            if parsed.netloc:
                                 dst_node = parsed.netloc
                                 if dst_node == source: continue
+
+                                # Filter: Only allow links TO scoped domains (Targets or their subdomains)
+                                is_scoped = False
+                                for t_obj in targets:
+                                    t_domain = t_obj.domain
+                                    # Check if dst is target or subdomain of target
+                                    if dst_node == t_domain or dst_node.endswith("." + t_domain):
+                                        is_scoped = True
+                                        break
+                                
+                                if not is_scoped: continue
+
                                 is_risk_edge = source_risk["is_compromised"]
                                 dst_risk = get_risk(dst_node)
 

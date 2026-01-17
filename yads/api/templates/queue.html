@@ -72,11 +72,11 @@
                 <tbody class="divide-y divide-slate-800">
                     {% for task in active_tasks %}
                     <tr class="hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.id }}</td>
-                        <td class="px-6 py-3 text-white font-medium">{{ task.name.split('.')[-1] }}</td>
-                        <td class="px-6 py-3 font-mono text-xs">{{ task.args }}</td>
-                        <td class="px-6 py-3 text-slate-500">{{ task.hostname }}</td>
-                        <td class="px-6 py-3 text-emerald-400">{{ task.time_start|timestamp_to_time }}</td>
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?') }}</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                        <td class="px-6 py-3 font-mono text-xs">{{ task.get('args', '') }}</td>
+                        <td class="px-6 py-3 text-slate-500">{{ task.get('hostname', '-') }}</td>
+                        <td class="px-6 py-3 text-emerald-400">{{ task.get('time_start')|timestamp_to_time }}</td>
                     </tr>
                     {% else %}
                     <tr>
@@ -114,9 +114,9 @@
                 <tbody class="divide-y divide-slate-800">
                      {% for task in queued_tasks %}
                     <tr class="hover:bg-slate-800/50">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.id }}</td>
-                        <td class="px-6 py-3 text-white font-medium">{{ task.name.split('.')[-1] }}</td>
-                        <td class="px-6 py-3 font-mono text-xs">{{ task.args }}</td>
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?') }}</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                        <td class="px-6 py-3 font-mono text-xs">{{ task.get('args', '') }}</td>
                         <td class="px-6 py-3">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-cyan-900/30 text-cyan-400 border border-cyan-800/50">
                                 Queued
@@ -155,8 +155,8 @@
                     <tbody class="divide-y divide-slate-800">
                          {% for task in reserved_tasks %}
                         <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.name.split('.')[-1] }}</td>
-                            <td class="px-4 py-2 font-mono text-xs">{{ task.args }}</td>
+                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                            <td class="px-4 py-2 font-mono text-xs">{{ task.get('args', '') }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -188,8 +188,8 @@
                     <tbody class="divide-y divide-slate-800">
                          {% for task in scheduled_tasks %}
                         <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.name.split('.')[-1] }}</td>
-                            <td class="px-4 py-2 font-mono text-xs text-purple-400">{{ task.eta }}</td>
+                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                            <td class="px-4 py-2 font-mono text-xs text-purple-400">{{ task.get('eta', '-') }}</td>
                         </tr>
                         {% else %}
                         <tr>
