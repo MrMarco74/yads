@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Port Exposure</h1>
+            <p class="text-sm text-slate-400">Overview of open ports and services across your infrastructure.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/ports/export/excel" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </a>
+            <a href="/ports/export/pdf" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-orange-900/20 border border-orange-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-orange-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-orange-200/80 space-y-1">
+            <p class="font-medium text-orange-300">About Port Exposure</p>
+            <p>
+                This report highlights open ports detected on your external infrastructure.
+                While web ports (80, 443) are expected, exposing management services like <strong>SSH (22)</strong>, <strong>RDP (3389)</strong>, or Database ports to the public internet significantly increases your attack surface.
+            </p>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Card 1: Total Targets Checked -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Scanned Targets</p>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.total_targets }}</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Exposed Targets -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">With Open Ports</p>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.exposed_targets }}</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Most Common Port -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Top Service</p>
+                    <h4 class="text-2xl font-bold text-white">
+                        {% if stats.top_port %}
+                            Port {{ stats.top_port[0] }} <span class="text-sm text-slate-500">({{ stats.top_port[1] }} hosts)</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     <!-- Top Ports Bar Chart (Simple CSS implementation to avoid heavy JS libs if not present, or use Chart.js if base includes it. Keeping it simple/visual for now.) -->
+    {% if stats.top_ports_list %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+        <h3 class="font-bold text-white mb-4">Top Open Ports</h3>
+        <div class="space-y-3">
+            {% for port, count in stats.top_ports_list %}
+            <div>
+                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>Port {{ port }}</span>
+                    <span>{{ count }} targets</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2.5">
+                    <div class="bg-indigo-500 h-2.5 rounded-full" style="width: {{ (count / stats.total_targets * 100) }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Table -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white">Exposure Details</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-800/50 text-xs uppercase font-medium text-slate-300">
+                    <tr>
+                        <th class="px-6 py-4">Target</th>
+                        <th class="px-6 py-4">IP Address</th>
+                        <th class="px-6 py-4">Open Ports</th>
+                        <th class="px-6 py-4">Last Scanned</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for row in rows %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4 font-medium text-white">
+                            <a href="/target/{{ row.target_id }}" class="hover:text-indigo-400">{{ row.domain }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.ip %}
+                                <span class="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-mono">{{ row.ip }}</span>
+                            {% else %}
+                                <span class="text-slate-600">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.ports %}
+                                <div class="flex flex-wrap gap-2">
+                                    {% for p in row.ports %}
+                                        {% if p in [80, 443] %}
+                                            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-mono">{{ p }}</span>
+                                        {% elif p in [21, 23, 22, 3389] %}
+                                             <span class="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-xs font-mono">{{ p }}</span>
+                                        {% else %}
+                                             <span class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs font-mono">{{ p }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-emerald-500 text-xs">No open ports</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-xs">
+                             {{ row.last_scanned }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                         <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                            No port scan data found for this tenant. Run a "Port Scan" or "Full Scan" on your targets.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

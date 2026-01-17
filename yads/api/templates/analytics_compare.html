@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container px-4 py-8 mx-auto max-w-7xl">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight">
+                Comparison Report
+            </h1>
+            <p class="text-slate-400 mt-1">
+                Comparing <span class="text-cyan-400 font-mono">{{ target.domain }}</span> state between two points in time.
+            </p>
+        </div>
+        <a href="/analytics/targets/{{ target.id }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors border border-slate-700">
+            &larr; Back to Target
+        </a>
+    </div>
+
+    <!-- Timeline Selector (Visual Aid) -->
+    <div class="grid grid-cols-2 gap-8 mb-8">
+        <!-- Point A (Old) -->
+        <div class="relative p-6 bg-slate-900/50 rounded-xl border border-slate-800">
+            <div class="absolute -top-3 left-6 px-2 bg-slate-950 text-slate-500 text-xs font-bold uppercase tracking-wider">Baseline (Point A)</div>
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-mono text-sm font-bold border border-indigo-500/20">
+                    ID:{{ res_a.id }}
+                </div>
+                <div>
+                    <div class="text-white font-medium">{{ res_a.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    <div class="text-xs text-slate-500 mt-0.5 font-mono">{{ res_a.module_name }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Point B (New) -->
+        <div class="relative p-6 bg-slate-900/50 rounded-xl border border-slate-800">
+            <div class="absolute -top-3 left-6 px-2 bg-slate-950 text-slate-500 text-xs font-bold uppercase tracking-wider">Comparison (Point B)</div>
+             <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400 font-mono text-sm font-bold border border-teal-500/20">
+                    ID:{{ res_b.id }}
+                </div>
+                <div>
+                    <div class="text-white font-medium">{{ res_b.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    <div class="text-xs text-slate-500 mt-0.5 font-mono">{{ res_b.module_name }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- No Changes State -->
+    {% if not diff.has_changes %}
+    <div class="p-12 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-700">
+        <svg class="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-bold text-white mb-2">No Differences Detected</h3>
+        <p class="text-slate-400">The state of this module is identical between the two selected scans.</p>
+    </div>
+    {% endif %}
+
+    <!-- Diffs -->
+    <div class="space-y-6">
+
+        <!-- Open Ports -->
+        {% if diff.ports.added or diff.ports.removed %}
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+                 <svg class="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                <h3 class="font-bold text-white">Open Ports</h3>
+            </div>
+            <div class="p-6 grid grid-cols-2 gap-4">
+                {% if diff.ports.added %}
+                <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <h4 class="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">New Ports (Risky)</h4>
+                    <div class="flex flex-wrap gap-2">
+                        {% for p in diff.ports.added %}
+                        <span class="px-2 py-1 bg-red-500/20 text-red-300 text-sm font-mono rounded">{{ p }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                 {% if diff.ports.removed %}
+                <div class="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                    <h4 class="text-xs font-bold text-green-400 uppercase tracking-wider mb-3">Closed Ports (Fixed)</h4>
+                    <div class="flex flex-wrap gap-2">
+                        {% for p in diff.ports.removed %}
+                        <span class="px-2 py-1 bg-green-500/20 text-green-300 text-sm font-mono rounded">{{ p }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tech Stack -->
+        {% if diff.tech_stack.added or diff.tech_stack.removed %}
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+                 <svg class="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                <h3 class="font-bold text-white">Technology Stack</h3>
+            </div>
+            <div class="p-6 grid grid-cols-2 gap-4">
+                 {% if diff.tech_stack.added %}
+                <div class="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                    <h4 class="text-xs font-bold text-green-400 uppercase tracking-wider mb-3">Added Tech</h4>
+                     <ul class="space-y-1">
+                        {% for t in diff.tech_stack.added %}
+                        <li class="flex items-center gap-2 text-green-300 text-sm">
+                            <span class="text-green-500">+</span> {{ t }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if diff.tech_stack.removed %}
+                <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <h4 class="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">Removed Tech</h4>
+                    <ul class="space-y-1">
+                        {% for t in diff.tech_stack.removed %}
+                        <li class="flex items-center gap-2 text-red-300 text-sm">
+                            <span class="text-red-500">-</span> {{ t }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Subdomains -->
+        {% if diff.subdomains.added or diff.subdomains.removed %}
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+             <div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+                 <svg class="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h3 class="font-bold text-white">Subdomains / Infrastructure</h3>
+            </div>
+             <div class="p-6 grid grid-cols-2 gap-4">
+                 {% if diff.subdomains.added %}
+                <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+                    <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">New Subdomains</h4>
+                     <ul class="space-y-1">
+                        {% for s in diff.subdomains.added %}
+                        <li class="flex items-center gap-2 text-amber-200 text-sm font-mono truncate">
+                            <span class="text-amber-500">+</span> {{ s }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if diff.subdomains.removed %}
+                <div class="bg-slate-700/30 border border-slate-700 rounded-lg p-4">
+                     <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Removed Subdomains</h4>
+                     <ul class="space-y-1">
+                        {% for s in diff.subdomains.removed %}
+                        <li class="flex items-center gap-2 text-slate-500 text-sm font-mono truncate line-through">
+                            <span class="text-slate-600">-</span> {{ s }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+         <!-- Headers -->
+        {% if diff.headers.added or diff.headers.removed or diff.headers.changed %}
+        <div class="bg-gray-800/80 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+             <div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+                 <svg class="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                <h3 class="font-bold text-white">HTTP Headers</h3>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                {% if diff.headers.changed %}
+                <div>
+                     <h4 class="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">Modified Values</h4>
+                     <div class="grid gap-2">
+                         {% for k, v in diff.headers.changed.items() %}
+                         <div class="bg-yellow-500/5 border border-yellow-500/10 rounded p-3 text-sm font-mono">
+                             <div class="font-bold text-yellow-500 mb-1">{{ k }}</div>
+                             <div class="grid grid-cols-2 gap-4">
+                                 <div class="text-red-400/80 overflow-hidden text-ellipsis">- {{ v.old }}</div>
+                                 <div class="text-green-400 overflow-hidden text-ellipsis">+ {{ v.new }}</div>
+                             </div>
+                         </div>
+                         {% endfor %}
+                     </div>
+                </div>
+                {% endif %}
+                
+                {% if diff.headers.added %}
+                <div>
+                     <h4 class="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Added Headers</h4>
+                     <ul class="space-y-1">
+                        {% for h in diff.headers.added %}
+                        <li class="bg-green-500/5 border border-green-500/10 rounded px-2 py-1 text-green-300 text-xs font-mono truncate">
+                           + {{ h }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+</div>
+{% endblock %}

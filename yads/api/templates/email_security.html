@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Email Security & Spoofing</h1>
+            <p class="text-sm text-slate-400">Identify domains vulnerable to unauthorized email usage (Phishing/Spoofing).</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/email-security/export/excel" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </a>
+            <a href="/email-security/export/pdf" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-sky-900/20 border border-sky-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-sky-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-sky-200/80 space-y-1">
+            <p class="font-medium text-sky-300">Email Auth & Spoofing Defense</p>
+            <p>
+                <strong>SPF (Sender Policy Framework)</strong> and <strong>DMARC (Domain-based Message Authentication)</strong> are essential to prevent attackers from sending emails on your behalf.
+                A "Vulnerable" status means your domain can be easily impersonated for phishing campaigns.
+            </p>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Card 1: Protected Domains -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Fully Protected</p>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.secure_count }} <span class="text-sm text-slate-500 font-normal">/ {{ stats.total_targets }}</span></h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Vulnerable (No DMARC) -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Vulnerable (Missing DMARC)</p>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.vulnerable_count }}</h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Card 3: Monitoring Mode -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-12 w-12 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Monitoring (p=none)</p>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.monitoring_count }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Table -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white">Domain Status</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-800/50 text-xs uppercase font-medium text-slate-300">
+                    <tr>
+                        <th class="px-6 py-4">Domain</th>
+                        <th class="px-6 py-4">Overall Status</th>
+                        <th class="px-6 py-4">SPF</th>
+                        <th class="px-6 py-4">DMARC Policy</th>
+                        <th class="px-6 py-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for row in rows %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4 font-medium text-white">
+                            {{ row.domain }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.overall_status == 'Secure' %}
+                                <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded-full text-xs font-medium">Secure</span>
+                            {% elif row.overall_status == 'Monitoring' %}
+                                <span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded-full text-xs font-medium">Monitoring</span>
+                            {% else %}
+                                <span class="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-full text-xs font-medium">Vulnerable</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.spf.present %}
+                                <div class="flex items-center gap-2" title="{{ row.spf.record }}">
+                                    {% if row.spf.status == 'strong' %}
+                                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    {% elif row.spf.status == 'softfail' %}
+                                        <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                    {% else %}
+                                        <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    {% endif %}
+                                    <span class="font-mono text-xs truncate max-w-[200px]">{{ row.spf.record }}</span>
+                                </div>
+                            {% else %}
+                                <span class="text-red-500 text-xs">Missing</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.dmarc.present %}
+                                 <div class="flex items-center gap-2" title="{{ row.dmarc.record }}">
+                                     <span class="font-mono text-xs">{{ row.dmarc.policy }}</span>
+                                     {% if row.dmarc.status == 'secure' %}
+                                        <span class="bg-emerald-500/10 text-emerald-500 px-1.5 rounded text-[10px]">REJECT</span>
+                                     {% elif row.dmarc.status == 'moderate' %}
+                                        <span class="bg-yellow-500/10 text-yellow-500 px-1.5 rounded text-[10px]">QUARANTINE</span>
+                                     {% else %}
+                                        <span class="bg-red-500/10 text-red-500 px-1.5 rounded text-[10px]">NONE</span>
+                                     {% endif %}
+                                 </div>
+                            {% else %}
+                                <span class="text-red-500 text-xs">Missing</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                             <a href="/target/{{ row.target_id }}" class="text-indigo-400 hover:text-indigo-300 text-xs hover:underline">Details</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                     <tr>
+                         <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                            No data found. Ensure "DNS Scanner" is enabled and has run on your targets.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -286,5 +286,81 @@ def migrate():
         except Exception as e:
             print(f"   Error creating webhook table: {e}")
 
+        # 17. Create Notification for v1.6.1
+        print(">> Checking/Creating v1.6.1 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.6.1'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.6.1',
+                        'Layout fixes for Reports & new Broken Link Hijacking / Tech Radar cards. Check Changelog.',
+                        'update',
+                        'emerald',
+                        'M5 13l4 4L19 7',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
+        # 18. Create SecurityTrend Table
+        print(">> Creating securitytrend table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS securitytrend (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    score INTEGER NOT NULL,
+                    grade VARCHAR NOT NULL,
+                    recorded_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_securitytrend_tenant_id ON securitytrend (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_securitytrend_recorded_at ON securitytrend (recorded_at);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating securitytrend table: {e}")
+
+        # 19. Update ScanSchedule Table: cron_expression
+        print(">> Checking ScanSchedule table: cron_expression...")
+        try:
+            conn.execute(text("ALTER TABLE scanschedule ADD COLUMN IF NOT EXISTS cron_expression VARCHAR;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # 20. Create Notification for v1.7.0
+        print(">> Checking/Creating v1.7.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.7.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.7.0',
+                        'Major Update: Attack Path Viz & Dark Mode! Check Changelog.',
+                        'update',
+                        'orange',
+                        'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
 if __name__ == "__main__":
     migrate()

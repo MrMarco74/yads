@@ -4,11 +4,12 @@ from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, func, text
 from typing import Dict, List, Any
 from datetime import datetime
-from yads.database import engine
+import json
 from yads.database import engine
 from yads.models import Target, ScanResult, User
 from yads.auth.deps import get_current_active_user
 from yads.config import settings
+from yads.core.comparisons import ComparisonEngine
 
 router = APIRouter(prefix="/api/stats", tags=["analytics"])
 
@@ -16,27 +17,11 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-@router.get("/infrastructure")
-async def get_infrastructure_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+def _get_infrastructure_data(session: Session, user: User) -> Dict[str, Any]:
     """
-    Aggregates infrastructure data for the Analytics Dashboard.
-    Includes:
-    - Cloud Provider Distribution (Pie)
-    - Status Code Distribution (Bar)
-    - Geo Location (Map)
-    - Tech Stack (Bar)
-    - Vulnerability Stats (Bar)
-    - Critical Risk Feed (Table)
+    Helper to fetch and aggregate infrastructure data for a user context.
+    Reuse this for the API endpoint and the PDF export.
     """
-    
-    # 1. Fetch relevant scan results
-    # We want the LATEST result for each module per target.
-    # For efficiency, we might just query all and process in python for small datasets (<1000).
-    # Or use DISTINCT ON in Postgres.
-    
-    # Let's fetch all scan results for active modules
-    # Ideally filtering by "latest" per target/module.
-    
     tenant_clause = ""
     params = {}
     
@@ -50,17 +35,33 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
         # Non-admin user without tenant? Valid?
         tenant_clause = "AND t.tenant_id IS NULL"
 
-    query_str = f"""
-        SELECT DISTINCT ON (s.target_id, s.module_name) 
-            s.target_id, s.module_name, s.data, s.scanned_at 
-        FROM scanresult s
-        JOIN target t ON s.target_id = t.id
-        WHERE s.module_name IN ('infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner', 'dns_scanner', 'subdomain_scanner', 'port_scanner')
-          {tenant_clause}
-        ORDER BY s.target_id, s.module_name, s.scanned_at DESC
-    """
+    # 1. Targets in Scope
+    target_query = select(Target)
+    if user.tenant_id:
+        target_query = target_query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        target_query = target_query.where(Target.tenant_id == None)
+        
+    targets = session.exec(target_query).all()
+    target_map = {t.id: t for t in targets}
+    target_ids = list(target_map.keys())
     
-    results = session.exec(text(query_str), params=params).all()
+    if not target_ids:
+        # Return empty structure if no targets
+        return {
+            "cloud_providers": {}, "cloud_details": [], "status_codes": {},
+            "countries": {}, "tech_stack": {}, "tech_details": [],
+            "vuln_stats": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "risk_feed": [], "vulnerabilities": [], "attack_surface_stats": [],
+            "service_distribution_stats": {"HTTP Only": 0, "HTTPS Only": 0, "Both": 0, "None": 0},
+            "geo_stats": {}
+        }
+
+    # 2. Results
+    results = session.exec(select(ScanResult).where(
+        ScanResult.module_name.in_(['infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner', 'dns_scanner', 'subdomain_scanner', 'port_scanner']),
+        ScanResult.target_id.in_(target_ids)
+    ).order_by(ScanResult.scanned_at.desc())).all()
     
     # Pre-fetch Targets for name lookup
     target_statement = select(Target)
@@ -92,14 +93,31 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     attack_surface_stats = [] # List of {target, count}
     service_distribution_stats = {"HTTP Only": 0, "HTTPS Only": 0, "Both": 0, "None": 0}
     
-    for row in results:
-        # row is a tuple/object with accessors? SQLModel result usually row objects if mapped.
-        # But we used raw text query, so it returns tuples (target_id, module_name, data, scanned_at)
-        tid, mod, data, ts = row
-        t_name = target_map.get(tid, f"Target #{tid}")
+    seen_results = set()
+    
+    for res in results:
+        # Access ORM attributes
+        tid = res.target_id
+        mod = res.module_name
+        data = res.data
+        ts = res.scanned_at
+        
+        # Dedupe: (target_id, module_name)
+        if (tid, mod) in seen_results:
+            continue
+        seen_results.add((tid, mod))
+        
+        t_name = target_map.get(tid) or f"Target #{tid}"
         
         if not data: continue
         
+        # Defensive JSON parsing for SQLite compatibility
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except:
+                data = {}
+
         # --- Infrastructure Scanner ---
         if mod == 'infrastructure_scanner':
             # Cloud Provider
@@ -125,8 +143,9 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
             })
                 
             # Geo
-            country = data.get("geoip", {}).get("country_name") or "Unknown"
-            city = data.get("geoip", {}).get("city") or "Unknown"
+            geoip = data.get("geoip") or {}
+            country = geoip.get("country_name") or "Unknown"
+            city = geoip.get("city") or "Unknown"
 
             if country != "Unknown":
                 countries[country] = countries.get(country, 0) + 1
@@ -139,15 +158,11 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
                      # Initialize
                      geo_stats[country][city] = {
                          'count': 0, 
-                         'lat': data.get("geoip", {}).get("lat", 0),
-                         'lon': data.get("geoip", {}).get("lon", 0)
+                         'lat': geoip.get("lat", 0),
+                         'lon': geoip.get("lon", 0)
                      }
                 
                 geo_stats[country][city]['count'] += 1
-            
-            # Debug Log
-            # print(f"DEBUG GEO: {country} -> {city}")
-
 
         # --- Web Analyzer ---
         elif mod == 'web_analyzer':
@@ -161,7 +176,7 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
             for tech in techs:
                 tech_stack[tech] = tech_stack.get(tech, 0) + 1
                 
-            server = data.get("http_headers", {}).get("Server")
+            server = (data.get("http_headers") or {}).get("Server")
             if server:
                 # server often has version "Apache/2.4.41", sanitize to "Apache"
                 srv_name = server.split('/')[0]
@@ -221,14 +236,14 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
         
         # --- DNS & Subdomain Scanners ---
         elif mod in ['dns_scanner', 'subdomain_scanner']:
-            count = len(data.get("subdomains", []))
+            count = len(data.get("subdomains") or [])
             if count > 0:
                 attack_surface_stats.append({"target": t_name, "count": count})
                 
         # --- Port Scanner ---
         elif mod == 'port_scanner':
-            http_open = data.get("http", {}).get("open", False)
-            https_open = data.get("https", {}).get("open", False)
+            http_open = (data.get("http") or {}).get("open", False)
+            https_open = (data.get("https") or {}).get("open", False)
             
             if http_open and https_open:
                 service_distribution_stats["Both"] += 1
@@ -262,6 +277,21 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
         "geo_stats": geo_stats
     }
 
+
+@router.get("/infrastructure")
+async def get_infrastructure_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Aggregates infrastructure data for the Analytics Dashboard.
+    Includes:
+    - Cloud Provider Distribution (Pie)
+    - Status Code Distribution (Bar)
+    - Geo Location (Map)
+    - Tech Stack (Bar)
+    - Vulnerability Stats (Bar)
+    - Critical Risk Feed (Table)
+    """
+    return _get_infrastructure_data(session, user)
+
 @router.get("/security-risks")
 async def get_security_risks(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
@@ -284,13 +314,12 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         tenant_clause = "AND t.tenant_id IS NULL"
 
     query_str = f"""
-        SELECT DISTINCT ON (s.target_id, s.module_name) 
-            s.target_id, s.module_name, s.data 
+        SELECT s.target_id, s.module_name, s.data 
         FROM scanresult s
         JOIN target t ON s.target_id = t.id
         WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
           {tenant_clause}
-        ORDER BY s.target_id, s.module_name, s.scanned_at DESC
+        ORDER BY s.scanned_at DESC
     """
     results = session.exec(text(query_str), params=params).all()
     
@@ -309,10 +338,24 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
     secrets_leaks = []
     vulnerabilities = []
     
-    for row in results:
-        tid, mod, data = row
-        t_name = target_map.get(tid, f"Target #{tid}")
+    seen_results = set()
+
+    for res in results:
+        tid = res.target_id
+        mod = res.module_name
+        data = res.data
+        
+        if (tid, mod) in seen_results: continue
+        seen_results.add((tid, mod))
+        
+        t_name = target_map.get(tid) or f"Target #{tid}"
         if not data: continue
+
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except:
+                data = {}
         
         if mod == 'ssl_scanner':
             not_after = data.get("notAfter")
@@ -407,6 +450,207 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         "secrets_leaks": secrets_leaks,
         "vulnerabilities": vulnerabilities
     }
+
+def _get_hijacking_data(session: Session, user: User) -> List[Dict[str, Any]]:
+    """
+    Fetches targets with broken external links (potential hijacking).
+    Rewritten for stability and robust error handling.
+    """
+    # 1. Scope Resolution
+    stmt = select(Target)
+    if user.tenant_id:
+        stmt = stmt.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        stmt = stmt.where(Target.tenant_id == None)
+        
+    targets = session.exec(stmt).all()
+    if not targets:
+        return []
+        
+    target_map = {t.id: t for t in targets}
+    target_ids = list(target_map.keys())
+
+    # 2. Fetch Results (Web Analyzer only)
+    # Using specific query to minimize data transfer
+    results = session.exec(select(ScanResult).where(
+        ScanResult.module_name == 'web_analyzer',
+        ScanResult.target_id.in_(target_ids)
+    ).order_by(ScanResult.scanned_at.desc())).all()
+    
+    hijacking_candidates = []
+    seen_targets = set()
+    
+    for res in results:
+        # Deduplication: One result per target (latest)
+        if res.target_id in seen_targets:
+            continue
+        seen_targets.add(res.target_id)
+        
+        # 3. Data Extraction with Strict Validation
+        if not res.data:
+            continue
+            
+        data = res.data
+        # Handle SQLite JSON string issue
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception:
+                # Log error if needed, but safe continue
+                continue
+                
+        if not isinstance(data, dict):
+            continue
+
+        # 4. Business Logic
+        broken_links = data.get("broken_links")
+        if not broken_links or not isinstance(broken_links, list):
+            continue
+            
+        target = target_map.get(res.target_id)
+        if not target:
+            continue
+            
+        for link in broken_links:
+            if not isinstance(link, str): continue
+            
+            hijacking_candidates.append({
+                "target_id": res.target_id,
+                "target_domain": target.domain,
+                "broken_link": link,
+                "detected_at": res.scanned_at.strftime("%Y-%m-%d") if res.scanned_at else "Unknown"
+            })
+                
+    return hijacking_candidates
+
+def _get_tech_radar_data(session: Session, user: User) -> Dict[str, Any]:
+    """
+    Aggregates technology stacks for the radar charts.
+    Rewritten to be standalone and decoupled from infrastructure logic.
+    """
+    # 1. Scope Resolution
+    stmt = select(Target)
+    if user.tenant_id:
+        stmt = stmt.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        stmt = stmt.where(Target.tenant_id == None)
+        
+    targets = session.exec(stmt).all()
+    if not targets:
+        # Return empty safe structure
+        empty_chart = {"labels": [], "data": []}
+        return {
+            "all_tech": empty_chart, "servers": empty_chart,
+            "frameworks": empty_chart, "cms": empty_chart,
+            "total_targets": 0
+        }
+        
+    target_ids = [t.id for t in targets]
+
+    # 2. Fetch Results (Web Analyzer only)
+    results = session.exec(select(ScanResult).where(
+        ScanResult.module_name == 'web_analyzer',
+        ScanResult.target_id.in_(target_ids)
+    ).order_by(ScanResult.scanned_at.desc())).all()
+    
+    # 3. Aggregation Containers
+    tech_stack: Dict[str, int] = {}
+    servers: Dict[str, int] = {}
+    frameworks: Dict[str, int] = {}
+    cms: Dict[str, int] = {}
+    
+    seen_targets = set()
+    
+    # Heuristics
+    server_names = ["Apache", "Nginx", "IIS", "Cloudflare", "LiteSpeed", "Caddy", "Express", "Tornado", "Gunicorn"]
+    framework_names = ["React", "Vue", "Angular", "Django", "Flask", "Laravel", "Symfony", "Spring", "ASP.NET", "Next.js", "Nuxt"]
+    cms_names = ["WordPress", "Drupal", "Joomla", "Magento", "Shopify", "Wix", "Squarespace"]
+
+    for res in results:
+        # Deduplication
+        if res.target_id in seen_targets:
+            continue
+        seen_targets.add(res.target_id)
+        
+        # 4. Data Extraction with Strict Validation
+        if not res.data: continue
+        
+        data = res.data
+        if isinstance(data, str):
+            try: data = json.loads(data)
+            except: continue
+            
+        if not isinstance(data, dict): continue
+        
+        # Extract Techs
+        techs = data.get("tech_stack")
+        if not techs or not isinstance(techs, list):
+            # Fallback: maybe just server header?
+            pass
+        else:
+            for tech in techs:
+                if not isinstance(tech, str): continue
+                tech_stack[tech] = tech_stack.get(tech, 0) + 1
+                
+                # Categorize
+                found = False
+                lower_tech = tech.lower()
+                
+                for s in server_names:
+                    if s.lower() in lower_tech:
+                        servers[s] = servers.get(s, 0) + 1
+                        found = True
+                        break
+                
+                if not found:
+                    for f in framework_names:
+                        if f.lower() in lower_tech:
+                            frameworks[f] = frameworks.get(f, 0) + 1
+                            found = True
+                            break
+                            
+                if not found:
+                    for c in cms_names:
+                        if c.lower() in lower_tech:
+                            cms[c] = cms.get(c, 0) + 1
+                            break
+
+        # Extract Server Header explicitly if not in stack
+        server_header = (data.get("http_headers") or {}).get("Server")
+        if server_header and isinstance(server_header, str):
+             # Simple clean
+             srv_name = server_header.split('/')[0]
+             # Add to stats if not already counted via tech_stack? 
+             # For simplicity, let's just add it to 'servers' if it matches known list
+             # preventing double counting is hard without per-target accounting, but this is aggregate stats
+             pass
+
+    # 5. Format for Chart.js
+    def format_chart(d: Dict[str, int]) -> Dict[str, List[Any]]:
+        # Sort by count desc
+        sorted_d = sorted(d.items(), key=lambda x: x[1], reverse=True)
+        return {
+            "labels": [k for k, v in sorted_d],
+            "data": [v for k, v in sorted_d]
+        }
+        
+    return {
+        "all_tech": format_chart(tech_stack),
+        "servers": format_chart(servers),
+        "frameworks": format_chart(frameworks),
+        "cms": format_chart(cms),
+        "total_targets": len(seen_targets)
+    }
+
+@router.get("/hijacking")
+async def get_hijacking_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    return _get_hijacking_data(session, user)
+
+@router.get("/tech-radar")
+async def get_tech_radar_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    return _get_tech_radar_data(session, user)
+
+
 
 @router.get("/best-entrypoint")
 async def get_best_entrypoint(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
@@ -508,6 +752,28 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 
 templates.env.globals['get_available_tenants'] = get_all_tenants
+templates.env.globals['settings'] = settings
+
+
+@ui_router.get("/hijacking", response_class=HTMLResponse)
+async def view_hijacking(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    items = _get_hijacking_data(session, user)
+    return templates.TemplateResponse("analytics_hijacking.html", {
+        "request": request, 
+        "user": user,
+        "items": items,
+        "settings": settings
+    })
+
+@ui_router.get("/tech-radar", response_class=HTMLResponse)
+async def view_tech_radar(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    stats = _get_tech_radar_data(session, user)
+    return templates.TemplateResponse("analytics_tech_radar.html", {
+        "request": request,
+        "user": user,
+        "stats": stats,
+        "settings": settings
+    })
 
 
 def _get_external_links_data(session: Session, user: User):
@@ -581,6 +847,12 @@ def _get_external_links_data(session: Session, user: User):
         # output every 100 rows
         if idx % 100 == 0:
              print(f"[DEBUG_EXT_LINKS] Processing row {idx}/{len(results)} (Module: {mod})")
+
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except:
+                data = {}
 
         found_domains = []
         
@@ -741,7 +1013,15 @@ def _get_dead_links_data(session: Session, user: User):
         
         # Check status
         if not res.data: continue
-        status = res.data.get("status_code")
+        
+        data = res.data
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except:
+                data = {}
+        
+        status = data.get("status_code")
         
         is_dead = False
         details = ""
@@ -844,3 +1124,159 @@ async def get_dead_links_rows(request: Request, session: Session = Depends(get_s
         "orphan_count": orphan_count
     })
 
+
+@ui_router.get("/external-links/export-csv")
+async def export_external_links_csv(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports the External Links report to CSV.
+    """
+    from fastapi.responses import Response
+    import csv
+    import io
+
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user)
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow(["Domain", "Type", "Sources", "Count"])
+    
+    # Rows
+    for item in final_list:
+        sources_str = ", ".join(item.get("sources", []))
+        types_str = ", ".join(item.get("types", []))
+        writer.writerow([
+            item.get("domain", ""),
+            types_str,
+            sources_str,
+            item.get("count", 0)
+        ])
+        
+    output.seek(0)
+    csv_content = output.getvalue()
+    
+    filename = f"external_links_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    
+    return Response(
+        content=csv_content, 
+        media_type="text/csv", 
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@ui_router.get("/dead-links/export-csv")
+async def export_dead_links_csv(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports the Dead Links report to CSV.
+    """
+    from fastapi.responses import Response
+    import csv
+    import io
+
+    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user)
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow(["Target Domain", "Status", "Issue Type", "Details", "Last Check"])
+    
+    # Rows
+    for item in dead_links:
+        writer.writerow([
+            item.get("domain", ""),
+            "Dead" if item.get("type") == "unreachable" else "Orphan",
+            item.get("type", "").title(),
+            item.get("details", ""),
+            item.get("last_checked", "")
+        ])
+        
+    output.seek(0)
+    csv_content = output.getvalue()
+    
+    filename = f"dead_links_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    
+    return Response(
+        content=csv_content, 
+        media_type="text/csv", 
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@ui_router.get("/export-pdf")
+async def export_infrastructure_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports the Analytics Infrastructure report to PDF.
+    """
+    from fastapi.responses import Response
+    from yads.modules.report_generator import generate_infrastructure_report
+    from yads.models import Tenant
+    
+    data = _get_infrastructure_data(session, user)
+    
+    tenant_name = "Global"
+    if user.tenant_id:
+         t = session.get(Tenant, user.tenant_id)
+         if t: tenant_name = t.name
+         
+    pdf_bytes = generate_infrastructure_report(data, tenant_name)
+    
+    filename = f"analytics_report_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    
+
+# -----------------------------------------------------------------------------
+# DIFF VIEW ENDPOINTS
+# -----------------------------------------------------------------------------
+
+@ui_router.get("/targets/{target_id}/history", response_model=List[Dict[str, Any]])
+async def get_target_history(
+    target_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
+):
+    """
+    Returns available scan history for a target.
+    """
+    results = session.exec(select(ScanResult).where(ScanResult.target_id == target_id).order_by(ScanResult.scanned_at.desc()).limit(50)).all()
+    
+    history = []
+    for r in results:
+        history.append({
+            "id": r.id,
+            "module": r.module_name,
+            "timestamp": r.scanned_at.isoformat(),
+            "hash": r.result_hash
+        })
+    return history
+
+@ui_router.get("/compare", response_class=HTMLResponse)
+async def view_comparison(
+    request: Request,
+    target_id: int,
+    scan_a: int, 
+    scan_b: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
+):
+    """
+    Renders the comparison view.
+    """
+    res_a = session.get(ScanResult, scan_a)
+    res_b = session.get(ScanResult, scan_b)
+    
+    if not res_a or not res_b:
+        return "Scan results not found" # Simple error for now
+        
+    diff = ComparisonEngine.compare(res_a.data, res_b.data, target_id, scan_a, scan_b)
+    target = session.get(Target, target_id)
+
+    return templates.TemplateResponse("analytics_compare.html", {
+        "request": request,
+        "user": user,
+        "diff": diff,
+        "target": target,
+        "res_a": res_a,
+        "res_b": res_b,
+        "settings": settings
+    })

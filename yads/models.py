@@ -161,6 +161,7 @@ class ScanSchedule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     target_id: int = Field(foreign_key="target.id", index=True)
     frequency: str = Field(default="daily") # daily, weekly
+    cron_expression: Optional[str] = Field(default=None) # e.g. "0 0 * * *"
     next_run_at: datetime = Field(index=True)
     last_run_at: Optional[datetime] = Field(default=None)
     is_active: bool = Field(default=True)
@@ -176,3 +177,14 @@ class Webhook(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     tenant: Tenant = Relationship(back_populates="webhooks")
+
+class SecurityTrend(SQLModel, table=True):
+    """
+    Stores historical security scores for trend analysis.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    score: int
+    grade: str
+    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+

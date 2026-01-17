@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Compliance Report</h1>
+            <p class="text-sm text-slate-400">SOC2 Readiness Assessment & Improvement Plan</p>
+        </div>
+        <div class="flex items-center gap-3">
+             <span class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
+                Generated: {{ now_utc }}
+             </span>
+             <button onclick="window.print()" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+             </button>
+        </div>
+    </div>
+
+    <!-- Executive Summary / Score Card -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Main Score -->
+        <div class="md:col-span-1 rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col items-center justify-center relative overflow-hidden group">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            
+            <div class="relative z-10 text-center">
+                <div class="text-6xl font-black text-white mb-2 tracking-tighter">{{ stats.score }}<span class="text-2xl text-slate-500 font-normal">%</span></div>
+                <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold 
+                    {% if stats.grade == 'A' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                    {% elif stats.grade == 'B' %}bg-blue-500/10 text-blue-400 border border-blue-500/20
+                    {% elif stats.grade == 'C' %}bg-yellow-500/10 text-yellow-400 border border-yellow-500/20
+                    {% else %}bg-red-500/10 text-red-400 border border-red-500/20{% endif %}">
+                    Grade {{ stats.grade }}
+                </div>
+            </div>
+            
+            <!-- Circular Progress Background (Optional/CSS only) -->
+            <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none opacity-20">
+                 <circle cx="50%" cy="50%" r="40%" stroke="currentColor" stroke-width="2" fill="none" class="text-slate-800" />
+                 <circle cx="50%" cy="50%" r="40%" stroke="currentColor" stroke-width="2" fill="none" 
+                    class="{% if stats.grade == 'A' %}text-emerald-500{% elif stats.grade == 'B' %}text-blue-500{% elif stats.grade == 'C' %}text-yellow-500{% else %}text-red-500{% endif %}"
+                    stroke-dasharray="251" stroke-dashoffset="{{ 251 - (251 * stats.score / 100) }}" />
+            </svg>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="md:col-span-3 grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Controls Passing -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Controls Passing</p>
+                <p class="text-2xl font-bold text-emerald-400">{{ stats.passing_controls }}</p>
+            </div>
+            <!-- Controls Failing -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Controls Failing</p>
+                <p class="text-2xl font-bold {% if stats.failing_controls > 0 %}text-red-400{% else %}text-slate-300{% endif %}">{{ stats.failing_controls }}</p>
+            </div>
+             <!-- Total Issues -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Findings</p>
+                <p class="text-2xl font-bold text-white">{{ stats.all_findings|length }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Category Breakdown</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for cat, data in stats.detailed_breakdown.items() %}
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-colors">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h4 class="font-bold text-white">{{ cat }}</h4>
+                        <p class="text-xs text-slate-500 mt-1">
+                            {% if data.status == 'PASS' %}
+                            All checks passed.
+                            {% else %}
+                            {{ data.issues|length }} issues detected.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if data.status == 'PASS' %}
+                    <div class="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    {% else %}
+                    <div class="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-400">Impact on Score</span>
+                    <span class="font-mono font-bold {% if data.deduction > 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                        -{{ data.deduction }} pts
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Detailed Improvement Plan -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="text-lg font-semibold text-white">Improvement Plan</h3>
+            <p class="text-sm text-slate-500">Actionable steps to improve your compliance score.</p>
+        </div>
+        
+        {% if stats.all_findings %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-xs">
+                    <tr>
+                        <th class="px-6 py-4 font-medium">Priority</th>
+                        <th class="px-6 py-4 font-medium">Finding / Issue</th>
+                        <th class="px-6 py-4 font-medium">Recommendation</th>
+                        <th class="px-6 py-4 font-medium text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for issue in stats.all_findings %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <!-- Heuristic Priority based on keywords -->
+                            {% if 'Critical' in issue or 'Exposure' in issue %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">HIGH</span>
+                            {% elif 'Risky' in issue or 'Weak' in issue %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">MEDIUM</span>
+                            {% else %}
+                             <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">LOW</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-slate-300 font-medium">
+                            {{ issue }}
+                        </td>
+                        <td class="px-6 py-4 text-slate-400 text-xs">
+                            {% if 'SSL' in issue %}
+                            Renew certificate or update TLS configuration.
+                            {% elif 'Bucket' in issue %}
+                            Set bucket permissions to Private immediately.
+                            {% elif 'Strict-Transport-Security' in issue %}
+                            Add <code>Strict-Transport-Security: max-age=31536000</code> to enforce HTTPS.
+                            {% elif 'Content-Security-Policy' in issue %}
+                            Define a strict <code>Content-Security-Policy</code> to mitigate XSS.
+                            {% elif 'X-Frame-Options' in issue %}
+                            Set <code>X-Frame-Options: DENY</code> or <code>SAMEORIGIN</code> to prevent clickjacking.
+                            {% elif 'X-Content-Type-Options' in issue %}
+                            Set <code>X-Content-Type-Options: nosniff</code> to prevent MIME-sniffing.
+                            {% elif 'Referrer-Policy' in issue %}
+                            Set <code>Referrer-Policy: strict-origin-when-cross-origin</code> to protect user privacy.
+                            {% elif 'Vulnerability' in issue %}
+                            Patch the affected service or update dependency.
+                            {% elif 'Port' in issue %}
+                            Close the port via firewall if not strictly needed.
+                            {% else %}
+                            Investigate and remediate.
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="/targets/table?q={{ issue.split(' on ')[-1] if ' on ' in issue else '' }}" class="text-indigo-400 hover:text-white text-xs font-semibold hover:underline">
+                                View Target &rarr;
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/10 text-emerald-400 mb-4">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="text-lg font-medium text-white">All Systems Compliant</h3>
+            <p class="text-slate-500 mt-2">No issues found. Keep up the good work!</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

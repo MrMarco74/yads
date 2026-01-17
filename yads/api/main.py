@@ -18,9 +18,10 @@ from yads.core.seeding import seed_changelog
 from yads.modules.compliance import ComplianceScorer
 
 from yads.config import settings
-from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification
+from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification, SecurityTrend
 from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
+from yads.core.scoring import calculate_target_score, get_grade, get_grade_color
 from yads.api.routers import auth, analytics, users, tenants, schedules
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException
 from yads.models import User
@@ -226,7 +227,9 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 
 # -- Routers --
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings
+
+# -- Routers --
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets
 app.include_router(analytics.router)
 app.include_router(analytics.ui_router)
 app.include_router(auth.router)
@@ -240,6 +243,16 @@ app.include_router(queue.router)
 app.include_router(notifications.router)
 app.include_router(osint.router)
 app.include_router(tenant_settings.router)
+app.include_router(compliance.router)
+app.include_router(reports.router)
+app.include_router(ports.router)
+app.include_router(email_security.router)
+app.include_router(secrets.router)
+app.include_router(tech_drift.router)
+app.include_router(cert_timeline.router)
+app.include_router(asr.router)
+app.include_router(cloud_assets.router)
+
 
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):
@@ -708,6 +721,58 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     if 'critical_targets' not in locals():
         critical_targets = []
 
+    # Calculate Average Security Score for Tenant
+    # Fetch ALL targets and their latest results to calculate accurate average?
+    # For MVP performance, we might want to cache this or just calculate on the fly for visible targets?
+    # Calculating for ALL is better for accuracy.
+    # Reuse `comp_results` if available (it has latest results for key modules)
+    avg_security_score = 0
+    if total_targets > 0 and 'comp_results' in locals():
+        # comp_results is list of tuples (tid, mod, data)
+        # We need to group by target_id
+        target_results_map = {} # {tid: {mod: result_obj}}
+        for tid, mod, data in comp_results:
+             if tid not in target_results_map:
+                 target_results_map[tid] = {}
+             # Mock result object for scorer (it expects .data)
+             class MockRes:
+                 def __init__(self, d): self.data = d
+             target_results_map[tid][mod] = MockRes(data)
+        
+        total_score = 0
+        scored_count = 0
+        for t in all_targets:
+             t_res = target_results_map.get(t.id, {})
+             # Use safe version of scorer that accepts dict of objects with .data
+             s, g, f = calculate_target_score(t, t_res)
+             total_score += s
+             scored_count += 1
+        
+        if scored_count > 0:
+            avg_security_score = int(total_score / scored_count)
+    
+    avg_grade = get_grade(avg_security_score)
+
+    # Snapshot Trend (Once per day per tenant)
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        existing_trend = session.exec(select(SecurityTrend).where(
+            SecurityTrend.tenant_id == user.tenant_id, 
+            SecurityTrend.recorded_at >= today_start
+        )).first()
+        
+        if not existing_trend and total_targets > 0:
+            new_trend = SecurityTrend(
+                tenant_id=user.tenant_id,
+                score=avg_security_score,
+                grade=avg_grade
+            )
+            session.add(new_trend)
+            session.commit()
+    except Exception as e:
+        # Don't fail dashboard load on trend error
+        print(f"Error snapshotting trend: {e}")
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "critical_targets": critical_targets, # Added
@@ -721,7 +786,9 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             "total_scans": total_scans_count,
             "queue_length": queue_len,
             "queue_active": queue_active,
-            "compliance": compliance_stats
+            "compliance": compliance_stats,
+            "security_score": avg_security_score,
+            "security_grade": avg_grade
         },
         "pagination": {
         },
@@ -1400,6 +1467,13 @@ async def view_target_table(
         port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
         nuclei_scan = next((r for r in results if r.module_name == 'nuclei_scanner'), None)
         
+        # Security Score Calculation
+        # Convert results list to dict {module_name: result} for scorer
+        latest_results_map = {r.module_name: r for r in results}
+        score, grade, factors = calculate_target_score(t, latest_results_map)
+        grade_color = get_grade_color(grade)
+
+        
         # Online Status Logic (Mirroring the Filter Logic)
         is_online = None 
         if infra or web or port_scan:
@@ -1450,7 +1524,13 @@ async def view_target_table(
             "last_scan": results[0].scanned_at if results else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results])),
-            "is_login_page": web.data.get("is_login_page", False) if (web and web.data) else False
+            "last_scan": results[0].scanned_at if results else None,
+            "modules": list(set([r.module_name for r in results])),
+            "is_login_page": web.data.get("is_login_page", False) if (web and web.data) else False,
+            "security_score": score,
+            "security_grade": grade,
+            "security_grade_color": grade_color,
+            "score_factors": factors
         }
         
         # Calculate Compliance
@@ -3269,15 +3349,10 @@ async def get_network_graph(
     from sqlmodel import or_, and_, text
     from urllib.parse import urlparse
     
-    RISKY_PORTS = {21, 23, 445, 3389, 5900, 22, 1433, 3306} # FTP, Telnet, SMB, RDP, VNC, SSH, MSSQL, MySQL
-
-
-    
-    
     # Filter by user's tenant
     query = select(Target).where(Target.tenant_id == user.tenant_id)
     
-    # 1. Online/Offline Filter
+    # 1. Online/Offline Filter (using subquery to filter Targets)
     if filter_online != "all":
         online_criteria = or_(
              and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
@@ -3298,214 +3373,215 @@ async def get_network_graph(
         
     targets = session.exec(query).all()
     
-    nodes = {} # id -> {id, label, group, val, risk_level, risk_details}
-    edges = [] # {from, to, arrows, label?}
+    nodes = {} # id -> node object (Cytoscape format: {data: {...}})
+    edges = [] # list of edge objects (Cytoscape format: {data: {...}})
     
-    unique_edge_keys = set()
+    # Track node risk for Attack Path
+    risk_map = {} # node_id -> {is_compromised: bool, risk_score: int, reasons: []}
     
-    def add_node(nid, label, group, value=1, risk_level=0, risk_details=""):
-        if nid not in nodes:
-            nodes[nid] = {
-                "id": nid, 
-                "label": label, 
-                "group": group, 
-                "value": value,
-                "risk_level": risk_level,
-                "risk_details": risk_details
-            }
-        else:
-            # Upgrade group or value
-            if nodes[nid]["group"] == "ip" and group == "server":
-                 nodes[nid]["group"] = "server"
-            nodes[nid]["value"] = max(nodes[nid]["value"], value)
-            
-            # Upgrade Risk Level (Take Max)
-            if risk_level > nodes[nid]["risk_level"]:
-                nodes[nid]["risk_level"] = risk_level
-                nodes[nid]["risk_details"] = risk_details
-
-            
-    def add_edge(src, dst, label=""):
-        key = f"{src}-{dst}-{label}"
-        if key not in unique_edge_keys:
-            edges.append({"from": src, "to": dst, "arrows": "to", "label": label, "font": {"align": "middle", "size": 10}})
-            unique_edge_keys.add(key)
-
-    for t in targets:
-        # 1. Target Node
-        tgt_node_id = f"target_{t.id}"
-        add_node(tgt_node_id, t.domain, "target", 20)
+    def get_risk(nid):
+        return risk_map.get(nid, {"is_compromised": False, "risk_score": 0, "reasons": []})
+    
+    # Pre-calculate Risks
+    # Iterate scan results to find Critical/High Vulns, Expired Certs, Public Buckets
+    target_ids = [t.id for t in targets]
+    target_map = {t.id: t.domain for t in targets} # Map target_id to domain string for node ID
+    
+    if target_ids:
+        results = session.exec(select(ScanResult).where(ScanResult.target_id.in_(target_ids))).all()
         
-        # 2. Get Scan Results (DNS, Nuclei, Nmap, Crawler)
-        scans = session.exec(select(ScanResult).where(
-            ScanResult.target_id == t.id,
-            ScanResult.module_name.in_(["dns_scanner", "subdomain_scanner", "crawler", "nuclei_scanner", "nmap_scanner"])
+        for res in results:
+            if res.target_id not in target_map: continue
+            domain_node_id = target_map[res.target_id]
+            
+            risk_score = 0
+            is_compromised = False
+            reasons = []
+            
+            if res.module_name == 'ssl_scanner':
+                 if res.data and res.data.get("expired"):
+                      risk_score += 10
+                      is_compromised = True
+                      reasons.append("Expired SSL Certificate")
+            elif res.module_name == 'infrastructure_scanner':
+                 if res.data:
+                     for b in res.data.get("buckets", []):
+                          if b.get("status") == "Public":
+                               risk_score += 8
+                               is_compromised = True
+                               reasons.append("Public Cloud Bucket")
+            elif res.module_name == 'web_analyzer':
+                 if res.data:
+                     cves = res.data.get("cves", [])
+                     for cve in cves:
+                          try:
+                               cvss = float(cve.get("cvss", 0))
+                               if cvss >= 9.0:
+                                    risk_score += 10
+                                    is_compromised = True
+                                    reasons.append("Critical Vulnerability")
+                               elif cvss >= 7.0:
+                                    risk_score += 5
+                                    if not is_compromised: reasons.append("High Vulnerability")
+                          except: pass
+                      
+            if risk_score > 0:
+                 if domain_node_id not in risk_map:
+                      risk_map[domain_node_id] = {"is_compromised": False, "risk_score": 0, "reasons": []}
+                 
+                 risk_map[domain_node_id]["risk_score"] += risk_score
+                 risk_map[domain_node_id]["is_compromised"] = risk_map[domain_node_id]["is_compromised"] or is_compromised
+                 risk_map[domain_node_id]["reasons"].extend(reasons)
+
+    # 2. Build Nodes for Targets
+    for t_id in target_ids:
+        domain = target_map[t_id]
+        t_risk = get_risk(domain)
+        
+        nodes[domain] = {
+            "data": {
+                "id": domain,
+                "label": domain,
+                "type": "domain",
+                "risk_score": t_risk["risk_score"], 
+                "compromised": t_risk["is_compromised"],
+                "risk_reasons": ", ".join(list(set(t_risk["reasons"])))
+            }
+        }
+    
+    # 3. Build Edges & Sub-Nodes
+    for t_id in target_ids:
+        # Fetch Scan Results for edges
+        if not target_ids: break # Safety
+        
+        results = session.exec(select(ScanResult).where(
+            ScanResult.target_id == t_id,
+            or_(
+                ScanResult.module_name == 'dns_scanner',
+                ScanResult.module_name == 'subdomain_scanner',
+                ScanResult.module_name == 'infrastructure_scanner',
+                ScanResult.module_name == 'crawler'
+            )
         ).order_by(ScanResult.scanned_at.desc())).all()
         
-        # Process latest of each type
-        processed_modules = set()
+        latest_res = {}
+        for r in results:
+             if r.module_name not in latest_res: latest_res[r.module_name] = r
+             
+        source = target_map[t_id]
+        source_risk = get_risk(source)
         
-        for scan in scans:
-            if scan.module_name in processed_modules: continue
-            processed_modules.add(scan.module_name)
+        for mod, res in latest_res.items():
+            if not res.data: continue
             
-            data = scan.data
-            if not data: continue
-            
-            # A. DNS Records (A, MX, NS, CNAME)
-            records = data.get("records", {})
-            
-            # A Records -> IPs
-            for ip in records.get("A", []):
-                ip_id = f"ip_{ip}"
-                add_node(ip_id, ip, "ip", 5)
-                add_edge(tgt_node_id, ip_id, "A")
-            
-            # MX Records
-            for mx in records.get("MX", []):
-                # MX often format: "10 mail.example.com"
-                parts = mx.split()
-                val = parts[-1] if parts else mx
-                mx_id = f"mx_{val}"
-                add_node(mx_id, val, "resource", 3)
-                add_edge(tgt_node_id, mx_id, "MX")
-                
-            # NS Records
-            for ns in records.get("NS", []):
-                ns_id = f"ns_{ns}"
-                add_node(ns_id, ns, "resource", 3)
-                add_edge(tgt_node_id, ns_id, "NS")
-                
-            # CNAME
-            for cn in records.get("CNAME", []):
-                cn = cn.rstrip('.')
-                cn_id = f"cname_{cn}"
-                add_node(cn_id, cn, "resource", 3)
-                add_edge(tgt_node_id, cn_id, "CNAME")
+            # DNS Edges
+            if mod in ['dns_scanner', 'subdomain_scanner']:
+                sub_nodes_to_add = set()
 
-            # B. Subdomains
-            subdomains = data.get("subdomains", [])
-            # Subdomains is a list of dicts: {subdomain, ips}
-            for sub in subdomains:
-                sub_name = sub.get("subdomain")
-                if not sub_name: continue
+                if mod == 'dns_scanner':
+                    # Main domain IPs
+                     for ip in res.data.get("records", {}).get("A", []):
+                        if ip not in nodes:
+                            nodes[ip] = { "data": { "id": ip, "label": ip, "type": "ip", "risk_score": 0, "compromised": False } }
+                        edges.append({ "data": { "source": source, "target": ip, "label": "resolves_to", "is_risk": source_risk["is_compromised"] } })
                 
-                sub_id = f"sub_{sub_name}"
-                add_node(sub_id, sub_name.replace(f".{t.domain}", ""), "subdomain", 2) # Label: sub only
-                add_edge(tgt_node_id, sub_id, "sub")
-                
-                # IPs for sub
-                for ip in sub.get("ips", []):
-                     ip_id = f"ip_{ip}"
-                     add_node(ip_id, ip, "ip", 5)
-                     add_edge(sub_id, ip_id, "A")
+                if mod == 'subdomain_scanner':
+                    for sub_entry in res.data.get("subdomains", []):
+                        sub_name = sub_entry.get("subdomain")
+                        if sub_name:
+                            sub_nodes_to_add.add(sub_name)
+                            # Also add IPs for subdomains
+                            for ip in sub_entry.get("ips", []):
+                                if ip not in nodes:
+                                    nodes[ip] = { "data": { "id": ip, "label": ip, "type": "ip", "risk_score": 0, "compromised": False } }
+                                edges.append({ "data": { "source": sub_name, "target": ip, "label": "resolves_to", "is_risk": source_risk["is_compromised"] } })
 
-            # C. Crawler Links (Edges)
-            if scan.module_name == "crawler":
-                crawl_edges = data.get("edges", [])
-                for edge in crawl_edges:
-                    src_url = edge.get("source")
-                    dst_url = edge.get("target")
-                    if not src_url or not dst_url: continue
+                for sub_id in sub_nodes_to_add:
+                    risk = get_risk(sub_id)
+                    is_risk_edge = source_risk["is_compromised"]
+
+                    if sub_id not in nodes:
+                        nodes[sub_id] = {
+                            "data": {
+                                "id": sub_id, 
+                                "label": sub_id, 
+                                "type": "subdomain",
+                                "risk_score": risk["risk_score"], 
+                                "compromised": risk["is_compromised"],
+                                "risk_reasons": ", ".join(list(set(risk["reasons"])))
+                            }
+                        }
                     
-                    try:
-                        src_host = urlparse(src_url).netloc
-                        dst_host = urlparse(dst_url).netloc
-                        
-                        # Determine Node IDs
-                        def get_host_node(host, domain, base_id):
-                            if host == domain or host == f"www.{domain}":
-                                return base_id # Map www to root for cleaner graph? Or keep separate? 
-                                # Let's keep separate but consistent naming
-                            
-                            if host == domain: return base_id
-                            
-                            if host.endswith(f".{domain}"):
-                                return f"sub_{host}"
-                            return None # External or unrelated
-                        
-                        src_id = get_host_node(src_host, t.domain, tgt_node_id)
-                        dst_id = get_host_node(dst_host, t.domain, tgt_node_id)
-                        
-                        # [NEW] Handle External Destination
-                        if src_id and not dst_id:
-                            # Source is internal, Dest is external -> Show link
-                            dst_id = f"ext_{dst_host}"
-                            if dst_id not in nodes:
-                                add_node(dst_id, dst_host, "external", 1) # Type external, smaller size
-                        
-                        if src_id and dst_id and src_id != dst_id:
-                            # Ensure nodes exist (if they weren't found by subdomain scanner yet)
-                            # This implicitly adds them if the crawler found them but DNS scanner didn't
-                            if src_id not in nodes:
-                                if src_id == tgt_node_id:
-                                    pass # Already added
-                                else:
-                                    lbl = src_host.replace(f".{t.domain}", "")
-                                    add_node(src_id, lbl, "subdomain", 2)
-                            
-                            if dst_id not in nodes:
-                                if dst_id == tgt_node_id:
-                                    pass
-                                else:
-                                    lbl = dst_host.replace(f".{t.domain}", "")
-                                    add_node(dst_id, lbl, "subdomain", 2)
+                    edges.append({
+                        "data": {
+                            "source": source, 
+                            "target": sub_id, 
+                            "label": "subdomain",
+                            "is_risk": is_risk_edge
+                        }
+                    })
 
-                            add_edge(src_id, dst_id, "link")
-                    except:
-                        pass
-                        
-            # D. Risk Analysis (Nuclei & Nmap)
-            # These apply to the MAIN target node (tgt_node_id)
-            # Limitation: We don't know exactly which subdomain is vulnerable unless it was scanned as a separate target.
+            # Infra (IPs)
+            elif mod == 'infrastructure_scanner':
+                ip = res.data.get("ip")
+                if ip:
+                    is_risk_edge = source_risk["is_compromised"]
+                    ip_risk = get_risk(ip)
+
+                    if ip not in nodes:
+                         nodes[ip] = {
+                             "data": {
+                                 "id": ip, "label": ip, "type": "ip",
+                                 "risk_score": ip_risk["risk_score"], 
+                                 "compromised": ip_risk["is_compromised"],
+                                 "risk_reasons": ", ".join(list(set(ip_risk["reasons"])))
+                            }
+                        }
+                    edges.append({
+                        "data": {
+                            "source": source, "target": ip, "label": "resolves_to",
+                            "is_risk": is_risk_edge
+                        }
+                    })
             
-            # Nuclei Check
-            if scan.module_name == "nuclei_scanner":
-                findings = data.get("findings", [])
-                max_risk = 0
-                detail = ""
-                for f in findings:
-                    severity = f.get("info", {}).get("severity", "low").lower()
-                    if severity == "critical":
-                        max_risk = 3
-                        detail = f"Critical: {f.get('info', {}).get('name')}"
-                        break # Stop at max
-                    elif severity == "high" and max_risk < 2:
-                        max_risk = 2
-                        detail = f"High: {f.get('info', {}).get('name')}"
-                    elif severity == "medium" and max_risk < 1:
-                        max_risk = 1
-                        detail = f"Medium: {f.get('info', {}).get('name')}"
-                
-                if max_risk > 0:
-                     add_node(tgt_node_id, t.domain, "target", 20, risk_level=max_risk, risk_details=detail)
+            # Crawler (Links)
+            elif mod == 'crawler':
+                 edges_list = res.data.get("edges", [])
+                 for link_edge in edges_list:
+                      dst = link_edge.get("target")
+                      if not dst: continue
+                      try:
+                           parsed = urlparse(dst)
+                           if parsed.netloc:
+                                dst_node = parsed.netloc
+                                if dst_node == source: continue
+                                is_risk_edge = source_risk["is_compromised"]
+                                dst_risk = get_risk(dst_node)
 
-            # Nmap Check (Open Risky Ports)
-            if scan.module_name == "nmap_scanner":
-                open_ports = data.get("open_ports", [])
-                risk_found = False
-                bad_ports = []
-                for p in open_ports:
-                    pid = p.get("port")
-                    if pid in RISKY_PORTS:
-                        risk_found = True
-                        bad_ports.append(str(pid))
-                
-                if risk_found:
-                    detail = f"Risky Ports: {', '.join(bad_ports)}"
-                    # Risky ports = High Risk (2)
-                    add_node(tgt_node_id, t.domain, "target", 20, risk_level=2, risk_details=detail)
+                                if dst_node not in nodes:
+                                     nodes[dst_node] = {
+                                         "data": {
+                                             "id": dst_node, "label": dst_node, "type": "external",
+                                             "risk_score": dst_risk["risk_score"], 
+                                             "compromised": dst_risk["is_compromised"],
+                                             "risk_reasons": ", ".join(list(set(dst_risk["reasons"])))
+                                        }
+                                    }
+                                
+                                edges.append({
+                                    "data": {
+                                        "source": source, "target": dst_node, "label": "links_to",
+                                        "is_risk": is_risk_edge
+                                    }
+                                })
+                      except: pass
 
-
-
-    # Filter Empty (Unconnected) Nodes
+    # Filter Empty
     if filter_empty:
         connected_ids = set()
         for e in edges:
-            connected_ids.add(e["from"])
-            connected_ids.add(e["to"])
-        
-        # Keep only connected nodes
+            connected_ids.add(e["data"]["source"])
+            connected_ids.add(e["data"]["target"])
         nodes = {nid: n for nid, n in nodes.items() if nid in connected_ids}
 
     return {
@@ -3523,9 +3599,9 @@ async def export_network_graph(
     user: User = Depends(get_current_active_user)
 ):
     """
-    Exports the Network Graph to SVG (Visio) or Excel (Visio Data Visualizer).
+    Exports the Network Graph to SVG (Graphviz).
     """
-    # Reuse existing logic to get nodes/edges
+    # Reuse existing logic to get nodes/edges (Cytoscape Format)
     graph_data = await get_network_graph(target_id=target_id, filter_empty=filter_empty, filter_online=filter_online, session=session, user=user)
     nodes = graph_data.get("nodes", [])
     edges = graph_data.get("edges", [])
@@ -3536,21 +3612,36 @@ async def export_network_graph(
         
         # Add Nodes
         for n in nodes:
-            # Map Vis.js groups to Graphviz colors/shapes
+            data = n.get("data", {})
+            # Map Cytoscape types to Graphviz colors/shapes
             color = "#cccccc"
             shape = "ellipse"
-            group = n.get('group')
-            if group == 'target': color = "lightblue"; shape="doublecircle"
-            elif group == 'subdomain': color = "plum"
-            elif group == 'ip': color = "orange"; shape="box"
-            elif group == 'resource': color = "cyan"; shape="diamond"
+            ctype = data.get('type')
             
-            label = n.get('label', '').replace('"', '\\"')
-            dot_lines.append(f'  "{n["id"]}" [label="{label}" fillcolor="{color}" shape="{shape}"];')
+            if ctype == 'domain': color = "lightblue"; shape="doublecircle"
+            elif ctype == 'subdomain': color = "plum"
+            elif ctype == 'ip': color = "orange"; shape="box"
+            elif ctype == 'external': color = "gray"
+            
+            # Risk Highlighting
+            if data.get('compromised'):
+                color = "red"
+            
+            nid = data.get('id')
+            label = data.get('label', '').replace('"', '\\"')
+            dot_lines.append(f'  "{nid}" [label="{label}" fillcolor="{color}" shape="{shape}"];')
             
         # Add Edges
         for e in edges:
-            dot_lines.append(f'  "{e["from"]}" -> "{e["to"]}";')
+            data = e.get("data", {})
+            src = data.get("source")
+            dst = data.get("target")
+            
+            color = "black"
+            if data.get("is_risk"):
+                color = "red"
+                
+            dot_lines.append(f'  "{src}" -> "{dst}" [color="{color}"];')
             
         dot_lines.append("}")
         dot_source = "\n".join(dot_lines)
@@ -3565,18 +3656,14 @@ async def export_network_graph(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
-            svg_out, err = await proc.communicate(input=dot_source.encode('utf-8'))
+            stdout, stderr = await proc.communicate(input=dot_source.encode())
             
             if proc.returncode != 0:
-                logger.error(f"Graphviz Error: {err.decode()}")
-                return Response(content=f"Error generating SVG: {err.decode()}", status_code=500)
+                print(f"Graphviz Error: {stderr.decode()}")
+                return {"error": "Failed to generate graph image"}
                 
-            return Response(content=svg_out, media_type="image/svg+xml", headers={
-                "Content-Disposition": 'attachment; filename="network_graph.svg"'
-            })
-        except FileNotFoundError:
-             return Response(content="Graphviz (dot) not found on server.", status_code=500)
+            from fastapi.responses import Response
+            return Response(content=stdout, media_type="image/svg+xml")
         except Exception as e:
              logger.error(f"Export Error: {e}")
              return Response(content=f"Export Error: {str(e)}", status_code=500)

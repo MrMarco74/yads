@@ -42,7 +42,11 @@ class NmapScanner(BaseScannerModule):
             results["raw_output"] = nmap_results["raw"]
             results["method"] = "nmap_stealth"
             
-            if nmap_results["ports"]:
+            # Detect Resolution Failure
+            if "Failed to resolve" in nmap_results["raw"]:
+                results["error"] = "DNS Resolution Failed"
+                self.logger.error(f"Nmap failed to resolve target: {target}")
+            elif nmap_results["ports"]:
                 results["is_active"] = True
                 
         except Exception as e:

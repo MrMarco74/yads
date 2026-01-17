@@ -1,6 +1,6 @@
 # YADS - Comprehensive User Guide
-**Version:** 1.5.1
-**Last Updated:** 2026-01-15
+**Version:** 1.7.0
+**Last Updated:** 2026-01-17
 
 Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
@@ -14,10 +14,14 @@ Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers a
 4.  [Target Management](#4-target-management)
 5.  [Running Scans](#5-running-scans)
 6.  [Analysis Modules](#6-analysis-modules)
-6.  [Analysis Modules](#6-analysis-modules)
 7.  [OSINT Brand Monitoring](#7-osint-brand-monitoring)
 8.  [Visualizations](#8-visualizations)
 9.  [Data Management & Reports](#9-data-management--reports)
+    *   [Sensitive Data](#sensitive-data)
+    *   [Email Security](#email-security)
+    *   [Port Exposure](#port-exposure)
+    *   [Technology Drift](#technology-drift)
+    *   [Attack Surface Reduction](#attack-surface-reduction)
 10. [User Management & Security](#10-user-management--security)
 11. [Multi-Tenancy](#11-multi-tenancy)
 12. [System Settings & Queue](#12-system-settings--queue)
@@ -43,6 +47,9 @@ Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers a
 Navigate to your YADS instance (e.g., `https://yads.your-domain.com`).
 *   **Login**: Enter your username and password.
 *   **MFA**: If enabled, enter your Time-based One-Time Password (TOTP) from your authenticator app.
+
+### Interface Preferences
+*   **Day/Night Mode**: Toggle the Moon/Sun icon in the top navigation bar to switch between Dark (default) and Light themes.
 
 ### First Steps
 1.  **Dashboard**: You will land on the main dashboard showing an overview of your targets.
@@ -222,7 +229,11 @@ An interactive node-graph showing relationships between Domains, IPs, and ASNs.
     *   **Show Web Links**: Toggle visibility of HTTP-based edges.
     *   **Gray out DNS**: Fades DNS connections to gray to highlight the web structure.
 *   **Clusters**: See which domains share the same hosting infrastructure.
+*   **Clusters**: See which domains share the same hosting infrastructure.
 *   **Zoom/Pan**: Navigate large infrastructures easily.
+*   **Attack Path Visualization** (New in v1.7.0):
+    *   **Toggle**: Switch on "Attack Paths" to highlight risky edges and compromised nodes.
+    *   **Insights**: Visualizes potential lateral movement paths based on vulnerability and network data.
 
 ### Analytics Dashboard
 High-level metrics for management.
@@ -231,7 +242,7 @@ High-level metrics for management.
     *   **Risk Overview**: Summary of critical vulnerabilities across the portfolio.
 
 ### Compliance & Grading
-**(New in v1.5.0)**
+**(Updated in v1.5.2)**
 Found at the top of every **Target Detail** page:
 *   **Security Grade (A-F)**: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
 *   **Risk Factors**: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
@@ -247,13 +258,13 @@ Visualizes redirect chains.
 
 ### External Links Analysis
 The **External Links** view helps you identify third-party dependencies and potential shadow IT.
-- **Access**: Go to `Analytics > External Links` in the sidebar.
+- **Access**: Go to `Reports > External Links Report` or via Analytics.
 - **Purpose**: Lists all domains found during scans (via Crawler or DNS) that are **not** part of your defined Targets.
 - **Features**:
     - **Scope Awareness**: Automatically excludes your own targets/subdomains.
     - **Sources**: Shows which of your targets link to the external domain.
     - **Type**: Indicates if the link was found via a webpage link (`link`), Mail Exchange record (`MX`), Nameserver (`NS`), etc.
-    - **Export**: Click "Export PDF" to download a summary report.
+    - **Export**: Click "Export PDF" from the **Reports** page.
 
 ### Dead Links Analysis
 **(New in v1.4.0)**
@@ -266,9 +277,66 @@ Identify health issues within your own inventory.
 
 ## 9. Data Management & Reports
 
+**(Centralized in v1.5.2)**
+
+YADS provides dedicated reports to help you analyze specific data sets and risks.
+
+### Sensitive Data
+**Path:** `/secrets`
+Aggregates findings of exposed API Keys, Credentials, and Configuration files (e.g., `.env`, backups) detected by Nuclei and Web Analyzer.
+*   **Categories**: Credentials, Configs, PII.
+*   **Action**: Immediately rotate any credential found here.
+
+### Email Security
+**Path:** `/email-security`
+Analyzes SPF and DMARC records to identify domains vulnerable to email spoofing.
+*   **Secure**: Strong SPF + DMARC Reject/Quarantine.
+*   **Monitoring**: DMARC Policy is `none`.
+*   **Vulnerable**: Missing SPF or DMARC records.
+
+### Port Exposure
+**Path:** `/ports`
+A dashboard focusing on Nmap results to highlight risky open ports across your infrastructure.
+*   Highlights top open ports (e.g., 22 SSH, 3389 RDP).
+*   Lists all targets with open ports detected in the last scan.
+
+### Technology Drift
+**Path:** `/tech-drift`
+A timeline showing when technologies were **Added** or **Removed** from your assets.
+*   Use this to detect "Shadow IT" (e.g., a new Nginx server appearing overnight) or verify maintenance changes.
+
+### Attack Surface Reduction
+**Path:** `/asr`
+A "Cleanup List" of assets that should be reviewed for decommissioning.
+*   **Dead Endpoints**: Subdomains returning 404/5xx errors.
+*   **Unconfigured Servers**: Servers showing Default placeholder pages.
+*   **Expired Certs**: SSL Certificates that have expired.
+
+### Broken Link Hijacking
+**Path:** `/analytics/hijacking`
+Identifies broken external links (404s) on your assets that are pointing to valid domains.
+*   **Risk**: Attackers can register these domains and hijack the link/script execution.
+*   **Action**: Remove the broken link or register the domain.
+
+### Technology Radar
+**Path:** `/analytics/tech-radar`
+A visual breakdown of the technology stack usage across your portfolio.
+*   **Categories**: Servers, Frameworks, CMS.
+*   **Usage**: Identify outdated tech or unauthorized software stacks.
+
 ### Exporting Data
-*   **PDF Report**: On the Target Details page, download a professionally formatted PDF summary.
-*   **Excel Export**: The Target Overview page features an expanded Excel export including all UI columns: SSL details, CVE counts, Secrets, ASN/ISP info, and more.
+You can export scan results...2)**
+
+All system exports are now consolidated under the **Reports** page in the sidebar.
+
+### Available Reports
+*   **Infrastructure Executive Summary**: A professional PDF report detailing cloud providers, geographic distribution, and critical risks across your tenant.
+*   **Compliance Report**: An interactive detailed breakdown of your SOC2 readiness score with an actionable "Improvement Plan" checklist.
+*   **External Links Report**: PDF export of third-party domains linked to your infrastructure.
+
+### Data Exports
+*   **Target CSV**: Download your entire raw target inventory (Domain, Status, Last Scan) as a CSV file.
+*   **Excel Export**: The Target Overview page features an expanded Excel export including all UI columns.
 *   **Backup**: Admin users can export the entire database and assets as a ZIP file from the Settings page.
 
 ### System Logs
@@ -303,7 +371,6 @@ Go to **Users** in the navbar.
 YADS supports multiple isolated environments (Tenants).
 *   **Isolation**: Targets, Results, and Users are scoped to a Tenant.
 *   **Switching**: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
-*   **Management**: Admins can rename tenants and manage memberships via the **Tenants** page.
 *   **Management**: Admins can rename tenants and manage memberships via the **Tenants** page.
 *   **Platform Admin**: An Admin without a specific tenant sees *everything* and can manage the tenants themselves.
 
@@ -369,4 +436,4 @@ For technical support or to report bugs:
 
 ---
 
-*Verified for YADS v1.4.0*
+*Verified for YADS v1.7.0*

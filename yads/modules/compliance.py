@@ -59,10 +59,19 @@ class ComplianceScorer:
         failures = []
         
         # Rule Execution
+        breakdown = {}
+        
         for rule in self.rules:
+            rule_name = rule.__name__.replace("_check_", "").title()
             deduction, reasons = rule(target_data, target_map)
             current_score -= deduction
             failures.extend(reasons)
+            
+            breakdown[rule_name] = {
+                "deduction": deduction,
+                "issues": reasons,
+                "status": "PASS" if deduction == 0 else "FAIL"
+            }
             
         current_score = max(0, int(current_score))
         
@@ -77,7 +86,9 @@ class ComplianceScorer:
             "grade": grade,
             "passing_controls": len(self.rules) - (1 if current_score < 100 else 0), # Simplified Metric
             "failing_controls": len(failures),
-            "failures": failures[:5] # Top 5
+            "failures": failures[:5], # Top 5 for Dashboard
+            "all_findings": failures, # Full list for Report
+            "detailed_breakdown": breakdown # Structured data for Report
         }
 
     def _check_ssl(self, data: Dict[int, Dict], target_map: Dict[int, str]):
@@ -130,16 +141,33 @@ class ComplianceScorer:
             if not web: continue
             
             headers = web.get("http_headers", {})
-            # Check simple key presence (case insensitive usually handled by requests, but here dict)
+            # Check simple key presence (case insensitive handled by lower())
             keys = [k.lower() for k in headers.keys()]
             
+            # HSTS
             if "strict-transport-security" not in keys:
                 deduction += 2
-                # reasons.append(f"Missing HSTS on {target_map[tid]}") 
-                # Small deduction, maybe don't clutter reasons unless score is low
+                reasons.append(f"Missing security header Strict-Transport-Security on {target_map[tid]}") 
             
+            # CSP
             if "content-security-policy" not in keys:
+                deduction += 2
+                reasons.append(f"Missing security header Content-Security-Policy on {target_map[tid]}")
+
+            # X-Frame-Options
+            if "x-frame-options" not in keys:
                 deduction += 1
+                reasons.append(f"Missing security header X-Frame-Options on {target_map[tid]}")
+
+            # X-Content-Type-Options
+            if "x-content-type-options" not in keys:
+                deduction += 1
+                reasons.append(f"Missing security header X-Content-Type-Options on {target_map[tid]}")
+
+            # Referrer-Policy
+            if "referrer-policy" not in keys:
+                deduction += 1
+                reasons.append(f"Missing security header Referrer-Policy on {target_map[tid]}")
                 
         return deduction, reasons
 

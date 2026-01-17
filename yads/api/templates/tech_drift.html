@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Technology Drift</h1>
+            <p class="text-sm text-slate-400">Timeline of technology changes detected across your attack surface.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/tech-drift/export/excel" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </a>
+            <a href="/tech-drift/export/pdf" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-purple-900/20 border border-purple-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-purple-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-purple-200/80 space-y-1">
+            <p class="font-medium text-purple-300">Track Infrastructure Changes</p>
+            <p>
+                Security teams need to know when new technologies appear or disappear.
+                <strong>Technology Drift</strong> tracks changes in your stack over time, alerting you to <strong>New Services</strong> (Shadow IT) or <strong>Removed Assets</strong> that might indicate a change in architecture.
+            </p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="rounded-xl border border-emerald-900/50 bg-emerald-900/10 p-6">
+             <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.added_count }}</h4>
+                    <p class="text-xs text-emerald-400 font-medium">New Technologies</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="rounded-xl border border-rose-900/50 bg-rose-900/10 p-6">
+             <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.removed_count }}</h4>
+                    <p class="text-xs text-rose-400 font-medium">Removed Technologies</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.total_events }}</h4>
+                    <p class="text-xs text-slate-400 font-medium">Total Drift Events</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="relative border-l border-slate-800 ml-3 space-y-8">
+        
+        {% for day, events in timeline.items() %}
+        <div class="mb-8">
+            <div class="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border border-slate-900 bg-slate-600"></div>
+            <h3 class="ml-6 text-lg font-medium text-white mb-4">{{ day }}</h3>
+            
+            <div class="ml-6 space-y-4">
+                {% for event in events %}
+                <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-slate-700">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start gap-4">
+                            <!-- Icon -->
+                            <div class="h-10 w-10 rounded-lg flex-shrink-0 flex items-center justify-center
+                                {% if event.type == 'ADDED' %}bg-emerald-500/10 text-emerald-500{% else %}bg-rose-500/10 text-rose-500{% endif %}">
+                                {% if event.type == 'ADDED' %}
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                                {% else %}
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <h4 class="text-sm font-medium text-white">
+                                    {{ event.tech }} 
+                                    <span class="{% if event.type == 'ADDED' %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                                        {{ event.type|lower }}
+                                    </span>
+                                    {% if event.type == 'ADDED' %}to{% else %}from{% endif %}
+                                    <a href="/target/{{ event.target_id }}" class="text-indigo-400 hover:text-indigo-300 hover:underline">{{ event.domain }}</a>
+                                </h4>
+                                <p class="text-xs text-slate-500 mt-1">Detected at {{ event.time }}</p>
+                            </div>
+                        </div>
+                        
+                         <span class="text-xs font-mono text-slate-600 border border-slate-800 px-2 py-1 rounded">
+                            {{ event.scanner }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+         <div class="ml-6 mt-4">
+             <div class="p-8 rounded-xl border border-slate-800 border-dashed text-center">
+                 <p class="text-slate-500">No drift events detected yet. Run repetitive scans to populate history.</p>
+             </div>
+         </div>
+        {% endfor %}
+        
+    </div>
+</div>
+{% endblock %}
