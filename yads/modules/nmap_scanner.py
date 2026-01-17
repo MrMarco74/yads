@@ -74,10 +74,11 @@ class NmapScanner(BaseScannerModule):
         
         if is_root:
             # Full Stealth Mode
-            cmd.extend(["-sS", "-T2", "--scan-delay", "500ms", "-D", "RND:5"])
+            # Reduced delay from 500ms -> 200ms to allow completion within 1h for 1000 ports
+            cmd.extend(["-sS", "-T2", "--scan-delay", "200ms", "-D", "RND:5"])
         else:
             # Unprivileged Mode (Connect Scan)
-            cmd.extend(["-sT", "-T2", "--scan-delay", "500ms"])
+            cmd.extend(["-sT", "-T2", "--scan-delay", "200ms"])
             self.logger.warning("Running Nmap as non-root. Disabling SYN scan and Decoys.")
 
         cmd.append(target)
@@ -85,7 +86,7 @@ class NmapScanner(BaseScannerModule):
         self.logger.info(f"Executing: {' '.join(cmd)}")
         
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = proc.communicate(timeout=900) # 15 min timeout (T2 is slow)
+        stdout, stderr = proc.communicate(timeout=3600) # Increased to 1h for slow T2 scans
         
         if proc.returncode != 0:
             raise Exception(f"Nmap exited with {proc.returncode}: {stderr}")
