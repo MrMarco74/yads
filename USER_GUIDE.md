@@ -431,9 +431,7 @@ To get the most out of YADS, consider these tips:
 
 ## 15. Support
 
-For technical support or to report bugs:
-*   **Internal Wiki**: [Link to internal wiki]
-*   **Email**: `security-team@example.com`
+For technical support or to report bugs: support@yads-security.com
 
 ---
 

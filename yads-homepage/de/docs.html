@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - YADS</title>
+    <link rel="stylesheet" href="../../css/style.css">
+    <style>
+        /* Markdown Overrides */
+        h1 { font-size: 2.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+        h2 { font-size: 1.8rem; margin-top: 3rem; margin-bottom: 1.5rem; scroll-margin-top: 100px; }
+        h3 { font-size: 1.4rem; margin-top: 2rem; color: #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; margin: 2rem 0; }
+        th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
+        th { background: rgba(255,255,255,0.05); }
+        blockquote { border-left: 4px solid var(--accent-primary); padding-left: 1rem; margin: 1.5rem 0; color: #94a3b8; font-style: italic; }
+    </style>
+    <link rel="icon" type="image/png" href="../images/favicon.png">
+</head>
+<body>
+
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">
+                <img src="../images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <span class="text-gradient">YADS</span> Security
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Startseite</a>
+                <a href="product.html">Funktionen</a>
+                <a href="docs.html" class="active">Dokumentation</a>
+                <a href="changes.html">Änderungen</a>
+                <a href="contact.html">Kontakt</a>
+                <a href="https://yads-security.com/en/docs.html" class="lang-switch" style="opacity: 0.7;">🇺🇸 EN</a>
+            </div>
+            <a href="contact.html" class="btn-primary">Demo anfordern</a>
+        </div>
+    </nav>
+
+    <div class="container docs-layout">
+        <aside class="docs-sidebar">
+            <h4 style="margin-bottom: 1rem; color: #fff;">Contents</h4>
+            <ul>
+                <li><a href="#table-of-contents">Table of Contents</a></li>
+<li><a href="#1-introduction">1. Introduction</a></li>
+<li><a href="#2-getting-started">2. Getting Started</a></li>
+<li><a href="#3-dashboard-overview">3. Dashboard Overview</a></li>
+<li><a href="#4-target-management">4. Target Management</a></li>
+<li><a href="#5-running-scans">5. Running Scans</a></li>
+<li><a href="#6-analysis-modules">6. Analysis Modules</a></li>
+<li><a href="#7-osint-brand-monitoring">7. OSINT Brand Monitoring</a></li>
+<li><a href="#8-visualizations">8. Visualizations</a></li>
+<li><a href="#9-data-management--reports">9. Data Management & Reports</a></li>
+<li><a href="#10-user-management--security">10. User Management & Security</a></li>
+<li><a href="#11-multi-tenancy">11. Multi-Tenancy</a></li>
+<li><a href="#12-system-settings--queue">12. System Settings & Queue</a></li>
+<li><a href="#13-best-practices">13. Best Practices</a></li>
+<li><a href="#14-troubleshooting">14. Troubleshooting</a></li>
+<li><a href="#15-support">15. Support</a></li>
+
+            </ul>
+        </aside>
+        <main class="docs-content">
+            <h1>YADS - Comprehensive User Guide</h1>
+<p><strong>Version:</strong> 1.8.0
+<strong>Last Updated:</strong> 2026-01-18</p>
+<p>Welcome to the <strong>YADS (Yet Another Domain Scanner)</strong> manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.</p>
+<hr />
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-introduction">Introduction</a></li>
+<li><a href="#2-getting-started">Getting Started</a></li>
+<li><a href="#3-dashboard-overview">Dashboard Overview</a></li>
+<li><a href="#4-target-management">Target Management</a></li>
+<li><a href="#5-running-scans">Running Scans</a></li>
+<li><a href="#6-analysis-modules">Analysis Modules</a></li>
+<li><a href="#7-osint-brand-monitoring">OSINT Brand Monitoring</a></li>
+<li><a href="#8-visualizations">Visualizations</a></li>
+<li><a href="#9-data-management--reports">Data Management &amp; Reports</a><ul>
+<li><a href="#sensitive-data">Sensitive Data</a></li>
+<li><a href="#email-security">Email Security</a></li>
+<li><a href="#port-exposure">Port Exposure</a></li>
+<li><a href="#technology-drift">Technology Drift</a></li>
+<li><a href="#attack-surface-reduction">Attack Surface Reduction</a></li>
+</ul>
+</li>
+<li><a href="#10-user-management--security">User Management &amp; Security</a></li>
+<li><a href="#11-multi-tenancy">Multi-Tenancy</a></li>
+<li><a href="#12-system-settings--queue">System Settings &amp; Queue</a></li>
+</ol>
+<hr />
+<h2>1. Introduction</h2>
+<p><strong>YADS</strong> is an automated security reconnaissance platform designed to map, analyze, and monitor internet-facing assets. It combines multiple scanning techniques—DNS enumeration, port scanning, web analysis, and vulnerability detection—into a single, easy-to-use interface.</p>
+<h3>Key Features</h3>
+<ul>
+<li><strong>Asset Discovery</strong>: Find subdomains and forgotten infrastructure.</li>
+<li><strong>Vulnerability Scanning</strong>: Detect outdated software (CVEs) and misconfigurations.</li>
+<li><strong>Visual Intelligence</strong>: Capture screenshots and visualize network relationships.</li>
+<li><strong>Continuous Monitoring</strong>: Track changes over time with change detection.</li>
+<li><strong>Multi-User &amp; Multi-Tenant</strong>: Securely manage multiple teams or clients within one instance.</li>
+</ul>
+<hr />
+<h2>2. Getting Started</h2>
+<h3>Accessing the System</h3>
+<p>Navigate to your YADS instance (e.g., <code>https://yads.your-domain.com</code>).
+*   <strong>Login</strong>: Enter your username and password.
+*   <strong>MFA</strong>: If enabled, enter your Time-based One-Time Password (TOTP) from your authenticator app.</p>
+<h3>Interface Preferences</h3>
+<ul>
+<li><strong>Day/Night Mode</strong>: Toggle the Moon/Sun icon in the top navigation bar to switch between Dark (default) and Light themes.</li>
+</ul>
+<h3>First Steps</h3>
+<ol>
+<li><strong>Dashboard</strong>: You will land on the main dashboard showing an overview of your targets.</li>
+<li><strong>Add Target</strong>: Use the input box at the top (or "Add Target" button) to enter a domain (e.g., <code>example.com</code>).</li>
+<li><strong>Run Scan</strong>: Once added, click the "Scan" button to start gathering data.</li>
+</ol>
+<hr />
+<h2>3. Dashboard Overview</h2>
+<p>The Dashboard is your command center.</p>
+<ul>
+<li><strong>Critical Attention HUD</strong>: A prominent alert block at the top highlighting immediate threats (e.g. Expired SSL, Critical Vulnerabilities). If the system is secure, this block will confirm it.</li>
+<li><strong>Stats Cards</strong>: Fast view of Total Targets, Active Scans, and Queue status.</li>
+<li><strong>Target List</strong>: A paginated table of all your monitored domains.<ul>
+<li><strong>Status Indicators</strong>: Shows if a scan is <code>Idle</code>, <code>Queued</code>, <code>Running</code>, or <code>Failed</code>.</li>
+<li><strong>Health Checks</strong>: Quick indicators for SSL status, Online status, and Risk Score.</li>
+</ul>
+</li>
+<li><strong>Live Activity</strong>: The "Active Scans" panel on the right shows real-time progress of running jobs.</li>
+</ul>
+<hr />
+<h2>4. Target Management</h2>
+<h3>Adding Targets</h3>
+<ul>
+<li><strong>Single</strong>: Enter a domain in the dashboard input.</li>
+<li><strong>Bulk Import</strong>: Click the "Import" button to upload a text file (one domain per line) or paste a list.<ul>
+<li><em>Option</em>: "Verify DNS" checks if domains are resolvable before adding them.</li>
+</ul>
+</li>
+</ul>
+<h3>Bulk Actions</h3>
+<p>Select multiple targets using the checkboxes in the table to perform batch operations:
+*   <strong>Bulk Scan</strong>: Trigger specific scan modules for all selected targets.
+*   <strong>Bulk Delete</strong>: Remove targets and their data.</p>
+<h3>Filtering</h3>
+<p>Use the column filters in the <strong>Table View</strong> to find specific targets:
+*   <strong>Filter by Name</strong>: Search for partial domain matches.
+*   <strong>Filter by Status</strong>: Show only <code>Failed</code> or <code>Running</code> scans.
+*   <strong>Filter by Tags</strong>: Organize targets using custom tags.</p>
+<hr />
+<h2>5. Running Scans</h2>
+<p>You can run scans in two modes:</p>
+<h3>Quick Scan</h3>
+<p>Clicking the "Play" button on a target runs the <strong>Default Scan Profile</strong>, which includes:
+*   DNS Enumeration
+*   Web Analysis
+*   SSL Check</p>
+<h3>Custom Scan</h3>
+<p>On the <strong>Target Details</strong> page, click <strong>"New Scan"</strong> to open the advanced selector. You can toggle individual modules:
+*   <strong>Subdomain Recon</strong>: Finds <code>sub.example.com</code>.
+*   <strong>DNS Records</strong>: A/AAAA/MX/TXT records.
+*   <strong>Web Analyzer</strong>: Screenshots, tech stack, and headers.
+*   <strong>Typosquatting</strong>: Checks for phishing domains (e.g., <code>exampel.com</code>).
+*   <strong>CVE Scanner</strong>: Checks detected software against vulnerability databases.
+*   <strong>Port Scan</strong>: Probes common ports (80, 443, 8080, etc.).
+*   <strong>Wayback Machine</strong>: Looks for historical files and endpoints.
+*   <strong>FULL SCAN</strong>: Runs all available modules.</p>
+<h3>Scheduled Scans</h3>
+<p>** (New in v1.8.0)<strong>
+You can automate your reconnaissance by setting up recurring schedules.
+1.  Navigate to the </strong>Schedules<strong> page via the sidebar.
+2.  Click </strong>"Create Schedule"<strong>.
+3.  Select a Target and choose a Frequency (</strong>Daily<strong> or </strong>Weekly<strong>).
+    *   </strong>Daily<strong>: Runs every 24 hours.
+    *   </strong>Weekly**: Runs every 7 days.
+4.  Manage existing schedules (Delete/View Next Run) directly from the list.</p>
+<p><em>Note: Scheduled scans automatically execute the </em><em>FULL SCAN</em><em> profile to ensure comprehensive coverage.</em></p>
+<hr />
+<h2>6. Analysis Modules</h2>
+<h3>Web Analyzer &amp; OSINT</h3>
+<p>Visits the page as a real user.
+*   <strong>Visuals</strong>: Full-page screenshot and favicon.
+*   <strong>Technologies</strong>: Identifies CMS (WordPress), Server (Nginx), and Frameworks.
+*   <strong>OSINT</strong>: Extracts emails, phone numbers, and social media links found on the page.</p>
+<h3>Vulnerability Report (CVEs)</h3>
+<ul>
+<li>Matches version numbers (e.g., "Apache 2.4.49") against known CVEs.</li>
+<li>Displays severity (CVSS) and descriptions.</li>
+<li><em>Note</em>: This logic relies on accurate version detection.</li>
+</ul>
+<h3>Infrastructure Scanner</h3>
+<ul>
+<li><strong>Geo-Location</strong>: Maps the server IP to a physical location.</li>
+<li><strong>ASN Info</strong>: Identifies the hosting provider (e.g., AWS, DigitalOcean).</li>
+<li><strong>Cloud Check</strong>: Detects if the asset is on a major cloud provider.</li>
+<li><strong>Reputation</strong>: Checks IP against spam/malware blacklists.</li>
+</ul>
+<h3>DNS &amp; Subdomain</h3>
+<ul>
+<li><strong>Passive Recon</strong>: Uses public logs (CT) to find subdomains without touching the target.<ul>
+<li><strong>Active Brute-force</strong>: Tries common subdomain names.</li>
+<li><strong>Dangling CNAMEs</strong>: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).</li>
+</ul>
+</li>
+</ul>
+<h3>Vulnerability Scanning (Active)</h3>
+<p><strong>(New in v1.5.0)</strong>
+YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
+*   <strong>Capabilities</strong>: Scans for 5000+ known vulnerabilities (CVEs), misconfigurations, and exposed panels.
+*   <strong>Severity</strong>: Findings are categorized as Critical, High, Medium, Low, or Info.
+*   <strong>Usage</strong>: Select "Nuclei Vulnerability Scan" in the <em>New Scan</em> modal.</p>
+<h3>Stealth Port Scanning</h3>
+<p><strong>(New in v1.5.0)</strong>
+*   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
+*   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.</p>
+<h3>JavaScript SAST</h3>
+<p><strong>(New in v1.5.0)</strong>
+*   <strong>Static Analysis</strong>: Automatically downloads and analyzes client-side JavaScript files.
+*   <strong>Sink Detection</strong>: Identifies potential DOM XSS sinks (e.g. <code>innerHTML</code>, <code>document.write</code>).
+*   <strong>Route Discovery</strong>: Extracts hidden API routes from JS code.</p>
+<h3>API Discovery</h3>
+<p><strong>(New in v1.4.0)</strong>
+Part of the Web Analyzer, this module automatically detects:
+*   <strong>Documentation</strong>: Finds <code>swagger.json</code>, <code>openapi.yaml</code>, and WSDL files.
+*   <strong>Endpoints</strong>: Identifies GraphQL endpoints (<code>/graphql</code>) and versioned REST paths (<code>/api/v1/</code>).
+*   <strong>Results</strong>: displayed in the <strong>Web Analysis</strong> card on the Target Details page.</p>
+<h3>SOC2 Compliance Engine</h3>
+<p><strong>(New in v1.3.5)</strong>
+Real-time scoring of your infrastructure's compliance readiness.
+*   <strong>Score</strong>: Calculated dynamically (0-100%) based on active scan results.
+*   <strong>Penalties</strong>:
+    *   <strong>Expired SSL</strong>: -20 pts
+    *   <strong>Critical CVEs</strong>: -15 pts
+    *   <strong>Risky Ports</strong>: -10 pts (e.g. 21, 23, 3389 open to internet)
+    *   <strong>Public Buckets</strong>: -25 pts
+*   <strong>Insights</strong>: Hover over the score widget on the Dashboard to see specific failings.</p>
+<hr />
+<h2>7. OSINT Brand Monitoring</h2>
+<p><strong>(New in v1.3.2)</strong></p>
+<p>The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.</p>
+<h3>Google Cloud Setup (Prerequisite)</h3>
+<p>To use this feature, your Tenant Admin must configure the <strong>Google Cloud Vision API</strong>:
+1.  <strong>Enable API</strong>: In your Google Cloud Console, enable the <strong>"Cloud Vision API"</strong>.
+2.  <strong>API Key</strong>: Create an API Key in "Credentials".
+    *   <em>Important</em>: If you restrict your API Key (recommended), ensure <strong>Cloud Vision API</strong> is checked in the list of allowed APIs.
+3.  <strong>Billing</strong>: The Cloud Vision API requires an active Billing Account linked to the project (even for the free tier).</p>
+<h3>Reverse Image Search</h3>
+<ol>
+<li><strong>Preparation</strong>: Ensure your Tenant Admin has configured the <strong>Google Cloud Vision API</strong> keys in the Tenant Settings.</li>
+<li><strong>Upload</strong>: Drag and drop your official logo (PNG/JPG) into the search zone.</li>
+<li><strong>Analysis</strong>: The system uses Google's <strong>Vision API (Web Detection)</strong> to find exact copies or visually similar images across the entire web.</li>
+<li><strong>Result Filtering</strong>:<ul>
+<li><strong>Unknown</strong>: Domains not currently in your target list. You can import these with one click.</li>
+<li><strong>Monitored</strong>: Domains you are already tracking.</li>
+</ul>
+</li>
+</ol>
+<h3>License &amp; Quotas</h3>
+<p>This feature is licensed separately per tenant.
+*   <strong>Locked State</strong>: If you see a "Locked" icon in the sidebar, your tenant has not purchased this add-on.
+*   <strong>Usage Limits</strong>: Your admin sets a monthly search quota. If exceeded, searches will be blocked until the next cycle.</p>
+<hr />
+<h2>8. Visualizations</h2>
+<h3>Network Graph</h3>
+<p>An interactive node-graph showing relationships between Domains, IPs, and ASNs.
+*   <strong>Plot Graph</strong>: Click the "Plot Graph" button in the sidebar to fetch and display data.
+*   <strong>Context Messaging</strong>: If no data is available for the selected filters, the system will provide specific feedback (e.g., "Has this target been scanned?").
+*   <strong>Filters</strong>:
+    *   <strong>Show Web Links</strong>: Toggle visibility of HTTP-based edges.
+    *   <strong>Gray out DNS</strong>: Fades DNS connections to gray to highlight the web structure.
+*   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
+*   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
+*   <strong>Zoom/Pan</strong>: Navigate large infrastructures easily.
+*   <strong>Attack Path Visualization</strong> (New in v1.7.0):
+    *   <strong>Toggle</strong>: Switch on "Attack Paths" to highlight risky edges and compromised nodes.
+    *   <strong>Insights</strong>: Visualizes potential lateral movement paths based on vulnerability and network data.</p>
+<h3>Analytics Dashboard</h3>
+<p>High-level metrics for management.
+*   <strong>World Map</strong>: Physical location of all assets.
+    *   <strong>Tech Distribution</strong>: charts showing most common technologies (e.g., "80% Nginx").
+    *   <strong>Risk Overview</strong>: Summary of critical vulnerabilities across the portfolio.</p>
+<h3>Compliance &amp; Grading</h3>
+<p><strong>(Updated in v1.5.2)</strong>
+Found at the top of every <strong>Target Detail</strong> page:
+*   <strong>Security Grade (A-F)</strong>: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
+*   <strong>Risk Factors</strong>: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
+*   <strong>Compliance Gaps</strong>: Maps technical findings to industry standards:
+    *   <strong>OWASP Top 10</strong>: e.g. A05 (Misconfiguration), A02 (Crypto Failures).
+    *   <strong>GDPR / ISO 27001</strong>: Detects PII exposure and secrets.</p>
+<h3>Spiderweb (Redirect Graph)</h3>
+<p>Visualizes redirect chains.
+*   <strong>Entry Points</strong>: See where users land after typing a domain.</p>
+<h3>External Links Analysis</h3>
+<p>The <strong>External Links</strong> view helps you identify third-party dependencies and potential shadow IT.
+- <strong>Access</strong>: Go to <code>Reports &gt; External Links Report</code> or via Analytics.
+- <strong>Purpose</strong>: Lists all domains found during scans (via Crawler or DNS) that are <strong>not</strong> part of your defined Targets.
+- <strong>Features</strong>:
+    - <strong>Scope Awareness</strong>: Automatically excludes your own targets/subdomains.
+    - <strong>Sources</strong>: Shows which of your targets link to the external domain.
+    - <strong>Type</strong>: Indicates if the link was found via a webpage link (<code>link</code>), Mail Exchange record (<code>MX</code>), Nameserver (<code>NS</code>), etc.
+    - <strong>Export</strong>: Click "Export PDF" from the <strong>Reports</strong> page.</p>
+<h3>Dead Links Analysis</h3>
+<p><strong>(New in v1.4.0)</strong>
+Identify health issues within your own inventory.
+- <strong>Access</strong>: Go to <code>Analytics &gt; Dead Links</code>.
+- <strong>Unreachable Targets</strong>: Lists targets that failed recent scans (Offline or Server Error).
+- <strong>Orphaned Targets</strong>: Lists targets in your inventory that are <strong>not linked to</strong> by any other target in your scope. Useful for finding forgotten assets.</p>
+<hr />
+<h2>9. Data Management &amp; Reports</h2>
+<p><strong>(Centralized in v1.5.2)</strong></p>
+<p>YADS provides dedicated reports to help you analyze specific data sets and risks.</p>
+<h3>Sensitive Data</h3>
+<p><strong>Path:</strong> <code>/secrets</code>
+Aggregates findings of exposed API Keys, Credentials, and Configuration files (e.g., <code>.env</code>, backups) detected by Nuclei and Web Analyzer.
+*   <strong>Categories</strong>: Credentials, Configs, PII.
+*   <strong>Action</strong>: Immediately rotate any credential found here.</p>
+<h3>Email Security</h3>
+<p><strong>Path:</strong> <code>/email-security</code>
+Analyzes SPF and DMARC records to identify domains vulnerable to email spoofing.
+*   <strong>Secure</strong>: Strong SPF + DMARC Reject/Quarantine.
+*   <strong>Monitoring</strong>: DMARC Policy is <code>none</code>.
+*   <strong>Vulnerable</strong>: Missing SPF or DMARC records.</p>
+<h3>Port Exposure</h3>
+<p><strong>Path:</strong> <code>/ports</code>
+A dashboard focusing on Nmap results to highlight risky open ports across your infrastructure.
+*   Highlights top open ports (e.g., 22 SSH, 3389 RDP).
+*   Lists all targets with open ports detected in the last scan.</p>
+<h3>Technology Drift</h3>
+<p><strong>Path:</strong> <code>/tech-drift</code>
+A timeline showing when technologies were <strong>Added</strong> or <strong>Removed</strong> from your assets.
+*   Use this to detect "Shadow IT" (e.g., a new Nginx server appearing overnight) or verify maintenance changes.</p>
+<h3>Attack Surface Reduction</h3>
+<p><strong>Path:</strong> <code>/asr</code>
+A "Cleanup List" of assets that should be reviewed for decommissioning.
+*   <strong>Dead Endpoints</strong>: Subdomains returning 404/5xx errors.
+*   <strong>Unconfigured Servers</strong>: Servers showing Default placeholder pages.
+*   <strong>Expired Certs</strong>: SSL Certificates that have expired.</p>
+<h3>Broken Link Hijacking</h3>
+<p><strong>Path:</strong> <code>/analytics/hijacking</code>
+Identifies broken external links (404s) on your assets that are pointing to valid domains.
+*   <strong>Risk</strong>: Attackers can register these domains and hijack the link/script execution.
+*   <strong>Action</strong>: Remove the broken link or register the domain.</p>
+<h3>Technology Radar</h3>
+<p><strong>Path:</strong> <code>/analytics/tech-radar</code>
+A visual breakdown of the technology stack usage across your portfolio.
+*   <strong>Categories</strong>: Servers, Frameworks, CMS.
+*   <strong>Usage</strong>: Identify outdated tech or unauthorized software stacks.</p>
+<h3>Exporting Data</h3>
+<p>You can export scan results...2)**</p>
+<p>All system exports are now consolidated under the <strong>Reports</strong> page in the sidebar.</p>
+<h3>Available Reports</h3>
+<ul>
+<li><strong>Infrastructure Executive Summary</strong>: A professional PDF report detailing cloud providers, geographic distribution, and critical risks across your tenant.</li>
+<li><strong>Compliance Report</strong>: An interactive detailed breakdown of your SOC2 readiness score with an actionable "Improvement Plan" checklist.</li>
+<li><strong>External Links Report</strong>: PDF export of third-party domains linked to your infrastructure.</li>
+</ul>
+<h3>Data Exports</h3>
+<ul>
+<li><strong>Target CSV</strong>: Download your entire raw target inventory (Domain, Status, Last Scan) as a CSV file.</li>
+<li><strong>Excel Export</strong>: The Target Overview page features an expanded Excel export including all UI columns.</li>
+<li><strong>Backup</strong>: Admin users can export the entire database and assets as a ZIP file from the Settings page.</li>
+</ul>
+<h3>System Logs</h3>
+<ul>
+<li><strong>View Logs</strong>: Admins can inspect real-time application and worker logs for troubleshooting.</li>
+<li><strong>Stream</strong>: The log viewer updates live as scans progress.</li>
+</ul>
+<hr />
+<h2>10. User Management &amp; Security</h2>
+<p><em>(Admin Only)</em></p>
+<h3>Managing Users</h3>
+<p>Go to <strong>Users</strong> in the navbar.
+*   <strong>Create User</strong>: Define username, password, and initial role.
+*   <strong>Roles</strong>:
+    *   <strong>Viewer</strong>: Read-only access to dashboards.
+    *   <strong>Scanner</strong>: Can add targets and run scans.
+    *   <strong>Admin</strong>: Full system access, including settings and user management.</p>
+<h3>Multi-Factor Authentication (MFA)</h3>
+<ul>
+<li>Users can enable 2FA in their profile.</li>
+<li>Admins can see who has MFA enabled but cannot disable it for them (users must reset if lost, or Admin deletes user).</li>
+</ul>
+<h3>Tenant Assignment</h3>
+<ul>
+<li>Assign users to specific <strong>Tenants</strong> to isolate their view. A user assigned to "Client A" will only see targets belonging to "Client A".</li>
+</ul>
+<hr />
+<h2>11. Multi-Tenancy</h2>
+<p>YADS supports multiple isolated environments (Tenants).
+*   <strong>Isolation</strong>: Targets, Results, and Users are scoped to a Tenant.
+*   <strong>Switching</strong>: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
+*   <strong>Management</strong>: Admins can rename tenants and manage memberships via the <strong>Tenants</strong> page.
+*   <strong>Platform Admin</strong>: An Admin without a specific tenant sees <em>everything</em> and can manage the tenants themselves.</p>
+<h3>Webhook Notifications</h3>
+<p><strong>(New in v1.4.0)</strong>
+Tenants can configure real-time webhooks to integrate with external systems (Slack, Discord, Tines, etc.).
+1.  Go to <strong>Tenant Settings</strong>.
+2.  Scroll to the <strong>Webhook Notifications</strong> card.
+3.  Add a URL and select events (e.g., <code>scan_finished</code>, <code>new_asset</code>).
+4.  Use the <strong>Test</strong> button to verify connectivity.</p>
+<hr />
+<h2>12. System Settings &amp; Queue</h2>
+<p><em>(Admin Only)</em></p>
+<h3>Queue Control</h3>
+<ul>
+<li><strong>Pause/Resume</strong>: Stop the background worker from processing new scans. The worker will check for the Resume signal every 60 seconds.</li>
+<li><strong>Clear Queue</strong>: PANIC BUTTON. Cancels all pending and running scans and resets their status to "Idle" in the database. Use this if the system gets stuck.</li>
+<li><strong>System Reset</strong>: Reverts the system to a "Clean State". This removes all scan data and tenants, but preserves user accounts and system configurations.</li>
+</ul>
+<h3>Configuration</h3>
+<ul>
+<li><strong>Web Timeout</strong>: Set global timeout for HTTP requests (default: 10s).</li>
+<li><strong>Concurrent Limits</strong>: Define how many headers scanners run in parallel.</li>
+</ul>
+<hr />
+<h2>13. Best Practices</h2>
+<p>To get the most out of YADS, consider these tips:</p>
+<blockquote>
+<p><strong>💡 Pro Tip</strong>: Schedule regular scans during off-peak hours to minimize network impact.</p>
+</blockquote>
+<ol>
+<li><strong>Tagging</strong>: Use tags creatively (e.g., <code>prod</code>, <code>dev</code>, <code>critical</code>) to organize targets.</li>
+<li><strong>Regular Reviews</strong>: Check the <strong>Analytics</strong> page weekly to spot trends in vulnerability counts.</li>
+<li><strong>Scope Definition</strong>: Be careful when adding root domains (e.g., <code>company.com</code>) as the <strong>Subdomain Recon</strong> module might find hundreds of assets.</li>
+</ol>
+<hr />
+<h2>14. Troubleshooting</h2>
+<h3>Common Issues</h3>
+<h4>🛑 Scan stuck in "Pending"</h4>
+<ul>
+<li><strong>Cause</strong>: The background worker might be paused or overloaded.</li>
+<li><strong>Fix</strong>: Check <strong>Settings &gt; Queue Control</strong> and ensure the queue is active. Check <strong>active workers</strong> count. The worker auto-heals every 60 seconds if it was paused.</li>
+</ul>
+<h4>⚠️ "Web Analyzer" failed</h4>
+<ul>
+<li><strong>Cause</strong>: Target might be offline or blocking the scanner.</li>
+<li><strong>Fix</strong>: Try visiting the URL manually. Adjust <strong>Web Request Timeout</strong> in settings if the site is slow.</li>
+</ul>
+<h4>🚫 MFA Code Rejected</h4>
+<ul>
+<li><strong>Cause</strong>: Time drift on the server or client.</li>
+<li><strong>Fix</strong>: Ensure your server time is synced via NTP.</li>
+</ul>
+<hr />
+<h2>15. Support</h2>
+<p>For technical support or to report bugs: support@yads-security.com</p>
+<hr />
+<p><em>Verified for YADS v1.8.0</em></p>
+        </main>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 YADS Security. Alle Rechte vorbehalten.</p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="impressum.html">Impressum</a> | 
+                <a href="datenschutz.html">Datenschutz</a> | 
+                <a href="haftungsausschluss.html">Haftungsausschluss</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Add IDs to H2s for linking
+        document.querySelectorAll("h2").forEach(h2 => {
+            const id = h2.textContent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            h2.id = id;
+        });
+        // Correct TOC links
+         document.querySelectorAll(".docs-sidebar a").forEach(a => {
+            const targetId = a.getAttribute("href").replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            a.setAttribute("href", "#" + targetId);
+        });
+    </script>
+</body>
+</html>
