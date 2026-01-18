@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.7.0"
+    VERSION: str = "1.8.0"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")
@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     # Authentication & Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "changeme_in_production_please_super_secret")
     ALGORITHM: str = "HS256"
+    ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # Default to 1 hour, configurable by Admin via SystemConfig later potentially
+    MFA_ENABLED: bool = os.getenv("MFA_ENABLED", "true").lower() == "true"
     
     class Config:
         env_file = ".env"

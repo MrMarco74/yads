@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, Response, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
@@ -55,7 +55,7 @@ async def login(
         })
 
     # MFA Check
-    if user.mfa_enabled:
+    if user.mfa_enabled and settings.MFA_ENABLED:
         # Determine Window
         window = 1
         window_conf = session.get(SystemConfig, "OTP_VALID_WINDOW")
@@ -238,11 +238,14 @@ async def change_password_action(
 async def switch_tenant(
     request: Request,
     tenant_id: str = Form(...), # str because it needs parsing to int or checking for empty
+    next_url: Optional[str] = Query(None, alias="next"),
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ):
     # Determine Referer to redirect back
     referer = request.headers.get("referer", "/")
+    # Prioritize next_url if provided
+    redirect_target = next_url if next_url else referer
     # Prevent redirect loops if referer causes issues? Usually fine.
     
     # Check if tenant_id is valid
@@ -264,14 +267,17 @@ async def switch_tenant(
              current_user.tenant_id = None
              session.add(current_user)
              session.commit()
-             return RedirectResponse(url=referer, status_code=303)
+             current_user.tenant_id = None
+             session.add(current_user)
+             session.commit()
+             return RedirectResponse(url=redirect_target, status_code=303)
         else:
-             return RedirectResponse(url=referer + "?error=Not+authorized", status_code=303)
+             return RedirectResponse(url=redirect_target + "?error=Not+authorized", status_code=303)
 
     try:
         tid = int(tenant_id)
     except ValueError:
-        return RedirectResponse(url=referer + "?error=Invalid+Tenant+ID", status_code=303)
+        return RedirectResponse(url=redirect_target + "?error=Invalid+Tenant+ID", status_code=303)
 
     # Check authorization
     # Platform Admin (temporarily in a tenant context) should be able to switch to any tenant?
@@ -305,11 +311,11 @@ async def switch_tenant(
         current_user.tenant_id = tid
         session.add(current_user)
         session.commit()
-        return RedirectResponse(url=referer, status_code=303)
+        return RedirectResponse(url=redirect_target, status_code=303)
         
     # Also handle Case where Admin is currently in a tenant (so tenant_id is NOT None)
     # but wants to switch to another. They might not have a link if they "impersonated" it?
     # For now, stay strict: Must have link OR be currently NULL tenant (Platform Root).
     # If they are stuck in a tenant, they rely on the link.
     
-    return RedirectResponse(url=referer + "?error=Access+Denied+to+Tenant", status_code=303)
+    return RedirectResponse(url=redirect_target + "?error=Access+Denied+to+Tenant", status_code=303)

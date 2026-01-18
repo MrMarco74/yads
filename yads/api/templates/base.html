@@ -70,7 +70,8 @@
 
                 <!-- Tenant Switcher -->
                 {% if user.allowed_tenants or user.role == 'admin' %}
-                <form action="/auth/switch-tenant?next={{ request.path }}" method="post" class="flex items-center gap-2 border border-slate-700/50 rounded-lg px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 transition-colors">
+                {% set next_full_path = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+                <form action="/auth/switch-tenant?next={{ next_full_path|urlencode }}" method="post" class="flex items-center gap-2 border border-slate-700/50 rounded-lg px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 transition-colors">
                     <label class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Context</label>
                     <div class="relative">
                         <select name="tenant_id" onchange="this.form.submit()" class="appearance-none bg-transparent text-xs text-slate-300 font-medium pr-6 outline-none focus:text-cyan-400 cursor-pointer">

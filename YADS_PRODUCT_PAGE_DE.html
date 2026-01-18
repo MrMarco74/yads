@@ -162,204 +162,151 @@
     <!-- Hero -->
     <header>
         <div class="container">
-            <span class="hero-badge animate-up">YADS v1.7.0 ist live</span>
-            <h1 class="animate-up delay-1">Sicherheit, die man <span class="text-gradient">sehen</span> kann.</h1>
+            <span class="hero-badge animate-up">YADS v1.8.0 ist live</span>
+            <h1 class="animate-up delay-1">Next-Gen <span class="text-gradient">Attack Surface Management</span>.</h1>
             <p class="animate-up delay-2" style="max-width: 700px; margin: 1.5rem auto;">
-                Schluss mit unübersichtlichen Tabellen. YADS ist die moderne Reconnaissance-Platform für Teams, die ihre Attack Surface verstehen, analysieren und absichern wollen. Modular. Skalierbar. Open Source.
+                Sichern Sie Ihre digitale Infrastruktur mit automatisierter Aufklärung, tiefgehender Vulnerability-Analyse und visueller Intelligenz.
             </p>
             <a href="#features" class="btn animate-up delay-2">Plattform erkunden</a>
 
             <div class="screenshot-container animate-up delay-2">
-                <img src="product_screenshots/dashboard_dark.png" alt="YADS Dashboard Interface">
+                <img src="product_screenshots/dashboard_hero.png" alt="YADS Dashboard Übersicht">
             </div>
         </div>
     </header>
 
-    <!-- Core Philosophy / Intro -->
+    <!-- Intro -->
     <section id="intro">
         <div class="container text-center">
-            <h2>Mehr als nur ein Port-Scanner</h2>
-            <p style="max-width: 800px; margin: 0 auto;">
-                YADS aggregiert Daten aus verschiedensten Quellen zu einem <strong>Single Pane of Glass</strong>. 
-                Es wurde entwickelt, um die Lücke zwischen manueller Penetration-Testing-Recherche und vollautomatisiertem Vulnerability Management zu schließen. 
-                Vom ersten DNS-Request bis zum fertigen Management-Report – alles in einer UI.
+            <h2>Warum YADS?</h2>
+            <p style="max-width: 800px; margin: 0 auto; margin-bottom: 3rem;">
+                YADS ist eine All-in-One-Sicherheitsplattform für moderne DevSecOps-Teams, Penetrationstester und MSSPs. Es automatisiert den mühsamen Prozess der Aufklärung und liefert handlungsrelevante Erkenntnisse in Echtzeit.
             </p>
-        </div>
-    </section>
-
-    <!-- Scan Engine Deep Dive -->
-    <section>
-        <div class="container">
-            <h2>🛡️ Die Scanning Engine</h2>
-            <p>Unter der Haube arbeitet ein leistungsstarkes, modulares Framework, das kontinuierlich erweitert wird. Wählen Sie präzise, welche Tests für welches Asset laufen sollen.</p>
             
-            <div class="scan-types">
+            <div class="grid-2">
                 <div class="feature-card">
-                    <h4><span class="tag tag-core">CORE</span> Reconnaissance</h4>
-                    <p>Die Basis jeder Sicherheitsanalyse. YADS findet, was Sie vergessen haben.</p>
-                    <ul>
-                        <li><strong>Subdomain Enumeration:</strong> Passive (CT Logs) & aktive Brute-Force Methoden.</li>
-                        <li><strong>DNS Analyse:</strong> A, AAAA, MX, TXT, NS Records und Zone Transfers.</li>
-                        <li><strong>Port Scanning:</strong> TCP/UDP Scans auf die Top 1000 Ports oder Full-Range.</li>
-                    </ul>
+                    <h4>Umfassend</h4>
+                    <p style="margin:0;">Von DNS-Enumeration bis zu Web-App-Vulns – alles in einem Tool.</p>
                 </div>
-
                 <div class="feature-card">
-                    <h4><span class="tag tag-core">WEB</span> Web Analyzer</h4>
-                    <p>Simuliert einen echten User-Besuch mit einem Headless-Browser.</p>
-                    <ul>
-                        <li><strong>Tech Stack Detection:</strong> Erkennt CMS, Frameworks (React, Vue), Webserver (Nginx, Apache).</li>
-                        <li><strong>Screenshot Engine:</strong> Automatische Full-Page Screenshots für visuelle Verifikation.</li>
-                        <li><strong>Header Analyse:</strong> Prüft Security Headers (HSTS, CSP, X-Frame-Options).</li>
-                        <li><strong>API Discovery:</strong> Findet Swagger/OpenAPI Specs und GraphQL Endpunkte.</li>
-                    </ul>
-                </div>
-
-                <div class="feature-card">
-                    <h4><span class="tag tag-new">NEU</span> Vulnerability & DAST</h4>
-                    <p>Aktive Suche nach bekannten Schwachstellen.</p>
-                    <ul>
-                        <li><strong>Nuclei Integration:</strong> Template-basiertes Scannen auf 5000+ CVEs und Misconfigurations.</li>
-                        <li><strong>JS SAST:</strong> Statische Analyse von Client-Side JavaScript auf Secrets und DOM XSS Sinks.</li>
-                        <li><strong>Stealth Mode:</strong> Langsame, fragmentierte Scans zur Umgehung von WAFs und IDS.</li>
-                    </ul>
+                    <h4>Automatisiert</h4>
+                    <p style="margin:0;">Planen Sie Scans täglich oder wöchentlich. "Set and Forget".</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Visualizations -->
-    <section>
+    <!-- Features -->
+    <section id="features">
         <div class="container">
-            <div class="grid-2">
+            <h2>✨ Hauptfunktionen</h2>
+            
+            <!-- 1. Asset Discovery -->
+            <div class="grid-2" style="margin-bottom: 4rem;">
                 <div>
-                    <h2>🕸️ Visualisierung komplexer Daten</h2>
-                    <h3>Network Graph</h3>
-                    <p>
-                        In großen Infrastrukturen verliert man schnell den Überblick. Der Network Graph macht Zusammenhänge sofort sichtbar via <strong>Force-Directed Graph</strong>.
-                    </p>
-                    <ul>
-                        <li><strong>Relationship Mapping:</strong> Sehen Sie, welche Domains auf derselben IP hosten.</li>
-                        <li><strong>Proaktives Clustering:</strong> Erkennen Sie Schatten-IT Cluster sofort.</li>
-                        <li><strong>Filter:</strong> Blenden Sie DNS-Layer aus, um sich auf Web-Verbindungen zu konzentrieren.</li>
-                    </ul>
+                     <h3>1. Asset Discovery & Inventory</h3>
+                     <p>Verlieren Sie nie wieder den Überblick über Ihre externe Angriffsfläche.</p>
+                     <ul>
+                         <li><strong>Subdomain Enumeration:</strong> Findet versteckte und vergessene Subdomains (z.B. <code>dev.company.com</code>).</li>
+                         <li><strong>Technology Fingerprinting:</strong> Erkennt automatisch CMS, Webserver und Frameworks.</li>
+                         <li><strong>Cloud Infrastructure:</strong> Identifiziert Hosting-Provider und Geo-Locations.</li>
+                     </ul>
                 </div>
-                <div class="screenshot-container">
-                    <img src="product_screenshots/network_graph.png" alt="Netzwerk Graph Visualisierung">
+                <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/assets_list.png" alt="Asset Inventory">
                 </div>
             </div>
 
-            <!-- Attack Path -->
-            <div class="grid-2" style="margin-top: 6rem;">
-                 <div class="screenshot-container">
-                    <img src="product_screenshots/network_attack_path.png" alt="Netzwerk Graph Visualisierung">
+            <!-- 2. Vulnerability Scanning -->
+            <div class="feature-card" style="margin-bottom: 4rem;">
+                <div style="text-align: center; max-width: 800px; margin: 0 auto;">
+                    <h3>2. Deep Vulnerability Scanning</h3>
+                    <p>Integriert branchenführende Scanner für maximale Abdeckung.</p>
                 </div>
-                <div>
-                    <h3>🚀 Attack Path Visualization (NEU)</h3>
-                    <p>
-                        Nicht alle Schwachstellen sind gleich gefährlich. YADS kombiniert Netzwerk-Topologie mit Vulnerability-Daten, um <strong>Attack Paths</strong> zu visualisieren.
-                    </p>
-                    <ul>
-                        <li><strong>Identifizierung kritischer Pfade:</strong> Sehen Sie sofort, wie ein Angreifer von einem "low-risk" Asset zu Ihrer Kronjuwelen gelangen könnte.</li>
-                        <li><strong>Priorisierung:</strong> Fokussieren Sie Ihre Ressourcen auf die Schließung von Pfaden, die echten Schaden anrichten können.</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Analytics & Intelligence -->
-    <section>
-        <div class="container">
-            <div class="grid-2">
-                <div class="screenshot-container">
-                    <img src="product_screenshots/tech_radar.png" alt="Analytics Dashboard">
-                </div>
-                <div>
-                    <h2>📊 Analytics & Insights</h2>
-                    <p>Daten sind gut, Verständnis ist besser. Unsere Analytics-Suite aggregiert Millionen von Datenpunkten zu handlungsrelevanten Informationen.</p>
-                    
-                    <div class="feature-card">
-                        <h4>Geo- & Tech-Intelligence</h4>
-                        <p>Wo stehen Ihre Server physikalisch? Welche Länder hosten Ihre kritischen Daten? Das <strong>Technology Radar</strong> zeigt Ihnen sofort, welche Webserver-Versionen Ihr Netzwerk dominieren.</p>
+                <div class="scan-types">
+                    <div>
+                        <h4>Nuclei Integration</h4>
+                        <p>Scannt nach über 5000+ bekannten CVEs und Fehlkonfigurationen.</p>
                     </div>
-
-                    <div class="feature-card">
-                        <h4>Dead Links & Hijacking</h4>
-                        <p>
-                            Finden Sie "tote" Links in Ihren Anwendungen. YADS identifiziert zudem 
-                            <strong>Broken Link Hijacking</strong> Kandidaten: Externe Links, die auf nicht mehr existente Domains zeigen und von Angreifern registriert werden können.
-                        </p>
-                         <img src="product_screenshots/hijacking.png" class="mt-4 rounded border border-slate-700 w-full" alt="Hijacking Report">
+                    <div>
+                        <h4>Stealth Port Scanning</h4>
+                        <p>Erkennt offene Ports, ohne IDS/IPS auszulösen.</p>
+                    </div>
+                    <div>
+                        <h4>JavaScript SAST</h4>
+                        <p>Analysiert Client-Side JS auf DOM XSS und sensitive API-Keys.</p>
                     </div>
                 </div>
             </div>
+
+            <!-- 3. Visual Intelligence -->
+            <div class="grid-2" style="margin-bottom: 4rem;">
+                 <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/network_graph.png" alt="Network Graph Visualization">
+                </div>
+                <div>
+                     <h3>3. Visuelle Intelligenz & Network Graph</h3>
+                     <p>Daten sind nutzlos, wenn man sie nicht versteht. YADS macht Zusammenhänge sichtbar.</p>
+                     <ul>
+                         <li><strong>Interaktiver Netzwerk-Graph:</strong> Visualisiert Verbindungen zwischen Domains, IPs und ASNs.</li>
+                         <li><strong>Attack Path Visualization:</strong> Hebt riskante Pfade und Kompromittierungsketten hervor.</li>
+                         <li><strong>OSINT Brand Monitoring:</strong> Findet unautorisierte Nutzung Ihrer Logos im Web.</li>
+                     </ul>
+                </div>
+            </div>
+
+            <!-- 4. Compliance -->
+             <div class="grid-2" style="margin-bottom: 4rem;">
+                <div>
+                     <h3>4. Compliance & Reporting</h3>
+                     <p>Verwandeln Sie technische Daten in Management-taugliche Berichte.</p>
+                     <ul>
+                         <li><strong>SOC2 Readiness Score:</strong> Echtzeit-Bewertung Ihrer Compliance (0-100%).</li>
+                         <li><strong>Security Grading:</strong> Automatische Benotung (A-F) für jedes Asset.</li>
+                         <li><strong>PDF Exports:</strong> Erstellen Sie professionelle Executive Reports auf Knopfdruck.</li>
+                     </ul>
+                </div>
+                 <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/compliance_report.png" alt="Compliance Dashboard">
+                </div>
+            </div>
+
         </div>
     </section>
 
-    <!-- OSINT -->
+    <!-- Tech Highlights -->
     <section>
         <div class="container text-center">
-            <h2>🕵️ OSINT Brand Monitoring</h2>
-            <p style="margin-bottom: 3rem;">
-                Ihre Marke endet nicht auf Ihren eigenen Servern. YADS nutzt die <strong>Google Cloud Vision API</strong>, um das Internet nach visuellen Kopien Ihrer Logos und Assets zu durchsuchen.
-            </p>
-            <div class="screenshot-container" style="max-width: 900px; margin: 0 auto;">
-                <img src="product_screenshots/screencapture-localhost-8000-osint-2026-01-15-11_28_26.png" alt="OSINT Brand Monitoring">
-            </div>
-            <div class="grid-2" style="margin-top: 3rem; text-align: left;">
-                <div class="feature-card">
-                    <h4>Phishing Detection</h4>
-                    <p>Finden Sie betrügerische Seiten, die Ihr Design kopieren, noch bevor eine Domain-Blacklist sie erfasst.</p>
-                </div>
-                <div class="feature-card">
-                    <h4>Schatten-Marketing</h4>
-                    <p>Entdecken Sie alte Marketing-Landingpages von Agenturen, die nie abgeschaltet wurden.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Management & Reporting -->
-    <section>
-        <div class="container">
-            <h2>📑 Reporting & Management</h2>
+            <h2>🛡️ Technische Highlights</h2>
             <div class="scan-types">
                 <div class="feature-card">
-                    <h4>Multi-Tenancy</h4>
-                    <p>Ideal für MSPs und Konzerne. Trennen Sie Daten strikt nach Mandanten (Kunden/Abteilungen), behalten Sie aber als Platform-Admin den Gesamtüberblick.</p>
+                    <h4>Docker-Native</h4>
+                    <p>Einfaches Deployment mit <code>docker-compose</code>.</p>
                 </div>
                 <div class="feature-card">
-                    <h4>Scheduling & Automation</h4>
-                    <p>"Set and Forget". Definieren Sie Scan-Intervalle (Täglich, Wöchentlich) und Compliance-Policies. Lassen Sie YADS arbeiten.</p>
-                </div>
-                 <div class="feature-card">
-                    <h4>Day/Night Mode</h4>
-                    <p>Augenfreundlich. Wechseln Sie nahtlos zwischen Light- und Dark-Mode für lange Analyse-Sessions.</p>
+                    <h4>RBAC</h4>
+                    <p>Granulare Rechtevergabe für Admins, Scanner und Viewer.</p>
                 </div>
                 <div class="feature-card">
-                    <h4>Export Formate</h4>
-                    <p>
-                        <strong>PDF Management Summary:</strong> Hochglanz-Reports für das C-Level.<br>
-                        <strong>Excel/CSV Raw Data:</strong> Vollständige Datensätze für Analysten und Import in SIEM-Systeme.
-                    </p>
+                    <h4>High Performance</h4>
+                    <p>Parallele Verarbeitung mit Celery und Redis.</p>
                 </div>
             </div>
-            <div class="screenshot-container">
-                <img src="product_screenshots/screencapture-localhost-8000-schedule-2026-01-15-11_25_19.png" alt="Scheduling Interface">
-            </div>
+             <p style="margin-top: 3rem; font-style: italic;">
+                "YADS hat unsere Recon-Zeit von Tagen auf Minuten reduziert."
+            </p>
         </div>
     </section>
 
-    <!-- CTA / Footer -->
+    <!-- Footer -->
     <footer>
         <div class="container">
-            <h2>Bereit für den besseren Überblick?</h2>
-            <p>Installieren Sie YADS in weniger als 5 Minuten via Docker.</p>
+            <h2>Bereit, Ihre Angriffsfläche zu sichern?</h2>
             <br>
-            <a href="#" class="btn">Dokumentation lesen</a>
+            <a href="USER_GUIDE.md" class="btn">Dokumentation ansehen</a>
+            <a href="mailto:sales@yads-security.com" class="btn" style="background: transparent; border: 1px solid var(--primary);">Kontakt aufnehmen</a>
             <hr style="margin: 4rem 0; border-color: var(--border);">
-            <p>&copy; 2026 YADS Security Project. Open Source & Proud.</p>
+            <p>&copy; 2026 YADS Security Project</p>
         </div>
     </footer>
 

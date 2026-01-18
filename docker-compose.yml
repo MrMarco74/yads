@@ -12,6 +12,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
+      - MFA_ENABLED=false
     volumes:
       - ./logs:/app/logs
       - .:/app

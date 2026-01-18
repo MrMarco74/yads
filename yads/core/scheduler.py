@@ -1,121 +1,82 @@
-import asyncio
+import time
 import logging
 from datetime import datetime, timedelta
-from sqlmodel import Session, select, create_engine
-from celery import Celery
-
+from sqlmodel import Session, select
+from yads.database import engine
+from yads.models import ScanSchedule, Target, ScanResult
 from yads.config import settings
-from yads.models import ScanSchedule, Target, SystemConfig
-from yads.core.splunk_logger import splunk_logger
 
-# Use existing DB engine from config
-engine = create_engine(settings.DATABASE_URL)
-
-# Connect to Celery for triggering tasks
-# We use the same broker URL as defined in settings
-celery_app = Celery("yads_scheduler", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-
+# Configure Scheduler Logger
 logger = logging.getLogger("yads.scheduler")
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
-from yads.core.tenant_logger import TenantLogger
-
-class ScanScheduler:
-    def __init__(self):
-        self.running = False
-
-    async def start(self):
-        self.running = True
-        logger.info("[Scheduler] Service Started.")
-        splunk_logger.send_event({"action": "SCHEDULER_STARTUP"}, sourcetype="yads:scheduler")
-        
-        while self.running:
-            try:
-                await self.tick()
-            except Exception as e:
-                logger.error(f"[Scheduler] Tick failed: {e}")
-                splunk_logger.send_event({
-                    "action": "SCHEDULER_ERROR",
-                    "error": str(e)
-                }, sourcetype="yads:scheduler:error")
-            
-            # Sleep for 60 seconds
-            await asyncio.sleep(60)
-
-    async def tick(self):
-        """
-        Main scheduler loop. Checks DB for due tasks.
-        """
-        now = datetime.utcnow()
-        
-        with Session(engine) as session:
-            # Check Master Switch
-            conf = session.get(SystemConfig, "SCHEDULER_ACTIVE")
-            if conf and conf.value == "false":
-                # Scheduler Paused
-                return
-
-            # Find Due Schedules
-            # next_run_at <= NOW and is_active = True
-            query = select(ScanSchedule).where(
-                ScanSchedule.next_run_at <= now,
-                ScanSchedule.is_active == True
-            )
-            due_schedules = session.exec(query).all()
-            
-            if not due_schedules:
-                return
-
-            logger.info(f"[Scheduler] Found {len(due_schedules)} due schedules.")
-            
-            for schedule in due_schedules:
-                target = schedule.target
-                session.refresh(target) # Ensure relationships loaded if needed
-                
-                if not target:
-                    logger.warning(f"[Scheduler] Schedule {schedule.id} has no target.")
-                    continue
-                
-                # Use Tenant Logger for Context
-                t_logger = TenantLogger(logger, target.tenant_id)
-                t_logger.info(f"[Scheduler] Triggering schedule {schedule.id} for {target.domain}")
-                
-                # 1. Trigger Task
-                # Using send_task to decouple from worker code import if possible, 
-                # but we know the task name: "yads.worker.run_all_scans"
-                task_args = [target.id, target.domain, None] # None = All Scans
-                
-                task = celery_app.send_task("yads.worker.run_all_scans", args=task_args)
-                
-                # 2. Log Event (Splunk)
-                splunk_logger.send_security_event(
-                    action="scheduled_scan_triggered",
-                    user="system:scheduler",
-                    mitre_id="TA0000", # Automation
-                    details={
-                        "schedule_id": schedule.id,
-                        "target_id": target.id,
-                        "domain": target.domain,
-                        "task_id": task.id
-                    },
-                    tenant_id=target.tenant_id
+def run_scheduler_loop(celery_app):
+    """
+    Main loop for the scheduler.
+    Intended to be run in a separate thread/process.
+    """
+    logger.info("Scheduler Service Started.")
+    
+    while True:
+        try:
+            with Session(engine) as session:
+                # 1. Fetch Due Schedules
+                now = datetime.utcnow()
+                statement = select(ScanSchedule).where(
+                    ScanSchedule.is_active == True,
+                    ScanSchedule.next_run_at <= now
                 )
-
-                # 3. Calculate Next Run
-                # Simple logic for MVP: Daily = +24h, Weekly = +7d
-                # IMPORTANT: Base calculation on 'now' to avoid drift if server was down, 
-                # OR base on 'next_run_at' to keep strict schedule?
-                # User usually prefers 'now + interval' to avoid burst of catch-up jobs.
+                due_schedules = session.exec(statement).all()
                 
-                if schedule.frequency == "daily":
-                    schedule.next_run_at = now + timedelta(days=1)
-                elif schedule.frequency == "weekly":
-                    schedule.next_run_at = now + timedelta(weeks=1)
-                else:
-                    # Default backup
-                    schedule.next_run_at = now + timedelta(days=1)
+                if due_schedules:
+                    logger.info(f"Checking schedules... Found {len(due_schedules)} due.")
                 
-                schedule.last_run_at = now
-                session.add(schedule)
+                for schedule in due_schedules:
+                    target = schedule.target
+                    if not target:
+                        logger.warning(f"Schedule {schedule.id} has no associated target. Removing.")
+                        session.delete(schedule)
+                        session.commit()
+                        continue
+                        
+                    logger.info(f"Triggering scheduled scan for {target.domain} (Frequency: {schedule.frequency})")
+                    
+                    # 2. Trigger Scan
+                    # Defaulting to a standard set of scans for scheduled jobs
+                    scan_types = [
+                        "subdomain_scanner", "dns_scanner", "web_analyzer", 
+                        "ssl_scanner", "nuclei_scanner", "port_scanner"
+                    ]
+                    
+                    # Send Task to Celery
+                    celery_app.send_task(
+                        "yads.worker.run_all_scans", 
+                        args=[target.id, target.domain, scan_types]
+                    )
+                    
+                    # 3. Update Schedule
+                    schedule.last_run_at = now
+                    
+                    # Calculate Next Run
+                    if schedule.frequency == "daily":
+                        schedule.next_run_at = now + timedelta(days=1)
+                    elif schedule.frequency == "weekly":
+                        schedule.next_run_at = now + timedelta(weeks=1)
+                    else:
+                        # Default fallback
+                        schedule.next_run_at = now + timedelta(days=1)
+                        
+                    session.add(schedule)
+                    session.commit()
+                    logger.info(f"Rescheduled {target.domain} for {schedule.next_run_at}")
+                    
+        except Exception as e:
+            logger.error(f"Scheduler Loop Error: {e}")
             
-            session.commit()
-            logger.info("[Scheduler] Tick complete. Schedules updated.")
+        # Sleep Check Interval (e.g. 60 seconds)
+        time.sleep(60)

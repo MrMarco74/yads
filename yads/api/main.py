@@ -167,12 +167,6 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Database not ready... retrying ({i+1}/{max_retries})")
             time.sleep(2)
             
-    # --- Start Scheduler (Background Task) ---
-    from yads.core.scheduler import ScanScheduler
-    scheduler = ScanScheduler()
-    import asyncio
-    asyncio.create_task(scheduler.start())
-
     yield
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
@@ -229,7 +223,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search
 app.include_router(analytics.router)
 app.include_router(analytics.ui_router)
 app.include_router(auth.router)
@@ -252,6 +246,7 @@ app.include_router(tech_drift.router)
 app.include_router(cert_timeline.router)
 app.include_router(asr.router)
 app.include_router(cloud_assets.router)
+app.include_router(search.router)
 
 
 @app.exception_handler(LoginRequiredException)
