@@ -122,9 +122,10 @@ async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(g
     # 1c. Targets
     session.exec(text(f"DELETE FROM target WHERE tenant_id = {tenant_id}"))
     
-    # 2. Delete Tenant Resources (Webhooks, User Links)
+    # 2. Delete Tenant Resources (Webhooks, User Links, Trends)
     session.exec(text(f"DELETE FROM webhook WHERE tenant_id = {tenant_id}"))
     session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id = {tenant_id}"))
+    session.exec(text(f"DELETE FROM securitytrend WHERE tenant_id = {tenant_id}"))
     
     # 3. Delete Users (excluding Platform Admins)
     session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id = {tenant_id} AND role != 'admin'"))

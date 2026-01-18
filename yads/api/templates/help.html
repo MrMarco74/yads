@@ -1,74 +1,198 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-    <div class="bg-gray-800 shadow rounded-lg p-6 sm:p-10 border border-gray-700">
-        
-        <!-- Breadcrumb / Header -->
-        <div class="mb-8 border-b border-gray-700 pb-4">
-            <h1 class="text-3xl font-bold text-white mb-2">Documentation</h1>
-            <p class="text-gray-400 text-sm">Comprehensive user manual for YADS v{{ settings.VERSION }}</p>
-        </div>
+<style>
+    /* Docs specific variables to match Homepage */
+    :root {
+        --docs-bg-card: #1e293b;
+        --docs-text-secondary: #94a3b8;
+        --docs-accent-primary: #6366f1;
+        --docs-border-color: #334155;
+    }
 
-        <!-- Rendered Markdown Content -->
-        <!-- Rendered Markdown Content -->
-        
-        <style>
-            /* Direct Override for Documentation Styles */
-            .doc-content h1 { 
-                font-size: 3rem !important; 
-                line-height: 1.2 !important; 
-                color: #f97316 !important; /* orange-500 */
-                margin-top: 4.5rem !important; 
-                margin-bottom: 2rem !important; 
-                border-bottom: 2px solid rgba(249, 115, 22, 0.5) !important;
-                padding-bottom: 0.2rem !important;
-            }
-            .doc-content h2 { 
-                font-size: 2.25rem !important; 
-                color: #fb923c !important; /* orange-400 */
-                margin-top: 2rem !important; 
-                margin-bottom: 1.5rem !important;
-                border-bottom: 1px solid #374151 !important;
-                padding-bottom: 0.2rem !important;
-            }
-            .doc-content h3 { 
-                font-size: 1.5rem !important; 
-                color: #fdba74 !important; /* orange-300 */
-                margin-top: 3rem !important; 
-                margin-bottom: 1rem !important;
-            }
-            .doc-content p {
-                 margin-bottom: 1.5rem !important;
-                 line-height: 1.8 !important;
-                 color: #d1d5db !important; /* gray-300 */
-            }
-            .doc-content ul, .doc-content ol {
-                margin-top: 1.5rem !important;
-                margin-bottom: 1.5rem !important;
-            }
-            .doc-content li {
-                margin-bottom: 0.5rem !important;
-            }
-            .doc-content pre {
-                margin-top: 2rem !important;
-                margin-bottom: 2rem !important;
-            }
-        </style>
+    /* Documentation Layout */
+    .docs-layout {
+        display: flex;
+        gap: 3rem;
+        position: relative;
+    }
 
-        <article class="doc-content prose prose-invert prose-lg max-w-none 
-                        prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+    .docs-sidebar {
+        width: 280px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 20px;
+        height: calc(100vh - 40px);
+        overflow-y: auto;
+        border-right: 1px solid var(--docs-border-color);
+        padding-right: 1.5rem;
+        display: none; /* Hidden by default on mobile */
+    }
+
+    @media (min-width: 1024px) {
+        .docs-sidebar {
+            display: block;
+        }
+    }
+
+    .docs-sidebar ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .docs-sidebar li {
+        margin-bottom: 0.5rem;
+    }
+
+    .docs-sidebar a {
+        color: var(--docs-text-secondary);
+        font-size: 0.9rem;
+        display: block;
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .docs-sidebar a:hover, .docs-sidebar a.active {
+        color: #fff;
+        background: rgba(99, 102, 241, 0.1);
+        transform: translateX(5px);
+    }
+    
+    .docs-sidebar h3 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 700;
+    }
+
+    .docs-content {
+        flex: 1;
+        min-width: 0; /* Prevent overflow */
+        max-width: 900px;
+        margin: 0 auto; /* Center if sidebar is hidden or just layout preference */
+    }
+
+    /* Override prose styles for better contrast/sizing */
+    .doc-content h1 { 
+        font-size: 2.5rem !important; 
+        line-height: 1.2 !important; 
+        color: #f8fafc !important;
+        margin-bottom: 2rem !important; 
+        border-bottom: 2px solid var(--docs-border-color) !important;
+        padding-bottom: 1rem !important;
+    }
+    .doc-content h2 { 
+        font-size: 1.8rem !important; 
+        color: #f8fafc !important;
+        margin-top: 3rem !important; 
+        margin-bottom: 1.25rem !important;
+        scroll-margin-top: 80px; /* Offset for sticky header */
+    }
+    .doc-content h3 { 
+        font-size: 1.4rem !important; 
+        color: #e2e8f0 !important;
+        margin-top: 2rem !important; 
+        margin-bottom: 1rem !important;
+        scroll-margin-top: 80px;
+    }
+    .doc-content p {
+         margin-bottom: 1.25rem !important;
+         line-height: 1.75 !important;
+         color: #cbd5e1 !important;
+    }
+</style>
+
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="docs-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="docs-sidebar">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-white mb-2">Documentation</h2>
+                <div class="text-sm text-gray-400">v{{ settings.VERSION }}</div>
+            </div>
+            <nav id="docs-nav">
+                <ul id="toc-list">
+                    <!-- Javascript will populate this -->
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="docs-content">
+             <article class="doc-content prose prose-invert prose-lg max-w-none 
+                        prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline
                         prose-strong:text-white prose-strong:font-bold
-                        prose-code:text-pink-300 prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+                        prose-code:text-pink-300 prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
                         prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700 prose-pre:shadow-lg">
-            {{ content | safe }}
-        </article>
-        
-        <!-- Quick Support Link -->
-        <div class="mt-12 pt-6 border-t border-gray-700 flex justify-between items-center text-sm text-gray-500">
-            <p>Need more help? Contact your Platform Administrator.</p>
-            <a href="#" class="text-indigo-400 hover:text-indigo-300" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">Back to Top &uarr;</a>
-        </div>
+                {{ content | safe }}
+            </article>
+
+             <!-- Quick Support Link -->
+            <div class="mt-16 pt-8 border-t border-gray-700 flex justify-between items-center text-sm text-gray-500">
+                <p>Need more help? Contact <a href="mailto:support@yads-security.com" class="text-indigo-400">Support</a>.</p>
+                <a href="#" class="text-indigo-400 hover:text-indigo-300" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">Back to Top &uarr;</a>
+            </div>
+        </main>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tocList = document.getElementById('toc-list');
+    const headers = document.querySelectorAll('.doc-content h2, .doc-content h3');
+    
+    // Generate TOC
+    headers.forEach((header, index) => {
+        // Create ID if missing
+        if (!header.id) {
+            header.id = 'section-' + index;
+        }
+
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '#' + header.id;
+        a.textContent = header.textContent;
+        
+        // Indent H3s
+        if (header.tagName === 'H3') {
+            a.style.paddingLeft = '1.5rem';
+            a.style.fontSize = '0.85rem';
+            a.style.color = '#94a3b8'; // darker for sub-items
+        }
+
+        li.appendChild(a);
+        tocList.appendChild(li);
+    });
+
+    // Intersection Observer for Active State
+    const observerOptions = {
+        root: null,
+        rootMargin: '-100px 0px -60% 0px',
+        threshold: 0
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                // Remove active from all
+                document.querySelectorAll('#toc-list a').forEach(link => link.classList.remove('active'));
+                
+                // Add active to current
+                const activeLink = document.querySelector(`#toc-list a[href="#${entry.target.id}"]`);
+                if (activeLink) {
+                    activeLink.classList.add('active');
+                }
+            }
+        });
+    }, observerOptions);
+
+    headers.forEach(header => observer.observe(header));
+});
+</script>
 {% endblock %}

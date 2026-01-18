@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recent Changes - YADS</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .timeline {
+            position: relative;
+            max-width: 800px;
+            margin: 4rem auto;
+            padding-left: 2rem;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--accent-primary), transparent);
+        }
+        .change-entry {
+            position: relative;
+            margin-bottom: 4rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.5s forwards;
+        }
+        .change-entry:nth-child(2) { animation-delay: 0.1s; }
+        .change-entry:nth-child(3) { animation-delay: 0.2s; }
+        .change-entry:nth-child(4) { animation-delay: 0.3s; }
+        
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .change-entry::before {
+            content: '';
+            position: absolute;
+            left: -2.55rem;
+            top: 0.5rem;
+            width: 1rem;
+            height: 1rem;
+            background: var(--bg-dark);
+            border: 2px solid var(--accent-primary);
+            border-radius: 50%;
+            z-index: 1;
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        
+        .change-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .change-card h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+        .change-card h3:first-of-type {
+            margin-top: 0;
+        }
+        
+        .change-card ul {
+            list-style: none; /* Custom bullets via CSS if needed, but simple for now */
+            padding-left: 0;
+        }
+        .change-card ul li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        .change-card ul li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--accent-secondary);
+        }
+    </style>
+    <link rel="icon" type="image/png" href="../images/favicon.png">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">
+                <img src="../images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <span class="text-gradient">YADS</span> Security
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product.html">Features</a>
+                <a href="docs.html">Documentation</a>
+                <a href="changes.html" class="active">Changes</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://yads-security.de/de/changes.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
+            </div>
+            <a href="contact.html" class="btn-primary">Get Demo</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="text-align: center; margin-top: 4rem;">
+            <h1 style="font-size: 3rem; font-weight: 800; margin-bottom: 1rem;">Recent Updates</h1>
+            <p style="color: var(--text-secondary);">Track the evolution of the YADS platform.</p>
+        </div>
+
+        <div class="timeline">
+            <!-- v1.8.0 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.8.0</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Scheduled Scans & API Stability</h2>
+                    
+                    <h3>📅 Scan Scheduling</h3>
+                    <ul>
+                        <li><strong>Recurring Scans:</strong> You can now schedule Daily or Weekly scans for any target.</li>
+                        <li><strong>Management UI:</strong> Full control over schedules via the new <i>/schedules</i> dashboard.</li>
+                    </ul>
+                    <h3>🛠️ Core Stability</h3>
+                    <ul>
+                        <li><strong>Startup Fixes:</strong> Resolved critical GUI crash issues related to scheduler initialization.</li>
+                        <li><strong>API Fixes:</strong> Improved authentication endpoint handling.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- v1.7.0 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.7.0</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Attack Paths & Dark Mode</h2>
+                    
+                    <h3>🚀 New Features</h3>
+                    <ul>
+                        <li><strong>Attack Path Visualization:</strong> New layer in the Network Graph to highlight risky edges and potential compromise chains.</li>
+                        <li><strong>Day/Night Mode:</strong> You can now toggle between Light and Dark themes for better visibility.</li>
+                        <li><strong>Analytics Extensions:</strong> New dashboards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong>.</li>
+                    </ul>
+                    <h3>🐛 Improvements</h3>
+                    <ul>
+                        <li><strong>Network Graph:</strong> Improved performance and added "Attack Path" filters.</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- v1.6.1 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.6.1</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Report Fixes & Missing Analytics</h2>
+                    <h3>🐛 UI Fixes & Improvements</h3>
+                    <ul>
+                        <li><strong>Reports Layout:</strong> Fixed a layout issue where the "Cloud Assets" card was misplaced in the dashboard grid.</li>
+                        <li><strong>Missing Reports:</strong> Added dedicated cards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong> reports which were previously hidden.</li>
+                    </ul>
+                    <h3>📘 Documentation</h3>
+                    <ul>
+                        <li><strong>Updated User Guide:</strong> Documentation updated to include details on the new analytics reports.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- v1.5.2 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.5.2</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Centralized Reporting Suite</h2>
+                    
+                    <h3>📊 Centralized Reporting Hub</h3>
+                    <ul>
+                        <li><strong>New Reports Dashboard:</strong> A dedicated page (<i>/reports</i>) bundling all system exports in one place.</li>
+                        <li><strong>Detailed Compliance Report:</strong> An interactive and printable breakdown of your SOC2 readiness score, including a full "Improvement Plan" checklist.</li>
+                        <li><strong>Target CSV Export:</strong> You can now export your entire raw target inventory to CSV for external analysis.</li>
+                    </ul>
+                    <h3>📄 PDF Exports</h3>
+                    <ul>
+                        <li><strong>Infrastructure Report:</strong> Professional PDF executive summary of your cloud footprint and risks.</li>
+                        <li><strong>External Links Report:</strong> PDF export for third-party dependency analysis.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- v1.5.0 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.5.0</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Deep Security & Compliance Update</h2>
+                    
+                    <h3>🚀 Deep Security Features</h3>
+                    <ul>
+                        <li><strong>Nuclei Vulnerability Integration:</strong> Active scanning for 5000+ known vulnerabilities using ProjectDiscovery's Nuclei. Findings are categorized instantly (Critical, High, Medium).</li>
+                        <li><strong>Stealth Nmap Scan:</strong> New "Stealth" option using evasion flags (<i>-sS, -T2, -D RND:5</i>) for undetectable port scanning.</li>
+                        <li><strong>JS SAST Analysis:</strong> Static Analysis of client-side JavaScript to detect DOM XSS sinks (<i>innerHTML, eval</i>) and hidden API routes.</li>
+                    </ul>
+                    <h3>📊 Reporting & Compliance</h3>
+                    <ul>
+                        <li><strong>Security Grade Mapping:</strong> Aggregates all scan data into an <strong>A-F Grade</strong> with clear risk factor deductions.</li>
+                        <li><strong>Compliance Dashboard:</strong> Automatically maps findings to standards like <strong>OWASP Top 10</strong> and <strong>GDPR/ISO27001</strong>.</li>
+                        <li><strong>Swagger/OpenAPI Parser:</strong> Automatically detects and displays API endpoints from <i>swagger.json</i> files.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 YADS Security. All rights reserved.</p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="impressum.html">Impressum</a> | 
+                <a href="datenschutz.html">Datenschutz</a> | 
+                <a href="haftungsausschluss.html">Haftungsausschluss</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
