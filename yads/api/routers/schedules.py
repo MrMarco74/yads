@@ -1,123 +1,188 @@
-from fastapi import APIRouter, Depends, Form, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
-from typing import Optional
-import logging
 
 from yads.database import get_session
-from yads.models import User, Target, ScanSchedule
-from yads.auth.deps import RoleChecker
-from yads.core.tenant_logger import TenantLogger
+from yads.models import User, Target, ScanSchedule, Tenant
+from yads.auth.deps import get_current_user_html, RoleChecker
+from fastapi.templating import Jinja2Templates
 
-router = APIRouter(prefix="/schedule", tags=["schedule"])
-base_logger = logging.getLogger("yads.api.schedules")
+router = APIRouter(prefix="/schedules", tags=["schedules"])
 templates = Jinja2Templates(directory="yads/api/templates")
-# Inject Globals
+
+# Inject Globals (Standard Pattern)
 from yads.config import settings
 templates.env.globals['settings'] = settings
-from datetime import datetime
-templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
 def get_all_tenants():
-    from sqlmodel import Session, select
     from yads.database import engine
     from yads.models import Tenant
     with Session(engine) as session:
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
-
 templates.env.globals['get_available_tenants'] = get_all_tenants
+
+# Permissions: Only Admin/Tenant Admin/Scanner can manage schedules
+manager_only = RoleChecker(["admin", "tenant_admin", "scanner"])
 
 @router.get("/", response_class=HTMLResponse)
 async def list_schedules(
-    request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+    request: Request, 
+    session: Session = Depends(get_session), 
+    user: User = Depends(get_current_user_html)
 ):
+    # 1. Fetch Schedules
+    # Filter by tenant if not admin
     query = select(ScanSchedule, Target).join(Target)
     
-    if user.role != "admin":
+    if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
         
     results = session.exec(query).all()
     
-    # Format for template: list of dicts or objects with .schedule and .target
-    schedules_list = [{"schedule": s, "target": t} for s, t in results]
-    
+    # 2. Format for Template
+    # Template expects item.schedule and item.target
+    schedules_data = []
+    for schedule, target in results:
+        schedules_data.append({
+            "schedule": schedule,
+            "target": target
+        })
+        
+    # 3. Fetch Candidates for "Add Schedule" (Targets without active schedules?)
+    # Or just all targets for the dropdown
+    t_query = select(Target)
+    if user.tenant_id:
+        t_query = t_query.where(Target.tenant_id == user.tenant_id)
+        
+    candidates = session.exec(t_query).all()
+
     return templates.TemplateResponse("schedules.html", {
         "request": request,
         "user": user,
-        "schedules": schedules_list
+        "schedules": schedules_data,
+        "targets": candidates
     })
 
-@router.post("/set", response_class=HTMLResponse)
+@router.post("/add")
+async def add_schedule(
+    request: Request,
+    target_id: int = Form(...),
+    frequency: str = Form(...), # daily, weekly
+    session: Session = Depends(get_session),
+    user: User = Depends(manager_only) # Permission Check
+):
+    # Validate Target ownership
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    if user.tenant_id and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access Denied to this Target")
+        
+    # Create Schedule
+    now = datetime.utcnow()
+    next_run = now + timedelta(days=1)
+    if frequency == "weekly":
+         next_run = now + timedelta(weeks=1)
+         
+    schedule = ScanSchedule(
+        target_id=target_id,
+        frequency=frequency,
+        next_run_at=next_run,
+        is_active=True
+    )
+    session.add(schedule)
+    session.commit()
+    
+    return RedirectResponse(url="/schedules", status_code=303)
+
+@router.post("/delete/{id}")
+async def delete_schedule(
+    id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(manager_only)
+):
+    schedule = session.get(ScanSchedule, id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+        
+    # Check ownership via target
+    target = session.get(Target, schedule.target_id)
+    if user.tenant_id and target.tenant_id != user.tenant_id:
+         raise HTTPException(status_code=403, detail="Access Denied")
+         
+    session.delete(schedule)
+    session.commit()
+    
+    return RedirectResponse(url="/schedules", status_code=303)
+
+@router.post("/set")
 async def set_schedule(
     request: Request,
     target_id: int = Form(...),
-    frequency: str = Form(...), # "daily", "weekly", "custom", "none"
-    cron_expression: Optional[str] = Form(None),
+    frequency: str = Form(...),
+    cron_expression: str = Form(None),
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+    user: User = Depends(manager_only)
 ):
-    # Verify Access
-    target = session.exec(select(Target).where(Target.id == target_id)).first()
+    # Tenant Scope Check
+    target = session.get(Target, target_id)
     if not target:
-        return "<div class='text-red-500'>Target not found</div>"
+        raise HTTPException(status_code=404, detail="Target not found")
         
-    if user.role != "admin" and target.tenant_id != user.tenant_id:
-        return "<div class='text-red-500'>Unauthorized</div>"
-
-    logger = TenantLogger(base_logger, user.tenant_id)
-
-    # Check Existing
+    if user.tenant_id and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access Denied")
+        
+    # Check existing
     schedule = session.exec(select(ScanSchedule).where(ScanSchedule.target_id == target_id)).first()
     
     if frequency == "none":
         if schedule:
             session.delete(schedule)
             session.commit()
-            logger.info(f"Schedule removed for target {target_id} by {user.username}")
-        return "<span class='text-slate-400'>Not Scheduled</span>"
-
+        # Return HTML for badge
+        return HTMLResponse('<span class="text-slate-400">Not Scheduled</span>')
+        
+    # Calculate Next Run
     now = datetime.utcnow()
-    next_run = now + timedelta(days=1) # Default fallback
+    next_run = now + timedelta(days=1)
     
     if frequency == "weekly":
         next_run = now + timedelta(weeks=1)
-    elif frequency == "custom":
-        if not cron_expression:
-            return "<div class='text-red-500'>Missing Cron Expression</div>"
-        try:
-            from croniter import croniter
-            iter = croniter(cron_expression, now)
-            next_run = iter.get_next(datetime)
-        except Exception as e:
-            return f"<div class='text-red-500'>Invalid Cron: {str(e)}</div>"
-
-    if not schedule:
+    elif frequency == "custom" and cron_expression:
+        # For now, just set next run to tomorrow + store cron
+        # Real cron parsing would happen in worker scheduler
+        next_run = now + timedelta(days=1) 
+    
+    if schedule:
+        schedule.frequency = frequency
+        schedule.cron_expression = cron_expression
+        schedule.next_run_at = next_run # Reset timer on update? Yes.
+        schedule.is_active = True
+        session.add(schedule)
+    else:
         schedule = ScanSchedule(
             target_id=target_id,
             frequency=frequency,
-            cron_expression=cron_expression if frequency == "custom" else None,
+            cron_expression=cron_expression,
             next_run_at=next_run,
             is_active=True
         )
         session.add(schedule)
-        logger.info(f"New schedule created for target {target_id} ({frequency}) by {user.username}")
-    else:
-        schedule.frequency = frequency
-        schedule.cron_expression = cron_expression if frequency == "custom" else None
-        schedule.is_active = True
-        schedule.next_run_at = next_run
-        session.add(schedule)
-        logger.info(f"Schedule updated for target {target_id} ({frequency}) by {user.username}")
         
     session.commit()
+    session.refresh(schedule)
     
+    # Return Badge HTML
     icon = "📅"
-    if frequency == "daily": icon = "🌞"
-    elif frequency == "weekly": icon = "📆"
-    elif frequency == "custom": icon = "⚙️"
+    if frequency == "daily": icon = "🌞 Daily"
+    elif frequency == "weekly": icon = "📆 Weekly"
+    else: icon = f"📅 {frequency.title()}"
     
-    return f"<span class='text-emerald-400 font-medium' title='Next: {next_run.strftime('%Y-%m-%d %H:%M UTC')}'>{icon} {frequency.title()}</span>"
+    html = f'''
+    <span class="text-emerald-400 font-medium" title="Next: {next_run.strftime('%Y-%m-%d')}">
+        {icon}
+    </span>
+    '''
+    return HTMLResponse(html)

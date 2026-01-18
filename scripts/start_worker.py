@@ -46,9 +46,26 @@ def main():
     
     print(f"[Startup] Executing: {' '.join(cmd)}")
     
-    # 3. Execute (Replace Process)
+    # 3. Start Scheduler (Background Thread)
+    try:
+        from yads.core.scheduler import run_scheduler_loop
+        from yads.worker import celery_app
+        import threading
+        
+        print("[Startup] Starting Scheduler Thread...")
+        t = threading.Thread(target=run_scheduler_loop, args=(celery_app,), daemon=True)
+        t.start()
+    except Exception as e:
+        print(f"[Startup] Failed to start Scheduler: {e}")
+
+    # 4. Execute Celery (Subprocess)
+    # We use subprocess.run so the script stays alive for the scheduler thread
+    print(f"[Startup] Executing: {' '.join(cmd)}")
     sys.stdout.flush()
-    os.execvp(cmd[0], cmd)
+    try:
+        subprocess.run(cmd, check=True)
+    except KeyboardInterrupt:
+        print("[Startup] Worker stopping...")
 
 if __name__ == "__main__":
     main()

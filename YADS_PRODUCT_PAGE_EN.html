@@ -3,170 +3,311 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YADS - Yet Another DAST Solution</title>
+    <title>YADS - Yet Another DAST Solution | Enterprise Security Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --accent: #10b981;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        /* Base Styles */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             line-height: 1.6;
-            color: #333;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 {
+            margin-top: 0;
+            line-height: 1.2;
+        }
+
+        h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -1px; }
+        h2 { font-size: 2.5rem; font-weight: 700; color: #fff; margin-bottom: 2rem; }
+        h3 { font-size: 1.5rem; font-weight: 600; color: var(--primary); }
+
+        p { color: var(--text-muted); font-size: 1.125rem; margin-bottom: 1.5rem; }
+
+        .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f4f6f8;
+            padding: 0 2rem;
         }
+
+        /* Utilities */
+        .text-gradient {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+
+        .btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px 0 var(--primary-glow);
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px 0 var(--primary-glow); }
+
+        /* Hero Section */
         header {
+            padding: 8rem 0 6rem;
             text-align: center;
-            padding: 40px 0;
-            background-color: #fff;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid var(--border);
         }
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 10px;
+
+        .hero-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
         }
-        h2 {
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-            color: #2c3e50;
-            margin-top: 40px;
+
+        /* Image Containers */
+        .screenshot-container {
+            margin: 4rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            transition: transform 0.5s ease;
         }
-        h3 {
-            color: #34495e;
-            margin-top: 25px;
+        .screenshot-container:hover { transform: scale(1.02); }
+        .screenshot-container img {
+            width: 100%;
+            display: block;
         }
-        p {
-            margin-bottom: 15px;
+
+        /* Content Sections */
+        section { padding: 6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
         }
-        section {
-            background: #fff;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
         }
-        img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
+        .feature-card h4 { color: #fff; margin-bottom: 0.5rem; font-size: 1.25rem; }
+        .feature-card ul { padding-left: 1.5rem; color: var(--text-muted); }
+        .feature-card li { margin-bottom: 0.5rem; }
+
+        /* Feature Lists */
+        .scan-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
             border-radius: 4px;
-            margin-top: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
         }
-        ul {
-            padding-left: 20px;
+        .tag-new { background: rgba(16, 185, 129, 0.2); color: var(--accent); }
+        .tag-core { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+
+        /* Footer */
+        footer { padding: 4rem 0; text-align: center; color: var(--text-muted); font-size: 0.875rem; }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        footer {
-            text-align: center;
-            margin-top: 40px;
-            padding: 20px;
-            color: #7f8c8d;
-            font-size: 0.9em;
-        }
-        .hero {
-            font-size: 1.2em;
-            color: #555;
-            max-width: 800px;
-            margin: 0 auto;
-        }
+        .animate-up { animation: fadeUp 0.8s ease-out forwards; opacity: 0; }
+        .delay-1 { animation-delay: 0.2s; }
+        .delay-2 { animation-delay: 0.4s; }
+
     </style>
 </head>
 <body>
 
+    <!-- Hero -->
     <header>
-        <h1>YADS - Yet Another DAST Solution</h1>
-        <p class="hero">The Comprehensive Platform for Automated Vulnerability Scanning and Asset Management.</p>
-        <p>YADS is a powerful security solution designed to monitor, analyze, and protect your digital infrastructure.</p>
+        <div class="container">
+            <span class="hero-badge animate-up">YADS v1.8.0 is live</span>
+            <h1 class="animate-up delay-1">Next-Gen <span class="text-gradient">Attack Surface Management</span>.</h1>
+            <p class="animate-up delay-2" style="max-width: 700px; margin: 1.5rem auto;">
+                Secure your digital infrastructure with automated reconnaissance, deep vulnerability analysis, and visual intelligence.
+            </p>
+            <a href="#features" class="btn animate-up delay-2">Explore Platform</a>
+
+            <div class="screenshot-container animate-up delay-2">
+                <img src="product_screenshots/dashboard_hero.png" alt="YADS Dashboard Overview">
+            </div>
+        </div>
     </header>
 
-    <section id="dashboard">
-        <h2>🚀 Dashboard & Overview</h2>
-        <p>The Dashboard provides an instant overview of the security status of your monitored assets. See active scans, critical vulnerabilities, and key statistics at a glance.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-2026-01-15-11_23_05.png" alt="Dashboard Overview">
+    <!-- Intro -->
+    <section id="intro">
+        <div class="container text-center">
+            <h2>Why YADS?</h2>
+            <p style="max-width: 800px; margin: 0 auto; margin-bottom: 3rem;">
+                YADS is an all-in-one security platform designed for modern DevSecOps teams, Penetration Testers, and MSSPs. It automates the tedious process of reconnaissance and delivers actionable insights in real-time.
+            </p>
+            
+            <div class="grid-2">
+                <div class="feature-card">
+                    <h4>Comprehensive</h4>
+                    <p style="margin:0;">From DNS enumeration to Web App Vulns – everything in one tool.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Automated</h4>
+                    <p style="margin:0;">Schedule scans daily or weekly. "Set and Forget".</p>
+                </div>
+            </div>
+        </div>
     </section>
 
-    <section id="visualization">
-        <h2>🕸️ Network Visualization</h2>
-        <p>Understand the relationships within your infrastructure with our interactive Network Graph. Identify dependencies, visualize connections between hosts, and visually detect potential attack paths.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-visualizations-network-graph-2026-01-15-11_24_33.png" alt="Network Graph Visualization">
-        <h3>Features:</h3>
-        <ul>
-            <li>Interactive nodes and edges</li>
-            <li>Filter by connection types</li>
-            <li>Export functions</li>
-        </ul>
+    <!-- Features -->
+    <section id="features">
+        <div class="container">
+            <h2>✨ Key Features</h2>
+            
+            <!-- 1. Asset Discovery -->
+            <div class="grid-2" style="margin-bottom: 4rem;">
+                <div>
+                     <h3>1. Asset Discovery & Inventory</h3>
+                     <p>Never lose track of your external attack surface again.</p>
+                     <ul>
+                         <li><strong>Subdomain Enumeration:</strong> Finds hidden and forgotten subdomains (e.g., <code>dev.company.com</code>).</li>
+                         <li><strong>Technology Fingerprinting:</strong> Automatically detects CMS, Webservers, and Frameworks.</li>
+                         <li><strong>Cloud Infrastructure:</strong> Identifies hosting providers and geo-locations.</li>
+                     </ul>
+                </div>
+                <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/assets_list.png" alt="Asset Inventory">
+                </div>
+            </div>
+
+            <!-- 2. Vulnerability Scanning -->
+            <div class="feature-card" style="margin-bottom: 4rem;">
+                <div style="text-align: center; max-width: 800px; margin: 0 auto;">
+                    <h3>2. Deep Vulnerability Scanning</h3>
+                    <p>Integrates industry-leading scanners for maximum coverage.</p>
+                </div>
+                <div class="scan-types">
+                    <div>
+                        <h4>Nuclei Integration</h4>
+                        <p>Scans for over 5000+ known CVEs and misconfigurations.</p>
+                    </div>
+                    <div>
+                        <h4>Stealth Port Scanning</h4>
+                        <p>Detects open ports without triggering IDS/IPS.</p>
+                    </div>
+                    <div>
+                        <h4>JavaScript SAST</h4>
+                        <p>Analyzes client-side JS for DOM XSS and sensitive API keys.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Visual Intelligence -->
+            <div class="grid-2" style="margin-bottom: 4rem;">
+                 <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/network_graph.png" alt="Network Graph Visualization">
+                </div>
+                <div>
+                     <h3>3. Visual Intelligence & Network Graph</h3>
+                     <p>Data is useless if you don't understand it. YADS makes connections visible.</p>
+                     <ul>
+                         <li><strong>Interactive Network Graph:</strong> Visualizes connections between Domains, IPs, and ASNs.</li>
+                         <li><strong>Attack Path Visualization:</strong> Highlights risky paths and compromise chains.</li>
+                         <li><strong>OSINT Brand Monitoring:</strong> Finds unauthorized use of your logos across the web.</li>
+                     </ul>
+                </div>
+            </div>
+
+            <!-- 4. Compliance -->
+             <div class="grid-2" style="margin-bottom: 4rem;">
+                <div>
+                     <h3>4. Compliance & Reporting</h3>
+                     <p>Turn technical data into management-ready reports.</p>
+                     <ul>
+                         <li><strong>SOC2 Readiness Score:</strong> Real-time assessment of your compliance (0-100%).</li>
+                         <li><strong>Security Grading:</strong> Automatic grading (A-F) for every asset.</li>
+                         <li><strong>PDF Exports:</strong> Generate professional Executive Reports with one click.</li>
+                     </ul>
+                </div>
+                 <div class="screenshot-container" style="margin:0;">
+                    <img src="product_screenshots/compliance_report.png" alt="Compliance Dashboard">
+                </div>
+            </div>
+
+        </div>
     </section>
 
-    <section id="targets">
-        <h2>🎯 Target Management</h2>
-        <p>Manage all your targets in one place. Add new hosts, categorize assets, and keep track of the scan status of each individual endpoint.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-targets-table-2026-01-15-11_24_08.png" alt="Target Management Table">
+    <!-- Tech Highlights -->
+    <section>
+        <div class="container text-center">
+            <h2>🛡️ Technical Highlights</h2>
+            <div class="scan-types">
+                <div class="feature-card">
+                    <h4>Docker-Native</h4>
+                    <p>Easy deployment with <code>docker-compose</code>.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>RBAC</h4>
+                    <p>Granular permissions for Admins, Scanners, and Viewers.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>High Performance</h4>
+                    <p>Parallel processing with Celery and Redis.</p>
+                </div>
+            </div>
+             <p style="margin-top: 3rem; font-style: italic;">
+                "YADS reduced our recon time from days to minutes."
+            </p>
+        </div>
     </section>
 
-    <section id="analytics">
-        <h2>📊 Analytics & Reporting</h2>
-        <p>YADS provides deep insights into your security data.</p>
-
-        <h3>General Analytics</h3>
-        <p>Detailed evaluations of scans and results help you recognize trends.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-analytics-2026-01-15-11_23_29.png" alt="Analytics Dashboard">
-
-        <h3>Dead Links Analysis</h3>
-        <p>Identify dead links that could pose a security risk or negatively affect user experience.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-analytics-dead-links-2026-01-15-11_23_54.png" alt="Dead Links Analysis">
-
-        <h3>External Links</h3>
-        <p>Monitor which external resources your applications are linking to.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-analytics-external-links-2026-01-15-11_23_43.png" alt="External Links Analysis">
-    </section>
-
-    <section id="scheduling">
-        <h2>📅 Scheduling & Automation</h2>
-        <p>Automate your security scans. Schedule regular checks (daily, weekly) to ensure your infrastructure is continuously monitored without requiring manual intervention.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-schedule-2026-01-15-11_25_19.png" alt="Scan Scheduler">
-    </section>
-
-    <section id="queue">
-        <h2>⏳ Queue Management</h2>
-        <p>Keep control of running and pending tasks. The Queue Manager shows you exactly which scans are currently executing and what is queued next.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-queue-2026-01-15-11_25_34.png" alt="Queue Management">
-    </section>
-
-    <section id="osint">
-        <h2>🕵️ OSINT - Open Source Intelligence</h2>
-        <p>Utilize integrated OSINT tools to gather publicly available information about your targets and identify potential information leaks.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-osint-2026-01-15-11_28_26.png" alt="OSINT Results">
-    </section>
-
-    <section id="management">
-        <h2>👥 Multi-Tenancy & User Management</h2>
-        <p>YADS is built for teams and organizations of any size.</p>
-
-        <h3>Tenants</h3>
-        <p>Logical separation of data and resources through multi-tenancy.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-tenants-2026-01-15-11_27_29.png" alt="Tenant Management">
-
-        <h3>Users</h3>
-        <p>Manage access rights and user accounts centrally.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-users-2026-01-15-11_26_24.png" alt="User Management">
-    </section>
-
-    <section id="settings">
-        <h2>⚙️ Settings & Configuration</h2>
-        <p>Customize YADS to your specific needs.</p>
-
-        <h3>Global Settings</h3>
-        <p>Configure system-wide parameters.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-settings-2026-01-15-11_27_13.png" alt="Global Settings">
-
-        <h3>Tenant Settings</h3>
-        <p>Specific configurations per tenant.</p>
-        <img src="product_screenshots/screencapture-localhost-8000-tenant-settings-2026-01-15-11_26_09.png" alt="Tenant Settings">
-    </section>
-
+    <!-- Footer -->
     <footer>
-        <p>&copy; 2026 YADS - Your Security in Focus.</p>
+        <div class="container">
+            <h2>Ready to secure your attack surface?</h2>
+            <br>
+            <a href="USER_GUIDE.md" class="btn">View Documentation</a>
+            <a href="mailto:sales@yads-security.com" class="btn" style="background: transparent; border: 1px solid var(--primary);">Contact Us</a>
+            <hr style="margin: 4rem 0; border-color: var(--border);">
+            <p>&copy; 2026 YADS Security Project</p>
+        </div>
     </footer>
 
 </body>

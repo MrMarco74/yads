@@ -362,5 +362,29 @@ def migrate():
         except Exception as e:
             print(f"   Error creating notification: {e}")
 
+        # 21. Create Notification for v1.8.0
+        print(">> Checking/Creating v1.8.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.8.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.8.0',
+                        'Feature Update: Scheduled Scans are here! Automate your workflows. Check Changelog.',
+                        'update',
+                        'teal',
+                        'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
 if __name__ == "__main__":
     migrate()

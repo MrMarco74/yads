@@ -765,6 +765,9 @@ class WebAnalyzer(BaseScannerModule):
                         results["js_analysis"]["files_analyzed"].append(src)
                         analyzed_count += 1
                         
+                        # 0. Check Secrets in JS Code
+                        self._scan_secrets(content, results)
+                        
                         # Check Sinks
                         for name, regex in sinks.items():
                             if re.search(regex, content):

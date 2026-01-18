@@ -245,6 +245,25 @@ def seed_changelog():
             )
             session.add(entry_170)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.8.0").first():
+            entry_180 = ChangelogEntry(
+                title="YADS v1.8.0: Scheduled Scans & API Stability",
+                version="1.8.0",
+                content="""
+                <h3>📅 Scan Scheduling</h3>
+                <ul>
+                    <li><strong>Recurring Scans:</strong> You can now schedule Daily or Weekly scans for any target.</li>
+                    <li><strong>Management UI:</strong> Full control over schedules via the new <i>/schedules</i> dashboard.</li>
+                </ul>
+                <h3>🛠️ Core Stability</h3>
+                <ul>
+                    <li><strong>Startup Fixes:</strong> Resolved critical GUI crash issues related to scheduler initialization.</li>
+                    <li><strong>API Fixes:</strong> Improved authentication endpoint handling.</li>
+                </ul>
+                """
+            )
+            session.add(entry_180)
+
         session.commit()
         print("Changelog seeded successfully.")
 

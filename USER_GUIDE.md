@@ -1,6 +1,6 @@
 # YADS - Comprehensive User Guide
-**Version:** 1.7.0
-**Last Updated:** 2026-01-17
+**Version:** 1.8.0
+**Last Updated:** 2026-01-18
 
 Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
@@ -113,13 +113,14 @@ On the **Target Details** page, click **"New Scan"** to open the advanced select
 *   **FULL SCAN**: Runs all available modules.
 
 ### Scheduled Scans
-You can automate your reconnaissance by setting up a recurring schedule for any target.
-1.  Navigate to the **Target Details** page of the desired domain.
-2.  Locate the **Scheduling** card in the left sidebar.
-3.  Select **Daily** or **Weekly**.
+** (New in v1.8.0)**
+You can automate your reconnaissance by setting up recurring schedules.
+1.  Navigate to the **Schedules** page via the sidebar.
+2.  Click **"Create Schedule"**.
+3.  Select a Target and choose a Frequency (**Daily** or **Weekly**).
     *   **Daily**: Runs every 24 hours.
     *   **Weekly**: Runs every 7 days.
-    *   **Disable**: Stops any future automated scans.
+4.  Manage existing schedules (Delete/View Next Run) directly from the list.
 
 *Note: Scheduled scans automatically execute the **FULL SCAN** profile to ensure comprehensive coverage.*
 
@@ -436,4 +437,4 @@ For technical support or to report bugs:
 
 ---
 
-*Verified for YADS v1.7.0*
+*Verified for YADS v1.8.0*

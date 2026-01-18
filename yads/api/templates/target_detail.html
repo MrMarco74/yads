@@ -322,7 +322,7 @@
                     </span>
                 </div>
                 
-                <form hx-post="/schedule/set" hx-target="#schedule-status-badge" 
+                <form hx-post="/schedules/set" hx-target="#schedule-status-badge" 
                       x-data="{ freq: '{{ schedule.frequency if schedule else "daily" }}' }"
                       class="flex flex-col gap-3">
                     <input type="hidden" name="target_id" value="{{ target.id }}">

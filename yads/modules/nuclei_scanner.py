@@ -45,13 +45,13 @@ class NucleiScanner(BaseScannerModule):
         # Assumption: 'target' argument is just a string URL/Domain.
         # In a real worker, we might have the target_id passed or we can query by domain.
         
-        if self.db_session:
+        if self.db:
              # Try to find target by domain (exact match logic for now)
              # Strip protocol for domain matching if needed, but Target.domain is usually just domain
              domain_part = target.replace("https://", "").replace("http://", "").split("/")[0]
              
              # Try exact match first
-             db_target = self.db_session.exec(select(Target).where(Target.domain == domain_part)).first()
+             db_target = self.db.exec(select(Target).where(Target.domain == domain_part)).first()
              if not db_target:
                  # Try finding by looking if target contains domain? 
                  # For now, simplistic lookup. A better way would be passing target_id to run_scan, 
@@ -59,7 +59,7 @@ class NucleiScanner(BaseScannerModule):
                  pass
              
              if db_target and db_target.tenant_id:
-                 tenant = self.db_session.get(Tenant, db_target.tenant_id)
+                 tenant = self.db.get(Tenant, db_target.tenant_id)
                  if tenant and tenant.nuclei_api_key:
                      nuclei_key = tenant.nuclei_api_key
                      self.logger.info(f"Using Nuclei Pro API Key for Tenant: {tenant.name}")

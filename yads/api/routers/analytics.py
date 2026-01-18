@@ -1224,6 +1224,82 @@ async def export_infrastructure_pdf(session: Session = Depends(get_session), use
     
     filename = f"analytics_report_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     
+    
+    return Response(content=bytes(pdf_bytes), media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="{filename}"'
+    })
+
+from fastapi import Form
+from yads.auth.deps import RoleChecker
+
+@ui_router.post("/external-links/add-targets")
+async def add_targets_from_links(
+    request: Request,
+    domains: List[str] = Form(...),
+    tag: str = Form(default="external"),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"]))
+):
+    """
+    Adds selected domains as new targets.
+    """
+    # 1. Determine Tenant Scope
+    tenant_id = user.tenant_id
+    # Admin without tenant context? Warn or forbid? 
+    # For now, allow but they become global targets (tenant_id=None) unless explicitly switched.
+    
+    count = 0
+    skipped = 0
+    
+    for domain in domains:
+        domain = domain.strip().lower()
+        if not domain: continue
+        
+        # Check existence
+        query = select(Target).where(Target.domain == domain)
+        if tenant_id:
+            query = query.where(Target.tenant_id == tenant_id)
+        else:
+            query = query.where(Target.tenant_id == None)
+            
+        existing = session.exec(query).first()
+        
+        if existing:
+            # Update Tag only?
+            if tag and tag not in existing.tags:
+                existing.tags.append(tag)
+                session.add(existing)
+                count += 1 # Count as processed/updated
+            else:
+                skipped += 1
+        else:
+            # Create New
+            new_target = Target(
+                domain=domain,
+                tenant_id=tenant_id,
+                tags=[tag] if tag else [],
+                scan_status="idle",
+                is_active=True
+            )
+            session.add(new_target)
+            count += 1
+            
+    session.commit()
+    
+    # Return success message (HTMX Toast equivalent or Redirect)
+    # Using simple redirect back with a query param for now, or just re-render row?
+    # Better: Hx-Response-Header to trigger client side toast
+    
+    # Redirecting to target list or staying here?
+    # User probably wants to stay here.
+    return HTMLResponse(
+        f"""
+        <div class="fixed bottom-4 right-4 bg-emerald-900 border border-emerald-700 text-emerald-100 px-4 py-3 rounded shadow-lg z-50 animate-bounce" 
+             _="on load wait 3s then remove me">
+             Successfully processed {count} targets ({skipped} skipped).
+        </div>
+        """, headers={"HX-Trigger": "reload-targets"} # Optional trigger
+    )
 
 # -----------------------------------------------------------------------------
 # DIFF VIEW ENDPOINTS

@@ -103,7 +103,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
     if scan_types is None:
         # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner"]
+        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
@@ -303,32 +303,30 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             # 2b. Run Nuclei Vulnerability Scanner (Active)
             # (New in v1.5.0)
             if "nuclei_scanner" in scan_types:
-                if not (has_http or has_https):
-                    logger.info("[Worker] Skipping Nuclei: Port 80/443 closed.")
-                else:
-                    try:
-                        t = session.get(Target, target_id)
-                        if t:
-                            t.scan_progress = "Running Nuclei Scanner..."
-                            session.add(t)
-                            session.commit()
+                # Removed optimization check (has_http/https) to allow scan on non-standard ports/internal IPs
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Nuclei Scanner..."
+                        session.add(t)
+                        session.commit()
 
-                        from yads.modules.nuclei_scanner import NucleiScanner
-                        nu = NucleiScanner(db_session=session)
-                        logger.info(f"[Worker] Step 2b: Running {nu.module_name}...")
-                        with LogCapture() as logs:
-                            logger.info(f"Starting {nu.module_name} for {domain}")
-                            result = nu.process(target_id, domain)
-                            captured_logs = logs.get_logs()
-                        
-                        if result and hasattr(result, 'log_content'):
-                            result.log_content = captured_logs
-                            session.add(result)
-                            session.commit()
-                            print(f"[Worker] {nu.module_name} finished.")
-                    except Exception as e:
-                        logger.error(f"[Worker] Error in Nuclei Scanner: {e}")
-                        session.rollback()
+                    from yads.modules.nuclei_scanner import NucleiScanner
+                    nu = NucleiScanner(db_session=session)
+                    logger.info(f"[Worker] Step 2b: Running {nu.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {nu.module_name} for {domain}")
+                        result = nu.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {nu.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Nuclei Scanner: {e}")
+                    session.rollback()
 
             # 3. Run Typosquat Scanner (Independent of Web)
             if "typosquat_scanner" in scan_types:
@@ -698,6 +696,38 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
                 except Exception as e:
                     logger.error(f"[Worker] Error in TLD Scanner: {e}")
+                    session.rollback()
+
+            # 11. Run Cloud Asset Scanner (Shadow IT)
+            if "cloud_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Cloud Asset Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.cloud_scanner import CloudScanner
+                    cloud_scan = CloudScanner(db_session=session)
+                    logger.info(f"[Worker] Step 11: Running {cloud_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {cloud_scan.module_name} for {domain}")
+                        result = cloud_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        if result.data and result.data.get("assets"):
+                             print(f"[Worker] {cloud_scan.module_name} found {len(result.data['assets'])} assets.")
+                        else:
+                             print(f"[Worker] {cloud_scan.module_name} finished (no findings).")
+                    else:
+                        print(f"[Worker] {cloud_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Cloud Asset Scanner: {e}")
                     session.rollback()
 
             # Subdomain Discovery & Auto-Queue Logic

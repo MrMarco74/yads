@@ -48,12 +48,36 @@
         </div>
     </div>
 
-    <!-- Data Table -->
+    <!-- Bulk Actions & Data Table -->
+    <!-- Hidden Form for Bulk Actions -->
+    <form id="bulk-target-form" hx-post="/analytics/external-links/add-targets" hx-swap="beforeend" hx-target="body" class="hidden"></form>
+
+    <!-- Bulk Actions & Data Table -->
+    <div class="mb-6 flex items-center gap-4 bg-slate-900/50 p-2 rounded-lg border border-slate-800">
+             <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-slate-400">With Selected:</span>
+                <input type="text" name="tag" form="bulk-target-form" placeholder="Tag (e.g. external)" value="external" 
+                       class="bg-slate-950 border border-slate-700 text-xs text-slate-200 rounded px-2 py-1 focus:ring-1 focus:ring-cyan-500 outline-none w-32">
+                
+                <button type="submit" form="bulk-target-form" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-3 py-1 rounded transition-colors flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Add to Targets
+                </button>
+             </div>
+             <div class="text-xs text-slate-500 ml-auto">
+                 Select links below to convert them into monitored targets.
+             </div>
+    </div>
+
     <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm text-slate-400">
                 <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
                     <tr>
+                        <th class="px-6 py-4 w-10">
+                             <!-- Select All Checkbox -->
+                             <input type="checkbox" _="on change set .row-checkbox.checked to my.checked" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                        </th>
                         <th class="px-6 py-4">External Domain</th>
                         <th class="px-6 py-4">Type</th>
                         <th class="px-6 py-4">Sources (Found In)</th>
@@ -63,17 +87,7 @@
                 <tbody class="divide-y divide-slate-800/50" hx-trigger="load" hx-get="/analytics/external-links/rows" hx-swap="innerHTML">
                     <!-- Loading State -->
                     <tr class="htmx-indicator-show">
-                    <!-- HTMX will preserve this or we replace innerHTML? 
-                         Actually hx-swap="innerHTML" replaces content. 
-                         So we put the loading state strictly inside. 
-                         The indicator class behavior is trickier on innerHTML swap if we want it to DISAPPEAR.
-                         Better: Use standard hx-indicator logic.
-                         The tbody has hx-trigger="load". It will fire request.
-                         While request is flight, we want to show something.
-                         If we put content here, it is displayed. When content returns, it replaces this.
-                         So simply putting the loading row here is sufficient! It will be overwritten.
-                    -->
-                        <td colspan="4" class="px-6 py-20 text-center">
+                        <td colspan="5" class="px-6 py-20 text-center">
                              <div class="max-w-sm mx-auto flex flex-col items-center">
                                   <div class="h-1.5 w-48 bg-slate-800 rounded-full overflow-hidden mb-3 relative">
                                       <div class="absolute inset-y-0 left-0 bg-blue-500 w-1/3 animate-[shimmer_1s_infinite_linear]" style="animation: progress 1.5s infinite ease-in-out; width: 50%;"></div>

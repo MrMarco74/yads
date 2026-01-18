@@ -94,12 +94,31 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
         }
         zf.writestr("metadata.json", json.dumps(meta, indent=2))
             
-        # 3. Backup Screenshots (Include all for simplicity, or filter?)
-        # Filtering files is hard without DB check.
-        # We include all for now, restore handles overwrite.
+        # 3. Backup Screenshots
+        # Logic: If tenant_ids provided, only include screenshots referenced in ScanResults for those tenants.
+        # Otherwise, include all.
+        
+        allowed_files = None
+        if tenant_ids:
+            # Fetch relevant screenshots
+            stmt = select(ScanResult.data).join(Target).where(
+                Target.tenant_id.in_(tenant_ids),
+                ScanResult.module_name == "web_analyzer"
+            )
+            results = session.exec(stmt).all()
+            allowed_files = set()
+            for r_data in results:
+                if r_data and isinstance(r_data, dict) and "screenshot_path" in r_data:
+                    fname = r_data["screenshot_path"]
+                    if fname: allowed_files.add(fname)
+                    
         if os.path.exists(SCREENSHOT_DIR):
             for root, dirs, files in os.walk(SCREENSHOT_DIR):
                 for file in files:
+                    # Filter check
+                    if allowed_files is not None and file not in allowed_files:
+                        continue
+
                     file_path = os.path.join(root, file)
                     # Archive path should be relative to storing "screenshots/" at root of zip
                     archive_path = os.path.join("screenshots", os.path.relpath(file_path, SCREENSHOT_DIR))
