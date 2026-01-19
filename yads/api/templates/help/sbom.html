@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Software BOM - YADS{% endblock %}
+
+{% block content %}
+<div class="px-4 py-4 md:px-8 md:py-8 space-y-6">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Software Bill of Materials (SBOM)</h1>
+            <p class="text-sm text-slate-400 mt-1">Detailed inventory of all software components used in this build.</p>
+        </div>
+        <div class="flex gap-3">
+             <div class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-center">
+                <span class="block text-xs text-slate-500 uppercase tracking-wider">Components</span>
+                <span class="text-lg font-bold text-white">{{ sbom.components|length if sbom else 0 }}</span>
+             </div>
+        </div>
+    </div>
+
+    {% if sbom %}
+    <!-- Data Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shadow-lg">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-slate-400">
+                <thead class="text-xs text-slate-500 uppercase bg-slate-800/50 border-b border-slate-800">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Component</th>
+                        <th scope="col" class="px-6 py-3">Version</th>
+                        <th scope="col" class="px-6 py-3">Type</th>
+                        <th scope="col" class="px-6 py-3">License</th>
+                        <th scope="col" class="px-6 py-3">PURL</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for comp in sbom.components %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-3 font-medium text-white">
+                            {{ comp.name }}
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300 border border-slate-700 font-mono">{{ comp.version }}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="capitalize">{{ comp.type }}</span>
+                        </td>
+                         <td class="px-6 py-3">
+                            {% if comp.licenses %}
+                                {% for lic in comp.licenses %}
+                                    <span class="text-xs text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 mr-1">{{ lic.license.id or "Unknown" }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-slate-600">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="text-xs text-slate-600 font-mono truncate max-w-[200px] block" title="{{ comp.purl }}">{{ comp.purl }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 text-slate-600 mb-4">
+             <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+             </svg>
+        </div>
+        <h3 class="text-lg font-medium text-white mb-2">SBOM Not Available</h3>
+        <p class="text-slate-400 text-sm max-w-md mx-auto">The Software Bill of Materials (sbom.json) could not be found. Please ensure the CI/CD pipeline has generated the artifact.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

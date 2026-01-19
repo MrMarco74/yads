@@ -264,6 +264,24 @@ def seed_changelog():
             )
             session.add(entry_180)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.9.0").first():
+            entry_190 = ChangelogEntry(
+                title="YADS v1.9.0: SBOM, CBOM & Auto-Cleanup",
+                version="1.9.0",
+                content="""
+                <h3>📦 Supply Chain Security</h3>
+                <ul>
+                    <li><strong>SBOM:</strong> Software Bill of Materials generation is back! View all dependencies in <i>Support -> Software BOM</i>.</li>
+                    <li><strong>CBOM:</strong> New <strong>Cryptography BOM</strong> tracks all crypto assets and libraries.</li>
+                </ul>
+                <h3>🧹 Maintenance</h3>
+                <ul>
+                    <li><strong>Docker Cleanup:</strong> CI/CD now automatically prunes unused docker images to keep infrastructure clean.</li>
+                </ul>
+                """
+            )
+            session.add(entry_190)
+
         session.commit()
         print("Changelog seeded successfully.")
 

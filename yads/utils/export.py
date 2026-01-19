@@ -30,6 +30,106 @@ def generate_excel(data: List[Dict[str, Any]], filename_prefix: str) -> Response
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
+def generate_api_excel(data: Dict[str, Any], filename_prefix: str) -> Response:
+    """
+    Generates a multi-sheet Excel for API Discovery results.
+    """
+    output = io.BytesIO()
+    
+    # Check if data is empty or None
+    if not data:
+        data = {}
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Sheet 1: Definitions
+        definitions = data.get("definitions_found", [])
+        if definitions:
+             df_def = pd.DataFrame(definitions)
+             df_def.to_excel(writer, index=False, sheet_name='Definitions')
+        else:
+             pd.DataFrame({"Info": ["No definitions found"]}).to_excel(writer, index=False, sheet_name='Definitions')
+
+        # Sheet 2: Prefixes
+        prefixes = data.get("prefixes_found", [])
+        if prefixes:
+             df_pre = pd.DataFrame(prefixes)
+             df_pre.to_excel(writer, index=False, sheet_name='Prefixes')
+        else:
+             pd.DataFrame({"Info": ["No prefixes found"]}).to_excel(writer, index=False, sheet_name='Prefixes')
+
+        # Sheet 3: Endpoints
+        endpoints = data.get("endpoints", [])
+        if endpoints:
+             # Endpoints is a list of strings
+             df_end = pd.DataFrame(endpoints, columns=["Endpoint"])
+             df_end.to_excel(writer, index=False, sheet_name='Endpoints')
+        else:
+             pd.DataFrame({"Info": ["No endpoints found"]}).to_excel(writer, index=False, sheet_name='Endpoints')
+
+    output.seek(0)
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+def generate_form_excel(data: Dict[str, Any], filename_prefix: str) -> Response:
+    """
+    Generates a multi-sheet Excel for Form Discovery results.
+    """
+    output = io.BytesIO()
+    if not data: data = {}
+    
+    forms = data.get("forms", [])
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Sheet 1: Forms
+        if forms:
+            # Flatten inputs count for the main sheet
+            form_summary = []
+            all_inputs = []
+            
+            for idx, f in enumerate(forms):
+                form_summary.append({
+                    "Form Index": idx + 1,
+                    "Action": f.get("action_absolute"),
+                    "Original Action": f.get("action"),
+                    "Method": f.get("method"),
+                    "ID": f.get("id"),
+                    "Class": f.get("class"),
+                    "Input Count": len(f.get("inputs", []))
+                })
+                
+                # Sheet 2 Prep: Inputs
+                for field in f.get("inputs", []):
+                    all_inputs.append({
+                        "Form Index": idx + 1,
+                        "Tag": field.get("tag"),
+                        "Name": field.get("name"),
+                        "Type": field.get("type"),
+                        "ID": field.get("id")
+                    })
+            
+            pd.DataFrame(form_summary).to_excel(writer, index=False, sheet_name='Forms')
+            
+            if all_inputs:
+                pd.DataFrame(all_inputs).to_excel(writer, index=False, sheet_name='Inputs')
+            else:
+                 pd.DataFrame({"Info": ["No inputs found"]}).to_excel(writer, index=False, sheet_name='Inputs')
+        else:
+             pd.DataFrame({"Info": ["No forms found"]}).to_excel(writer, index=False, sheet_name='Forms')
+
+    output.seek(0)
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
 class PDFReport(FPDF):
     def __init__(self, title):
         super().__init__()

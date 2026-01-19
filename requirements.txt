@@ -11,7 +11,7 @@ playwright
 jinja2
 python-multipart
 aiofiles
-aiofiles
+
 ipwhois
 fpdf2
 pandas

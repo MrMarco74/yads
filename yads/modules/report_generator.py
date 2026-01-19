@@ -180,6 +180,88 @@ class PDFReport(FPDF):
             if len(found) > 15:
                  self.cell(0, 5, f" ... {len(found)-15} more", new_x="LMARGIN", new_y="NEXT")
             self.ln()
+    def add_api_discovery_section(self, result):
+        self.chapter_title("API Discovery")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No API Discovery data available.")
+            return
+
+        # Definitions
+        definitions = data.get("definitions_found", [])
+        if definitions:
+            self.set_font('helvetica', 'B', 12)
+            self.cell(0, 8, f"API Definitions Found: {len(definitions)}", new_x="LMARGIN", new_y="NEXT")
+            self.set_font('courier', '', 10)
+            for defi in definitions:
+                 self.cell(0, 5, f" - {defi.get('url')} ({defi.get('status')})", new_x="LMARGIN", new_y="NEXT")
+            self.ln()
+
+        # Prefixes
+        prefixes = data.get("prefixes_found", [])
+        if prefixes:
+            self.set_font('helvetica', 'B', 12)
+            self.cell(0, 8, f"API Prefixes Discovered: {len(prefixes)}", new_x="LMARGIN", new_y="NEXT")
+            self.set_font('courier', '', 10)
+            for pre in prefixes:
+                 self.cell(0, 5, f" - {pre.get('url')} ({pre.get('status')})", new_x="LMARGIN", new_y="NEXT")
+            self.ln()
+            
+        # Endpoints
+        endpoints = data.get("endpoints", [])
+        if endpoints:
+            self.set_font('helvetica', 'B', 12)
+            self.cell(0, 8, f"Endpoints Extracted: {len(endpoints)}", new_x="LMARGIN", new_y="NEXT")
+            self.set_font('courier', '', 8) # Smaller font for paths
+            
+            # Print in columns if possible, but list is safer
+            count = 0
+            for endp in endpoints:
+                 self.cell(0, 4, f" {endp}", new_x="LMARGIN", new_y="NEXT")
+                 count += 1
+                 if count > 50:
+                     self.cell(0, 5, f" ... and {len(endpoints)-50} more.", new_x="LMARGIN", new_y="NEXT")
+                     break
+            self.ln()
+
+    def add_form_discovery_section(self, result):
+        self.chapter_title("Form Discovery")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No form data available.")
+            return
+            
+        forms = data.get("forms", [])
+        if not forms:
+            self.chapter_body("No forms found.")
+            return
+            
+        self.set_font('helvetica', 'B', 12)
+        self.cell(0, 8, f"Forms Found: {len(forms)}", new_x="LMARGIN", new_y="NEXT")
+        self.ln(2)
+        
+        self.set_font('courier', '', 10)
+        
+        # Header
+        self.cell(100, 7, "Action", 1)
+        self.cell(30, 7, "Method", 1)
+        self.cell(30, 7, "Inputs", 1)
+        self.ln()
+        
+        for form in forms:
+            action = form.get("action") or "(self)"
+            method = form.get("method", "get")
+            input_count = len(form.get("inputs", []))
+            
+            # Truncate action
+            if len(action) > 40: action = action[:37] + "..."
+            
+            self.cell(100, 7, action, 1)
+            self.cell(30, 7, method.upper(), 1)
+            self.cell(30, 7, str(input_count), 1)
+            self.ln()
+            
+        self.ln()
 
 def generate_report(target_domain: str, scan_results: Dict[str, Any]) -> bytes:
     pdf = PDFReport(target_domain)
@@ -209,6 +291,16 @@ def generate_report(target_domain: str, scan_results: Dict[str, Any]) -> bytes:
     typo_scanner = next((r for r in scan_results if r.module_name == 'typosquat_scanner'), None)
     if typo_scanner:
         pdf.add_typosquat_section(typo_scanner)
+
+    # API Discovery
+    api_scanner = next((r for r in scan_results if r.module_name == 'api_discovery'), None)
+    if api_scanner:
+        pdf.add_api_discovery_section(api_scanner)
+
+    # Form Discovery
+    form_scanner = next((r for r in scan_results if r.module_name == 'form_discovery'), None)
+    if form_scanner:
+        pdf.add_form_discovery_section(form_scanner)
 
     return pdf.output()
 

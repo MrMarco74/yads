@@ -79,3 +79,57 @@ async def view_roadmap(request: Request, user: User = Depends(get_current_user_h
     """
     from yads.config import settings
     return templates.TemplateResponse("roadmap.html", {"request": request, "user": user, "settings": settings})
+
+@router.get("/sbom", response_class=HTMLResponse)
+async def view_sbom(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """
+    Renders the Software BOM page.
+    """
+    import json
+    # Try different locations for sbom.json
+    possible_paths = ["sbom.json", "/app/sbom.json", "../../sbom.json"]
+    sbom_data = None
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    sbom_data = json.load(f)
+                break
+            except:
+                continue
+                
+    from yads.config import settings
+    return templates.TemplateResponse("help/sbom.html", {
+        "request": request, 
+        "user": user, 
+        "settings": settings,
+        "sbom": sbom_data
+    })
+
+@router.get("/cbom", response_class=HTMLResponse)
+async def view_cbom(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """
+    Renders the Cryptography BOM page.
+    """
+    import json
+    # Try different locations for cbom.json
+    possible_paths = ["cbom.json", "/app/cbom.json", "../../cbom.json"]
+    cbom_data = None
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    cbom_data = json.load(f)
+                break
+            except:
+                continue
+                
+    from yads.config import settings
+    return templates.TemplateResponse("help/cbom.html", {
+        "request": request, 
+        "user": user, 
+        "settings": settings,
+        "cbom": cbom_data
+    })
