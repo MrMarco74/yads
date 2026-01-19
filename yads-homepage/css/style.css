@@ -311,6 +311,10 @@ nav .container {
     color: var(--text-secondary);
 }
 
+.docs-content ul, .docs-content ol {
+    padding-left: 2rem;
+}
+
 .docs-content code {
     background: #000;
     padding: 0.2rem 0.4rem;
@@ -482,6 +486,16 @@ footer {
 }
 
 footer {
+    border-top: 1px solid var(--border-color);
+    padding: 4rem 0;
+    margin-top: 4rem;
+    background-color: var(--bg-dark);
+}
+
+footer .container {
     text-align: center;
-    padding: 2rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }

@@ -103,7 +103,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
     if scan_types is None:
         # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner"]
+        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner", "api_discovery", "form_discovery"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
@@ -728,6 +728,63 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
                 except Exception as e:
                     logger.error(f"[Worker] Error in Cloud Asset Scanner: {e}")
+                    session.rollback()
+
+            # 12. Run API Discovery Scanner
+            if "api_discovery" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running API Discovery..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.api_discovery import ApiDiscoveryScanner
+                    api_scan = ApiDiscoveryScanner(db_session=session)
+                    logger.info(f"[Worker] Step 12: Running {api_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {api_scan.module_name} for {domain}")
+                        result = api_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {api_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {api_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in API Discovery Scanner: {e}")
+                    session.rollback()
+
+            if "form_discovery" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Form Discovery..."
+                        session.add(t)
+                        session.commit()
+                        
+                    from yads.modules.form_discovery import FormDiscoveryScanner
+                    form_scan = FormDiscoveryScanner(db_session=session)
+                    logger.info(f"[Worker] Step 13: Running {form_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {form_scan.module_name} for {domain}")
+                        result = form_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                        
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = captured_logs
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {form_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {form_scan.module_name} finished.")
+                        
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Form Discovery Scanner: {e}")
                     session.rollback()
 
             # Subdomain Discovery & Auto-Queue Logic

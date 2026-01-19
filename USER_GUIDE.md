@@ -358,6 +358,13 @@ Go to **Users** in the navbar.
     *   **Scanner**: Can add targets and run scans.
     *   **Admin**: Full system access, including settings and user management.
 
+### Support
+*   **Recent Changes**: View the changelog and release notes.
+*   **Software BOM**: View the Software Bill of Materials (SBOM) for the current build.
+*   **Cryptography BOM**: View the Cryptography Bill of Materials (CBOM) for crypto assets.
+*   **Documentation**: Access this user guide.
+*   **Roadmap**: View upcoming features.
+
 ### Multi-Factor Authentication (MFA)
 *   Users can enable 2FA in their profile.
 *   Admins can see who has MFA enabled but cannot disable it for them (users must reset if lost, or Admin deletes user).
@@ -411,6 +418,10 @@ To get the most out of YADS, consider these tips:
 
 ---
 
+
+---
+
+
 ## 14. Troubleshooting
 
 ### Common Issues
@@ -431,7 +442,7 @@ To get the most out of YADS, consider these tips:
 
 ## 15. Support
 
-For technical support or to report bugs: support@yads-security.com
+For technical support or to report bugs: info@yads-security.com
 
 ---
 

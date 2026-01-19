@@ -41,12 +41,15 @@ build_images:
     - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml push yads-api
 
     # SBOM (Disabled to save disk space on runner)
-    # - apk add --no-cache curl
-    # - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-    # - syft "$IMAGE_YADS:latest" -o cyclonedx-json=sbom.json
+    - apk add --no-cache curl
+    - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+    - syft "$IMAGE_YADS:latest" -o cyclonedx-json=sbom.json
+    # Generate CBOM from SBOM
+    - python3 scripts/generate_cbom.py
   artifacts:
     paths:
       - sbom.json
+      - cbom.json
     expire_in: 1 week
 
 # --- TEST STAGE ---
@@ -64,5 +67,13 @@ deploy_to_portainer:
   variables:
     COMPOSE_FILE_PATH: "docker-compose.prod.yml"
     PORTAINER_STACK_TYPE: "2" # 1=Swarm, 2=Standalone/Compose
+
+# --- CLEANUP STAGE ---
+cleanup:
+  stage: deploy
+  script:
+    - docker system prune -af --volumes || true
+  when: always
+
 
 

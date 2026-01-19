@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Cryptography BOM - YADS{% endblock %}
+
+{% block content %}
+<div class="px-4 py-4 md:px-8 md:py-8 space-y-6">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-white tracking-tight">Cryptography Bill of Materials (CBOM)</h1>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wide">Experimental</span>
+            </div>
+            <p class="text-sm text-slate-400 mt-1">Inventory of cryptographic assets and libraries detected in this build.</p>
+        </div>
+        <div class="flex gap-3">
+             <div class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-center">
+                <span class="block text-xs text-slate-500 uppercase tracking-wider">Crypto Assets</span>
+                <span class="text-lg font-bold text-indigo-400">{{ cbom.components|length if cbom else 0 }}</span>
+             </div>
+        </div>
+    </div>
+
+    {% if cbom %}
+    <!-- Data Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden shadow-lg">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-slate-400">
+                <thead class="text-xs text-slate-500 uppercase bg-slate-800/50 border-b border-slate-800">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Asset</th>
+                        <th scope="col" class="px-6 py-3">Version</th>
+                        <th scope="col" class="px-6 py-3">PURL</th>
+                        <th scope="col" class="px-6 py-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for comp in cbom.components %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-3">
+                            <div class="flex items-center gap-3">
+                                <div class="h-8 w-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                </div>
+                                <span class="font-medium text-white">{{ comp.name }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="px-2 py-1 bg-slate-800 rounded text-xs text-indigo-300 border border-slate-700 font-mono">{{ comp.version }}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                            <span class="text-xs text-slate-600 font-mono truncate max-w-[200px] block">{{ comp.purl }}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                Approved
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 text-slate-600 mb-4">
+             <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+             </svg>
+        </div>
+        <h3 class="text-lg font-medium text-white mb-2">CBOM Not Available</h3>
+        <p class="text-slate-400 text-sm max-w-md mx-auto">The Cryptography BOM (cbom.json) could not be found or generated.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
