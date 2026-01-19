@@ -41,7 +41,7 @@ build_images:
     - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml push yads-api
 
     # SBOM (Disabled to save disk space on runner)
-    - apk add --no-cache curl
+    - apk add --no-cache curl python3
     - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
     - syft "$IMAGE_YADS:latest" -o cyclonedx-json=sbom.json
     # Generate CBOM from SBOM
