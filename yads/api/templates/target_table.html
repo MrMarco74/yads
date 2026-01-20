@@ -64,6 +64,11 @@
                     <label class="block text-sm font-medium text-slate-300 mb-2">Domains (one per line)</label>
                     <textarea name="targets_raw" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm placeholder-slate-600" placeholder="example.com&#10;sub.domain.org&#10;another-target.net"></textarea>
                 </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Discovery Reason / Justification (Optional)</label>
+                    <input type="text" name="discovery_reason" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" placeholder="e.g. Requested by CISO for Q3 Audit">
+                </div>
                 
                 <div class="flex items-center gap-2 mb-4">
                     <input type="checkbox" id="verify_dns" name="verify_dns" value="true" checked class="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-offset-slate-800">
@@ -494,6 +499,12 @@
                                         
                                         <span class="text-xs font-normal text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
                                     </div>
+
+                                    {% if row.target.discovery_reason %}
+                                    <div class="text-[10px] text-slate-400 italic mb-1" title="Discovery Reason">
+                                        "{{ row.target.discovery_reason }}"
+                                    </div>
+                                    {% endif %}
                                     
                                     <!-- Tags Area -->
                                     <div class="flex flex-wrap items-center gap-1.5 pl-0.5" id="tags-area-{{ row.target.id }}">

@@ -24,6 +24,7 @@ class Tenant(SQLModel, table=True):
     google_api_key: Optional[str] = Field(default=None)
     google_cse_cx: Optional[str] = Field(default=None)
     nuclei_api_key: Optional[str] = Field(default=None)
+    hibp_api_key: Optional[str] = Field(default=None)
     
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
@@ -48,6 +49,9 @@ class Target(SQLModel, table=True):
     
     # Tagging
     tags: List[str] = Field(default=[], sa_column=Column(JSONB))
+    
+    # Justification
+    discovery_reason: Optional[str] = Field(default=None)
     
     # Visual Identity
     brand_logo_url: Optional[str] = Field(default=None)

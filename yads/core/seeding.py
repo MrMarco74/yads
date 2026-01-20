@@ -282,6 +282,44 @@ def seed_changelog():
             )
             session.add(entry_190)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.10.0").first():
+            entry_1100 = ChangelogEntry(
+                title="YADS v1.10.0: Code Protection & Licensing",
+                version="1.10.0",
+                content="""
+                <h3>🔐 Licensing & Code Protection</h3>
+                <ul>
+                    <li><strong>Domain Licensing:</strong> New Licensing System with signed keys enforces target limits per customer.</li>
+                    <li><strong>Code Protection:</strong> Python source code is now compiled to C extensions (via Nuitka) for enhanced security in production builds.</li>
+                    <li><strong>License Manager:</strong> New standalone tool <code>tools/license_admin.py</code> for key generation and license issuance.</li>
+                </ul>
+                <h3>📊 Backup & Security</h3>
+                <ul>
+                    <li><strong>Encrypted Backups:</strong> System exports can now be encrypted with a password (AES-256).</li>
+                    <li><strong>GraphML Export:</strong> Network graphs can be exported to GraphML format for external analysis.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1100)
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.11.0").first():
+            entry_1110 = ChangelogEntry(
+                title="YADS v1.11.0: Setup Guide & UX Enhancements",
+                version="1.11.0",
+                content="""
+                <h3>🚀 New Setup Guide</h3>
+                <ul>
+                    <li><strong>Quick Start:</strong> The German homepage now includes a direct "Schnellstart" guide for easier installation.</li>
+                </ul>
+                <h3>✨ UX Enhancements</h3>
+                <ul>
+                    <li><strong>Version 1.11.0:</strong> System upgraded to the latest stable release.</li>
+                    <li><strong>Notification System:</strong> Improved notification seeding for new releases.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1110)
+
         session.commit()
         print("Changelog seeded successfully.")
 

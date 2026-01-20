@@ -3,7 +3,9 @@
 services:
   # --- Backend Services ---
   yads-api:
-    build: .
+    build:
+      context: .
+      target: dev
     command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
@@ -28,7 +30,9 @@ services:
 
 
   yads-worker:
-    build: .
+    build:
+      context: .
+      target: dev
     command: python /app/scripts/start_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:yads@db:5432/yads
@@ -67,12 +71,16 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     networks:
       - yads-net
 
 volumes:
   postgres_data:
   nuclei_templates:
+  redis_data:
 
 networks:
   yads-net:

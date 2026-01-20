@@ -67,6 +67,7 @@ async def update_tenant_settings(
     google_api_key: Optional[str] = Form(None),
     google_cse_cx: Optional[str] = Form(None),
     nuclei_api_key: Optional[str] = Form(None),
+    hibp_api_key: Optional[str] = Form(None),
     session_timeout_minutes: Optional[int] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
@@ -82,6 +83,7 @@ async def update_tenant_settings(
     tenant.google_api_key = google_api_key if google_api_key and google_api_key.strip() else None
     tenant.google_cse_cx = google_cse_cx if google_cse_cx and google_cse_cx.strip() else None
     tenant.nuclei_api_key = nuclei_api_key if nuclei_api_key and nuclei_api_key.strip() else None
+    tenant.hibp_api_key = hibp_api_key if hibp_api_key and hibp_api_key.strip() else None
     
     # Session Timeout Validation
     if session_timeout_minutes is not None:

@@ -1,17 +1,17 @@
 import requests
 import logging
-from typing import Any, Dict
+import socket
+from typing import Any, Dict, List
 import urllib3
 from yads.core.base import BaseScannerModule
-from yads.config import settings
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class PortScanner(BaseScannerModule):
     """
-    Lightweight Port Scanner / Web Probe.
-    Checks if ports 80 (HTTP) and 443 (HTTPS) are open and returns basic server info.
-    Use this to quickly filter for active webservers before running heavy scans.
+    Enhanced Port Scanner.
+    Scans for a curated list of interesting ports using standard socket connections.
+    Performs specific HTTP probes on web ports to gather server information.
     """
     @property
     def module_name(self) -> str:
@@ -20,43 +20,115 @@ class PortScanner(BaseScannerModule):
     def __init__(self, db_session=None):
         super().__init__(db_session)
         self.logger = logging.getLogger("yads.modules.port_scanner")
+        
+        # Curated list of ports to scan
+        self.INTERESTING_PORTS = {
+            21: "FTP",
+            22: "SSH",
+            23: "Telnet",
+            25: "SMTP",
+            53: "DNS",
+            80: "HTTP",
+            443: "HTTPS",
+            3306: "MySQL",
+            5432: "PostgreSQL",
+            6379: "Redis",
+            8000: "HTTP-Alt",
+            8008: "HTTP-Alt",
+            8080: "HTTP-Proxy",
+            8443: "HTTPS-Alt",
+            8888: "HTTP-Alt",
+            9200: "Elasticsearch",
+            27017: "MongoDB"
+        }
+        
+        # Ports that should trigger a full HTTP request probe
+        self.WEB_PORTS = [80, 443, 8000, 8008, 8080, 8443, 8888, 9200]
 
     def run_scan(self, target: str) -> Dict[str, Any]:
         results = {
-            "http": {"open": False, "status": 0, "server": None},
-            "https": {"open": False, "status": 0, "server": None},
-            "is_active": False
+            "open_ports": [],
+            "is_active": False,
+            "scanned_ports": list(self.INTERESTING_PORTS.keys())
         }
         
-        # Use a short timeout for rapidity
-        timeout = 5 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; YADS/1.0; +http://yads.local)"
-        }
+        self.logger.info(f"Starting Enhanced Port Scan for {target}...")
         
-        # HTTP Check
+        # Resolve target first to avoid repeated lookups
         try:
-            r = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False, headers=headers)
-            results["http"] = {
-                "open": True,
-                "status": r.status_code,
-                "server": r.headers.get("Server")
-            }
-            results["is_active"] = True
-        except Exception:
-            pass
+            target_ip = socket.gethostbyname(target)
+            self.logger.debug(f"Resolved {target} to {target_ip}")
+        except socket.gaierror:
+            self.logger.warning(f"Could not resolve hostname: {target}")
+            return results
 
-        # HTTPS Check
-        try:
-            # verify=False is crucial as many internal/test targets have self-signed certs
-            r = requests.get(f"https://{target}", timeout=timeout, allow_redirects=False, headers=headers, verify=False)
-            results["https"] = {
-                "open": True,
-                "status": r.status_code,
-                "server": r.headers.get("Server")
-            }
-            results["is_active"] = True
-        except Exception:
-            pass
+        timeout = 2  # Seconds for socket connection
+        
+        for port, service_label in self.INTERESTING_PORTS.items():
+            is_open = False
+            banner = None
             
+            # 1. Socket Check
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(timeout)
+                    result = sock.connect_ex((target_ip, port))
+                    if result == 0:
+                        is_open = True
+            except Exception as e:
+                self.logger.debug(f"Socket error on port {port}: {e}")
+                continue
+
+            if is_open:
+                results["is_active"] = True
+                port_info = {
+                    "port": port,
+                    "service": service_label,
+                    "banner": None
+                }
+                
+                # 2. Web Probe (if applicable)
+                if port in self.WEB_PORTS:
+                    web_info = self._probe_web(target, port)
+                    if web_info:
+                        port_info["banner"] = web_info.get("server")  # Use Server header as banner
+                        port_info["http_status"] = web_info.get("status")
+                
+                # 3. Simple Banner Grab for non-web (optional, simple read)
+                elif port in [21, 22, 25]: # FTP, SSH, SMTP usually send banner on connect
+                     try:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(1.5)
+                            s.connect((target_ip, port))
+                            # Receive up to 1024 bytes
+                            banner_bytes = s.recv(1024)
+                            port_info["banner"] = banner_bytes.decode('utf-8', errors='ignore').strip()
+                     except Exception:
+                         pass
+
+                results["open_ports"].append(port_info)
+                self.logger.info(f"Found open port: {port} ({service_label})")
+
         return results
+
+    def _probe_web(self, target: str, port: int) -> Dict[str, Any]:
+        """
+        Probes a port with HTTP/HTTPS to check for web servers.
+        """
+        protocol = "https" if port in [443, 8443] else "http"
+        url = f"{protocol}://{target}:{port}"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; YADS/1.9; +http://yads.local)"
+        }
+        
+        try:
+            resp = requests.get(url, timeout=3, allow_redirects=False, headers=headers, verify=False)
+            return {
+                "status": resp.status_code,
+                "server": resp.headers.get("Server")
+            }
+        except Exception:
+            # Fallback: Try HTTPS on standard HTTP ports if HTTP fails (and vice versa?) 
+            # For now keep naive.
+            return None

@@ -1,4 +1,4 @@
-/* YADS Premium Theme - Vibe Coding Edition */
+/* YADS Premium Theme - Open Source Edition */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
@@ -191,8 +191,8 @@ nav .container {
     margin-bottom: 2.5rem;
 }
 
-/* Vibe Coding Badge */
-.vibe-badge {
+/* Security Badge */
+.security-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;

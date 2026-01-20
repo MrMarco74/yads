@@ -54,12 +54,16 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
     restart: always
+    volumes:
+      - redis_data:/data
     networks:
       - yads-net
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   yads-net:

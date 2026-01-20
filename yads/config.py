@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.9.0"
+    VERSION: str = "1.11.0"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")
@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # Default to 1 hour, configurable by Admin via SystemConfig later potentially
     MFA_ENABLED: bool = os.getenv("MFA_ENABLED", "true").lower() == "true"
     
+    # Paths
+    BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
+    STATIC_DIR: str = os.path.join(BASE_DIR, "api", "static")
+
+    # Licensing (Ed25519 Public Key)
+    # This key matches the Private Key held by the vendor.
+    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQStucEN2ZWpHSC9xMU9ZN3BHbi9tVmVxUlRqY1ZWZkFHb1hoeWdWdm8yZVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+
     class Config:
         env_file = ".env"
 

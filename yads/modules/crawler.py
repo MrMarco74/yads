@@ -6,12 +6,23 @@ from urllib.parse import urljoin, urlparse, urlunparse
 from typing import Any, Dict, List, Set, Deque
 from collections import deque, Counter
 
+import hashlib
+import redis
+
 from yads.core.base import BaseScannerModule
 from yads.config import settings
 from yads.models import SystemConfig
 from sqlmodel import select
 
 class Crawler(BaseScannerModule):
+    def __init__(self, db_session=None):
+        super().__init__(db_session)
+        try:
+            self.redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        except Exception as e:
+            logging.getLogger("yads.modules.crawler").warning(f"Redis connection failed: {e}")
+            self.redis_client = None
+
     @property
     def module_name(self) -> str:
         return "crawler"
@@ -77,6 +88,7 @@ class Crawler(BaseScannerModule):
         nodes: List[Dict[str, Any]] = [] # {id: url, title: str, status: int, type: internal/internal_error}
         edges: List[Dict[str, str]] = [] # {source: url, target: url}
         external_counts = Counter()
+        traffic_log: List[Dict[str, Any]] = [] # List of request/response pairs
         
         # Helper to normalize URL
         def normalize(url, base):
@@ -103,7 +115,23 @@ class Crawler(BaseScannerModule):
             
             if current_url in visited:
                 continue
+
+            # GLOBAL DEDUPLICATION (Redis)
+            url_hash = hashlib.md5(current_url.encode()).hexdigest()
+            redis_key = f"crawler:visited:{url_hash}"
             
+            if self.redis_client:
+                if self.redis_client.exists(redis_key):
+                    logger.debug(f"Skipping globally visited URL: {current_url}")
+                    # Optionally add to visited set to stop local re-queueing, 
+                    # but don't count towards 'pages_processed' limit if we want fresh pages?
+                    # Actually, if we skip it, we shouldn't process it.
+                    visited.add(current_url) 
+                    continue
+                else:
+                    # Mark as visited globally (TTL 24h)
+                    self.redis_client.setex(redis_key, 86400, "1")
+
             visited.add(current_url)
             pages_processed += 1
             
@@ -115,10 +143,39 @@ class Crawler(BaseScannerModule):
                     
                 if pages_processed > 1:
                     time.sleep(DELAY)
+                
+                # Capture Request Data
+                req_start_time = time.time()
+                try:
+                    resp = requests.get(current_url, headers=HEADERS, timeout=TIMEOUT, verify=False) # Skip SSL verify
+                    duration = time.time() - req_start_time
                     
-                resp = requests.get(current_url, headers=HEADERS, timeout=TIMEOUT, verify=False) # Skip SSL verify for broader coverage
-                status = resp.status_code
-                content_type = resp.headers.get('Content-Type', '')
+                    # Log Interaction
+                    traffic_entry = {
+                        "url": current_url,
+                        "method": "GET",
+                        "status": resp.status_code,
+                        "duration": round(duration, 3),
+                        "request_headers": dict(resp.request.headers),
+                        "response_headers": dict(resp.headers),
+                        "response_body_snippet": resp.text[:1024] if resp.text else ""
+                    }
+                    traffic_log.append(traffic_entry)
+                    
+                    status = resp.status_code
+                    content_type = resp.headers.get('Content-Type', '')
+                except Exception as req_err:
+                     # Log failed request
+                     duration = time.time() - req_start_time
+                     traffic_log.append({
+                        "url": current_url,
+                        "method": "GET",
+                        "status": 0,
+                        "error": str(req_err),
+                        "duration": round(duration, 3),
+                        "request_headers": HEADERS
+                     })
+                     raise req_err
                 
                 # Extract Title
                 title = "Unknown"
@@ -191,7 +248,10 @@ class Crawler(BaseScannerModule):
             },
             "dead_ends": dead_ends,
             "collectors": collectors,
+            "dead_ends": dead_ends,
+            "collectors": collectors,
             "edges": edges, # Persist edges for graph viz
             "nodes": nodes, # Persist nodes (optional, but good for context)
+            "http_traffic": traffic_log,
             "sample_nodes": nodes[:5] 
         }

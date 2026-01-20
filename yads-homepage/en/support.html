@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support & Installation - YADS</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="icon" type="image/png" href="../images/favicon.png">
+    <style>
+        .support-section { margin-bottom: 4rem; padding: 2.5rem; }
+        .support-header { margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+        .code-block { background: #1e293b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; color: #e2e8f0; margin: 1rem 0; }
+        .support-section ul { padding-left: 1.5rem; margin-bottom: 1.5rem; }
+        .step-number { display: inline-block; width: 24px; height: 24px; background: var(--accent-primary); color: white; text-align: center; border-radius: 50%; margin-right: 0.5rem; line-height: 24px; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">
+                <img src="../images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <span class="text-gradient">YADS</span> Security
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product.html">Features</a>
+                <a href="support.html#setup">Setup</a>
+                <a href="support.html" class="active">Support</a>
+                <a href="changes.html">Changes</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://yads-security.de/de/support.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
+            </div>
+            <a href="contact.html" class="btn-primary">Get Demo</a>
+        </div>
+    </nav>
+
+    <header class="hero" style="min-height: 40vh; padding-top: 8rem;">
+        <div class="container hero-content">
+            <h1>Support & <span class="text-gradient">Installation</span></h1>
+            <p>Everything you need to install, configure, and run YADS.</p>
+        </div>
+    </header>
+
+    <div class="container" style="margin-top: -4rem; position: relative; z-index: 10;">
+        
+        <!-- DOWNLOAD SECTION -->
+        <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
+            <h2 style="margin-top: 0; color: #fff;">1. Release Download</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                Download the latest release package. It contains all Docker images, configuration templates, and documentation for offline installation.
+            </p>
+            
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                <a href="https://yads-security.com/releases/yads_v1.11.0_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Download v1.11.0 (.zip)
+                </a>
+            </div>
+
+            <div style="margin-top: 1.5rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #94a3b8; word-break: break-all;">
+                <strong style="color: #6366f1;">SHA256:</strong> 25842e5f21a4e3aa18caa02daf095f91a49fef43da8b8ab3dc0972ce9074f05f
+            </div>
+        </div>
+
+        <!-- SETUP GUIDE -->
+        <div class="glass-card support-section" id="setup">
+            <h2 class="support-header">2. Installation Guide (Docker)</h2>
+            
+            <h3>Prerequisites</h3>
+            <ul>
+                <li>Docker Engine (v20.10+)</li>
+                <li>Docker Compose (v2.0+)</li>
+                <li>License Key (sent via email)</li>
+            </ul>
+
+            <h3 style="margin-top: 2rem;">Step 1: Load Images</h3>
+            <p>Unzip the archive and load the Docker images:</p>
+            <div class="code-block">
+docker load < yads-images.tar.gz
+            </div>
+            <p>Verification:</p>
+            <div class="code-block">
+docker images | grep yads
+# Should list yads-api and yads-worker
+            </div>
+
+            <h3 style="margin-top: 2rem;">Step 2: Configuration</h3>
+            <p>Create a <code>.env</code> file in the same directory as <code>docker-compose.yml</code>:</p>
+            <div class="code-block">
+# .env File
+LICENSE_KEY=ey...<Your_License_Key>...
+POSTGRES_PASSWORD=choose_a_secure_password
+SECRET_KEY=insert_random_string_here
+            </div>
+
+            <h3 style="margin-top: 2rem;">Step 3: Start</h3>
+            <div class="code-block">
+docker compose up -d
+            </div>
+            <p>The system will be available at <code>http://localhost:8000</code> after approx. 30 seconds.</p>
+            <p><strong>Default Login:</strong> <code>admin</code> / <code>admin</code> (Change immediately!)</p>
+        </div>
+
+        <!-- TECHNICAL GUIDE SUMMARY -->
+        <div class="glass-card support-section" id="architecture">
+            <h2 class="support-header">3. Technical Architecture</h2>
+            <p>YADS is built on a microservices architecture, orchestrated by Docker Compose.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <h4 style="margin-top: 0; color: #6366f1;">yads-api</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">Backend (FastAPI). Manages data, users, and API.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <h4 style="margin-top: 0; color: #ec4899;">yads-worker</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">Background Service. Executes scans (Nuclei, Nmap, Chrome).</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <h4 style="margin-top: 0; color: #10b981;">PostgreSQL</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">Primary database for persistence.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <h4 style="margin-top: 0; color: #f59e0b;">Redis</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">Task Queue & Caching Layer.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- USER GUIDE LINK -->
+        <div class="glass-card support-section" id="manual" style="text-align: center; padding: 3rem;">
+            <h2>User Manual</h2>
+            <p style="max-width: 600px; margin: 0 auto 2rem auto; color: var(--text-secondary);">
+                For detailed usage instructions, scan configuration, and user management, please refer to our comprehensive user guide.
+            </p>
+            <a href="docs.html" class="btn-secondary">Go to User Guide & Docs &rarr;</a>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 YADS Security. All rights reserved.</p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="impressum.html">Imprint</a> | 
+                <a href="datenschutz.html">Privacy</a> | 
+                <a href="haftungsausschluss.html">Disclaimer</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
