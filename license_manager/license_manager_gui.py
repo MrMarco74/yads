@@ -298,9 +298,17 @@ class LicenseManagerApp:
         mailto = f"mailto:?{qs}"
         
         try:
-            webbrowser.open(mailto)
+            if sys.platform.startswith('linux'):
+                # Try xdg-open directly for Linux to avoid browser fallback issues
+                subprocess.Popen(['xdg-open', mailto])
+            else:
+                webbrowser.open(mailto)
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open mail client: {e}")
+            # Fallback
+            try:
+                webbrowser.open(mailto)
+            except Exception as e2:
+                messagebox.showerror("Error", f"Could not open mail client: {e2}")
 
     def sign_license(self):
         if not self.private_key:
