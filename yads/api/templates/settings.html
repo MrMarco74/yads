@@ -283,7 +283,7 @@
                             </label>
                             {% endfor %}
                         </div>
-                        <button type="submit" form="export-form" class="w-full text-center text-xs font-bold text-indigo-300 hover:text-white border border-indigo-500/30 hover:bg-indigo-600/20 rounded py-1.5 transition-colors">Download Backup</button>
+                        <button type="button" onclick="downloadBackup()" class="w-full text-center text-xs font-bold text-indigo-300 hover:text-white border border-indigo-500/30 hover:bg-indigo-600/20 rounded py-1.5 transition-colors">Download Backup</button>
                     </div>
                     
                     <form id="export-form" action="/api/backup/export" method="POST" class="hidden">
