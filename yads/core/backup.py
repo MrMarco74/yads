@@ -11,16 +11,56 @@ from sqlalchemy import MetaData
 
 from yads.config import settings
 
+# Encryption dependencies
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import base64
+
 logger = logging.getLogger(__name__)
-from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEvent, Tenant, User, UserTenantLink
+from yads.models import Target, ScanResult, ModuleState, SystemConfig, ChangeEvent, Tenant, User, UserTenantLink, SecurityTrend, Webhook, ScanSchedule, Notification, ChangelogEntry
 
 # List of models to backup/restore in order (parents first for restore)
-MODELS = [Tenant, User, UserTenantLink, SystemConfig, Target, ScanResult, ModuleState, ChangeEvent]
+MODELS = [Tenant, User, UserTenantLink, SystemConfig, ChangelogEntry, Target, ScanResult, ModuleState, ChangeEvent, SecurityTrend, Webhook, ScanSchedule, Notification]
 
 # Tables excluded by default in Safe Import Mode
 SYSTEM_TABLES = ["user", "usertenantlink", "systemconfig", "changeevent"]
 
 SCREENSHOT_DIR = "yads/api/static/screenshots"
+
+def _derive_key(password: str, salt: bytes) -> bytes:
+    """Derives a url-safe base64-encoded 32-byte key from password + salt."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+def encrypt_data(data: bytes, password: str) -> bytes:
+    """
+    Encrypts data using Fernet (AES).
+    Format: [16 bytes salt][Fernet Token]
+    """
+    salt = os.urandom(16)
+    key = _derive_key(password, salt)
+    f = Fernet(key)
+    token = f.encrypt(data)
+    return salt + token
+
+def decrypt_data(data: bytes, password: str) -> bytes:
+    """
+    Decrypts data. Expects [16 bytes salt][Fernet Token].
+    """
+    if len(data) < 16:
+        raise ValueError("Invalid encrypted data (too short)")
+    
+    salt = data[:16]
+    token = data[16:]
+    key = _derive_key(password, salt)
+    f = Fernet(key)
+    return f.decrypt(token)
 
 def json_serializer(obj):
     """Custom JSON serializer for datetime objects"""
@@ -28,13 +68,15 @@ def json_serializer(obj):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
-def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.BytesIO:
+def create_backup_zip(session: Session, tenant_ids: List[int] = None, password: str = None) -> io.BytesIO:
     """
     Creates a ZIP archive containing:
     1. JSON dumps of all DB tables (optionally filtered by tenant).
     2. The entire screenshots directory.
     
-    Returns a BytesIO object of the zip file.
+    If password is provided, returns an ENCRYPTED blob (not a valid zip until decrypted).
+    
+    Returns a BytesIO object of the file (Zip or Encrypted Blob).
     """
     memory_file = io.BytesIO()
     
@@ -51,26 +93,27 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
                      stmt = stmt.where(model.id.in_(tenant_ids))
                      
                 elif hasattr(model, "tenant_id"):
-                     # Target, User
-                     stmt = stmt.where(model.tenant_id.in_(tenant_ids))
-                     
-                elif table_name == "usertenantlink":
+                     # SecurityTrend, Webhook, Target, User
                      stmt = stmt.where(model.tenant_id.in_(tenant_ids))
 
-                elif table_name in ["scanresult", "modulestate"]:
-                     # Direct link to Target
+                elif table_name == "scanschedule":
+                     # Link via Target
                      stmt = stmt.join(Target).where(Target.tenant_id.in_(tenant_ids))
-                     
+
                 elif table_name == "changeevent":
                      # Link via ScanResult -> Target
                      stmt = stmt.join(ScanResult).join(Target).where(Target.tenant_id.in_(tenant_ids))
                      
-                elif table_name == "systemconfig":
-                     # Skip SystemConfig for partial backups? 
-                     # Or keep global config? Usually settings are global.
-                     # User said "restore backup function restores settings". 
-                     # If we are doing tenant backup, maybe we skip settings?
-                     # But current code skipped it.
+                elif table_name == "scanresult" or table_name == "modulestate":
+                     # Direct link to Target
+                     stmt = stmt.join(Target).where(Target.tenant_id.in_(tenant_ids))
+
+                elif table_name == "usertenantlink":
+                     stmt = stmt.where(model.tenant_id.in_(tenant_ids))
+
+                elif table_name == "systemconfig" or table_name == "notification" or table_name == "changelogentry":
+                     # Skip SystemConfig, Notification, ChangelogEntry for partial (tenant) backups
+                     # They are global system data.
                      continue
             
             # For SystemConfig in full backup (no tenant_ids), it just passes through.
@@ -88,9 +131,10 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
         meta = {
             "version": settings.VERSION,
             "timestamp": datetime.utcnow().isoformat(),
-            "compatibility": "1.x",
+            "compatibility": "1.9", # Bumped for encryption feature awareness?
             "tenant_ids": tenant_ids if tenant_ids else [],
-            "type": "partial" if tenant_ids else "full"
+            "type": "partial" if tenant_ids else "full",
+            "encrypted": True if password else False
         }
         zf.writestr("metadata.json", json.dumps(meta, indent=2))
             
@@ -103,7 +147,7 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
             # Fetch relevant screenshots
             stmt = select(ScanResult.data).join(Target).where(
                 Target.tenant_id.in_(tenant_ids),
-                ScanResult.module_name == "web_analyzer"
+                ScanResult.module_name.in_(["web_analyzer", "visual_osint"])
             )
             results = session.exec(stmt).all()
             allowed_files = set()
@@ -125,9 +169,17 @@ def create_backup_zip(session: Session, tenant_ids: List[int] = None) -> io.Byte
                     zf.write(file_path, arcname=archive_path)
                     
     memory_file.seek(0)
+    raw_zip_bytes = memory_file.read()
+    
+    if password:
+        logger.info("Encrypting backup archive...")
+        encrypted_bytes = encrypt_data(raw_zip_bytes, password)
+        return io.BytesIO(encrypted_bytes)
+        
+    memory_file.seek(0)
     return memory_file
 
-def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_ids: List[int] = None, exclude_system: bool = True):
+def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_ids: List[int] = None, exclude_system: bool = True, password: str = None):
     """
     Restores data from a ZIP archive.
     Strategy: 
@@ -136,8 +188,28 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     
     Args:
         exclude_system: If True, skips User, UserTenantLink, SystemConfig to prevent overwriting admins/settings.
+        password: If provided, attempts to decrypt data first.
     """
-    logger.info(f"Starting backup restore process... (exclude_system={exclude_system})")
+    logger.info(f"Starting backup restore process... (exclude_system={exclude_system}, password_provided={bool(password)})")
+    
+    # Decryption Logic
+    if password:
+        try:
+            zip_bytes = decrypt_data(zip_bytes, password)
+            logger.info("Backup successfully decrypted.")
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            raise ValueError("Invalid password or corrupted backup file.")
+    
+    # Try opening as Zip to verify (or it might fail if encrypted but no password given)
+    try:
+        zf_check = zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') 
+        zf_check.close()
+    except zipfile.BadZipFile:
+        if not password:
+            raise ValueError("File is not a valid ZIP. It might be encrypted (password required).")
+        raise
+    
     meta = {}
     
     # Pre-Check: Read Metadata
@@ -157,7 +229,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
 
     # Tables to SKIP if exclude_system is True
     # User requested to exclude 'changeevent' as well.
-    SYSTEM_TABLES = ["user", "usertenantlink", "systemconfig", "changeevent"]
+    SYSTEM_TABLES = ["user", "usertenantlink", "systemconfig", "changeevent", "changelogentry"]
 
     if backup_type == "partial" and tenant_ids:
         logger.info("Performing PARTIAL restore strategy.")

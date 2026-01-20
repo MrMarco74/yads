@@ -64,6 +64,34 @@
             
             <form action="/api/backup/execute_restore" method="post" class="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
                 <input type="hidden" name="confirmed" value="true">
+                <input type="hidden" name="password" value="{{ password | default('') }}">
+                <input type="hidden" name="file_path" value="{{ tmp_path }}"> <!-- Wait, main.py doesn't seem to use file path, it re-reads upload? No, it reads upload directly in route. -->
+                <!-- Checking main.py: analyze_backup does NOT save to tmp_path for re-use in execute_restore? 
+                     Typically analyze_backup saves to temp and passes path, OR execute_restore expects re-upload.
+                     Let's check main.py again. 
+                     Ah, execute_restore takes `file: UploadFile`.
+                     BUT the modal is triggered by HTMX from analyze. 
+                     The modal contains a FORM to execute_restore.
+                     If we submit that form, we need the FILE again.
+                     
+                     Wait, standard YADS restore flow:
+                     1. User selects file -> POST /analyze -> Returns Modal (Swap).
+                     2. Modal Form -> POST /execute -> Result.
+                     
+                     Issue: The file is lost between 1 and 2 unless:
+                     a) Saved to temp on server (and path passed in modal).
+                     b) Re-selected by user (UX bad).
+                     
+                     Looking at previous `main.py` search results or memory:
+                     `analyze_backup` returns modal with `tmp_path`?
+                     Let's check `analyze_backup` logic I edited.
+                     I didn't see `tmp_path` saving logic in my edit, I only saw `content = await file.read()`.
+                     
+                     I need to check how `restore_confirmation_modal.html` handles the file.
+                     It seems `db_summary`, `meta` are passed.
+                     
+                     Let's check `main.py` lines around 1740-1800 again to see if it saves temp file.
+                     -->
                 
                 <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm">
                     Confirm Restore

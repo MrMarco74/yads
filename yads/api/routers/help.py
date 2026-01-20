@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import markdown
 import os
@@ -133,3 +133,53 @@ async def view_cbom(request: Request, user: User = Depends(get_current_user_html
         "settings": settings,
         "cbom": cbom_data
     })
+
+@router.get("/sbom/download", response_class=JSONResponse)
+async def download_sbom(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """
+    Downloads the SBOM in CycloneDX JSON format.
+    """
+    import json
+
+    
+    # Try different locations for sbom.json
+    possible_paths = ["sbom.json", "/app/sbom.json", "../../sbom.json"]
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    sbom_data = json.load(f)
+                return JSONResponse(
+                    content=sbom_data,
+                    headers={"Content-Disposition": "attachment; filename=sbom_cyclonedx.json"}
+                )
+            except:
+                continue
+    
+    raise HTTPException(status_code=404, detail="SBOM file not found")
+
+@router.get("/cbom/download", response_class=JSONResponse)
+async def download_cbom(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """
+    Downloads the CBOM in CycloneDX JSON format.
+    """
+    import json
+
+    
+    # Try different locations for cbom.json
+    possible_paths = ["cbom.json", "/app/cbom.json", "../../cbom.json"]
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r") as f:
+                    cbom_data = json.load(f)
+                return JSONResponse(
+                    content=cbom_data,
+                    headers={"Content-Disposition": "attachment; filename=cbom_cyclonedx.json"}
+                )
+            except:
+                continue
+    
+    raise HTTPException(status_code=404, detail="CBOM file not found")

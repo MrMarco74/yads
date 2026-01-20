@@ -129,6 +129,11 @@ def migrate():
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS google_cse_cx VARCHAR;"))
             # Nuclei Pro
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS nuclei_api_key VARCHAR;"))
+            # HIBP Integration
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS hibp_api_key VARCHAR;"))
+            
+            # Target Justification
+            conn.execute(text("ALTER TABLE target ADD COLUMN IF NOT EXISTS discovery_reason VARCHAR;"))
             
             # Session Management
             conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS session_timeout_minutes INTEGER DEFAULT 60;"))
@@ -376,6 +381,55 @@ def migrate():
                         'update',
                         'teal',
                         'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
+
+        # 22. Create Notification for v1.10.0
+        print(">> Checking/Creating v1.10.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.10.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.10.0',
+                        'Major Release: Code Protection & Licensing System! Check Changelog.',
+                        'update',
+                        'yellow',
+                        'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+                        (now() at time zone 'utc')
+                    );
+                """))
+                conn.commit()
+                print("   Created notification.")
+            else:
+                print("   Notification already exists.")
+        except Exception as e:
+            print(f"   Error creating notification: {e}")
+
+        # 23. Create Notification for v1.11.0
+        print(">> Checking/Creating v1.11.0 Notification...")
+        try:
+            # Check if exists
+            result = conn.execute(text("SELECT id FROM notification WHERE title = 'System Update v1.11.0'"))
+            if not result.fetchone():
+                conn.execute(text("""
+                    INSERT INTO notification (title, text, type, color, icon, created_at)
+                    VALUES (
+                        'System Update v1.11.0',
+                        'Major Release: New Setup Guide & Enhanced UX! Check Changelog.',
+                        'update',
+                        'pink',
+                        'M13 10V3L4 14h7v7l9-11h-7z',
                         (now() at time zone 'utc')
                     );
                 """))

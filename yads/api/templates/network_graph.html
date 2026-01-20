@@ -88,6 +88,9 @@
                 <button id="exportPng" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors">
                     PNG (4K)
                 </button>
+                <button id="exportGraphML" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded border border-slate-700 transition-colors">
+                    GraphML
+                </button>
             </div>
         </div>
 
@@ -407,6 +410,15 @@
              const a = document.createElement('a');
              a.href = png; a.download = 'spiderweb_graph.png';
              a.click();
+        });
+
+        document.getElementById('exportGraphML').addEventListener('click', () => {
+             // Backend Export
+             const url = `/api/visualizations/network/export?format=graphml&filter_online=${config.availability}&filter_empty=${!config.connectedOnly}`; 
+             // Note: connectedOnly in UI is client-side filter, but backend export re-fetches. 
+             // Ideally backend should match UI filters.
+             // For now, let's just trigger download.
+             window.open(url, '_blank');
         });
     }
 

@@ -59,7 +59,8 @@
             <div class="nav-links">
                 <a href="index.html">Home</a>
                 <a href="product.html" class="active">Features</a>
-                <a href="docs.html">Documentation</a>
+                <a href="support.html#setup">Setup</a>
+                <a href="support.html">Support</a>
                 <a href="changes.html">Changes</a>
                 <a href="contact.html">Contact</a>
                 <a href="https://yads-security.de/de/product.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
@@ -210,6 +211,42 @@
             </div>
         </div>
     </section>
+
+    <!-- Future Roadmap Section -->
+    <section class="feature-section" style="padding: 4rem 0; background-color: rgba(99, 102, 241, 0.05); border-top: 1px solid var(--border-color); margin-top: 4rem;">
+        <div class="container">
+            <div style="text-align: center; margin-bottom: 3rem;">
+                <span class="feature-tag">Future</span>
+                <h2 style="font-size: 2.5rem;">Roadmap</h2>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <!-- Option 3: Cloud/Bucket Scanner -->
+                <div class="change-card" style="background: var(--bg-card); padding: 2rem; border-radius: 1rem; border: 1px dashed var(--accent-primary);">
+                    <h3 style="color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                        Cloud Asset Discovery
+                    </h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Automated detection of misconfigured cloud storage resources, including open AWS S3 Buckets, Azure Blobs, and Google Cloud Storage.
+                    </p>
+                    <span style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); padding: 0.25rem 0.5rem; border-radius: 4px;">Planned</span>
+                </div>
+
+                <!-- Option 5: Dark Web Monitor -->
+                <div class="change-card" style="background: var(--bg-card); padding: 2rem; border-radius: 1rem; border: 1px dashed var(--accent-primary);">
+                    <h3 style="color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        Dark Web Monitor
+                    </h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Proactive surveillance of underground marketplaces and leaking forums to detect compromised credentials or sensitive data leaks before they escalate.
+                    </p>
+                    <span style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); padding: 0.25rem 0.5rem; border-radius: 4px;">Planned</span>
+                </div>
+            </div>
+        </div>
+    </section>
         
     </div>
 
@@ -219,9 +256,9 @@
         <div class="container">
             <p>&copy; 2026 YADS Security. All rights reserved.</p>
             <div style="margin-top: 1rem; font-size: 0.9rem;">
-                <a href="impressum.html">Impressum</a> | 
-                <a href="datenschutz.html">Datenschutz</a> | 
-                <a href="haftungsausschluss.html">Haftungsausschluss</a>
+                <a href="impressum.html">Imprint</a> | 
+                <a href="datenschutz.html">Privacy</a> | 
+                <a href="haftungsausschluss.html">Disclaimer</a>
             </div>
         </div>
     </footer>

@@ -1,5 +1,5 @@
 # -- Stage 1: Build CSS --
-FROM node:18-alpine AS builder
+FROM node:18-alpine AS css-builder
 
 WORKDIR /app
 COPY package.json tailwind.config.js ./
@@ -10,8 +10,8 @@ COPY yads/api/static/css/input.css ./yads/api/static/css/input.css
 RUN npm install
 RUN npm run build:css
 
-# -- Stage 2: Run App --
-FROM python:3.11-slim
+# -- Stage 2: Base Image (Common Deps) --
+FROM python:3.11-slim AS base
 
 # Install system dependencies
 RUN apt-get clean && apt-get update --fix-missing && apt-get install -y --no-install-recommends \
@@ -21,6 +21,7 @@ RUN apt-get clean && apt-get update --fix-missing && apt-get install -y --no-ins
     graphviz \
     postgresql-client \
     unzip \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Nuclei (ProjectDiscovery)
@@ -40,10 +41,44 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Playwright Browsers
 RUN playwright install --with-deps chromium
 
+# -- Stage 3: Development (Source Code) --
+FROM base AS dev
+COPY . .
+# Copy built CSS from builder
+COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# -- Stage 4: Compilation Builder --
+FROM base AS code-builder
+# Install build tools for Nuitka
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    patchelf \
+    ccache \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install nuitka
+
 COPY . .
 
-# Copy built CSS from builder
-COPY --from=builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+# Compile 'yads' package
+# We exclude tests and migration scripts from compilation, keeping them as scripts if needed?
+# Actually migrate_db.py is outside yads/. It needs to be kept as source or compiled separately.
+# For simplicity, we compile the 'yads' package and keep top-level scripts as source.
+RUN python -m nuitka \
+    --module \
+    --include-package=yads \
+    --output-dir=/build \
+    --remove-output \
+    yads
 
-# Default command (can be overridden by compose)
+# -- Stage 5: Production (Standard) --
+FROM base AS prod
+# Copy source code directly (skipping Nuitka compilation for reliability)
+COPY . .
+# Copy built CSS (overwrite static/css/main.css)
+COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+
+# Production Command (No reload)
 CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

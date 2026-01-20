@@ -12,6 +12,12 @@
             <p class="text-sm text-slate-400 mt-1">Detailed inventory of all software components used in this build.</p>
         </div>
         <div class="flex gap-3">
+             <a href="/help/sbom/download" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center border border-transparent shadow-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export CycloneDX
+             </a>
              <div class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-center">
                 <span class="block text-xs text-slate-500 uppercase tracking-wider">Components</span>
                 <span class="text-lg font-bold text-white">{{ sbom.components|length if sbom else 0 }}</span>

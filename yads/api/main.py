@@ -346,6 +346,7 @@ async def bulk_import_targets(
 ):
     form = await request.form()
     raw_text = form.get("targets_raw", "")
+    discovery_reason = form.get("discovery_reason")
     next_url = form.get("next", "/targets/table")
     verify_dns = form.get("verify_dns") == "true"
     
@@ -406,8 +407,45 @@ async def bulk_import_targets(
             duplicate_count += 1
             continue
             
+        # --- License Check ---
+        # 1. Get current count (Tenant Scoped or Global? License is usually Global per instance)
+        # But if we license per customer name, and customer name == tenant name? 
+        # For simplicity in this Single-Instance model: Global Count.
+        total_active_targets = session.exec(select(func.count()).select_from(Target)).one()
+        
+        # 2. Verify License
+        from yads.models import SystemConfig
+        from yads.core.license import license_manager
+        import time
+        
+        license_conf = session.get(SystemConfig, "license_key")
+        limit = 0
+        valid_license = False
+        
+        if license_conf and license_conf.value:
+            data = license_manager.verify(license_conf.value)
+            if data:
+                limit = data.get("max_targets", 0)
+                valid_license = True
+        
+        # 3. Enforce
+        # If no license or invalid -> Limit is 0? Or default free tier?
+        # Let's say Default Free Tier = 5 targets if no license.
+        if not valid_license:
+            limit = 5 
+        
+        if total_active_targets >= limit:
+            # Check if this specific domain is what pushes us over?
+            # We are creating one by one in loop.
+            # If we reached limit, stop importing.
+            skipped_dns_count += 0 # metric hack
+            # LOG/Notify?
+            msg = f"License Limit Reached ({limit}). Upgrade license to add more targets."
+            return RedirectResponse(url=f"{next_url}?error={msg}", status_code=303)
+
         # Create
-        new_target = Target(domain=domain, tenant_id=user.tenant_id)
+        # Create
+        new_target = Target(domain=domain, tenant_id=user.tenant_id, discovery_reason=discovery_reason)
         session.add(new_target)
         imported_count += 1
         
@@ -1723,33 +1761,24 @@ async def export_data(session: Session = Depends(get_session)):
             zip_file, 
             media_type="application/zip", 
             headers={"Content-Disposition": f"attachment; filename={filename}"}
+
         )
     except Exception as e:
         logger.error(f"Export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/backup/analyze")
+@app.post("/api/backup/analyze", response_class=HTMLResponse)
 async def analyze_backup(
     request: Request,
     file: UploadFile = File(...),
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"]))
+    password: Optional[str] = Form(None),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+    session: Session = Depends(get_session)
 ):
     """
     Analyzes the uploaded backup file and returns a summary for confirmation.
-    Used by HTMX to pop up a modal.
     """
-    logger.info(f"Received backup upload for analysis: {file.filename}")
-    if not file.filename.endswith('.zip'):
-        logger.warning("Upload rejected: Not a zip file")
-        return HTMLResponse("<div class='text-red-400'>Error: Not a zip file</div>", status_code=400)
-    
     contents = await file.read()
-    logger.info(f"Read {len(contents)} bytes from upload.")
-    
-    import zipfile
-    import json
-    import io
     
     meta = {}
     db_summary = {}
@@ -1794,14 +1823,17 @@ async def analyze_backup(
             else: tenant_names.append(f"Unknown ID {tid}")
     
     from yads.core.backup import SYSTEM_TABLES
+    # Render Confirmation Modal
     return templates.TemplateResponse("components/restore_confirmation_modal.html", {
         "request": request,
         "meta": meta,
-        "db_summary": db_summary,
+        "db_summary": db_summary, # Assuming db_summary is now 'stats' in the new template context
         "tenant_names": tenant_names,
         "is_partial": bool(tenant_ids),
         "tmp_path": tmp_path,
-        "skipped_tables": SYSTEM_TABLES
+        "skipped_tables": SYSTEM_TABLES,
+        "filename": file.filename, # Added filename
+        "password": password # Pass back to be embedded in hidden field
     })
 
 @app.post("/api/backup/execute_restore")
@@ -2820,6 +2852,25 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     spass_conf = session.get(SystemConfig, "SMTP_PASSWORD")
     if spass_conf: smtp_password = spass_conf.value
 
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # --- License Info ---
+    from yads.core.license import license_manager
+    license_conf = session.get(SystemConfig, "license_key")
+    license_data = None
+    license_status = "Free Tier (Limit 5)"
+    license_limit = 5
+    
+    if license_conf and license_conf.value:
+        data = license_manager.verify(license_conf.value)
+        if data:
+            license_data = data
+            license_limit = data.get("max_targets", 0)
+            exp_date = datetime.fromtimestamp(data.get("exp", 0)).strftime("%Y-%m-%d")
+            license_status = f"Valid (Customer: {data.get('sub')}, Expires: {exp_date})"
+        else:
+            license_status = "Invalid / Expired"
+
     return templates.TemplateResponse("settings.html", {
         "allowed_tenants": allowed_tenants,
         "user": user,
@@ -2840,7 +2891,11 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "smtp_host": smtp_host,
         "smtp_port": smtp_port,
         "smtp_user": smtp_user,
-        "smtp_password": smtp_password
+        "smtp_password": smtp_password,
+        "license_key": license_conf.value if license_conf else "",
+        "license_status": license_status,
+        "license_data": license_data,
+        "license_limit": license_limit,
     })
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -2854,26 +2909,40 @@ async def update_settings(
     worker_concurrency: int = Form(4),
     session_minutes: int = Form(60),
     otp_window: int = Form(1),
-    approved_ciphers: str = Form(None),
+    approved_ciphers: Optional[str] = Form(None),
     custom_dns_servers: str = Form(None),
     splunk_hec_url: str = Form(None),
     splunk_hec_token: str = Form(None),
     smtp_host: str = Form(None),
     smtp_port: str = Form(None),
-    smtp_user: str = Form(None),
-    smtp_password: str = Form(None),
+    smtp_user: Optional[str] = Form(None),
+    smtp_password: Optional[str] = Form(None),
+    
+    # License
+    license_key: Optional[str] = Form(None),
+
     session: Session = Depends(get_session)
 ):
     from yads.models import SystemConfig
+    from typing import Optional
+
+    # Helper to upsert config
+    def set_conf(k, v):
+        conf = session.get(SystemConfig, k)
+        if not conf:
+            conf = SystemConfig(key=k, value=v)
+            session.add(conf)
+        else:
+            conf.value = v
+            session.add(conf)
+            
+    # Save License
+    if license_key is not None:
+        set_conf("license_key", license_key.strip())
     
     # Update Auto Queue
-    aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
-    if not aq_conf:
-        aq_conf = SystemConfig(key="AUTO_QUEUE_SUBDOMAINS", value=str(auto_queue))
-        session.add(aq_conf)
-    else:
-        aq_conf.value = str(auto_queue)
-        session.add(aq_conf)
+    if auto_queue is not None: set_conf("AUTO_QUEUE_SUBDOMAINS", "true") 
+    else: set_conf("AUTO_QUEUE_SUBDOMAINS", "false")
         
     # Rate Limit
     rl_conf = session.get(SystemConfig, "SCAN_QUEUE_RATE_LIMIT")
@@ -3756,6 +3825,98 @@ async def export_network_graph(
             "Content-Disposition": 'attachment; filename="network_graph_data.xlsx"'
         })
         
+    elif format == "graphml":
+        # GraphML Export
+        # Schema: http://graphml.graphdrawing.org/xmlns
+        
+        xml_lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<graphml xmlns="http://graphml.graphdrawing.org/xmlns"',
+            '    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+            '    xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns',
+            '     http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">',
+            '  <!-- Node Attributes -->',
+            '  <key id="d0" for="node" attr.name="label" attr.type="string"/>',
+            '  <key id="d1" for="node" attr.name="type" attr.type="string"/>',
+            '  <key id="d2" for="node" attr.name="risk_score" attr.type="int"/>',
+            '  <key id="d3" for="node" attr.name="compromised" attr.type="boolean"/>',
+            '  <key id="d4" for="node" attr.name="r" attr.type="int"/>',
+            '  <key id="d5" for="node" attr.name="g" attr.type="int"/>',
+            '  <key id="d6" for="node" attr.name="b" attr.type="int"/>',
+             # Add position keys if we had them, but we don't.
+             
+            '  <!-- Edge Attributes -->',
+            '  <key id="e0" for="edge" attr.name="label" attr.type="string"/>',
+            '  <key id="e1" for="edge" attr.name="is_risk" attr.type="boolean"/>',
+            
+            '  <graph id="G" edgedefault="directed">'
+        ]
+        
+        # Color helper
+        def hex_to_rgb(hex_code):
+             hex_code = hex_code.lstrip('#')
+             if len(hex_code) == 6:
+                 return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+             return (128, 128, 128)
+
+        # Style Map
+        styles = {
+             'domain': '#4f46e5',
+             'subdomain': '#0ea5e9',
+             'ip': '#10b981',
+             'external': '#64748b',
+             'landing': '#d946ef',
+             'default': '#94a3b8',
+             'compromised': '#ef4444'
+        }
+        
+        for n in nodes:
+            data = n.get("data", {})
+            nid = data.get("id")
+            label = data.get("label", "")
+            ctype = data.get("type", "default")
+            risk = int(data.get("risk_score", 0))
+            is_comp = str(data.get("compromised", False)).lower()
+            
+            # Determine Color
+            color_hex = styles.get('compromised') if data.get('compromised') else styles.get(ctype, styles['default'])
+            r, g, b = hex_to_rgb(color_hex)
+            
+            # XML Escape
+            label = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+            
+            xml_lines.append(f'    <node id="{nid}">')
+            xml_lines.append(f'      <data key="d0">{label}</data>')
+            xml_lines.append(f'      <data key="d1">{ctype}</data>')
+            xml_lines.append(f'      <data key="d2">{risk}</data>')
+            xml_lines.append(f'      <data key="d3">{is_comp}</data>')
+            xml_lines.append(f'      <data key="d4">{r}</data>')
+            xml_lines.append(f'      <data key="d5">{g}</data>')
+            xml_lines.append(f'      <data key="d6">{b}</data>')
+            xml_lines.append('    </node>')
+            
+        edge_id = 0
+        for e in edges:
+             data = e.get("data", {})
+             src = data.get("source")
+             dst = data.get("target")
+             lbl = data.get("label", "")
+             is_risk = str(data.get("is_risk", False)).lower()
+             
+             xml_lines.append(f'    <edge id="e{edge_id}" source="{src}" target="{dst}">')
+             xml_lines.append(f'      <data key="e0">{lbl}</data>')
+             xml_lines.append(f'      <data key="e1">{is_risk}</data>')
+             xml_lines.append('    </edge>')
+             edge_id += 1
+             
+        xml_lines.append('  </graph>')
+        xml_lines.append('</graphml>')
+        
+        output = "\n".join(xml_lines)
+        return Response(content=output, media_type="application/xml", headers={
+             "Content-Disposition": 'attachment; filename="yads_network_graph.graphml"'
+        })
+
     return {"error": "Invalid format"}
 
 @app.get("/visualizations/redirect-graph", response_class=HTMLResponse)

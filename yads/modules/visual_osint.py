@@ -1,71 +1,185 @@
+import logging
+import os
+import shutil
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 import requests
-from typing import Any, Dict, List
+from playwright.sync_api import sync_playwright
+from PIL import Image
+import imagehash
+
 from yads.core.base import BaseScannerModule
+from yads.config import settings
 
 class VisualOSINT(BaseScannerModule):
+    """
+    Visual Regression & Defacement Monitor.
+    - Captures screenshots using Playwright (Headless Chromium).
+    - Compares current screenshot against a baseline using dHash (Difference Hash).
+    - Alerts on significant visual deviations (Defacement / Broken UI).
+    """
     @property
     def module_name(self) -> str:
         return "visual_osint"
 
     def __init__(self, db_session=None):
         super().__init__(db_session)
-        import logging
         self.logger = logging.getLogger("yads.modules.visual_osint")
+        self.screenshot_dir = os.path.join(settings.STATIC_DIR, "screenshots")
+        os.makedirs(self.screenshot_dir, exist_ok=True)
 
     def run_scan(self, target: str) -> Dict[str, Any]:
         """
-        Queries external sources for public logos associated with the domain.
+        Executes the visual scan.
         """
-        self.logger.info(f"Starting Visual OSINT scan for: {target}")
+        self.logger.info(f"Starting Visual Regression scan for: {target}")
+        
+        timestamp = int(datetime.utcnow().timestamp())
+        # Sanitized filename
+        safe_target = target.replace(":", "_").replace("/", "_")
+        filename = f"{safe_target}_{timestamp}.png"
+        filepath = os.path.join(self.screenshot_dir, filename)
+        
+        # 1. Capture Screenshot
+        captured = self._capture_screenshot(target, filepath)
+        
         results = {
-            "logos": []
+            "logos": [], # Kept for backward compatibility if needed, or we can fetch them too
+            "screenshot_path": filename if captured else None,
+            "baseline_path": None,
+            "diff_score": 0,
+            "is_defaced": False,
+            "status": "success" if captured else "failed"
         }
+
+        if not captured:
+            self.logger.error("Screenshot capture failed.")
+            return results
+
+        # 2. Baseline Comparison
+        baseline_file = self._get_baseline(safe_target)
         
-        # Sources
-        sources = [
-            {
-                "name": "Google",
-                "url": f"https://www.google.com/s2/favicons?domain={target}&sz=128",
-                "type": "favicon"
-            },
-            {
-                "name": "Clearbit",
-                "url": f"https://logo.clearbit.com/{target}",
-                "type": "logo"
-            },
-            {
-                "name": "DuckDuckGo",
-                "url": f"https://icons.duckduckgo.com/ip3/{target}.ico",
-                "type": "favicon"
-            }
-        ]
+        if baseline_file:
+            self.logger.info(f"Comparing against baseline: {baseline_file}")
+            results["baseline_path"] = baseline_file
+            
+            diff_score = self._compare_images(
+                os.path.join(self.screenshot_dir, baseline_file),
+                filepath
+            )
+            results["diff_score"] = diff_score
+            
+            # Threshold: dHash 0-10 is very similar. > 20 is significant change.
+            if diff_score > 15:
+                self.logger.warning(f"Visual deviation detected! Score: {diff_score}")
+                results["is_defaced"] = True
+            else:
+                self.logger.info(f"Visual check passed. Score: {diff_score}")
+        else:
+            self.logger.info("No baseline found. Setting current as baseline.")
+            self._set_baseline(safe_target, filename)
+            results["baseline_path"] = filename
+
+        # 3. Fetch Logos (Legacy/Extra)
+        # We can keep the old lightweight logic or disable it. 
+        # Let's run it quickly as it adds value (Favicons).
+        results["logos"] = self._fetch_logos(target)
         
-        for source in sources:
-            try:
-                self.logger.debug(f"Checking source: {source['name']} ({source['url']})")
-                # fast check if image exists
-                resp = requests.head(source["url"], timeout=5)
-                
-                self.logger.debug(f"Source {source['name']} returned status: {resp.status_code}")
-                
-                # Some APIs return 200 even for default/missing, but usually 404 if not found.
-                # Clearbit returns 404 if not found.
-                # Google always returns something (default globe if unknown), but 200 OK. 
-                # Diffing against default google favicon is expensive here, so we just accept it for now or check size.
-                
-                if resp.status_code == 200:
-                    self.logger.info(f"Visual found at {source['name']}")
-                    results["logos"].append({
-                        "source": source["name"],
-                        "url": source["url"],
-                        "type": source["type"]
-                    })
-                else:
-                    self.logger.debug(f"Source {source['name']} rejected: Status {resp.status_code}")
-                    
-            except Exception as e:
-                self.logger.warning(f"Error checking source {source['name']}: {e}")
-                continue
-        
-        self.logger.info(f"Visual OSINT finished for {target}. Found {len(results['logos'])} logos.")
         return results
+
+    def _capture_screenshot(self, target: str, output_path: str) -> bool:
+        """
+        Captures a screenshot using Playwright.
+        """
+        try:
+            with sync_playwright() as p:
+                # Launch browser
+                # Note: 'chromium' must be installed.
+                # In Docker, we usually set args=['--no-sandbox']
+                browser = p.chromium.launch(
+                    headless=True, 
+                    args=['--no-sandbox', '--disable-setuid-sandbox']
+                )
+                
+                # Create context with viewport
+                context = browser.new_context(viewport={'width': 1280, 'height': 800})
+                page = context.new_page()
+                
+                # Navigate
+                url = f"https://{target}"
+                # Fallback to http if https fails? Or rely on scanner handling.
+                # Playwright throws if page doesn't load.
+                try:
+                    page.goto(url, timeout=30000, wait_until="networkidle")
+                except Exception:
+                    # Try HTTP
+                    url = f"http://{target}"
+                    page.goto(url, timeout=30000, wait_until="networkidle")
+
+                # Take Screenshot
+                page.screenshot(path=output_path, full_page=True)
+                
+                browser.close()
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"Playwright error: {e}")
+            return False
+
+    def _compare_images(self, path_a: str, path_b: str) -> int:
+        """
+        Computes the hamming distance between dHash of two images.
+        0 = Identical
+        > 10 = Changed
+        """
+        try:
+            hash_a = imagehash.dhash(Image.open(path_a))
+            hash_b = imagehash.dhash(Image.open(path_b))
+            return hash_a - hash_b
+        except Exception as e:
+            self.logger.error(f"Image comparison failed: {e}")
+            return 999 # Error score
+
+    def _get_baseline(self, safe_target: str) -> Optional[str]:
+        """
+        Finds the baseline screenshot for a target.
+        In a real app, this should be stored in the DB (Target.baseline_screenshot).
+        For now, we look for a file suffix or local state file.
+        Let's assume we store it in a simple JSON map or look for 'baseline' file pattern.
+        
+        Simple approach: Look for {safe_target}_baseline.png
+        """
+        baseline_name = f"{safe_target}_baseline.png"
+        baseline_path = os.path.join(self.screenshot_dir, baseline_name)
+        if os.path.exists(baseline_path):
+            return baseline_name
+        return None
+
+    def _set_baseline(self, safe_target: str, current_filename: str):
+        """
+        Sets the current screenshot as new baseline.
+        """
+        src = os.path.join(self.screenshot_dir, current_filename)
+        dst = os.path.join(self.screenshot_dir, f"{safe_target}_baseline.png")
+        try:
+            shutil.copy2(src, dst)
+        except Exception as e:
+            self.logger.error(f"Failed to set baseline: {e}")
+
+    def _fetch_logos(self, target: str) -> List[Dict]:
+        """
+        Original lightweight logic for favicons.
+        """
+        logos = []
+        sources = [
+             {"name": "Google", "url": f"https://www.google.com/s2/favicons?domain={target}&sz=128", "type": "favicon"},
+             {"name": "Clearbit", "url": f"https://logo.clearbit.com/{target}", "type": "logo"}
+        ]
+        for s in sources:
+            try:
+                r = requests.head(s["url"], timeout=3)
+                if r.status_code == 200:
+                    logos.append(s)
+            except: pass
+        return logos

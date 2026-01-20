@@ -33,6 +33,42 @@
         
         <!-- COLUMN 1: SCANNING & CORE -->
         <div class="space-y-6">
+        <!-- COLUMN 1: SCANNING & CORE -->
+        <div class="space-y-6">
+            <!-- License Settings -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2 relative z-10">
+                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    License Management
+                </h3>
+                
+                <div class="space-y-4 relative z-10">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-400 mb-1">License Key (Signed)</label>
+                        <textarea name="license_key" rows="3"
+                             class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-[10px] focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono leading-tight resize-none"
+                             placeholder="eyJ... (Paste your license key here)">{{ license_key }}</textarea>
+                    </div>
+
+                    <div class="flex items-center gap-3 p-3 bg-gray-900/50 rounded border border-gray-700">
+                        <div class="flex-shrink-0">
+                            {% if "Valid" in license_status %}
+                                <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                            {% else %}
+                                <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-xs font-semibold text-white">{{ license_status }}</p>
+                            <p class="text-[10px] text-gray-400">Target Limit: {{ license_limit }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Scan Engine Settings -->
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
                 <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -229,13 +265,29 @@
                             </label>
                             {% endfor %}
                         </div>
-                        <button type="button" onclick="downloadBackup()" class="w-full text-center text-xs font-bold text-indigo-300 hover:text-white border border-indigo-500/30 hover:bg-indigo-600/20 rounded py-1.5 transition-colors">Download Backup</button>
+                        <button type="submit" form="export-form" class="w-full text-center text-xs font-bold text-indigo-300 hover:text-white border border-indigo-500/30 hover:bg-indigo-600/20 rounded py-1.5 transition-colors">Download Backup</button>
                     </div>
+                    
+                    <form id="export-form" action="/api/backup/export" method="POST" class="hidden">
+                         <!-- Tenant IDs populated by JS -->
+                         <input type="hidden" name="tenant_ids" id="export_tenant_ids">
+                         
+                         <!-- Encryption Option -->
+                         <div class="mt-2 p-2 bg-gray-800/80 rounded border border-gray-600">
+                             <label class="block text-[10px] text-gray-400 mb-1">Encryption Password (Optional)</label>
+                             <input type="password" name="password" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-mono" placeholder="Leave empty for unencrypted .zip">
+                             <p class="text-[9px] text-gray-500 mt-1">If set, downloads .enc file.</p>
+                         </div>
+                    </form>
 
                     <!-- Restore -->
                     <div class="p-3 rounded bg-gray-700/30 border border-gray-700/50">
                          <label class="block text-xs font-semibold text-gray-300 mb-2 uppercase">Restore Data</label>
-                         <input type="file" name="file" accept=".zip" form="restore-analyze-form" class="block w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-gray-600 file:text-white mb-2" required>
+                         <input type="file" name="file" accept=".zip,.enc" form="restore-analyze-form" class="block w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-gray-600 file:text-white mb-2" required>
+                         
+                         <label class="block text-[10px] text-gray-400 mb-1">Decryption Password (If .enc)</label>
+                         <input type="password" name="password" form="restore-analyze-form" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-2 py-1 text-xs mb-3 focus:ring-1 focus:ring-red-500 font-mono" placeholder="Password...">
+
                          <button type="submit" form="restore-analyze-form" class="w-full flex items-center justify-center gap-2 text-center text-xs font-bold text-red-300 hover:text-white border border-red-500/30 hover:bg-red-600/20 rounded py-1.5 transition-colors">
                              <span id="restore-spinner" class="htmx-indicator hidden"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></span>
                              Restore & Analyze
@@ -286,7 +338,9 @@
                 return;
             }
             const ids = Array.from(checkboxes).map(cb => cb.value).join(',');
-            window.location.href = `/api/backup/export?tenant_ids=${ids}`;
+            document.getElementById('export_tenant_ids').value = ids;
+            // Move form outside if strictly nested? No, standard submission works.
+            document.getElementById('export-form').submit();
         }
     </script>
     
