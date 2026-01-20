@@ -89,10 +89,15 @@ WORKDIR /app
 # Copy compiled application (yads package)
 COPY --from=code-builder /build .
 
+
 # Copy scripts for maintenance and startup
 COPY scripts/maintenance ./scripts/maintenance
 COPY scripts/backup_db.sh ./scripts/backup_db.sh
 COPY scripts/start_worker.py ./scripts/start_worker.py
+
+# Copy templates and static assets (Nuitka excludes them by default)
+COPY yads/api/templates ./yads/api/templates
+COPY yads/api/static ./yads/api/static
 
 # Copy built CSS (overwrite static/css/main.css if it exists in compiled output, ensuring it's fresh)
 # Note: Nuitka might not include non-python resource files unless specified, so we explicitly copy CSS.
