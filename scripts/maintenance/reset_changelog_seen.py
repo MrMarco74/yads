@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add project root to sys.path to allow importing 'yads'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 from sqlmodel import Session, select
 from yads.database import engine
 from yads.models import User
