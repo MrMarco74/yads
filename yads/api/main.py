@@ -319,6 +319,18 @@ async def bulk_scan_targets(
             tid = int(tid_str)
             target = session.exec(select(Target).where(Target.id == tid, Target.tenant_id == user.tenant_id)).first()
             if target:
+                # --- License Check ---
+                from yads.models import SystemConfig
+                from yads.core.license import license_manager
+                lc = session.get(SystemConfig, "license_key")
+                if not lc or not lc.value or not license_manager.verify(lc.value):
+                     # Skip queueing, maybe just continue or error?
+                     # For bulk, continuing is safer but we should probably stop.
+                     # But let's just skip this one (effectively stopping all if loop continues)
+                     # Actually, return error immediately
+                     return RedirectResponse(url="/targets/table?msg=Error:+License+Required+for+Scanning", status_code=303)
+                # ---------------------
+
                 target.scan_status = "queued"
                 session.add(target)
                 
@@ -566,6 +578,15 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         real_types = [t for t in valid_types if t != "full_scan"]
         selected_types = real_types
     
+    # --- License Check ---
+    from yads.models import SystemConfig
+    from yads.core.license import license_manager
+    lc = session.get(SystemConfig, "license_key")
+    if not lc or not lc.value or not license_manager.verify(lc.value):
+         msg = "Error: Scanning requires a valid license."
+         return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
+    # ---------------------
+
     if not selected_types:
         # DO NOT FALLBACK TO ALL.
         # Fail if nothing valid selected.
