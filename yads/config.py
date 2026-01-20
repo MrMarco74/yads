@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # Licensing (Ed25519 Public Key)
     # This key matches the Private Key held by the vendor.
-    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQStucEN2ZWpHSC9xMU9ZN3BHbi9tVmVxUlRqY1ZWZkFHb1hoeWdWdm8yZVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQUlERXowK3pCRFd1OHNTSzJPMnNyR1A3WHVBVTR3MFhRL0c0WGhQWkFVNk09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
 
     class Config:
         env_file = ".env"
