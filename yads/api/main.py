@@ -1768,21 +1768,36 @@ async def stop_all_scans(session: Session = Depends(get_session), user: User = D
 
 # -- Backup & Restore Routes --
 
-@app.get("/api/backup/export")
-async def export_data(session: Session = Depends(get_session)):
+@app.post("/api/backup/export")
+async def export_data(
+    tenant_ids: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    session: Session = Depends(get_session)
+):
     """
-    Generates and downloads a full system backup (Zip).
+    Generates and downloads a full or partial system backup (Zip).
     """
     try:
-        zip_file = create_backup_zip(session)
+        # Parse tenant_ids
+        t_ids_list = []
+        if tenant_ids:
+             try:
+                 t_ids_list = [int(x.strip()) for x in tenant_ids.split(",") if x.strip()]
+             except ValueError:
+                 logger.warning(f"Invalid tenant_ids format: {tenant_ids}")
+                 pass
+
+        zip_file = create_backup_zip(session, tenant_ids=t_ids_list, password=password)
+        
+        # Determine extension based on encryption
+        ext = "enc" if password else "zip"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"yads_backup_{timestamp}.zip"
+        filename = f"yads_backup_{timestamp}.{ext}"
         
         return StreamingResponse(
             zip_file, 
-            media_type="application/zip", 
+            media_type="application/octet-stream", # Generic binary
             headers={"Content-Disposition": f"attachment; filename={filename}"}
-
         )
     except Exception as e:
         logger.error(f"Export failed: {e}")
