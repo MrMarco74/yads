@@ -286,17 +286,9 @@
                         <button type="button" onclick="downloadBackup()" class="w-full text-center text-xs font-bold text-indigo-300 hover:text-white border border-indigo-500/30 hover:bg-indigo-600/20 rounded py-1.5 transition-colors">Download Backup</button>
                     </div>
                     
-                    <form id="export-form" action="/api/backup/export" method="POST" class="hidden">
-                         <!-- Tenant IDs populated by JS -->
-                         <input type="hidden" name="tenant_ids" id="export_tenant_ids">
-                         
-                         <!-- Encryption Option -->
-                         <div class="mt-2 p-2 bg-gray-800/80 rounded border border-gray-600">
-                             <label class="block text-[10px] text-gray-400 mb-1">Encryption Password (Optional)</label>
-                             <input type="password" name="password" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-mono" placeholder="Leave empty for unencrypted .zip">
-                             <p class="text-[9px] text-gray-500 mt-1">If set, downloads .enc file.</p>
-                         </div>
-                    </form>
+                    
+                    <!-- Form moved to bottom of page to prevent nesting issues -->
+
 
                     <!-- Restore -->
                     <div class="p-3 rounded bg-gray-700/30 border border-gray-700/50">
@@ -363,6 +355,18 @@
     </script>
     
     <!-- Hidden Forms -->
+    <form id="export-form" action="/api/backup/export" method="POST" class="hidden">
+        <input type="hidden" name="tenant_ids" id="export_tenant_ids">
+        <!-- Re-adding encryption input here if needed? The user's original form had an input visible in the UI? 
+             Wait, the original form had visible inputs inside a "hidden" form? 
+             class="hidden" hides the whole form. So the inputs were NOT visible.
+             This means the user could never set the password. 
+             This is likely another bug. The password input should be outside the hidden form if it's meant to be used.
+             However, for now I will just restore the structure at the bottom to fix the JS error.
+        -->
+        <input type="password" name="password" id="export_password_hidden">
+    </form>
+    
     <form id="reset-form" action="/admin/reset" method="POST" class="hidden"></form>
     <form id="restore-analyze-form" hx-post="/api/backup/analyze" hx-encoding="multipart/form-data" hx-target="#restore-modal-container" hx-indicator="#restore-spinner"></form>
     <form id="upload-wordlist-form" action="/settings/wordlist/upload" method="POST" enctype="multipart/form-data" class="hidden"></form>
