@@ -5,7 +5,7 @@ services:
   yads-api:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
 
-    command: sh -c "/app/scripts/backup_db.sh && python migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
     ports:
       - "8000:8000"

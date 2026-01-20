@@ -15,6 +15,10 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
             email TEXT,
+            company TEXT,
+            address TEXT,
+            phone TEXT,
+            info_box TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -29,6 +33,7 @@ def init_db():
             expires_at INTEGER,
             features TEXT,
             domains TEXT,
+            is_archived INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (customer_id) REFERENCES customers (id)
         )
@@ -39,7 +44,11 @@ def init_db():
         ("default_max_targets", "INTEGER"),
         ("default_days", "INTEGER"),
         ("default_features", "TEXT"),
-        ("default_domains", "TEXT")
+        ("default_domains", "TEXT"),
+        ("company", "TEXT"),
+        ("address", "TEXT"),
+        ("phone", "TEXT"),
+        ("info_box", "TEXT")
     ]
     
     for col_name, col_type in columns:
@@ -47,6 +56,12 @@ def init_db():
             c.execute(f"ALTER TABLE customers ADD COLUMN {col_name} {col_type}")
         except sqlite3.OperationalError:
             pass # Already exists
+
+    # Migration for licenses table
+    try:
+        c.execute("ALTER TABLE licenses ADD COLUMN is_archived INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()
@@ -57,22 +72,27 @@ def get_connection():
     db_path = os.path.join(base_dir, DB_FILE)
     return sqlite3.connect(db_path)
 
-def add_customer(name, email=None):
+def add_customer(name, email=None, company=None, address=None, phone=None, info_box=None):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO customers (name, email) VALUES (?, ?)", (name, email))
+        c.execute('''
+            INSERT INTO customers (name, email, company, address, phone, info_box) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, email, company, address, phone, info_box))
         conn.commit()
         cid = c.lastrowid
     except sqlite3.IntegrityError:
         # Already exists, get ID
         c.execute("SELECT id FROM customers WHERE name = ?", (name,))
         cid = c.fetchone()[0]
+        # Update existing info if provided? For now, we rely on save_defaults/update
     finally:
         conn.close()
     return cid
 
-def update_customer_defaults(name, max_targets, days, features, domains):
+def update_customer_defaults(name, max_targets, days, features, domains, 
+                             email=None, company=None, address=None, phone=None, info_box=None):
     conn = get_connection()
     c = conn.cursor()
     
@@ -81,9 +101,10 @@ def update_customer_defaults(name, max_targets, days, features, domains):
     
     c.execute('''
         UPDATE customers 
-        SET default_max_targets = ?, default_days = ?, default_features = ?, default_domains = ?
+        SET default_max_targets = ?, default_days = ?, default_features = ?, default_domains = ?,
+            email = ?, company = ?, address = ?, phone = ?, info_box = ?
         WHERE name = ?
-    ''', (max_targets, days, f_json, d_json, name))
+    ''', (max_targets, days, f_json, d_json, email, company, address, phone, info_box, name))
     
     conn.commit()
     conn.close()
@@ -91,7 +112,11 @@ def update_customer_defaults(name, max_targets, days, features, domains):
 def get_customer_details(name):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT default_max_targets, default_days, default_features, default_domains FROM customers WHERE name = ?", (name,))
+    c.execute('''
+        SELECT default_max_targets, default_days, default_features, default_domains,
+               email, company, address, phone, info_box
+        FROM customers WHERE name = ?
+    ''', (name,))
     row = c.fetchone()
     conn.close()
     
@@ -100,7 +125,12 @@ def get_customer_details(name):
             "max_targets": row[0],
             "days": row[1],
             "features": json.loads(row[2]) if row[2] else [],
-            "domains": json.loads(row[3]) if row[3] else []
+            "domains": json.loads(row[3]) if row[3] else [],
+            "email": row[4],
+            "company": row[5],
+            "address": row[6],
+            "phone": row[7],
+            "info_box": row[8]
         }
     return None
 
@@ -127,15 +157,32 @@ def add_license(customer_id, license_key, max_targets, expires_at, features=None
     conn.commit()
     conn.close()
 
-def get_all_licenses():
+def toggle_archive_license(license_id, archive=True):
     conn = get_connection()
     c = conn.cursor()
-    c.execute('''
+    val = 1 if archive else 0
+    c.execute("UPDATE licenses SET is_archived = ? WHERE id = ?", (val, license_id))
+    conn.commit()
+    conn.close()
+
+def get_all_licenses(archived=False):
+    conn = get_connection()
+    c = conn.cursor()
+    
+    query = '''
         SELECT l.id, c.name, l.max_targets, l.expires_at, l.created_at, l.license_key
         FROM licenses l
         JOIN customers c ON l.customer_id = c.id
+        WHERE l.is_archived = ?
         ORDER BY l.created_at DESC
-    ''')
+    '''
+    
+    # Handle legacy definition where None/Null might exist (though default is 0 now)
+    # Actually, simpler is just WHERE is_archived = ? or (is_archived IS NULL and ?=0)
+    # But for new schema default is 0.
+    val = 1 if archived else 0
+    c.execute(query, (val,))
+    
     rows = c.fetchall()
     conn.close()
     
