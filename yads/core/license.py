@@ -59,4 +59,16 @@ class LicenseVerifier:
             logger.error(f"License verification failed: {e}")
             return None
 
+    def has_feature(self, license_key: str, feature: str) -> bool:
+        data = self.verify(license_key)
+        if not data:
+            return False
+        
+        features = data.get("features", [])
+        if feature in features:
+            return True
+            
+        return False
+
+
 license_manager = LicenseVerifier()

@@ -32,3 +32,6 @@ tmp/
 
 # Releases
 releases/
+
+# Internal Tools
+license_manager/
