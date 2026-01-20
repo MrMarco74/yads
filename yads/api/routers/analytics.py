@@ -292,6 +292,71 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     """
     return _get_infrastructure_data(session, user)
 
+@router.get("/trend/security")
+async def get_security_trend(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Returns historical security trend data.
+    """
+    # 1. Scope
+    target_ids = []
+    if user.tenant_id:
+        targets = session.exec(select(Target.id).where(Target.tenant_id == user.tenant_id)).all()
+        target_ids = targets
+    elif user.role != "admin":
+        targets = session.exec(select(Target.id).where(Target.tenant_id == None)).all()
+        target_ids = targets
+    else:
+        # Admin - fetch all for global trend
+        targets = session.exec(select(Target.id)).all()
+        target_ids = targets
+
+    if not target_ids:
+        return {"labels": [], "data": []}
+
+    # 2. Fetch Historical Results (Infrastructure Scanner contains 'security_score')
+    # Limit to last 30 days
+    results = session.exec(select(ScanResult).where(
+        ScanResult.module_name == 'infrastructure_scanner',
+        ScanResult.target_id.in_(target_ids)
+    ).order_by(ScanResult.scanned_at.asc())).all()
+
+    # 3. Aggregate by Date
+    # { "YYYY-MM-DD": [score1, score2, ...] }
+    daily_scores = {}
+    
+    for res in results:
+        if not res.data: continue
+        
+        # Parse data
+        data = res.data
+        if isinstance(data, str):
+            try: data = json.loads(data)
+            except: continue
+            
+        score = data.get("security_score")
+        if score is None: continue
+        
+        date_str = res.scanned_at.strftime("%Y-%m-%d")
+        if date_str not in daily_scores:
+            daily_scores[date_str] = []
+        
+        daily_scores[date_str].append(score)
+
+    # 4. Calculate Average per Day
+    labels = []
+    data_points = []
+    
+    for date_str in sorted(daily_scores.keys()):
+        scores = daily_scores[date_str]
+        avg_score = sum(scores) / len(scores)
+        labels.append(date_str)
+        data_points.append(round(avg_score, 1))
+
+    return {
+        "labels": labels[-30:], # Last 30 entries
+        "data": data_points[-30:] 
+    }
+
 @router.get("/security-risks")
 async def get_security_risks(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
