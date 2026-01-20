@@ -107,6 +107,26 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
+    # --- License Enforcement ---
+    from yads.core.license import license_manager
+    try:
+        with Session(engine) as session:
+            from yads.models import SystemConfig
+            lc = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+            valid_license = False
+            if lc and lc.value:
+                if license_manager.verify(lc.value):
+                    valid_license = True
+            
+            if not valid_license:
+                logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
+                return
+    except Exception as e:
+        logger.error(f"[Worker] License check failed: {e}")
+        # Fail safe? Or Fail closed? Fail closed for enforcement.
+        return
+    # ---------------------------
+
     def check_port(host, port, timeout=2):
         try:
             with socket.create_connection((host, port), timeout=timeout):

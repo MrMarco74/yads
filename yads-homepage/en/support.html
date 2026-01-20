@@ -59,7 +59,7 @@
             </div>
 
             <div style="margin-top: 1.5rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #94a3b8; word-break: break-all;">
-                <strong style="color: #6366f1;">SHA256:</strong> 4082488227e4863428a8cc6a8ce43a00324a5cd5e3516f78ef516d966ec8deeb
+                <strong style="color: #6366f1;">SHA256:</strong> 457cc51680a7d1d3dfd763e6a2e34439dcb6c0c4fcdcbaf3bca6d7d20991f54c
             </div>
         </div>
 
@@ -89,16 +89,20 @@ docker images | grep yads
             <p>Create a <code>.env</code> file in the same directory as <code>docker-compose.yml</code>:</p>
             <div class="code-block">
 # .env File
-LICENSE_KEY=ey...<Your_License_Key>...
-POSTGRES_PASSWORD=choose_a_secure_password
-SECRET_KEY=insert_random_string_here
-            </div>
+# --- Database ---
+POSTGRES_PASSWORD=secure_password_here
 
-            <h3 style="margin-top: 2rem;">Step 3: Start</h3>
-            <div class="code-block">
-docker compose up -d
+# --- Security ---
+SECRET_KEY=random_string_here
             </div>
-            <p>The system will be available at <code>http://localhost:8000</code> after approx. 30 seconds.</p>
+            <p class="text-sm text-gray-400 mt-2"><strong>Note:</strong> You will configure the license key via the web interface later.</p>
+
+            <div class="relative pl-8 border-l-2 border-indigo-500/30 pb-8">
+                <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-4 border-gray-900"></div>
+                <h4 class="text-lg font-bold text-white mb-2">3. Start & License</h4>
+                <p class="text-gray-400 mb-2">Run <code>docker compose up -d</code>.</p>
+                <p class="text-gray-400">After startup, log in and navigate to <strong>Settings > System Settings > License Management</strong> to enter your key.</p>
+            </div>
             <p><strong>Default Login:</strong> <code>admin</code> / <code>admin</code> (Change immediately!)</p>
         </div>
 

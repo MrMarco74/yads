@@ -48,10 +48,6 @@ docker images | grep yads
    **Paste the following content and update the values:**
 
    ```ini
-   # --- License Configuration ---
-   # Paste your full License Key string here
-   LICENSE_KEY=ey...<your_long_key_string>...
-
    # --- Database ---
    # Set a strong password for the internal database
    POSTGRES_PASSWORD=secure_password_here
@@ -61,6 +57,8 @@ docker images | grep yads
    # You can generate one with: openssl rand -hex 32
    SECRET_KEY=change_this_to_a_random_string
    ```
+
+   > **Note**: You do not need to configure the `LICENSE_KEY` here. You will add it via the web interface later.
 
 ---
 
@@ -74,8 +72,8 @@ docker compose up -d
 
 This will:
 - Start the Database, Redis, API, and Worker containers.
-- Automatically apply your License Key.
 - Run necessary database migrations.
+- Start in "Safe Mode" (Scanning disabled until licensed).
 
 Check the status:
 
@@ -97,6 +95,20 @@ All containers (`yads-api`, `yads-worker`, `db`, `redis`) should be in the `Up` 
    - **Password**: `admin`
 
    > **Important**: You will be prompted to change the default password upon first login.
+
+---
+
+## Step 5: Configure License Key
+
+By default, scanning features are disabled until a valid license is applied.
+
+1. Log in to the Dashboard.
+2. Navigate to **Settings** > **System Settings**.
+3. Locate the **License Management** section.
+4. Paste your **License Key** into the text area.
+5. Click **Save Configuration**.
+
+The status indicator should turn **Green (Valid)**, unlocking all features.
 
 ---
 
