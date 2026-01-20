@@ -29,3 +29,6 @@ pytest_cache/
 .pytest_cache/
 pef_docker_build/
 tmp/
+
+# Releases
+releases/
