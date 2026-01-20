@@ -1,7 +1,7 @@
 from fastapi import HTTPException, Depends, status
 from sqlmodel import Session, select
 from yads.core.license import license_manager
-from yads.db import get_session
+from yads.database import get_session
 from yads.models import SystemConfig
 
 def require_feature(feature_name: str):

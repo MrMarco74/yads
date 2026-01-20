@@ -15,9 +15,13 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== YADS Release Packager ===${NC}"
 
-# 1. Verify we are in root
+# 1. Ensure we are in the project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
 if [ ! -f "Dockerfile" ]; then
-    echo -e "${RED}Error: specific Dockerfile not found. Please run this script from the project root.${NC}"
+    echo -e "${RED}Error: Dockerfile not found. Could not determine project root.${NC}"
     exit 1
 fi
 
@@ -29,10 +33,10 @@ RELEASE_NAME="${PROJECT_NAME}_v${VERSION}_customer_pkg"
 mkdir -p "$OUTPUT_DIR/$RELEASE_NAME"
 
 # 3. Build Docker Images
-echo -e "${BLUE}>> Building Docker Images...${NC}"
-# We build both services tagged as latest for simplicity in the customer load
-docker build -t ${API_IMAGE_NAME}:latest --target prod .
-docker build -t ${WORKER_IMAGE_NAME}:latest --target prod .
+echo -e "${BLUE}>> Building Docker Images (Nuitka Compiled)...${NC}"
+# We build both services tagged as latest. We use the 'release' stage for compiled code.
+docker build -t ${API_IMAGE_NAME}:latest --target release .
+docker build -t ${WORKER_IMAGE_NAME}:latest --target release .
 
 # 4. Save Images to Tarball
 echo -e "${BLUE}>> Exporting Images to tar.gz (this may take a while)...${NC}"
@@ -42,31 +46,31 @@ docker save ${API_IMAGE_NAME}:latest ${WORKER_IMAGE_NAME}:latest | gzip > "$OUTP
 echo -e "${BLUE}>> Copying Documentation and Configs...${NC}"
 
 # Setup Guide
-if [ -f "SETUP_GUIDE.md" ]; then
-    cp SETUP_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/README_SETUP.md" # Rename to README for visibility
+if [ -f "release_assets/SETUP_GUIDE.md" ]; then
+    cp release_assets/SETUP_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/README_SETUP.md" # Rename to README for visibility
 else
-    echo -e "${RED}Warning: SETUP_GUIDE.md not found!${NC}"
+    echo -e "${RED}Warning: release_assets/SETUP_GUIDE.md not found!${NC}"
 fi
 
 # Additional Documentation
 echo -e "${BLUE}>> Copying Additional Documentation...${NC}"
 mkdir -p "$OUTPUT_DIR/$RELEASE_NAME/docs"
 
-if [ -f "USER_GUIDE.md" ]; then
-    cp USER_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/docs/USER_GUIDE.md"
+if [ -f "docs/USER_GUIDE.md" ]; then
+    cp docs/USER_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/docs/USER_GUIDE.md"
 fi
 
-if [ -f "TECHNICAL_GUIDE.md" ]; then
-    cp TECHNICAL_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/docs/TECHNICAL_GUIDE.md"
+if [ -f "docs/TECHNICAL_GUIDE.md" ]; then
+    cp docs/TECHNICAL_GUIDE.md "$OUTPUT_DIR/$RELEASE_NAME/docs/TECHNICAL_GUIDE.md"
 fi
 
 
 
 # Docker Compose (Customer Version)
-if [ -f "docker-compose.customer.yml" ]; then
-    cp docker-compose.customer.yml "$OUTPUT_DIR/$RELEASE_NAME/docker-compose.yml"
+if [ -f "release_assets/docker-compose.customer.yml" ]; then
+    cp release_assets/docker-compose.customer.yml "$OUTPUT_DIR/$RELEASE_NAME/docker-compose.yml"
 else
-    echo -e "${RED}Error: docker-compose.customer.yml not found!${NC}"
+    echo -e "${RED}Error: release_assets/docker-compose.customer.yml not found!${NC}"
     exit 1
 fi
 

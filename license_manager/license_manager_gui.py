@@ -9,6 +9,11 @@ import urllib.parse
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email import encoders
+import subprocess
 
 # Import DB Manager
 try:
@@ -52,16 +57,20 @@ class LicenseManagerApp:
         self.tab_keys = ttk.Frame(tab_control)
         self.tab_history = ttk.Frame(tab_control)
 
+        self.tab_archive = ttk.Frame(tab_control)
+
         tab_control.add(self.tab_issue, text='Issue License')
         tab_control.add(self.tab_verify, text='Verify License')
         tab_control.add(self.tab_keys, text='Key Management')
         tab_control.add(self.tab_history, text='License History')
+        tab_control.add(self.tab_archive, text='Archived Licenses')
         tab_control.pack(expand=1, fill="both", padx=10, pady=10)
 
         self.setup_issue_tab()
         self.setup_verify_tab()
         self.setup_keys_tab()
         self.setup_history_tab()
+        self.setup_archive_tab()
 
         # Initial Load
         self.try_load_keys()
@@ -171,6 +180,43 @@ class LicenseManagerApp:
         self.ent_domains = ttk.Entry(frame)
         self.ent_domains.pack(fill="x", pady=2)
 
+        # --- Contact Info Section ---
+        contact_frame = ttk.LabelFrame(frame, text="Customer Contact Info")
+        contact_frame.pack(fill="x", pady=10, padx=2)
+
+        # Row 1: Email & Phone
+        r1 = ttk.Frame(contact_frame)
+        r1.pack(fill="x", padx=5, pady=2)
+        ttk.Label(r1, text="Email:").pack(side="left")
+        self.ent_email = ttk.Entry(r1)
+        self.ent_email.pack(side="left", fill="x", expand=True, padx=5)
+        
+        ttk.Label(r1, text="Phone:").pack(side="left")
+        self.ent_phone = ttk.Entry(r1)
+        self.ent_phone.pack(side="left", fill="x", expand=True, padx=5)
+
+        # Row 2: Company
+        r2 = ttk.Frame(contact_frame)
+        r2.pack(fill="x", padx=5, pady=2)
+        ttk.Label(r2, text="Company:").pack(side="left")
+        self.ent_company = ttk.Entry(r2)
+        self.ent_company.pack(side="left", fill="x", expand=True, padx=5)
+
+        # Row 3: Address
+        r3 = ttk.Frame(contact_frame)
+        r3.pack(fill="x", padx=5, pady=2)
+        ttk.Label(r3, text="Address:").pack(side="left", anchor="n")
+        self.txt_address = tk.Text(r3, height=2)
+        self.txt_address.pack(side="left", fill="x", expand=True, padx=5)
+
+        # Row 4: Infobox
+        r4 = ttk.Frame(contact_frame)
+        r4.pack(fill="x", padx=5, pady=2)
+        ttk.Label(r4, text="Infobox:").pack(side="left", anchor="n")
+        self.txt_infobox = tk.Text(r4, height=2)
+        self.txt_infobox.pack(side="left", fill="x", expand=True, padx=5)
+        # ----------------------------
+
         ttk.Label(frame, text="Features:").pack(anchor="w", pady=(10, 0))
         
         self.feature_vars = {}
@@ -194,7 +240,7 @@ class LicenseManagerApp:
 
         # Output
         ttk.Label(frame, text="Signed License Key:").pack(anchor="w")
-        self.txt_license_out = tk.Text(frame, height=6)
+        self.txt_license_out = tk.Text(frame, height=4)
         self.txt_license_out.pack(fill="x")
 
     def on_customer_selected(self, event):
@@ -225,18 +271,39 @@ class LicenseManagerApp:
                     if f in self.feature_vars:
                         self.feature_vars[f].set(True)
 
+            # Contact Info
+            self.ent_email.delete(0, tk.END)
+            if details.get("email"): self.ent_email.insert(0, details["email"])
+
+            self.ent_company.delete(0, tk.END)
+            if details.get("company"): self.ent_company.insert(0, details["company"])
+
+            self.ent_phone.delete(0, tk.END)
+            if details.get("phone"): self.ent_phone.insert(0, details["phone"])
+
+            self.txt_address.delete(1.0, tk.END)
+            if details.get("address"): self.txt_address.insert(tk.END, details["address"])
+
+            self.txt_infobox.delete(1.0, tk.END)
+            if details.get("info_box"): self.txt_infobox.insert(tk.END, details["info_box"])
+
     def save_defaults(self):
+        if self._save_customer_data():
+            name = self.cmb_customer.get().strip()
+            messagebox.showinfo("Success", f"Defaults saved for '{name}'.")
+
+    def _save_customer_data(self):
         name = self.cmb_customer.get().strip()
         if not name:
             messagebox.showerror("Error", "No customer selected.")
-            return
+            return False
 
         try:
             limit = int(self.ent_limit.get())
             days = int(self.ent_days.get())
         except ValueError:
             messagebox.showerror("Error", "Invalid numbers for limit or days.")
-            return
+            return False
 
         # Domains
         d_list = None
@@ -250,13 +317,21 @@ class LicenseManagerApp:
             if var.get():
                 f_list.append(feature)
         
-        # Determine ID (add if not exists logic is in db_manager update/add mix, 
-        # but update_customer_defaults is strict Update. check add_customer first?)
-        # Let's ensure customer exists first.
+        # Contact Info
+        email = self.ent_email.get().strip()
+        phone = self.ent_phone.get().strip()
+        company = self.ent_company.get().strip()
+        address = self.txt_address.get("1.0", tk.END).strip()
+        info_box = self.txt_infobox.get("1.0", tk.END).strip()
+
+        # Ensure customer exists
         db_manager.add_customer(name) # Idempotent add
         
-        db_manager.update_customer_defaults(name, limit, days, f_list, d_list)
-        messagebox.showinfo("Success", f"Defaults saved for '{name}'.")
+        db_manager.update_customer_defaults(
+            name, limit, days, f_list, d_list, 
+            email, company, address, phone, info_box
+        )
+        return True
 
     def draft_email(self):
         key = self.txt_license_out.get("1.0", tk.END).strip()
@@ -297,18 +372,85 @@ class LicenseManagerApp:
         qs = urllib.parse.urlencode(params).replace("+", "%20")
         mailto = f"mailto:?{qs}"
         
+    def draft_email(self):
+        key = self.txt_license_out.get("1.0", tk.END).strip()
+        cust = self.cmb_customer.get().strip()
+        if not key or not cust: return
+
+        # Paths
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(base_dir, "email_template.html")
+        logo_path = os.path.join(base_dir, "logo.png")
+        output_dir = os.path.join(base_dir, "generated_emails")
+        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # 1. Load HTML Content
+        if os.path.exists(template_path):
+            with open(template_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+        else:
+            messagebox.showerror("Error", "email_template.html not found.")
+            return
+
+        # 2. Replace Placeholders
+        html_content = html_content.replace("{customer_name}", cust)
+        html_content = html_content.replace("{license_key}", key)
+        
+        # 3. Create MIME Message
+        msg = MIMEMultipart('related')
+        msg['Subject'] = f"Your YADS License Key - {cust}"
+        msg['From'] = "support@yads-security.com"
+        
+        # Use email from field if present
+        recipient = self.ent_email.get().strip()
+        msg['To'] = recipient if recipient else cust # Fallback if empty
+        
+        msg.preamble = 'This is a multi-part message in MIME format.'
+
+        # Encapsulate the plain and HTML versions of the message body in an
+        # 'alternative' part, so message agents can decide which they want to display.
+        msgAlternative = MIMEMultipart('alternative')
+        msg.attach(msgAlternative)
+        
+        # Plain text fallback
+        msgText = MIMEText(f"Here is your license key:\n{key}\n\nPlease view this email in an HTML-compatible client.", 'plain')
+        msgAlternative.attach(msgText)
+
+        # HTML Part
+        msgHtml = MIMEText(html_content, 'html')
+        msgAlternative.attach(msgHtml)
+
+        # 4. Embed Logo if exists
+        if os.path.exists(logo_path):
+            with open(logo_path, 'rb') as fp:
+                # Explicitly name the image to help clients
+                msgImage = MIMEImage(fp.read(), name="logo.png")
+            
+            # Define the image's ID as referenced above
+            msgImage.add_header('Content-ID', '<logo>')
+            msgImage.add_header('Content-Disposition', 'inline', filename='logo.png')
+            msg.attach(msgImage)
+
+        # 5. Save .eml File
+        filename = f"License_{cust.replace(' ', '_')}.eml"
+        filepath = os.path.join(output_dir, filename)
+        
         try:
+            with open(filepath, 'w') as outfile:
+                outfile.write(msg.as_string())
+            
+            # 6. Open File
             if sys.platform.startswith('linux'):
-                # Try xdg-open directly for Linux to avoid browser fallback issues
-                subprocess.Popen(['xdg-open', mailto])
+                subprocess.Popen(['xdg-open', filepath])
             else:
-                webbrowser.open(mailto)
+                webbrowser.open(filepath)
+                
+            self.lbl_verify_status.config(text=f"Draft saved: {filename}", foreground="green") # Feedback elsewhere?
+            
         except Exception as e:
-            # Fallback
-            try:
-                webbrowser.open(mailto)
-            except Exception as e2:
-                messagebox.showerror("Error", f"Could not open mail client: {e2}")
+            messagebox.showerror("Error", f"Could not create/open email draft: {e}\nSaved to: {filepath}")
 
     def sign_license(self):
         if not self.private_key:
@@ -365,7 +507,11 @@ class LicenseManagerApp:
             self.txt_license_out.delete(1.0, tk.END)
             self.txt_license_out.insert(tk.END, license_key)
             
+            self.txt_license_out.delete(1.0, tk.END)
+            self.txt_license_out.insert(tk.END, license_key)
+            
             # --- Save to DB ---
+            self._save_customer_data() # Ensure contact info & defaults are updated
             cid = db_manager.add_customer(cust)
             db_manager.add_license(cid, license_key, limit, exp, features=f_list, domains=d_list)
             self.refresh_history()
@@ -394,15 +540,42 @@ class LicenseManagerApp:
             
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<Double-1>", self.on_history_double_click)
+        self.tree.bind("<Button-3>", self.show_context_menu) # Right click
+
+        self.context_menu = tk.Menu(frame, tearoff=0)
+        self.context_menu.add_command(label="Copy Key", command=self.copy_key_from_menu)
+        self.context_menu.add_command(label="Archive License", command=self.archive_selected_license)
         
         self.refresh_history()
+
+    def show_context_menu(self, event):
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def copy_key_from_menu(self):
+        self.on_history_double_click(None)
+
+    def archive_selected_license(self):
+        sel = self.tree.selection()
+        if not sel: return
+        item = sel[0]
+        # Get ID
+        vals = self.tree.item(item, "values")
+        lid = vals[0]
+        
+        if messagebox.askyesno("Archive", f"Archive license for {vals[1]}?"):
+            db_manager.toggle_archive_license(lid, archive=True)
+            self.refresh_history()
+            self.refresh_archive() # Update other tab if possible
 
     def refresh_history(self):
         # Clear
         for item in self.tree.get_children():
             self.tree.delete(item)
             
-        licenses = db_manager.get_all_licenses()
+        licenses = db_manager.get_all_licenses(archived=False)
         for lic in licenses:
             self.tree.insert("", "end", values=(
                 lic["id"], 
@@ -410,7 +583,65 @@ class LicenseManagerApp:
                 lic["max_targets"], 
                 lic["expires_at"], 
                 lic["created_at"]
-            ), tags=(lic["key"],)) # Store full key in tag
+            ), tags=(lic["key"],))
+
+    def setup_archive_tab(self):
+        frame = ttk.Frame(self.tab_archive)
+        frame.pack(fill="both", padx=10, pady=10)
+        
+        ttk.Button(frame, text="Refresh List", command=self.refresh_archive).pack(anchor="e", pady=5)
+        
+        cols = ("ID", "Customer", "Limit", "Expires", "Created")
+        self.tree_arch = ttk.Treeview(frame, columns=cols, show='headings', height=20)
+        
+        for col in cols:
+            self.tree_arch.heading(col, text=col)
+            self.tree_arch.column(col, width=100)
+        
+        self.tree_arch.column("ID", width=30)
+        self.tree_arch.column("Customer", width=150)
+            
+        self.tree_arch.pack(fill="both", expand=True)
+        
+        # Context menu for restore
+        self.arch_menu = tk.Menu(frame, tearoff=0)
+        self.arch_menu.add_command(label="Restore License", command=self.restore_selected_license)
+        self.tree_arch.bind("<Button-3>", self.show_arch_menu)
+
+        self.refresh_archive()
+
+    def show_arch_menu(self, event):
+        item = self.tree_arch.identify_row(event.y)
+        if item:
+            self.tree_arch.selection_set(item)
+            self.arch_menu.post(event.x_root, event.y_root)
+
+    def restore_selected_license(self):
+        sel = self.tree_arch.selection()
+        if not sel: return
+        item = sel[0]
+        vals = self.tree_arch.item(item, "values")
+        lid = vals[0]
+        
+        if messagebox.askyesno("Restore", f"Restore license for {vals[1]}?"):
+            db_manager.toggle_archive_license(lid, archive=False)
+            self.refresh_history()
+            self.refresh_archive()
+
+    def refresh_archive(self):
+        # Clear
+        for item in self.tree_arch.get_children():
+            self.tree_arch.delete(item)
+            
+        licenses = db_manager.get_all_licenses(archived=True)
+        for lic in licenses:
+            self.tree_arch.insert("", "end", values=(
+                lic["id"], 
+                lic["customer"], 
+                lic["max_targets"], 
+                lic["expires_at"], 
+                lic["created_at"]
+            ), tags=(lic["key"],))
 
     def on_history_double_click(self, event):
         item = self.tree.selection()[0]

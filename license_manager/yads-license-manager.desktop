@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=YADS License Manager
+Comment=Manage Licenses for YADS Security Platform
+Exec="/home/mrmarco/Documents/gitlab/yads/license_manager/start.sh"
+Icon=/home/mrmarco/Documents/gitlab/yads/license_manager/logo.png
+Terminal=false
+Categories=Development;Utility;Security;
+StartupNotify=true

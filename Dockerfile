@@ -2,7 +2,7 @@
 FROM node:18-alpine AS css-builder
 
 WORKDIR /app
-COPY package.json tailwind.config.js ./
+COPY frontend/package.json frontend/tailwind.config.js ./
 # Create yads directory structure for tailwind content scan
 COPY yads/api/templates ./yads/api/templates
 COPY yads/api/static/css/input.css ./yads/api/static/css/input.css
@@ -81,4 +81,22 @@ COPY . .
 COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
 
 # Production Command (No reload)
+CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# -- Stage 6: Release (Compiled) --
+FROM base AS release
+WORKDIR /app
+# Copy compiled application (yads package)
+COPY --from=code-builder /build .
+
+# Copy scripts for maintenance and startup
+COPY scripts/maintenance ./scripts/maintenance
+COPY scripts/backup_db.sh ./scripts/backup_db.sh
+COPY scripts/start_worker.py ./scripts/start_worker.py
+
+# Copy built CSS (overwrite static/css/main.css if it exists in compiled output, ensuring it's fresh)
+# Note: Nuitka might not include non-python resource files unless specified, so we explicitly copy CSS.
+COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+
+# Production Command
 CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
