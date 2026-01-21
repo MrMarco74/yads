@@ -2,6 +2,7 @@ import requests
 import logging
 from typing import Optional, Dict
 from yads.config import settings
+from yads.database import redis_client
 from datetime import datetime, timedelta
 
 logger = logging.getLogger("yads.api.update")
@@ -17,13 +18,11 @@ class UpdateService:
         Fetches the latest version from yads-security.com and compares it with the current version.
         Returns a dictionary with result if an update is available, else None.
         """
-        import redis
         import json
         
         # 1. Check Cache (Redis)
-        r = None
         try:
-            r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            r = redis_client
             cached = r.get(UpdateService.CACHE_KEY)
             if cached:
                 cached_data = json.loads(cached)

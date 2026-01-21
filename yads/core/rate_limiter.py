@@ -7,7 +7,7 @@ from datetime import datetime
 
 from yads.config import settings
 from yads.models import SystemConfig
-from yads.database import engine
+from yads.database import engine, redis_client
 from sqlmodel import Session
 
 logger = logging.getLogger(__name__)
@@ -24,14 +24,10 @@ class RateLimiter:
     CACHE_TTL = 60 # How long to cache the DB config in memory
     
     def __init__(self):
-        try:
-            self.redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
-            self._config_cache = {}
-            self._last_cache_update = 0
-            logger.info("RateLimiter initialized.")
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            self.redis = None
+        self.redis = redis_client
+        self._config_cache = {}
+        self._last_cache_update = 0
+        logger.info("RateLimiter initialized.")
 
     def _get_configured_delay(self) -> float:
         """

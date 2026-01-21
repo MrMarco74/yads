@@ -12,7 +12,7 @@ import os
 import uuid
 from playwright.sync_api import sync_playwright
 
-from yads.core.base import BaseScannerModule
+from yads.database import redis_client
 from yads.config import settings
 from yads.models import SystemConfig, HTTPTraffic
 from sqlmodel import select
@@ -20,11 +20,7 @@ from sqlmodel import select
 class Crawler(BaseScannerModule):
     def __init__(self, db_session=None):
         super().__init__(db_session)
-        try:
-            self.redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-        except Exception as e:
-            logging.getLogger("yads.modules.crawler").warning(f"Redis connection failed: {e}")
-            self.redis_client = None
+        self.redis_client = redis_client
 
     @property
     def module_name(self) -> str:
