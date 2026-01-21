@@ -2,3 +2,8 @@ logs/
 yads/api/static/screenshots/
 tests/
 releases/
+release_build/
+product_screenshots/
+.venv/
+venv/
+__pycache__/
