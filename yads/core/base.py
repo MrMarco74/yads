@@ -6,6 +6,21 @@ from typing import Any, Dict, Optional, Tuple
 
 from yads.models import ModuleState, ScanResult, Target, ChangeEvent
 
+def sanitize_null_bytes(value):
+    """
+    Recursively removes null bytes (\u0000) from strings, dicts, and lists.
+    PostgreSQL (especially JSONB) does not support null bytes in text.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.replace('\u0000', '').replace('\x00', '')
+    if isinstance(value, dict):
+        return {k: sanitize_null_bytes(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [sanitize_null_bytes(v) for v in value]
+    return value
+
 class BaseScannerModule(abc.ABC):
     """
     Abstract base class for all scanner modules.
@@ -47,6 +62,7 @@ class BaseScannerModule(abc.ABC):
         # 1. Run Scan
         try:
             raw_data = self.run_scan(target_domain)
+            raw_data = sanitize_null_bytes(raw_data)
         except Exception as e:
             # TODO: Log error properly
             print(f"Error scanning {target_domain}: {e}")
@@ -121,7 +137,7 @@ class BaseScannerModule(abc.ABC):
         result = ScanResult(
             target_id=target_id,
             module_name=self.module_name,
-            data=data,
+            data=sanitize_null_bytes(data),
             result_hash=result_hash,
             scanned_at=timestamp
         )

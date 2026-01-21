@@ -235,7 +235,7 @@ class LicenseManagerApp:
         ttk.Label(frame, text="Features:").pack(anchor="w", pady=(10, 0))
         
         self.feature_vars = {}
-        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants"]
+        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants", "analytics"]
         
         f_frame = ttk.Frame(frame)
         f_frame.pack(fill="x", pady=2)
