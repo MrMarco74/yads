@@ -12,7 +12,8 @@ from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
 from yads.utils.license_deps import require_feature
 
-router = APIRouter(prefix="/api/analytics", tags=["analytics"], dependencies=[Depends(require_feature("analytics"))])
+router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+ui_router = APIRouter(prefix="/analytics")
 
 def get_session():
     with Session(engine) as session:
@@ -806,7 +807,6 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
     }
 
 # -- UI Router --
-ui_router = APIRouter(prefix="/analytics", dependencies=[Depends(require_feature("analytics"))])
 templates = Jinja2Templates(directory="yads/api/templates")
 
 # Inject Globals

@@ -4025,7 +4025,6 @@ async def export_network_graph(
                 print(f"Graphviz Error: {stderr.decode()}")
                 return {"error": "Failed to generate graph image"}
                 
-            from fastapi.responses import Response
             return Response(content=stdout, media_type="image/svg+xml")
         except Exception as e:
              logger.error(f"Export Error: {e}")

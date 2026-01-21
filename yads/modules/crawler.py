@@ -15,6 +15,7 @@ from playwright.sync_api import sync_playwright
 from yads.database import redis_client
 from yads.config import settings
 from yads.models import SystemConfig, HTTPTraffic
+from yads.core.base import BaseScannerModule
 from sqlmodel import select
 
 class Crawler(BaseScannerModule):

@@ -23,6 +23,7 @@ logs/
 *.db
 *.sqlite3
 .env
+.env.*
 .coverage
 htmlcov/
 pytest_cache/
@@ -35,3 +36,11 @@ releases/
 
 # Internal Tools
 license_manager/
+
+# Sensitive Data & Backups
+data/
+*.sql
+*.sql.gz
+*.bak
+*.backup
+logs/backups/
