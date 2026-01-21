@@ -45,7 +45,7 @@ class PortScanner(BaseScannerModule):
         # Ports that should trigger a full HTTP request probe
         self.WEB_PORTS = [80, 443, 8000, 8008, 8080, 8443, 8888, 9200]
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         results = {
             "open_ports": [],
             "is_active": False,

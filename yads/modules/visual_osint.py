@@ -29,7 +29,7 @@ class VisualOSINT(BaseScannerModule):
         self.screenshot_dir = os.path.join(settings.STATIC_DIR, "screenshots")
         os.makedirs(self.screenshot_dir, exist_ok=True)
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Executes the visual scan.
         """
@@ -99,7 +99,7 @@ class VisualOSINT(BaseScannerModule):
                 # In Docker, we usually set args=['--no-sandbox']
                 browser = p.chromium.launch(
                     headless=True, 
-                    args=['--no-sandbox', '--disable-setuid-sandbox']
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
                 )
                 
                 # Create context with viewport

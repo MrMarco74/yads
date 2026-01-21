@@ -232,7 +232,7 @@
                     Scanner Resources
                 </h3>
                  <div class="space-y-4">
-                    <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
+                     <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
                         <div>
                             <span class="text-sm font-medium text-gray-200 block">Nuclei Templates</span>
                             <span class="text-[10px] text-gray-500">Update vulnerability signatures from ProjectDiscovery.</span>
@@ -245,6 +245,25 @@
                             <span id="nuclei-spinner" class="htmx-indicator hidden"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></span>
                             Update
                         </button>
+                    </div>
+
+                    <!-- YADS Update Checker -->
+                    <div class="flex flex-col gap-3 p-3 bg-indigo-900/10 rounded border border-indigo-500/20">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <span class="text-sm font-medium text-white block">YADS Software Update</span>
+                                <span class="text-[10px] text-indigo-400">Check if a new version of YADS is available.</span>
+                            </div>
+                            <button type="button" 
+                                    hx-post="/admin/update/check" 
+                                    hx-target="#update-result"
+                                    hx-indicator="#update-spinner"
+                                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold py-1.5 px-3 rounded transition-colors flex items-center gap-2">
+                                <span id="update-spinner" class="htmx-indicator hidden"><svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></span>
+                                Check Now
+                            </button>
+                        </div>
+                        <div id="update-result" class="empty:hidden"></div>
                     </div>
                  </div>
               </div>

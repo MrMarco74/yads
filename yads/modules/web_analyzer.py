@@ -8,6 +8,7 @@ from yads.core.base import BaseScannerModule
 from yads.config import settings
 from yads.core.rate_limiter import RateLimiter
 from yads.modules.cve_lookup import lookup_cves
+from yads.models import HTTPTraffic
 
 import re
 
@@ -150,7 +151,7 @@ class WebAnalyzer(BaseScannerModule):
         self.logger = logging.getLogger("yads.modules.web")
         self.limiter = RateLimiter()
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Two-stage web analysis:
         1. Fast Header Check (Requests)
@@ -208,8 +209,24 @@ class WebAnalyzer(BaseScannerModule):
         
         # Check HTTP
         try:
+            req_start_time = time.time()
             r_http = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False, verify=False)
             results["http_status"] = r_http.status_code
+            
+            # Log Traffic
+            if self.db and target_id:
+                try:
+                    self.db.add(HTTPTraffic(
+                        target_id=target_id,
+                        method="GET",
+                        url=r_http.url,
+                        status_code=r_http.status_code,
+                        request_headers=dict(r_http.request.headers),
+                        response_headers=dict(r_http.headers),
+                        response_body_snippet=r_http.text[:1024] if r_http.text else "",
+                        duration=round(time.time() - req_start_time, 3)
+                    ))
+                except: pass
             
             # Check for redirect to HTTPS
             if r_http.is_redirect and r_http.headers.get("Location", "").startswith("https"):
@@ -225,8 +242,24 @@ class WebAnalyzer(BaseScannerModule):
 
         # Check HTTPS
         try:
+            req_start_time = time.time()
             r_https = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True, verify=False)
             results["https_status"] = r_https.status_code
+            
+            # Log Traffic
+            if self.db and target_id:
+                try:
+                    self.db.add(HTTPTraffic(
+                        target_id=target_id,
+                        method="GET",
+                        url=r_https.url,
+                        status_code=r_https.status_code,
+                        request_headers=dict(r_https.request.headers),
+                        response_headers=dict(r_https.headers),
+                        response_body_snippet=r_https.text[:1024] if r_https.text else "",
+                        duration=round(time.time() - req_start_time, 3)
+                    ))
+                except: pass
             results["http_headers"] = dict(r_https.headers)
             results["redirect_chain"] = [r.url for r in r_https.history] + [r_https.url]
             results["status_code"] = r_https.status_code # Primary status for legacy logic

@@ -16,7 +16,7 @@ class DNSRecordScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "dns_scanner"
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         logger = logging.getLogger("yads.modules.dns")
         logger.info(f"DNS Record Scan started for {target}")
         
@@ -220,7 +220,7 @@ class SubdomainScanner(DNSRecordScanner):
     def module_name(self) -> str:
         return "subdomain_scanner"
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Performs deep DNS analysis: Records + Subdomain Enumeration.
         """

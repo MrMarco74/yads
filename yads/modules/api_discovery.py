@@ -44,7 +44,7 @@ class ApiDiscoveryScanner(BaseScannerModule):
             "service"
         ]
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Scans for API definitions and endpoints.
         """

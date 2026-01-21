@@ -102,6 +102,49 @@ sed -i "s/SHA256:<\/strong> [a-f0-9]*/SHA256:<\/strong> ${SHA256}/g" yads-homepa
 
 echo -e "Homepage updated with version ${VERSION} and new hash."
 
+# 9. Generate version.json for Update Checker
+echo -e "${BLUE}>> Generating version.json for Update Checker...${NC}"
+# Extract latest changes from seeding.py (simplistic approach: get second match for 'content="""' as first is likely seed_changelog)
+# Actually, better: use a small python snippet to extract precisely what we want if seeding.py is predictable.
+# For now, we'll use a safer approach: extract the text of the LATEST version which we know is $VERSION.
+
+CHANGELOG_TEXT=$(python3 -c "
+import sys
+content = open('yads/core/seeding.py').read()
+version = '$VERSION'
+try:
+    start_marker = f'ChangelogEntry(\n                title=\"'
+    # This is a bit brittle, let's try finding by version
+    v_marker = f'version=\"{version}\"'
+    v_pos = content.find(v_marker)
+    if v_pos != -1:
+        # Look backwards for content=\"\"\"
+        c_start = content.rfind('content=\"\"\"', 0, v_pos)
+        if c_start != -1:
+            c_end = content.find('\"\"\"', c_start + 11)
+            raw_text = content[c_start+11:c_end].strip()
+            # Clean HTML tags for notification text (roughly)
+            import re
+            clean = re.sub('<[^<]+?>', '', raw_text)
+            print(clean.replace('\n', ' ').strip()[:200] + '...')
+        else:
+            print(f'New features in v{version}!')
+    else:
+        print(f'New features in v{version}!')
+except Exception as e:
+    print(f'New features in v{version}!')
+")
+
+cat <<EOF > "$OUTPUT_DIR/version.json"
+{
+  "version": "$VERSION",
+  "text": "$CHANGELOG_TEXT",
+  "url": "https://yads-security.com/releases/${RELEASE_NAME}.zip"
+}
+EOF
+
+echo -e "Generated ${BLUE}${OUTPUT_DIR}/version.json${NC}"
+
 echo -e "${GREEN}=== Success! ===${NC}"
 echo -e "Release Package: ${BLUE}${OUTPUT_DIR}/${RELEASE_NAME}.zip${NC}"
 echo -e "SHA256: ${GREEN}${SHA256}${NC}"

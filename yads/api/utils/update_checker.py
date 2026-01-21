@@ -1,0 +1,77 @@
+import requests
+import logging
+from typing import Optional, Dict
+from yads.config import settings
+from datetime import datetime, timedelta
+
+logger = logging.getLogger("yads.api.update")
+
+class UpdateService:
+    VERSION_URL = "https://yads-security.com/releases/version.json"
+    CACHE_KEY = "yads_latest_version_cache"
+    CACHE_TTL = 3600 # 1 hour
+
+    @staticmethod
+    def check_for_updates() -> Optional[Dict]:
+        """
+        Fetches the latest version from yads-security.com and compares it with the current version.
+        Returns a dictionary with result if an update is available, else None.
+        """
+        import redis
+        import json
+        
+        # 1. Check Cache (Redis)
+        r = None
+        try:
+            r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            cached = r.get(UpdateService.CACHE_KEY)
+            if cached:
+                cached_data = json.loads(cached)
+                # Check if it's truly an update based on local version
+                if UpdateService._is_newer(cached_data.get("version"), settings.VERSION):
+                    return cached_data
+                return None
+        except Exception as e:
+            logger.warning(f"Failed to access Redis cache for update check: {e}")
+
+        # 2. Fetch Remote
+        try:
+            # Use requests (already a dependency)
+            response = requests.get(UpdateService.VERSION_URL, timeout=5.0)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Expected format: {"version": "1.13.0", "text": "New features available!", "url": "https://..."}
+            remote_version = data.get("version")
+            
+            # 3. Cache it (even if no update, we cache the 'no update' state for a while?)
+            # Actually, cache the data we got.
+            if r:
+                try:
+                    r.setex(UpdateService.CACHE_KEY, UpdateService.CACHE_TTL, json.dumps(data))
+                except: pass
+
+            if UpdateService._is_newer(remote_version, settings.VERSION):
+                return data
+        except Exception as e:
+            logger.error(f"Failed to check for YADS updates: {e}")
+            
+        return None
+
+    @staticmethod
+    def _is_newer(remote: str, local: str) -> bool:
+        """Simple semantic version comparison."""
+        if not remote or not local:
+            return False
+            
+        try:
+            r_parts = [int(p) for p in remote.split('.')]
+            l_parts = [int(p) for p in local.split('.')]
+            
+            for r, l in zip(r_parts, l_parts):
+                if r > l: return True
+                if l > r: return False
+                
+            return len(r_parts) > len(l_parts)
+        except:
+            return remote > local # Fallback

@@ -1,5 +1,6 @@
 import dns.resolver
 import itertools
+import logging
 from typing import List, Dict, Any
 from yads.core.base import BaseScannerModule
 
@@ -50,7 +51,7 @@ class TyposquatScanner(BaseScannerModule):
             
         return list(variations)
 
-    def run_scan(self, domain: str) -> Dict[str, Any]:
+    def run_scan(self, domain: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Main execution method.
         """

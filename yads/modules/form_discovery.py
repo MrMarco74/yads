@@ -44,7 +44,7 @@ class FormDiscoveryScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "form_discovery"
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         logger = logging.getLogger("yads.modules.form_discovery")
         
         url = target

@@ -36,7 +36,7 @@ class BaseScannerModule(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Execute the actual scanning logic.
         Returns a dictionary representing the raw data.
@@ -61,7 +61,7 @@ class BaseScannerModule(abc.ABC):
         """
         # 1. Run Scan
         try:
-            raw_data = self.run_scan(target_domain)
+            raw_data = self.run_scan(target_domain, target_id=target_id)
             raw_data = sanitize_null_bytes(raw_data)
         except Exception as e:
             # TODO: Log error properly

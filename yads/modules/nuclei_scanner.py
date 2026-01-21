@@ -20,7 +20,7 @@ class NucleiScanner(BaseScannerModule):
         super().__init__(db_session)
         self.logger = logging.getLogger("yads-worker")
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         results = {
             "findings": [],
             "stats": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "unknown": 0},
