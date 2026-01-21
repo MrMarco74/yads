@@ -327,15 +327,42 @@ def seed_changelog():
             )
             session.add(entry_1120)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.13.0").first():
+            entry_1130 = ChangelogEntry(
+                title="YADS v1.13.0: Security Hardening & Release Protection",
+                version="1.13.0",
+                content="""
+                <h3>🔐 Security Hardening</h3>
+                <ul>
+                    <li><strong>Credential Protection:</strong> Removed sensitive configuration files from version control to prevent accidental credential leakage.</li>
+                    <li><strong>Release Validation:</strong> Implemented comprehensive pre-flight security checks in the release packaging script to detect hardcoded API keys, database backups, and environment files.</li>
+                    <li><strong>Configuration Templates:</strong> Created <code>config.env.example</code> template with clear security instructions for deployment.</li>
+                </ul>
+                <h3>📚 Documentation</h3>
+                <ul>
+                    <li><strong>Security Guide:</strong> New comprehensive <code>SECURITY.md</code> documentation covering API key management, backup security, credential rotation, and incident response procedures.</li>
+                    <li><strong>Setup Guide Updates:</strong> Enhanced deployment instructions with security warnings and best practices.</li>
+                    <li><strong>API Key Management:</strong> Documented tenant-specific API key storage (Google, Nuclei, HIBP) and encryption practices.</li>
+                </ul>
+                <h3>🛡️ Build Security</h3>
+                <ul>
+                    <li><strong>Automated Validation:</strong> Release builds now automatically fail if sensitive data is detected in the repository.</li>
+                    <li><strong>Enhanced .gitignore:</strong> Comprehensive exclusions for environment files, database backups, and sensitive data.</li>
+                    <li><strong>Docker Build Protection:</strong> Updated <code>.dockerignore</code> to prevent sensitive directories from being included in build context.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1130)
+
         session.commit()
         print("Changelog seeded successfully.")
 
 def seed_notifications():
     with Session(engine) as session:
-        if not session.query(Notification).where(Notification.title == "YADS v1.12.0 Update").first():
+        if not session.query(Notification).where(Notification.title == "YADS v1.13.0 Update").first():
             note = Notification(
-                title="YADS v1.12.0 Update",
-                text="The latest update v1.12.0 is now live! Check the 'Recent Changes' for details on OSINT fixes and the new Platform Showcase.",
+                title="YADS v1.13.0 Update",
+                text="The latest update v1.13.0 is now live! This release focuses on security hardening with comprehensive credential protection and automated release validation. Check 'Recent Changes' for details.",
                 type="update",
                 color="purple",
                 icon="rocket"

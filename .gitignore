@@ -7,3 +7,22 @@ product_screenshots/
 .venv/
 venv/
 __pycache__/
+
+# Environment & Configuration Files
+*.env
+*.env.*
+.env.local
+.env.production
+data/config.env
+data/*.env
+
+# Database Backups & Dumps
+*.sql
+*.sql.gz
+*.db
+*.sqlite3
+logs/backups/
+
+# Backup Files
+*.bak
+*.backup

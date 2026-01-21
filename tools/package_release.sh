@@ -32,6 +32,76 @@ echo -e "Detected Version: ${GREEN}${VERSION}${NC}"
 RELEASE_NAME="${PROJECT_NAME}_v${VERSION}_customer_pkg"
 mkdir -p "$OUTPUT_DIR/$RELEASE_NAME"
 
+# 2.5. PRE-FLIGHT SECURITY VALIDATION
+echo -e "${BLUE}>> Running Pre-Flight Security Checks...${NC}"
+
+SECURITY_ERRORS=0
+
+# Check 1: Ensure data/config.env is NOT tracked in Git
+echo -n "  [CHECK] data/config.env not in Git... "
+if git ls-files --error-unmatch data/config.env &>/dev/null; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "${RED}ERROR: data/config.env is tracked in Git! Remove it with: git rm --cached data/config.env${NC}"
+    SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
+else
+    echo -e "${GREEN}PASS${NC}"
+fi
+
+# Check 2: Scan for hardcoded API keys in tracked files
+echo -n "  [CHECK] No hardcoded API keys in code... "
+# Common API key patterns (Google, AWS, GitHub, etc.)
+# Exclude venv and .venv directories to avoid false positives from dependencies
+if git grep -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' &>/dev/null; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "${RED}ERROR: Potential hardcoded API keys found in tracked files!${NC}"
+    git grep -n -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' || true
+    SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
+else
+    echo -e "${GREEN}PASS${NC}"
+fi
+
+# Check 3: Verify no database backups in repository
+echo -n "  [CHECK] No database backups in repository... "
+if git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$' &>/dev/null; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "${RED}ERROR: Database backup files found in repository!${NC}"
+    git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$'
+    SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
+else
+    echo -e "${GREEN}PASS${NC}"
+fi
+
+# Check 4: Verify no .env files are tracked
+echo -n "  [CHECK] No .env files tracked in Git... "
+if git ls-files | grep -E '\.env(\.|$)' &>/dev/null; then
+    echo -e "${RED}FAIL${NC}"
+    echo -e "${RED}ERROR: .env files found in repository!${NC}"
+    git ls-files | grep -E '\.env(\.|$)'
+    SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
+else
+    echo -e "${GREEN}PASS${NC}"
+fi
+
+# Check 5: Scan for common password patterns in tracked files
+echo -n "  [CHECK] No hardcoded passwords in code... "
+if git grep -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' | grep -v -E '(example|template|test|mock|placeholder|CHANGE_THIS)' &>/dev/null; then
+    echo -e "${RED}WARNING${NC}"
+    echo -e "${RED}WARNING: Potential hardcoded passwords found. Please review:${NC}"
+    git grep -n -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' | grep -v -E '(example|template|test|mock|placeholder|CHANGE_THIS)' || true
+    # Don't fail build, just warn
+else
+    echo -e "${GREEN}PASS${NC}"
+fi
+
+# Exit if critical errors found
+if [ $SECURITY_ERRORS -gt 0 ]; then
+    echo -e "${RED}=== SECURITY VALIDATION FAILED ===${NC}"
+    echo -e "${RED}Found $SECURITY_ERRORS critical security issue(s). Fix them before releasing.${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}>> All Security Checks Passed!${NC}"
+
 # 3. Build Docker Images
 echo -e "${BLUE}>> Building Docker Images (Nuitka Compiled)...${NC}"
 # We build both services tagged as latest. We use the 'release' stage for compiled code.

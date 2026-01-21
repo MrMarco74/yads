@@ -136,7 +136,8 @@ class VisualOSINT(BaseScannerModule):
         try:
             hash_a = imagehash.dhash(Image.open(path_a))
             hash_b = imagehash.dhash(Image.open(path_b))
-            return hash_a - hash_b
+            # Convert to native Python int to avoid JSON serialization issues with numpy.int64
+            return int(hash_a - hash_b)
         except Exception as e:
             self.logger.error(f"Image comparison failed: {e}")
             return 999 # Error score

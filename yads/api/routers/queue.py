@@ -215,6 +215,7 @@ async def control_queue(
 @router.post("/purge", dependencies=[Depends(scanner_only)])
 async def purge_queue(
     request: Request,
+    user: User = Depends(get_current_user_html),
     session: Session = Depends(get_session)
 ):
     """
@@ -262,14 +263,18 @@ async def purge_queue(
         
         scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}, Redis Deleted: {r_count}")
         
-        # 4. RESET Database Status (The Missing Link)
+        # 4. RESET Database Status (The Missing Link) - TENANT AWARE
         # Fixes "Zombie" statuses in the UI for tasks that were just deleted
         from yads.models import Target
-        from sqlmodel import or_
+        from sqlmodel import or_, and_
         
-        # Reset all 'queued' or 'running' targets to 'idle'
-        # or_() needs col expression
-        statement = select(Target).where(or_(Target.scan_status == "queued", Target.scan_status == "running"))
+        # Reset all 'queued' or 'running' targets to 'idle' FOR THIS TENANT ONLY
+        statement = select(Target).where(
+            and_(
+                Target.tenant_id == user.tenant_id,
+                or_(Target.scan_status == "queued", Target.scan_status == "running")
+            )
+        )
         zombies = session.exec(statement).all()
         
         reset_count = 0
@@ -280,7 +285,7 @@ async def purge_queue(
             reset_count += 1
             
         session.commit()
-        scan_logger.warning(f"Reset {reset_count} zombie targets in DB.")
+        scan_logger.warning(f"Reset {reset_count} zombie targets in DB for tenant {user.tenant_id}.")
 
     except Exception as e:
         scan_logger.error(f"Failed to purge queue: {e}")

@@ -71,8 +71,11 @@
                 <tbody class="divide-y divide-gray-800">
                     {% for entry in traffic %}
                     <tr class="hover:bg-gray-800/50 group transition-colors" 
-                        x-show="filter('{{ entry.url|escapejs }}', '{{ entry.method|escapejs }}', '{{ entry.status_code }}')"
-                        x-data="{ details: false }">
+                        x-show="filter($el.dataset.url, $el.dataset.method, $el.dataset.status)"
+                        x-data="{ details: false }"
+                        data-url="{{ entry.url|e }}"
+                        data-method="{{ entry.method|e }}"
+                        data-status="{{ entry.status_code }}">
                         <td colspan="7" class="p-0">
                             <div class="flex items-center px-4 py-3 cursor-pointer hover:bg-slate-800/50 transition-colors" @click="details = !details">
                                 <div class="w-16 text-center">

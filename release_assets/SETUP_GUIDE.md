@@ -50,6 +50,7 @@ docker images | grep yads
    ```ini
    # --- Database ---
    # Set a strong password for the internal database
+   # Generate with: openssl rand -base64 32
    POSTGRES_PASSWORD=secure_password_here
 
    # --- Security ---
@@ -57,6 +58,12 @@ docker images | grep yads
    # You can generate one with: openssl rand -hex 32
    SECRET_KEY=change_this_to_a_random_string
    ```
+
+   > **⚠️ SECURITY WARNING**: 
+   > - **NEVER commit the `.env` file to version control!**
+   > - Use strong, randomly generated passwords (minimum 32 characters)
+   > - Keep this file secure and restrict access to authorized personnel only
+   > - For detailed security guidance, see `docs/SECURITY.md`
 
    > **Note**: You do not need to configure the `LICENSE_KEY` here. You will add it via the web interface later.
 
