@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from yads.core.base import BaseScannerModule
 
 class NucleiScanner(BaseScannerModule):

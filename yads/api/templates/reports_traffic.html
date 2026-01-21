@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                <svg class="w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                HTTP Traffic History
+            </h1>
+            <p class="text-sm text-slate-400 mt-1">
+                Detailed log of all HTTP requests and responses captured during crawling and analysis.
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/reports/traffic/excel" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export Excel
+            </a>
+            <a href="/reports/traffic/pdf" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-4 items-center" x-data="{ search: '' }">
+        <div class="flex-1 relative">
+            <input type="text" x-model="search" @input="$dispatch('filter-traffic', { query: search })"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors"
+                   placeholder="Search URL, Method or Status Code...">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+        </div>
+        <div class="text-xs text-slate-500 uppercase font-bold tracking-widest bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+            Showing latest {{ traffic|length }} Requests
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" 
+         x-data="{ 
+            query: '',
+            filter(entry_url, entry_method, entry_status) {
+                if (!this.query) return true;
+                const q = this.query.toLowerCase();
+                return entry_url.toLowerCase().includes(q) || 
+                       entry_method.toLowerCase().includes(q) || 
+                       entry_status.toString().includes(q);
+            }
+         }"
+         @filter-traffic.window="query = $event.detail.query">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead class="bg-gray-950 text-gray-400 sticky top-0 z-10 border-b border-gray-800">
+                    <tr>
+                        <th class="px-4 py-3 w-16 text-center">Status</th>
+                        <th class="px-4 py-3 w-16">Method</th>
+                        <th class="px-4 py-3 w-48">Target</th>
+                        <th class="px-4 py-3">URL</th>
+                        <th class="px-4 py-3 w-20 text-right">Time</th>
+                        <th class="px-4 py-3 w-20 text-center">Duration</th>
+                        <th class="px-4 py-3 w-12"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-800">
+                    {% for entry in traffic %}
+                    <tr class="hover:bg-gray-800/50 group transition-colors" 
+                        x-show="filter('{{ entry.url|escapejs }}', '{{ entry.method|escapejs }}', '{{ entry.status_code }}')"
+                        x-data="{ details: false }">
+                        <td colspan="7" class="p-0">
+                            <div class="flex items-center px-4 py-3 cursor-pointer hover:bg-slate-800/50 transition-colors" @click="details = !details">
+                                <div class="w-16 text-center">
+                                    <span class="px-2 py-0.5 rounded font-bold text-[10px]
+                                        {% if entry.status_code >= 500 %}bg-red-900/50 text-red-400 border border-red-900/50
+                                        {% elif entry.status_code >= 400 %}bg-orange-900/50 text-orange-400 border border-orange-900/50
+                                        {% elif entry.status_code >= 300 %}bg-blue-900/50 text-blue-400 border border-blue-900/50
+                                        {% else %}bg-green-900/50 text-green-400 border border-green-900/50{% endif %}">
+                                        {{ entry.status_code }}
+                                    </span>
+                                </div>
+                                <div class="w-16 font-bold text-gray-300">{{ entry.method }}</div>
+                                <div class="w-48 text-slate-500 truncate pr-4">{{ entry.target.domain }}</div>
+                                <div class="flex-1 truncate text-gray-400 pr-4" title="{{ entry.url }}">{{ entry.url }}</div>
+                                <div class="w-20 text-right text-gray-500 text-[10px]">{{ entry.timestamp.strftime('%H:%M:%S') }}</div>
+                                <div class="w-20 text-center text-gray-500">{{ entry.duration }}s</div>
+                                <div class="w-12 text-center text-gray-600">
+                                    <svg class="w-4 h-4 mx-auto transform transition-transform" :class="details ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                            </div>
+                            
+                            <!-- Detailed View -->
+                            <div x-show="details" x-collapse class="bg-black/30 p-6 border-t border-dashed border-gray-800 space-y-4" style="display: none;">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <!-- Request Headers -->
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <span class="w-1 h-3 bg-blue-500 rounded"></span> Request Headers
+                                        </h4>
+                                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto max-h-64 custom-scrollbar">
+                                            {% for k, v in entry.request_headers.items() %}
+                                                <div class="flex gap-2 mb-1">
+                                                    <span class="text-blue-400 font-bold whitespace-nowrap">{{ k }}:</span>
+                                                    <span class="text-slate-400 break-all">{{ v }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <!-- Response Headers -->
+                                    <div>
+                                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <span class="w-1 h-3 bg-green-500 rounded"></span> Response Headers
+                                        </h4>
+                                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 overflow-x-auto max-h-64 custom-scrollbar">
+                                            {% for k, v in entry.response_headers.items() %}
+                                                <div class="flex gap-2 mb-1">
+                                                    <span class="text-green-400 font-bold whitespace-nowrap">{{ k }}:</span>
+                                                    <span class="text-slate-400 break-all">{{ v }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Response Body Snippet -->
+                                {% if entry.response_body_snippet %}
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <span class="w-1 h-3 bg-purple-500 rounded"></span> Response Preview
+                                    </h4>
+                                    <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                        <pre class="text-[10px] text-slate-400 whitespace-pre-wrap break-all">{{ entry.response_body_snippet }}</pre>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="flex justify-between items-center text-[10px] text-slate-600">
+                                    <span>Captured at {{ entry.timestamp }}</span>
+                                    <span>Target ID: {{ entry.target_id }}</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-500 italic">
+                            No HTTP traffic logs available for this context.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
+
+{% endblock %}

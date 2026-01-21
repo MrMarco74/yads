@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+from typing import Optional
 from sqlmodel import Session, select
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, get_current_active_user

@@ -1,7 +1,7 @@
 import re
 import dns.resolver
 import requests
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from playwright.sync_api import sync_playwright
 
 from yads.core.base import BaseScannerModule

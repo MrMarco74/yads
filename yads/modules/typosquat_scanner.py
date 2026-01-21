@@ -1,7 +1,7 @@
 import dns.resolver
 import itertools
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from yads.core.base import BaseScannerModule
 
 class TyposquatScanner(BaseScannerModule):

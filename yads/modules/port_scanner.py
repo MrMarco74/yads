@@ -1,7 +1,7 @@
 import requests
 import logging
 import socket
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import urllib3
 from yads.core.base import BaseScannerModule
 

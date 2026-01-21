@@ -3,7 +3,7 @@ import logging
 import subprocess
 import shutil
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import os
 import tempfile
 from yads.core.base import BaseScannerModule
