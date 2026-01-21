@@ -8,8 +8,8 @@ from fastapi.templating import Jinja2Templates
 import csv
 import io
 from datetime import datetime
-from yads.utils.export import generate_excel, generate_pdf, generate_api_excel, generate_form_excel
-from yads.models import User, Target, ScanResult
+from yads.utils.export import generate_excel, generate_pdf, generate_api_excel, generate_form_excel, generate_traffic_excel, generate_traffic_pdf
+from yads.models import User, Target, ScanResult, HTTPTraffic
 from yads.modules.report_generator import generate_report
 from yads.utils.license_deps import require_feature
 
@@ -182,3 +182,48 @@ async def export_form_excel(target_id: int, session: Session = Depends(get_sessi
         data = form_res.data
         
     return generate_form_excel(data, f"form_discovery_{target.domain}")
+
+@router.get("/traffic/excel")
+async def export_traffic_excel(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports ALL HTTP traffic for the current tenant to Excel.
+    """
+    query = select(HTTPTraffic).join(Target)
+    if user.tenant_id:
+        query = query.where(Target.tenant_id == user.tenant_id)
+        
+    traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc())).all()
+    return generate_traffic_excel(traffic, "tenant_http_traffic")
+
+@router.get("/traffic/pdf")
+async def export_traffic_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Exports ALL HTTP traffic for the current tenant to PDF.
+    """
+    query = select(HTTPTraffic).join(Target)
+    if user.tenant_id:
+        query = query.where(Target.tenant_id == user.tenant_id)
+        
+    traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc())).all()
+    return generate_traffic_pdf(traffic, "Tenant Infrastructure", "tenant_http_traffic")
+
+@router.get("/scan/{target_id}/traffic/excel")
+async def export_target_traffic_excel(target_id: int, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"]))):
+    # Tenant Scope Check
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    traffic = session.exec(select(HTTPTraffic).where(HTTPTraffic.target_id == target_id).order_by(HTTPTraffic.timestamp.desc())).all()
+    return generate_traffic_excel(traffic, f"traffic_{target.domain}")
+
+@router.get("/scan/{target_id}/traffic/pdf")
+async def export_target_traffic_pdf(target_id: int, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"]))):
+    # Tenant Scope Check
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    traffic = session.exec(select(HTTPTraffic).where(HTTPTraffic.target_id == target_id).order_by(HTTPTraffic.timestamp.desc())).all()
+    return generate_traffic_pdf(traffic, target.domain, f"traffic_{target.domain}")
+

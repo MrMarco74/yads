@@ -22,7 +22,7 @@ class LeakMonitor(BaseScannerModule):
         self.logger = logging.getLogger("yads.modules.leak_monitor")
         self.api_base = "https://haveibeenpwned.com/api/v3"
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Scans for leaks associated with emails found on the target.
         """

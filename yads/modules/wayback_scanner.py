@@ -9,7 +9,7 @@ class WaybackScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "wayback_scanner"
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         logger = logging.getLogger("yads.modules.wayback")
         logger.info(f"Wayback Scan started for {target}")
         

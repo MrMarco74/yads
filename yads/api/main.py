@@ -21,13 +21,14 @@ from yads.core.seeding import seed_changelog
 from yads.modules.compliance import ComplianceScorer
 
 from yads.config import settings
-from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification, SecurityTrend
+from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification, SecurityTrend, HTTPTraffic
 from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
 from yads.core.scoring import calculate_target_score, get_grade, get_grade_color
 from yads.api.routers import auth, analytics, users, tenants, schedules
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException
 from yads.models import User
+from yads.api.utils.update_checker import UpdateService
 
 # -- Logging Setup --
 logger = configure_logging("yads-api")
@@ -645,6 +646,13 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
+    # Check for YADS Updates (Automatic)
+    update_info = None
+    try:
+        update_info = UpdateService.check_for_updates()
+    except Exception as e:
+        logger.warning(f"Dashboard update check failed: {e}")
+
     # Calculate stats (Tenant Scoped)
     total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
     
@@ -892,7 +900,8 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             "start_item": 1,
             "end_item": min(limit, total_targets)
         },
-        "user": user # Pass user to context
+        "user": user, # Pass user to context
+        "update_info": update_info
     })
 
 
@@ -2698,6 +2707,83 @@ def add_target(domain: str, session: Session = Depends(get_session), user: User 
 def list_targets(session: Session = Depends(get_session)):
     return session.exec(select(Target)).all()
 
+@app.get("/api/targets/{target_id}/traffic")
+def get_target_traffic(
+    target_id: int, 
+    session: Session = Depends(get_session), 
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+    limit: int = Query(100, le=1000),
+    offset: int = Query(0)
+):
+    """
+    Returns historical HTTP traffic for a specific target.
+    """
+    # Tenant Scope Check
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    traffic = session.exec(
+        select(HTTPTraffic)
+        .where(HTTPTraffic.target_id == target_id)
+        .order_by(HTTPTraffic.timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    
+    return traffic
+
+@app.post("/api/targets/{target_id}/traffic/{traffic_id}/replay")
+def replay_traffic(
+    target_id: int, 
+    traffic_id: int,
+    session: Session = Depends(get_session), 
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+):
+    """
+    Re-executes a captured HTTP request and returns the result.
+    """
+    # Tenant Scope Check
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    traffic = session.get(HTTPTraffic, traffic_id)
+    if not traffic or traffic.target_id != target_id:
+        raise HTTPException(status_code=404, detail="Traffic log not found")
+        
+    import requests
+    import time
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    start_time = time.time()
+    try:
+        # Filter headers that might cause issues during replay (like host-specific or length)
+        headers = {k: v for k, v in (traffic.request_headers or {}).items() if k.lower() not in ['content-length', 'host']}
+        
+        response = requests.request(
+            method=traffic.method,
+            url=traffic.url,
+            headers=headers,
+            timeout=10,
+            verify=False
+        )
+        duration = round(time.time() - start_time, 2)
+        
+        return {
+            "status_code": response.status_code,
+            "duration": duration,
+            "response_headers": dict(response.headers),
+            "response_body_snippet": response.text[:5000]
+        }
+    except Exception as e:
+        return {
+            "status_code": 0,
+            "duration": round(time.time() - start_time, 2),
+            "error": str(e)
+        }
+
 @app.get("/api/targets/{target_id}", response_model=Target)
 def get_target(target_id: int, session: Session = Depends(get_session)):
     target = session.get(Target, target_id)
@@ -2830,6 +2916,57 @@ async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker
     except Exception as e:
         logger.error(f"Nuclei update failed: {e}")
         return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Error: {str(e)}</div>')
+
+@app.post("/admin/update/check", response_class=HTMLResponse)
+async def manual_update_check(request: Request, user: User = Depends(RoleChecker(["admin"]))):
+    """
+    Manually triggers an update check (HTMX).
+    """
+    try:
+        # Clear cache first to force a fresh check
+        import redis
+        import json
+        try:
+            r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            r.delete(UpdateService.CACHE_KEY)
+        except: pass
+
+        update = UpdateService.check_for_updates()
+        if update:
+            return HTMLResponse(content=f'''
+                <div class="bg-indigo-900/40 border border-indigo-500/50 p-4 rounded-xl animate-fade-in">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-white">YADS Update Available: v{update['version']}</p>
+                            <p class="text-xs text-indigo-300 mt-1">{update['text']}</p>
+                            <a href="{update['url']}" target="_blank" class="inline-block mt-3 text-xs font-bold text-indigo-400 hover:text-indigo-300 underline uppercase tracking-wider">Download & Patch</a>
+                        </div>
+                    </div>
+                </div>
+            ''')
+        else:
+            return HTMLResponse(content=f'''
+                <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-xl animate-fade-in">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-500/10 rounded-lg text-green-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-white">System Up to Date</p>
+                            <p class="text-xs text-slate-400">You are running the latest version (v{settings.VERSION}).</p>
+                        </div>
+                    </div>
+                </div>
+            ''')
+    except Exception as e:
+        return HTMLResponse(content=f'''
+            <div class="bg-red-900/40 border border-red-500/50 p-4 rounded-xl text-red-200 text-xs animate-fade-in">
+                Update check failed: {str(e)}
+            </div>
+        ''')
 
 @app.get("/settings", response_class=HTMLResponse)
 async def view_settings(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):

@@ -827,11 +827,16 @@
                             </td>
 
                             <td class="p-2 text-right">
-                                {% if user.role != 'viewer' %}
-                                <button type="submit" form="single-scan-{{ row.target.id }}" class="text-indigo-400 hover:text-indigo-300 text-xs uppercase font-bold tracking-wider hover:underline">
-                                    Scan
-                                </button>
-                                {% endif %}
+                                <div class="flex items-center justify-end gap-3">
+                                    <a href="/targets/{{ row.target.id }}#traffic" class="text-indigo-400 hover:text-indigo-300 text-xs uppercase font-bold tracking-wider hover:underline" title="View HTTP Traffic Logs">
+                                        Traffic
+                                    </a>
+                                    {% if user.role != 'viewer' %}
+                                    <button type="submit" form="single-scan-{{ row.target.id }}" class="text-indigo-400 hover:text-indigo-300 text-xs uppercase font-bold tracking-wider hover:underline">
+                                        Scan
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}

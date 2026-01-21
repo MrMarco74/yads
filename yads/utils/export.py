@@ -204,3 +204,74 @@ def generate_pdf(data: List[Dict[str, Any]], title: str, filename_prefix: str, o
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+def generate_traffic_excel(data: List[Any], filename_prefix: str) -> Response:
+    """
+    Specifically handles HTTPTraffic objects for Excel export.
+    """
+    rows = []
+    for t in data:
+        rows.append({
+            "Timestamp": t.timestamp.strftime('%Y-%m-%d %H:%M:%S') if hasattr(t, 'timestamp') else "",
+            "Method": t.method,
+            "URL": t.url,
+            "Status": t.status_code,
+            "Duration (s)": t.duration,
+            "Request Headers": json.dumps(t.request_headers) if isinstance(t.request_headers, dict) else str(t.request_headers),
+            "Response Headers": json.dumps(t.response_headers) if isinstance(t.response_headers, dict) else str(t.response_headers),
+            "Body Snippet": t.response_body_snippet
+        })
+    
+    return generate_excel(rows, filename_prefix)
+
+def generate_traffic_pdf(data: List[Any], target_domain: str, filename_prefix: str) -> Response:
+    """
+    Generates a PDF report for HTTP Traffic.
+    """
+    pdf = PDFReport(f"HTTP Traffic Report: {target_domain}")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page(orientation='L') # Landscape for traffic
+    pdf.set_font("Arial", size=10)
+    
+    if not data:
+        pdf.cell(0, 10, "No traffic data available.", 0, 1)
+    else:
+        # Table Header
+        pdf.set_fill_color(240, 240, 240)
+        pdf.set_font("Arial", 'B', 9)
+        cols = [
+            ("Time", 35),
+            ("Method", 15),
+            ("Status", 15),
+            ("Duration", 15),
+            ("URL", 190)
+        ]
+        
+        for name, width in cols:
+            pdf.cell(width, 10, name, 1, 0, 'C', fill=True)
+        pdf.ln()
+        
+        # Rows
+        pdf.set_font("Arial", size=8)
+        for t in data:
+            # URL can be long, we use cell with truncation or MultiCell?
+            # For a log table, cell with truncation is usually cleaner.
+            pdf.cell(35, 8, t.timestamp.strftime('%H:%M:%S') if hasattr(t, 'timestamp') else "", 1, 0, 'C')
+            pdf.cell(15, 8, str(t.method), 1, 0, 'C')
+            pdf.cell(15, 8, str(t.status_code), 1, 0, 'C')
+            pdf.cell(15, 8, f"{t.duration}s", 1, 0, 'C')
+            
+            url_display = t.url
+            if len(url_display) > 100:
+                url_display = url_display[:97] + "..."
+            pdf.cell(190, 8, url_display, 1, 0, 'L')
+            pdf.ln()
+
+    output = pdf.output(dest='S').encode('latin-1')
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+    
+    return Response(
+        content=output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

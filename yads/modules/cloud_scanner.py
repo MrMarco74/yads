@@ -12,7 +12,7 @@ class CloudScanner(BaseScannerModule):
         super().__init__(db_session)
         self.logger = logging.getLogger("yads.modules.cloud_scanner")
 
-    def run_scan(self, target: str) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Scans for Shadow IT cloud assets (buckets/blobs) related to the target.
         """

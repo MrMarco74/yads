@@ -17,7 +17,7 @@ class InfrastructureScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "infrastructure_scanner"
 
-    def run_scan(self, domain: str) -> Dict[str, Any]:
+    def run_scan(self, domain: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Performs infrastructure analysis:
         1. Resolve IP

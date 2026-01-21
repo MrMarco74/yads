@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, Text
 
 
 class UserTenantLink(SQLModel, table=True):
@@ -63,6 +63,7 @@ class Target(SQLModel, table=True):
     # Relationships
     scan_results: List["ScanResult"] = Relationship(back_populates="target")
     module_states: List["ModuleState"] = Relationship(back_populates="target")
+    http_traffic: List["HTTPTraffic"] = Relationship(back_populates="target")
 
 class ModuleState(SQLModel, table=True):
     """
@@ -191,4 +192,18 @@ class SecurityTrend(SQLModel, table=True):
     score: int
     grade: str
     recorded_at: datetime = Field(default_factory=datetime.utcnow)
+
+class HTTPTraffic(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    target_id: int = Field(foreign_key="target.id", index=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    method: str
+    url: str
+    status_code: int
+    request_headers: dict = Field(default={}, sa_column=Column(JSONB))
+    response_headers: dict = Field(default={}, sa_column=Column(JSONB))
+    response_body_snippet: Optional[str] = Field(default=None, sa_column=Column(Text))
+    duration: float
+    
+    target: Target = Relationship(back_populates="http_traffic")
 

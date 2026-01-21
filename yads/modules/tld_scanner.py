@@ -40,7 +40,7 @@ class TLDScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "tld_scanner"
 
-    def run_scan(self, domain: str) -> Dict[str, Any]:
+    def run_scan(self, domain: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Scans for the same SLD across all known TLDs.
         Counts:
