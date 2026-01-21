@@ -925,6 +925,56 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = config.value.lower() == "true" if config else False
 
+    # Calculate Average Security Score for Tenant
+    avg_security_score = 0
+    avg_grade = "F"
+    
+    try:
+        if total_targets > 0:
+            # Fetch latest results for security-relevant modules
+            query_security = f"""
+                SELECT DISTINCT ON (s.target_id, s.module_name) 
+                    s.target_id, s.module_name, s.data 
+                FROM scanresult s
+                JOIN target t ON s.target_id = t.id
+                WHERE s.module_name IN ('ssl_scanner', 'web_analyzer', 'cve_scanner', 'infrastructure_scanner', 'port_scanner')
+                AND t.tenant_id {f"= {user.tenant_id}" if user.tenant_id else "IS NULL"}
+                ORDER BY s.target_id, s.module_name, s.scanned_at DESC
+            """
+            
+            # Fetch all targets for scoring
+            all_targets_query = select(Target).where(Target.tenant_id == user.tenant_id)
+            all_targets = session.exec(all_targets_query).all()
+            
+            security_results = session.exec(text(query_security)).all()
+            
+            # Build target results map
+            target_results_map = {}
+            for tid, mod, data in security_results:
+                if tid not in target_results_map:
+                    target_results_map[tid] = {}
+                # Mock result object for scorer
+                class MockRes:
+                    def __init__(self, d): self.data = d
+                target_results_map[tid][mod] = MockRes(data)
+            
+            # Calculate average score
+            total_score = 0
+            scored_count = 0
+            for t in all_targets:
+                t_res = target_results_map.get(t.id, {})
+                s, g, f = calculate_target_score(t, t_res)
+                total_score += s
+                scored_count += 1
+            
+            if scored_count > 0:
+                avg_security_score = int(total_score / scored_count)
+        
+        avg_grade = get_grade(avg_security_score)
+    except Exception as e:
+        logger.error(f"Security score calculation failed in dashboard_stats: {e}")
+        # Use defaults on error
+
     return templates.TemplateResponse("_dashboard_stats.html", {
         "request": request,
         "stats": {
@@ -932,7 +982,9 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
             "services_monitored": "-",
             "total_scans": total_scans_count,
             "queue_length": queue_len,
-            "queue_active": queue_active
+            "queue_active": queue_active,
+            "security_score": avg_security_score,
+            "security_grade": avg_grade
         },
         "user": user
     })
