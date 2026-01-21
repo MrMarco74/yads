@@ -10,8 +10,9 @@ from yads.models import Target, ScanResult, User
 from yads.auth.deps import get_current_active_user
 from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
+from yads.utils.license_deps import require_feature
 
-router = APIRouter(prefix="/api/analytics", tags=["analytics"])
+router = APIRouter(prefix="/api/analytics", tags=["analytics"], dependencies=[Depends(require_feature("analytics"))])
 
 def get_session():
     with Session(engine) as session:
@@ -805,8 +806,25 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
     }
 
 # -- UI Router --
-ui_router = APIRouter(prefix="/analytics")
+ui_router = APIRouter(prefix="/analytics", dependencies=[Depends(require_feature("analytics"))])
 templates = Jinja2Templates(directory="yads/api/templates")
+
+# Inject Globals
+templates.env.globals['settings'] = settings
+from datetime import datetime
+templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+# Custom Filters
+def timestamp_to_time(value):
+    if not value:
+        return "-"
+    try:
+        dt = datetime.fromtimestamp(float(value))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except:
+        return str(value)
+
+templates.env.filters["timestamp_to_time"] = timestamp_to_time
 
 # Helper for templates (needed for base.html)
 def get_all_tenants():
