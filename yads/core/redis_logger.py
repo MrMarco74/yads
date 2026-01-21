@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 
 from yads.config import settings
+from yads.database import redis_client
 
 class RedisLogHandler(logging.Handler):
     """
@@ -15,10 +16,7 @@ class RedisLogHandler(logging.Handler):
         super().__init__()
         self.target_id = target_id
         self.ttl = ttl
-        try:
-            self.redis = redis.from_url(settings.REDIS_URL)
-        except Exception:
-            self.redis = None
+        self.redis = redis_client
         
         self.list_key = f"scan:logs:{target_id}"
         self.status_key = f"scan:status:{target_id}"

@@ -34,7 +34,7 @@ from yads.api.utils.update_checker import UpdateService
 logger = configure_logging("yads-api")
 
 # -- DB Setup --
-from yads.database import engine, get_session, create_db_and_tables
+from yads.database import engine, get_session, create_db_and_tables, redis_client
 import tldextract
 
 @asynccontextmanager
@@ -689,7 +689,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     import redis
     queue_len = 0
     try:
-        r = redis.from_url(settings.REDIS_URL)
+        r = redis_client
         queue_len = r.llen('celery')
     except Exception:
         pass
@@ -915,7 +915,7 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
     import redis
     queue_len = 0
     try:
-        r = redis.from_url(settings.REDIS_URL)
+        r = redis_client
         queue_len = r.llen('celery')
     except Exception:
         pass
@@ -1112,8 +1112,7 @@ async def get_scan_status(target_id: int):
     """
     Returns the latest status message and progress from Redis/DB.
     """
-    import redis
-    r = redis.from_url(settings.REDIS_URL)
+    r = redis_client
     
     # Check Redis for live status first
     status_msg = r.get(f"scan:status:{target_id}")
@@ -1133,11 +1132,8 @@ async def get_scan_logs(target_id: int, session: Session = Depends(get_session),
     """
     Returns the recent log lines from Redis.
     """
-    import redis
     import json
-    r = redis.from_url(settings.REDIS_URL)
-    
-    r = redis.from_url(settings.REDIS_URL)
+    r = redis_client
     
     # Security Check
     target = session.get(Target, target_id)
@@ -1177,9 +1173,8 @@ async def component_log_lines(request: Request, target_id: int):
     """
     Returns just the <li> elements for the log viewer (polled by HTMX).
     """
-    import redis
     import json
-    r = redis.from_url(settings.REDIS_URL)
+    r = redis_client
     
     logs = r.lrange(f"scan:logs:{target_id}", 0, -1)
     parsed_logs = []
@@ -2923,13 +2918,9 @@ async def manual_update_check(request: Request, user: User = Depends(RoleChecker
     Manually triggers an update check (HTMX).
     """
     try:
-        # Clear cache first to force a fresh check
-        import redis
-        import json
-        try:
-            r = redis.from_url(settings.REDIS_URL, decode_responses=True)
-            r.delete(UpdateService.CACHE_KEY)
-        except: pass
+        # Use global redis_client
+        r = redis_client
+        r.delete(UpdateService.CACHE_KEY)
 
         update = UpdateService.check_for_updates()
         if update:

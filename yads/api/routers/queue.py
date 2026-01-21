@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from celery import Celery
 from datetime import datetime
 
-from yads.database import get_session
+from yads.database import get_session, redis_client
 from yads.models import User, SystemConfig
 from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
@@ -92,14 +92,13 @@ async def view_queue(
         })
         
     # Inspect Redis Backlog (Queued items not yet picked up)
-    import redis
     import json
     import base64
 
     queued_tasks = []
     queue_len = 0
     try:
-        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = redis_client
         queue_len = r.llen("celery")
         # Peek top 50
         raw_items = r.lrange("celery", 0, 49)
@@ -221,16 +220,13 @@ async def purge_queue(
     """
     Panic: Clear the queue.
     """
-    import redis
-    scan_logger = logging.getLogger("yads-api")
-    
     try:
         # 1. Purge via Celery Control (Broker)
         celery_app = Celery("yads_purge", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
         purged_count = celery_app.control.purge()
         
         # 2. Force Clear Redis List 'celery' (just in case)
-        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = redis_client
         r_count = r.delete("celery")
         
         # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
