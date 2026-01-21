@@ -8,7 +8,7 @@ Here is your license key for the YADS Security Platform:
 
 ---------------------------------------------------------
 Installation & Setup:
-1. Download the software: https://yads-security.com/download
+1. Download the software: https://yads-security.com/releases/yads_v1.12.0_customer_pkg.zip
 2. Documentation: https://yads-security.com/support.html
    (See 'Step 5' in the Setup Guide for license configuration)
 

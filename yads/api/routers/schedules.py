@@ -15,6 +15,7 @@ templates = Jinja2Templates(directory="yads/api/templates")
 # Inject Globals (Standard Pattern)
 from yads.config import settings
 templates.env.globals['settings'] = settings
+templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
 def get_all_tenants():
     from yads.database import engine

@@ -1,6 +1,6 @@
 # YADS - Comprehensive User Guide
-**Version:** 1.8.0
-**Last Updated:** 2026-01-18
+**Version:** 1.12.0
+**Last Updated:** 2026-01-21
 
 Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.
 
@@ -72,6 +72,17 @@ Navigate to your YADS instance (e.g., `https://yads.your-domain.com`).
 1.  **Dashboard**: You will land on the main dashboard showing an overview of your targets.
 2.  **Add Target**: Use the input box at the top (or "Add Target" button) to enter a domain (e.g., `example.com`).
 3.  **Run Scan**: Once added, click the "Scan" button to start gathering data.
+
+### 2.5 Licensed Features
+
+YADS is a modular platform. While the core discovery and analysis engine is open-source, several advanced features require a valid license key:
+
+* **reports**: Advanced PDF and CSV reporting for executive summaries and compliance.
+* **api**: Full REST API access for automated integrations and custom pipelines.
+* **scheduled_scans**: Recurring automated reconnaissance missions (Daily/Weekly).
+* **osint**: Brand monitoring and reverse image search via Google Vision API.
+* **webhooks**: Real-time event notifications for Slack, Discord, or custom endpoints.
+* **tenants**: Multi-tenancy and client isolation for professional service providers.
 
 ---
 

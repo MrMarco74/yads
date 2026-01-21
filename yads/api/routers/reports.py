@@ -44,11 +44,15 @@ def _get_targets_data(session: Session, user: User, for_export: bool = False):
         
     export_data = []
     for t in targets:
+        # Fetch latest result for last scan timestamp
+        latest_res = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).first()
+        last_scan = latest_res.scanned_at.strftime("%Y-%m-%d %H:%M:%S") if latest_res else "Never"
+        
         export_data.append({
             "ID": t.id,
             "Domain": t.domain,
             "Created At": t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "Last Scan": t.last_scanned_at.strftime("%Y-%m-%d %H:%M:%S") if t.last_scanned_at else "Never",
+            "Last Scan": last_scan,
             "Status": t.scan_status
         })
     return export_data
@@ -72,11 +76,15 @@ async def export_targets_csv(session: Session = Depends(get_session), user: User
     writer.writerow(['ID', 'Domain', 'Created At', 'Last Scan', 'Status'])
     
     for t in targets:
+        # Fetch latest result for last scan timestamp
+        latest_res = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).first()
+        last_scan = latest_res.scanned_at.strftime("%Y-%m-%d %H:%M:%S") if latest_res else "Never"
+        
         writer.writerow([
             t.id, 
             t.domain, 
             t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            t.last_scanned_at.strftime("%Y-%m-%d %H:%M:%S") if t.last_scanned_at else "Never",
+            last_scan,
             t.scan_status
         ])
         

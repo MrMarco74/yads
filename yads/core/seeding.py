@@ -1,6 +1,6 @@
 from sqlmodel import Session
 from yads.database import engine
-from yads.models import ChangelogEntry
+from yads.models import ChangelogEntry, Notification
 
 def seed_changelog():
     with Session(engine) as session:
@@ -302,26 +302,48 @@ def seed_changelog():
             )
             session.add(entry_1100)
 
-        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.11.0").first():
-            entry_1110 = ChangelogEntry(
-                title="YADS v1.11.0: Setup Guide & UX Enhancements",
-                version="1.11.0",
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.12.0").first():
+            entry_1120 = ChangelogEntry(
+                title="YADS v1.12.0: Platform Consolidation & UI Showcase",
+                version="1.12.0",
                 content="""
-                <h3>🚀 New Setup Guide</h3>
+                <h3>🚀 New Features</h3>
                 <ul>
-                    <li><strong>Quick Start:</strong> The German homepage now includes a direct "Schnellstart" guide for easier installation.</li>
+                    <li><strong>Platform Showcase:</strong> New visual gallery on the homepage highlighting Spiderweb, Analytics, and OSINT capabilities.</li>
+                    <li><strong>Centralized Assets:</strong> The specialized German sub-site now points to centralized image assets on the main domain for faster loads.</li>
                 </ul>
-                <h3>✨ UX Enhancements</h3>
+                <h3>🔧 Critical Bug Fixes</h3>
                 <ul>
-                    <li><strong>Version 1.11.0:</strong> System upgraded to the latest stable release.</li>
-                    <li><strong>Notification System:</strong> Improved notification seeding for new releases.</li>
+                    <li><strong>OSINT Activation:</strong> Fixed a critical issue where the license key was not correctly loaded into the runtime configuration.</li>
+                    <li><strong>Tenant Synchronization:</strong> Ensured OSINT features are correctly enabled across all tenant profiles.</li>
+                    <li><strong>Report Router Fix:</strong> Resolved an <code>AttributeError</code> occurring during target CSV exports.</li>
+                </ul>
+                <h3>💅 UX Improvements</h3>
+                <ul>
+                    <li><strong>Self-Contained Deployment:</strong> Standardized on relative paths for all local assets and scripts.</li>
+                    <li><strong>Documentation Update:</strong> Major update to the Comprehensive User Guide (v1.12.0).</li>
                 </ul>
                 """
             )
-            session.add(entry_1110)
+            session.add(entry_1120)
 
         session.commit()
         print("Changelog seeded successfully.")
 
+def seed_notifications():
+    with Session(engine) as session:
+        if not session.query(Notification).where(Notification.title == "YADS v1.12.0 Update").first():
+            note = Notification(
+                title="YADS v1.12.0 Update",
+                text="The latest update v1.12.0 is now live! Check the 'Recent Changes' for details on OSINT fixes and the new Platform Showcase.",
+                type="update",
+                color="purple",
+                icon="rocket"
+            )
+            session.add(note)
+            session.commit()
+            print("System notifications seeded successfully.")
+
 if __name__ == "__main__":
     seed_changelog()
+    seed_notifications()
