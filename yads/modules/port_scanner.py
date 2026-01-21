@@ -102,7 +102,7 @@ class PortScanner(BaseScannerModule):
                             s.connect((target_ip, port))
                             # Receive up to 1024 bytes
                             banner_bytes = s.recv(1024)
-                            port_info["banner"] = banner_bytes.decode('utf-8', errors='ignore').strip()
+                            port_info["banner"] = banner_bytes.decode('utf-8', errors='ignore').replace('\x00', '').strip()
                      except Exception:
                          pass
 

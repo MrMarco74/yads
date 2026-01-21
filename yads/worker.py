@@ -13,6 +13,7 @@ from yads.modules.visual_osint import VisualOSINT
 from yads.modules.visual_osint import VisualOSINT
 from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
+from yads.core.base import sanitize_null_bytes
 
 # Configure Logging
 logger = configure_logging("yads-worker")
@@ -249,7 +250,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     if result:
                         print(f"[Worker] {sub_scan.module_name} found changes/new data.")
                         if isinstance(result, object) and hasattr(result, 'log_content'):
-                             result.log_content = captured_logs
+                             result.log_content = sanitize_null_bytes(captured_logs)
                              session.add(result)
                              session.commit()
                     else:
@@ -277,7 +278,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                         result.log_content = captured_logs
+                         result.log_content = sanitize_null_bytes(captured_logs)
                          session.add(result)
                          session.commit()
                 except Exception as e:
@@ -310,7 +311,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             captured_logs = logs.get_logs()
                         
                         if result and hasattr(result, 'log_content'):
-                            result.log_content = captured_logs
+                            result.log_content = sanitize_null_bytes(captured_logs)
                             session.add(result)
                             session.commit()
                             print(f"[Worker] {web.module_name} found changes/new data.")
@@ -340,7 +341,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         print(f"[Worker] {nu.module_name} finished.")
@@ -366,7 +367,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                         result.log_content = captured_logs
+                         result.log_content = sanitize_null_bytes(captured_logs)
                          session.add(result)
                          session.commit()
                          print(f"[Worker] {ts.module_name} found changes/new data.")
@@ -394,7 +395,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                         result.log_content = captured_logs
+                         result.log_content = sanitize_null_bytes(captured_logs)
                          session.add(result)
                          session.commit()
                          print(f"[Worker] {inf.module_name} found changes/new data.")
@@ -425,7 +426,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     if result:
                          logger.info(f"[Worker] PortScanner result found: {result.data}")
                          if hasattr(result, 'log_content'):
-                            result.log_content = captured_logs
+                            result.log_content = sanitize_null_bytes(captured_logs)
                             session.add(result)
                             session.commit()
                          print(f"[Worker] {ps.module_name} finished.")
@@ -455,7 +456,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         print(f"[Worker] {nmap_mod.module_name} finished.")
@@ -484,7 +485,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             captured_logs = logs.get_logs()
                         
                         if result and hasattr(result, 'log_content'):
-                            result.log_content = captured_logs
+                            result.log_content = sanitize_null_bytes(captured_logs)
                             session.add(result)
                             session.commit()
                             print(f"[Worker] {vis.module_name} found changes/new data.")
@@ -512,7 +513,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                         result.log_content = captured_logs
+                         result.log_content = sanitize_null_bytes(captured_logs)
                          session.add(result)
                          session.commit()
                          print(f"[Worker] {wb.module_name} found changes/new data.")
@@ -543,7 +544,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             captured_logs = logs.get_logs()
                         
                         if result and hasattr(result, 'log_content'):
-                             result.log_content = captured_logs
+                             result.log_content = sanitize_null_bytes(captured_logs)
                              session.add(result)
                              
                              # Check for extracted domains from SSL Certificates
@@ -622,7 +623,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             captured_logs = logs.get_logs()
                         
                         if result and hasattr(result, 'log_content'):
-                             result.log_content = captured_logs
+                             result.log_content = sanitize_null_bytes(captured_logs)
                              session.add(result)
                              session.commit()
                              print(f"[Worker] {crawl.module_name} found changes/new data.")
@@ -650,7 +651,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     if result: 
                         # Note: process() now returns result even if unchanged, so we can save logs
                         if isinstance(result, object) and hasattr(result, 'log_content'):
-                             result.log_content = captured_logs
+                             result.log_content = sanitize_null_bytes(captured_logs)
                              session.add(result)
                              session.commit()
                         print(f"[Worker] {wb_scan.module_name} finished.")
@@ -679,7 +680,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             captured_logs = logs.get_logs()
                         
                         if result and hasattr(result, 'log_content'):
-                            result.log_content = captured_logs
+                            result.log_content = sanitize_null_bytes(captured_logs)
                             session.add(result)
                             session.commit()
                             print(f"[Worker] {cd_scan.module_name} found changes/new data.")
@@ -707,7 +708,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         print(f"[Worker] {tld_scan.module_name} finished.")
@@ -736,7 +737,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         if result.data and result.data.get("assets"):
@@ -768,7 +769,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                     
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         print(f"[Worker] {api_scan.module_name} finished.")
@@ -796,7 +797,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         captured_logs = logs.get_logs()
                         
                     if result and hasattr(result, 'log_content'):
-                        result.log_content = captured_logs
+                        result.log_content = sanitize_null_bytes(captured_logs)
                         session.add(result)
                         session.commit()
                         print(f"[Worker] {form_scan.module_name} finished.")
