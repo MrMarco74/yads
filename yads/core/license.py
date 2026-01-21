@@ -21,7 +21,11 @@ class LicenseVerifier:
             return None
         try:
             public_bytes = base64.b64decode(self.public_key_b64)
-            return serialization.load_pem_public_key(public_bytes)
+            try:
+                return serialization.load_pem_public_key(public_bytes)
+            except ValueError:
+                # Try DER
+                return serialization.load_der_public_key(public_bytes)
         except Exception as e:
             logger.error(f"Failed to load license public key: {e}")
             return None
@@ -40,12 +44,21 @@ class LicenseVerifier:
             
             # Verify Signature
             payload_bytes = payload_b64.encode('utf-8')
-            signature = base64.urlsafe_b64decode(signature_b64 + "==")
+            
+            # Robust Padding for Signature
+            sig_pad = len(signature_b64) % 4
+            if sig_pad > 0:
+                signature_b64 += '=' * (4 - sig_pad)
+            signature = base64.urlsafe_b64decode(signature_b64)
             
             self.public_key.verify(signature, payload_bytes)
             
             # Decode Payload
-            payload_json = base64.urlsafe_b64decode(payload_b64 + "==").decode('utf-8')
+            pay_pad = len(payload_b64) % 4
+            if pay_pad > 0:
+                payload_b64 += '=' * (4 - pay_pad)
+                
+            payload_json = base64.urlsafe_b64decode(payload_b64).decode('utf-8')
             data = json.loads(payload_json)
             
             # Check Expiry

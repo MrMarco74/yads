@@ -170,7 +170,7 @@ def get_all_licenses(archived=False):
     c = conn.cursor()
     
     query = '''
-        SELECT l.id, c.name, l.max_targets, l.expires_at, l.created_at, l.license_key
+        SELECT l.id, c.name, l.max_targets, l.expires_at, l.created_at, l.license_key, c.email
         FROM licenses l
         JOIN customers c ON l.customer_id = c.id
         WHERE l.is_archived = ?
@@ -195,6 +195,7 @@ def get_all_licenses(archived=False):
             "max_targets": r[2],
             "expires_at": datetime.fromtimestamp(r[3]).strftime('%Y-%m-%d'),
             "created_at": r[4],
-            "key": r[5]
+            "key": r[5],
+            "email": r[6]
         })
     return results

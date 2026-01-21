@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support & Installation - YADS</title>
-    <link rel="stylesheet" href="https://yads-security.com/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
     <style>
         .support-section { margin-bottom: 4rem; padding: 2.5rem; }
@@ -25,8 +25,8 @@
             <div class="nav-links">
                 <a href="index.html">Startseite</a>
                 <a href="product.html">Funktionen</a>
-                <a href="support.html#setup">Installation</a>
-                <a href="support.html" class="active">Support</a>
+                <a href="support.html">Installation</a>
+                <a href="docs.html" class="active">Dokumentation</a>
                 <a href="changes.html">Änderungen</a>
                 <a href="contact.html">Kontakt</a>
                 <a href="https://yads-security.com/support.html" class="lang-switch" style="opacity: 0.7;">🇺🇸 EN</a>
@@ -35,14 +35,14 @@
         </div>
     </nav>
 
-    <header class="hero" style="min-height: 40vh; padding-top: 8rem;">
+    <header class="hero hero-small">
         <div class="container hero-content">
             <h1>Support & <span class="text-gradient">Installation</span></h1>
             <p>Hier finden Sie alles, was Sie für die Einrichtung und den Betrieb von YADS benötigen.</p>
         </div>
     </header>
 
-    <div class="container" style="margin-top: -4rem; position: relative; z-index: 10;">
+    <div class="container" style="margin-top: 4rem;">
         
         <!-- DOWNLOAD SECTION -->
         <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
@@ -85,29 +85,25 @@ docker images | grep yads
 # Sollte yads-api und yads-worker listen
             </div>
 
-            <h3 style="margin-top: 2rem;">Schritt 2: Konfiguration</h3>
-            <p>Erstellen Sie eine <code>.env</code> Datei im selben Verzeichnis wie die <code>docker-compose.yml</code>:</p>
-            <div class="code-block">
-# .env Datei
-# --- Database ---
-POSTGRES_PASSWORD=sicheres_passwort_hier
-
-# --- Security ---
-SECRET_KEY=zufaelliger_string_hier
-            </div>
-            <p class="text-sm text-gray-400 mt-2"><strong>Hinweis:</strong> Der Lizenzschlüssel wird später über die Weboberfläche eingegeben.</p>
-
-            <div class="relative pl-8 border-l-2 border-indigo-500/30 pb-8">
-                <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-4 border-gray-900"></div>
-                <h4 class="text-lg font-bold text-white mb-2">3. Starten & Lizenzieren</h4>
-                <p class="text-gray-400 mb-2">Führen Sie <code>docker compose up -d</code> aus.</p>
-                <p class="text-gray-400">Nach dem Start loggen Sie sich ein und navigieren zu <strong>Settings > System Settings > License Management</strong>, um Ihren Schlüssel einzugeben.</p>
-            </div>
+            <h3 style="margin-top: 2rem;">Schritt 2: Starten</h3>
+            <p>Wechseln Sie in das Verzeichnis und starten Sie den Stack:</p>
             <div class="code-block">
 docker compose up -d
             </div>
-            <p>Das System ist nach ca. 30 Sekunden unter <code>http://localhost:8000</code> erreichbar.</p>
-            <p><strong>Standard-Login:</strong> <code>admin</code> / <code>admin</code> (Bitte sofort ändern!)</p>
+
+            <div class="relative pl-8 border-l-2 border-indigo-500/30 pb-8" style="margin-top: 2rem;">
+                <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-4 border-gray-900"></div>
+                <h4 class="text-lg font-bold text-white mb-2">3. Setup Wizard (Automatische Einrichtung)</h4>
+                <p class="text-gray-400 mb-2">Öffnen Sie <code>http://localhost:8000</code> in Ihrem Browser.</p>
+                <p class="text-gray-400 mb-2">Sie werden automatisch zum <strong>Setup Wizard</strong> weitergeleitet.</p>
+                <ul style="color: #94a3b8; font-size: 0.95rem;">
+                    <li><strong>Lizenz:</strong> Geben Sie Ihren Lizenzschlüssel ein.</li>
+                    <li><strong>Datenbank:</strong> Setzen Sie ein sicheres Passwort für die Datenbank.</li>
+                    <li><strong>Initialisierung:</strong> Wählen Sie zwischen Upgrade (Daten behalten) oder Reset.</li>
+                    <li><strong>Admin:</strong> Erstellen Sie Ihren persönlichen Administrator-Account.</li>
+                </ul>
+            </div>
+            <p style="margin-top: 1rem;"><strong style="color: #10b981;">Fertig!</strong> YADS ist nun vollständig konfiguriert und einsatzbereit.</p>
         </div>
 
         <!-- TECHNICAL GUIDE SUMMARY -->

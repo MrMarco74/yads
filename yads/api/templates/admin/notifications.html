@@ -62,15 +62,27 @@
                         <label class="block text-xs font-medium text-slate-400 mb-2">Icon</label>
                         <input type="hidden" name="icon" :value="getIconPath(selected)">
                         
-                        <div class="grid grid-cols-5 gap-2">
-                            <template x-for="icon in ['info', 'rocket', 'sparkles', 'wrench', 'alert']">
+                        <div class="space-y-2">
+                            <template x-for="item in [
+                                {id: 'info', label: 'Info'}, 
+                                {id: 'rocket', label: 'Update'}, 
+                                {id: 'sparkles', label: 'Feature'}, 
+                                {id: 'wrench', label: 'Maintenance'}, 
+                                {id: 'alert', label: 'Alert'}
+                            ]">
                                 <button type="button" 
-                                        @click="selected = icon"
-                                        :class="{'bg-blue-500/20 border-blue-500': selected === icon, 'bg-slate-950 border-slate-800 hover:border-slate-700': selected !== icon}"
-                                        class="p-2 rounded-lg border flex items-center justify-center transition-all h-10 w-10">
-                                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(icon)"></path>
-                                    </svg>
+                                        @click="selected = item.id"
+                                        :class="{'bg-blue-500/20 border-blue-500': selected === item.id, 'bg-slate-950 border-slate-800 hover:border-slate-700': selected !== item.id}"
+                                        class="w-full p-2 rounded-lg border flex items-center gap-3 transition-all text-left">
+                                    <div class="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-700/50">
+                                        <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.id)"></path>
+                                        </svg>
+                                    </div>
+                                    <span class="text-sm text-slate-300" x-text="item.label"></span>
+                                    
+                                    <!-- Checkmark for selected -->
+                                    <svg x-show="selected === item.id" class="w-4 h-4 text-blue-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 </button>
                             </template>
                         </div>

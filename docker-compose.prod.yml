@@ -14,9 +14,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      # Secrets should be passed via env vars in Portainer/CI
-      - SECRET_KEY=${SECRET_KEY}
       - API_KEY=${API_KEY}
+    volumes:
+      - yads_config:/app/data
+      - logs:/app/logs
     networks:
       yads-net:
       proxy-net:
@@ -33,6 +34,13 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
+      # Worker needs to know config too if it shares DB details? 
+      # Yes, if DB password changes, worker needs to know.
+      # So worker must also mount the config.
+      - CONFIG_PATH=/app/data/config.env
+    volumes:
+      - yads_config:/app/data
+      - logs:/app/logs
     depends_on:
       - db
       - redis
@@ -64,6 +72,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  yads_config:
+  logs:
 
 networks:
   yads-net:

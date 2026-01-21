@@ -19,10 +19,15 @@ templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
 def get_all_tenants(): # Helper for context switching if needed
-    from yads.database import engine
-    from yads.models import Tenant
-    with Session(engine) as session:
-        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+    try:
+        from yads.database import engine
+        from yads.models import Tenant
+        from sqlmodel import select
+        with Session(engine) as session:
+            return session.exec(select(Tenant).order_by(Tenant.name)).all()
+    except Exception as e:
+        print(f"Error in get_available_tenants: {e}")
+        return []
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
 
@@ -43,7 +48,8 @@ async def tenant_settings_page(
              return templates.TemplateResponse("tenant_settings.html", {
                  "request": request,
                  "error": "Please select a Tenant context from the sidebar/topbar to manage its settings.",
-                 "no_context": True
+                 "no_context": True,
+                 "user": user
              })
          else:
              # Should practically never happen for tenant_admin with required tenant

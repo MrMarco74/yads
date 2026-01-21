@@ -3,21 +3,15 @@ from pydantic_settings import BaseSettings
 
 from typing import Optional
 
-from pydantic import model_validator
-import re
-
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
     VERSION: str = "1.11.0"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:changeme@db:5432/yads")
-    POSTGRES_PASSWORD: Optional[str] = None
-    POSTGRES_USER: Optional[str] = None
-    POSTGRES_DB: Optional[str] = None
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yads_db")
     
     # Redis / Celery
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
     # Scanner Configs
     CHROME_BIN: str = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
@@ -38,7 +32,7 @@ class Settings(BaseSettings):
 
     # Licensing (Ed25519 Public Key)
     # This key matches the Private Key held by the vendor.
-    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQTFJZ2pBSUx6elI2cHNsSFpidHJER1BHUlcxclNhSDVhLyszM2dEdWVNdVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+    LICENSE_PUBLIC_KEY: str = "MCowBQYDK2VwAyEA1IgjAILzzR6pslHZbtrDGPGRW1rSaH5a/+33gDueMuU="
 
     # Setup Wizard
     SETUP_COMPLETE: bool = False
@@ -48,18 +42,5 @@ class Settings(BaseSettings):
         # Load from persistent config file if it exists, otherwise standard .env
         env_file = os.getenv("CONFIG_PATH", "/app/data/config.env")
         env_file_encoding = 'utf-8'
-        extra = "ignore"
-
-    @model_validator(mode='after')
-    def fix_masked_password(self):
-        # Fallback if URL is masked (security feature of some libs saving it as ***)
-        if self.DATABASE_URL and "***" in self.DATABASE_URL and self.POSTGRES_PASSWORD:
-            # We assume the user is 'yads' if not specified, but let's try to preserve the other parts
-            # Regex to replace the password part
-            # postgresql://user:pass@host...
-            # This is a simple heuristic fix
-            new_url = self.DATABASE_URL.replace("***", self.POSTGRES_PASSWORD)
-            self.DATABASE_URL = new_url
-        return self
 
 settings = Settings()

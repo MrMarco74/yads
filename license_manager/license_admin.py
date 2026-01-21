@@ -122,12 +122,30 @@ def issue_license():
 
     exp = int(time.time()) + (days * 86400)
     
+    # Features
+    available_features = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants"]
+    print(f"\n{Colors.BOLD}Select Features (comma-separated, or 'all'):{Colors.ENDC}")
+    print(f"Available: {', '.join(available_features)}")
+    feat_input = input("Features > ").strip().lower()
+    
+    selected_features = []
+    if feat_input == 'all':
+        selected_features = available_features
+    elif feat_input:
+        parts = [f.strip() for f in feat_input.split(',')]
+        for p in parts:
+            if p in available_features:
+                selected_features.append(p)
+            else:
+                print(f"{Colors.WARNING}Ignored unknown feature: {p}{Colors.ENDC}")
+    
     # Payload
     payload = {
         "sub": customer,
         "max_targets": limit,
         "exp": exp,
-        "iat": int(time.time())
+        "iat": int(time.time()),
+        "features": selected_features
     }
     payload_json = json.dumps(payload).encode('utf-8')
     payload_b64 = base64.urlsafe_b64encode(payload_json).decode('utf-8').rstrip('=')
@@ -208,6 +226,12 @@ def verify_license():
 def main():
     while True:
         print(f"\n{Colors.BOLD}=== YADS License Manager ==={Colors.ENDC}")
+        print(f"{Colors.BLUE}Working Directory: {os.getcwd()}{Colors.ENDC}")
+        if os.path.exists(PRIVATE_KEY_FILE):
+             print(f"{Colors.GREEN}Key File Path:     {os.path.abspath(PRIVATE_KEY_FILE)} (Found){Colors.ENDC}")
+        else:
+             print(f"{Colors.FAIL}Key File Path:     {os.path.abspath(PRIVATE_KEY_FILE)} (NOT FOUND){Colors.ENDC}")
+             
         print("1. Issue License")
         print("2. Verify License")
         print("3. Setup / Generate Keys")

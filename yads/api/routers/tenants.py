@@ -47,6 +47,14 @@ async def list_tenants(request: Request, session: Session = Depends(get_db_sessi
 
 @router.post("/add", dependencies=[Depends(RoleChecker(["admin"]))])
 async def add_tenant(request: Request, name: str = Form(...), session: Session = Depends(get_db_session)):
+    # License Check
+    from yads.models import SystemConfig
+    from yads.core.license import license_manager
+    
+    license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+    if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+
     try:
         tenant = Tenant(name=name)
         session.add(tenant)
@@ -65,6 +73,14 @@ async def update_tenant(
     osint_cost: float = Form(0.0),
     session: Session = Depends(get_db_session)
 ):
+    # License Check
+    from yads.models import SystemConfig
+    from yads.core.license import license_manager
+    
+    license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+    if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
         return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)
@@ -84,6 +100,15 @@ async def update_tenant_users(
     user_ids: List[int] = Form(default=[]),
     session: Session = Depends(get_db_session)
 ):
+    # License Check (Implicitly covered by tenant management? Or separate?)
+    # Let's enforce it here too as it's tenant admin work
+    from yads.models import SystemConfig
+    from yads.core.license import license_manager
+    
+    license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+    if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
         return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)
@@ -102,6 +127,14 @@ async def update_tenant_users(
 
 @router.post("/delete", dependencies=[Depends(RoleChecker(["admin"]))])
 async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(get_db_session)):
+    # License Check
+    from yads.models import SystemConfig
+    from yads.core.license import license_manager
+    
+    license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+    if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
         return RedirectResponse(url="/tenants/?error=Not+found", status_code=303)

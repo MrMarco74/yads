@@ -8,6 +8,9 @@ from sqlmodel import Session, select, func, create_engine, text
 from contextlib import asynccontextmanager
 import os
 import aiofiles
+import io
+import zipfile
+import json
 from datetime import datetime
 from yads.modules.visual_osint import VisualOSINT
 from yads.modules.report_generator import generate_report
@@ -223,7 +226,26 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search
+@app.middleware("http")
+async def setup_middleware(request: Request, call_next):
+    # Skip if setup is complete
+    if settings.SETUP_COMPLETE:
+        return await call_next(request)
+        
+    path = request.url.path
+    # Allow static resources and setup endpoints
+    if path.startswith("/static") or path.startswith("/setup") or path == "/favicon.ico":
+         return await call_next(request)
+         
+    # Redirect to setup wizard
+    return RedirectResponse(url="/setup")
+
+# -- Routers --
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup
+
+# Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
+app.include_router(setup.router)
+
 app.include_router(analytics.router)
 app.include_router(analytics.ui_router)
 app.include_router(auth.router)
@@ -247,6 +269,12 @@ app.include_router(cert_timeline.router)
 app.include_router(asr.router)
 app.include_router(cloud_assets.router)
 app.include_router(search.router)
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    if settings.SETUP_COMPLETE:
+        return RedirectResponse(url="/")
+    return templates.TemplateResponse("setup.html", {"request": request})
 
 
 @app.exception_handler(LoginRequiredException)
@@ -1819,8 +1847,30 @@ async def analyze_backup(
     meta = {}
     db_summary = {}
     
+    # Try to handle potential encryption
+    file_bytes = io.BytesIO(contents)
+    is_encrypted = False
+    
+    # Attempt to open as Zip
     try:
-        with zipfile.ZipFile(io.BytesIO(contents), 'r') as zf:
+        zf_check = zipfile.ZipFile(file_bytes, 'r')
+        zf_check.close()
+        file_bytes.seek(0)
+    except zipfile.BadZipFile:
+        # Might be encrypted
+        if password:
+            try:
+                from yads.core.backup import decrypt_data
+                decrypted = decrypt_data(contents, password)
+                file_bytes = io.BytesIO(decrypted)
+                is_encrypted = True
+            except Exception as e:
+                return HTMLResponse(f"<div class='text-red-400'>Decryption failed: {str(e)}</div>", status_code=400)
+        else:
+             return HTMLResponse("<div class='text-red-400'>Invalid Zip File. If encrypted, please provide password.</div>", status_code=400)
+
+    try:
+        with zipfile.ZipFile(file_bytes, 'r') as zf:
             if "metadata.json" in zf.namelist():
                 meta = json.loads(zf.read("metadata.json"))
             
@@ -1848,15 +1898,23 @@ async def analyze_backup(
         f.write(contents)
     logger.info(f"Backup saved to temporary path: {tmp_path}")
         
-    # Look up Tenant Names
+    # Look up Tenant Names (Pre-load from DB first, then try to fill from Zip if unknown)
     tenant_ids = meta.get("tenant_ids", [])
-    tenant_names = []
-    if tenant_ids:
-        from yads.models import Tenant
-        for tid in tenant_ids:
-            t = session.get(Tenant, tid)
-            if t: tenant_names.append(t.name)
-            else: tenant_names.append(f"Unknown ID {tid}")
+    tenant_map = {tid: f"Unknown ID {tid}" for tid in tenant_ids}
+
+    # 1. Try to read from Zip (Best source for restore)
+    try:
+        with zipfile.ZipFile(file_bytes, 'r') as zf:
+            if "data/tenant.json" in zf.namelist():
+                t_data = json.loads(zf.read("data/tenant.json"))
+                for t in t_data:
+                    if t.get("id") in tenant_map:
+                        tenant_map[t.get("id")] = t.get("name")
+    except Exception as e:
+        logger.warning(f"Could not read tenant names from zip: {e}")
+
+    # 2. Flatten for template
+    tenant_names = [tenant_map.get(tid, f"ID {tid}") for tid in tenant_ids]
     
     from yads.core.backup import SYSTEM_TABLES
     # Render Confirmation Modal
