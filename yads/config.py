@@ -1,5 +1,5 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 from typing import Optional
 
@@ -55,12 +55,20 @@ class Settings(BaseSettings):
     def fix_masked_password(self):
         # Fallback if URL is masked (security feature of some libs saving it as ***)
         if self.DATABASE_URL and "***" in self.DATABASE_URL and self.POSTGRES_PASSWORD:
-            # We assume the user is 'yads' if not specified, but let's try to preserve the other parts
-            # Regex to replace the password part
-            # postgresql://user:pass@host...
-            # This is a simple heuristic fix
             new_url = self.DATABASE_URL.replace("***", self.POSTGRES_PASSWORD)
             self.DATABASE_URL = new_url
         return self
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Prioritize dotenv_settings (config.env) over env_settings (Docker ENV)
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
 
 settings = Settings()
