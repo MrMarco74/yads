@@ -3042,7 +3042,10 @@ async def update_settings(
             
     # Save License
     if license_key is not None:
-        set_conf("license_key", license_key.strip())
+        trimmed_lic = license_key.strip()
+        set_conf("license_key", trimmed_lic)
+        settings.LICENSE_KEY = trimmed_lic
+        logger.info(f"Runtime License Key updated via UI.")
     
     # Update Auto Queue
     if auto_queue is not None: set_conf("AUTO_QUEUE_SUBDOMAINS", "true") 
