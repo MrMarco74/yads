@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     async function loadData(targetId = "", tag = "") {
         try {
-            let url = '/api/stats/infrastructure';
+            let url = '/api/analytics/infrastructure';
             const params = new URLSearchParams();
             if (targetId) params.append('target_id', targetId);
             if (tag) params.append('tag', tag);
@@ -548,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadSecurityRisks() {
         try {
-            const resp = await fetch('/api/stats/security-risks');
+            const resp = await fetch('/api/analytics/security-risks');
             if(resp.ok) {
                 const data = await resp.json();
                 
@@ -779,7 +779,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         resultDiv.innerHTML = '<div class="flex items-center justify-center p-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><span class="ml-3 text-white">Analyzing targets...</span></div>';
         
         try {
-            const resp = await fetch('/api/stats/best-entrypoint');
+            const resp = await fetch('/api/analytics/best-entrypoint');
             const data = await resp.json();
             
             if (data.message || data.error) {

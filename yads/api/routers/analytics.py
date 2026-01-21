@@ -11,7 +11,7 @@ from yads.auth.deps import get_current_active_user
 from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
 
-router = APIRouter(prefix="/api/stats", tags=["analytics"])
+router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 def get_session():
     with Session(engine) as session:

@@ -122,6 +122,9 @@
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 <div id="loadingText" class="text-indigo-400 font-mono text-sm tracking-wider animate-pulse">Waiting for Render...</div>
+                <button id="forceRenderBtn" class="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-600 hidden transition-colors" onclick="forceGridRender()">
+                    Taking too long? Force Simple View
+                </button>
              </div>
         </div>
         
@@ -148,6 +151,8 @@
 
 <script>
     let cy = null;
+    let renderTimeout = null;
+    let lastGraphData = null; // Store for fallback
 
     // --- State ---
     const config = {
@@ -175,6 +180,10 @@
 
     async function initGraph() {
         showLoading(true, "Fetching data from server...");
+        // Reset timeout state
+        clearTimeout(renderTimeout);
+        document.getElementById('forceRenderBtn').classList.add('hidden');
+        
         if(cy) cy.destroy(); // Ensure cleanup
 
         try {
@@ -182,6 +191,7 @@
             
             showLoading(true, "Processing data...");
             const data = await resp.json();
+            lastGraphData = data; // Save for fallback
             
             updateStats(data.nodes.length, data.edges.length);
             
@@ -191,6 +201,14 @@
             }
 
             showLoading(true, `Rendering ${data.nodes.length} nodes...`);
+            
+            // Set safety timeout for hanging renders
+            renderTimeout = setTimeout(() => {
+                 const btn = document.getElementById('forceRenderBtn');
+                 if(btn) btn.classList.remove('hidden');
+                 const txt = document.getElementById('loadingText');
+                 if(txt) txt.innerText = "Rendering is taking longer than expected...";
+            }, 5000); // 5 seconds threshold
             
             // Small timeout to allow UI to update before heavy rendering
             await new Promise(r => setTimeout(r, 50));
@@ -232,7 +250,7 @@
                 idealEdgeLength: isLargeGraph ? 200 : 100,
                 numIter: isLargeGraph ? 1000 : 2500,
                 tile: !isLargeGraph, // Tiling is expensive
-                packComponents: !isLargeGraph
+                packComponents: !isLargeGraph // Pack components is expensive
             };
 
             // Fallback Removed: cytoscape.prototype.extension check caused TypeError. 
@@ -240,89 +258,96 @@
 
             showLoading(true, `Optimizing for ${data.nodes.length} nodes...`);
             
-            cy = cytoscape({
-                container: document.getElementById('cy'),
-                elements: { nodes: data.nodes, edges: data.edges },
-                wheelSensitivity: 0.2,
-                maxZoom: 3,
-                minZoom: 0.1,
-                
-                // PERFORMANCE OPTIMIZATIONS
-                textureOnViewport: isLargeGraph,
-                hideEdgesOnViewport: isLargeGraph,
-                hideLabelsOnViewport: isLargeGraph,
-                pixelRatio: isHugeGraph ? 1 : window.devicePixelRatio,
-
-                style: [
-                     // Base Node
-                    {
-                        selector: 'node',
-                        style: baseNodeStyle
-                    },
-                    {
-                        selector: 'node:selected',
-                        style: {
-                            'border-width': 2,
-                            'border-color': '#fff',
-                            'shadow-blur': 10,
-                            'shadow-color': '#fff'
-                        }
-                    },
-                    // Specific Types with cleaner colors
-                    { selector: 'node[type="domain"]', style: { 'background-color': '#4f46e5', 'width': isHugeGraph ? 20 : 45, 'height': isHugeGraph ? 20 : 45 } },
-                    { selector: 'node[type="subdomain"]', style: { 'background-color': '#0ea5e9', 'width': 15, 'height': 15 } },
-                    { selector: 'node[type="ip"]', style: { 'background-color': '#10b981', 'shape': 'rectangle', 'width': 20, 'height': 20 } },
-                    { selector: 'node[type="landing"]', style: { 'background-color': '#d946ef', 'shape': 'diamond', 'width': 25, 'height': 25 } },
-                    { selector: 'node[type="redirector"]', style: { 'background-color': '#8b5cf6', 'width': 12, 'height': 12 } },
-                    { selector: 'node[type="external"]', style: { 'background-color': '#64748b', 'shape': 'hexagon', 'width': 15, 'height': 15 } },
-
-                    // Base Edge
-                    {
-                        selector: 'edge',
-                        style: {
-                            'width': 1,
-                            'line-color': '#475569',
-                            'target-arrow-color': '#475569',
-                            'target-arrow-shape': 'triangle',
-                            'curve-style': isLargeGraph ? 'haystack' : 'bezier',
-                            'opacity': 0.5,
-                            'label': isHugeGraph ? '' : 'data(label)', // Hide edge labels on huge graphs
-                            'font-size': '8px',
-                            'color': '#94a3b8',
-                            'text-rotation': 'autorotate',
-                            'text-background-color': '#000',
-                            'text-background-opacity': 0.7,
-                            'text-background-padding': 2
-                        }
-                    },
+            // Render Graph
+            try {
+                cy = cytoscape({
+                    container: document.getElementById('cy'),
+                    elements: { nodes: data.nodes, edges: data.edges },
+                    wheelSensitivity: 0.2,
+                    maxZoom: 3,
+                    minZoom: 0.1,
                     
-                    // Risk & Attack Path
-                    {
-                        selector: '.compromised',
-                        style: {
-                            'background-color': '#ef4444',
-                            'border-width': 4, 'border-color': '#7f1d1d',
-                             'z-index': 99
-                        }
-                    },
-                    {
-                        selector: '.risk-edge',
-                        style: {
-                            'line-color': '#ef4444', 'target-arrow-color': '#ef4444',
-                            'width': 3, 'opacity': 0.8, 'z-index': 99
-                        }
-                    },
+                    // PERFORMANCE OPTIMIZATIONS
+                    textureOnViewport: isLargeGraph,
+                    hideEdgesOnViewport: isLargeGraph,
+                    hideLabelsOnViewport: isLargeGraph,
+                    pixelRatio: isHugeGraph ? 1 : window.devicePixelRatio,
+    
+                    style: [
+                         // Base Node
+                        {
+                            selector: 'node',
+                            style: baseNodeStyle
+                        },
+                        {
+                            selector: 'node:selected',
+                            style: {
+                                'border-width': 2,
+                                'border-color': '#fff',
+                                'shadow-blur': 10,
+                                'shadow-color': '#fff'
+                            }
+                        },
+                        // Specific Types with cleaner colors
+                        { selector: 'node[type="domain"]', style: { 'background-color': '#4f46e5', 'width': isHugeGraph ? 20 : 45, 'height': isHugeGraph ? 20 : 45 } },
+                        { selector: 'node[type="subdomain"]', style: { 'background-color': '#0ea5e9', 'width': 15, 'height': 15 } },
+                        { selector: 'node[type="ip"]', style: { 'background-color': '#10b981', 'shape': 'rectangle', 'width': 20, 'height': 20 } },
+                        { selector: 'node[type="landing"]', style: { 'background-color': '#d946ef', 'shape': 'diamond', 'width': 25, 'height': 25 } },
+                        { selector: 'node[type="redirector"]', style: { 'background-color': '#8b5cf6', 'width': 12, 'height': 12 } },
+                        { selector: 'node[type="external"]', style: { 'background-color': '#64748b', 'shape': 'hexagon', 'width': 15, 'height': 15 } },
+    
+                        // Base Edge
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 1,
+                                'line-color': '#475569',
+                                'target-arrow-color': '#475569',
+                                'target-arrow-shape': 'triangle',
+                                'curve-style': isLargeGraph ? 'haystack' : 'bezier',
+                                'opacity': 0.5,
+                                'label': isHugeGraph ? '' : 'data(label)', // Hide edge labels on huge graphs
+                                'font-size': '8px',
+                                'color': '#94a3b8',
+                                'text-rotation': 'autorotate',
+                                'text-background-color': '#000',
+                                'text-background-opacity': 0.7,
+                                'text-background-padding': 2
+                            }
+                        },
+                        
+                        // Risk & Attack Path
+                        {
+                            selector: '.compromised',
+                            style: {
+                                'background-color': '#ef4444',
+                                'border-width': 4, 'border-color': '#7f1d1d',
+                                 'z-index': 99
+                            }
+                        },
+                        {
+                            selector: '.risk-edge',
+                            style: {
+                                'line-color': '#ef4444', 'target-arrow-color': '#ef4444',
+                                'width': 3, 'opacity': 0.8, 'z-index': 99
+                            }
+                        },
+                        
+                        // Web Links
+                        { selector: 'edge[label="links_to"]', style: { 'line-style': 'dashed', 'line-color': '#8b5cf6' } },
+                        { selector: 'edge[label="redirects_to"]', style: { 'line-style': 'solid', 'line-color': '#8b5cf6', 'target-arrow-color': '#8b5cf6' } },
+                        
+                        // DNS Dimming
+                        { selector: '.dimmed', style: { 'opacity': 0.1 } }
+                    ],
                     
-                    // Web Links
-                    { selector: 'edge[label="links_to"]', style: { 'line-style': 'dashed', 'line-color': '#8b5cf6' } },
-                    { selector: 'edge[label="redirects_to"]', style: { 'line-style': 'solid', 'line-color': '#8b5cf6', 'target-arrow-color': '#8b5cf6' } },
-                    
-                    // DNS Dimming
-                    { selector: '.dimmed', style: { 'opacity': 0.1 } }
-                ],
-                
-                layout: layoutConfig
-            });
+                    layout: layoutConfig
+                });
+            } catch (initErr) {
+                 console.warn("Cytoscape init failed, fallback:", initErr);
+                 forceGridRender();
+                 return;
+            }
 
             // Post-Init Logic
             
@@ -333,13 +358,6 @@
             cy.on('tap', 'node', (evt) => {
                 const node = evt.target;
                 const data = node.data();
-                
-                // You could expand this to a sidebar, but here is a quick alert/console for now, 
-                // OR better, create a temporary tooltip div.
-                
-                // Let's inject a "Details" overlay or update a sidebar element if one existed.
-                // For now, let's console log and maybe add a title attribute logic?
-                // Actually, let's add a "Node Info" box to the sidebar dynamically.
                 showNodeInfo(data);
             });
 
@@ -352,7 +370,34 @@
             document.getElementById('loading').innerHTML = '<div class="text-red-500">Error loading graph data.</div>';
         }
     }
-
+    
+    function forceGridRender() {
+        if(!lastGraphData) return;
+        
+        if(cy) cy.destroy();
+        
+        // Reset timeout
+        clearTimeout(renderTimeout);
+        document.getElementById('forceRenderBtn').classList.add('hidden');
+        document.getElementById('loadingText').innerText = "Rendering simplified view...";
+        
+        setTimeout(() => {
+             cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: { nodes: lastGraphData.nodes, edges: lastGraphData.edges },
+                style: [ 
+                    { selector: 'node', style: { 'background-color': '#64748b', 'label': 'data(label)', 'width': 20, 'height': 20, 'color': '#ccc', 'font-size': 10 } },
+                    { selector: 'edge', style: { 'width': 1, 'line-color': '#475569', 'opacity': 0.5 } },
+                    { selector: ':selected', style: { 'border-width': 2, 'border-color': '#fff' } }
+                ],
+                layout: { name: 'grid', padding: 20 }
+            });
+            
+            applyFilters();
+            showLoading(false);
+        }, 100);
+    }
+    
     // --- Logic ---
 
     function setupControls() {

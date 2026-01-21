@@ -146,6 +146,7 @@ nav .container {
 /* Hero Section */
 .hero {
     min-height: 50vh;
+    padding: 8rem 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -153,6 +154,11 @@ nav .container {
     background: var(--gradient-hero);
     position: relative;
     overflow: hidden;
+}
+
+.hero-small {
+    min-height: 20vh;
+    padding: 4rem 0;
 }
 
 .hero::before {

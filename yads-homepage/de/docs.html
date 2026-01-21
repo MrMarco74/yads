@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Documentation - YADS</title>
-    <link rel="stylesheet" href="../https://yads-security.com/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <style>
         /* Markdown Overrides */
         h1 { font-size: 2.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
@@ -28,8 +28,8 @@
             <div class="nav-links">
                 <a href="index.html">Startseite</a>
                 <a href="product.html">Funktionen</a>
-                <a href="support.html#setup">Installation</a>
-                <a href="support.html" class="active">Support</a>
+                <a href="support.html">Installation</a>
+                <a href="docs.html" class="active">Dokumentation</a>
                 <a href="changes.html">Änderungen</a>
                 <a href="contact.html">Kontakt</a>
                 <a href="https://yads-security.com/docs.html" class="lang-switch" style="opacity: 0.7;">🇺🇸 EN</a>
@@ -44,7 +44,14 @@
             <ul>
                 <li><a href="#table-of-contents">Table of Contents</a></li>
 <li><a href="#1-introduction">1. Introduction</a></li>
-<li><a href="#2-getting-started">2. Getting Started</a></li>
+<li><a href="#2-getting-started">2. Erste Schritte</a>
+    <ul>
+        <li><a href="#2-1-initial-setup-wizard">2.1 Ersteinrichtungs-Assistent</a></li>
+        <li><a href="#2-2-accessing-the-system">2.2 Zugriff auf das System</a></li>
+        <li><a href="#2-3-interface-preferences">2.3 Oberflächen-Einstellungen</a></li>
+        <li><a href="#2-4-first-steps">2.4 Die ersten Schritte</a></li>
+    </ul>
+</li>
 <li><a href="#3-dashboard-overview">3. Dashboard Overview</a></li>
 <li><a href="#4-target-management">4. Target Management</a></li>
 <li><a href="#5-running-scans">5. Running Scans</a></li>
@@ -101,20 +108,45 @@
 <li><strong>Multi-User &amp; Multi-Tenant</strong>: Securely manage multiple teams or clients within one instance.</li>
 </ul>
 <hr />
-<h2>2. Getting Started</h2>
-<h3>Accessing the System</h3>
-<p>Navigate to your YADS instance (e.g., <code>https://yads.your-domain.com</code>).
-*   <strong>Login</strong>: Enter your username and password.
-*   <strong>MFA</strong>: If enabled, enter your Time-based One-Time Password (TOTP) from your authenticator app.</p>
-<h3>Interface Preferences</h3>
-<ul>
-<li><strong>Day/Night Mode</strong>: Toggle the Moon/Sun icon in the top navigation bar to switch between Dark (default) and Light themes.</li>
-</ul>
-<h3>First Steps</h3>
+<h2>2. Erste Schritte</h2>
+
+<h3 id="2-1-initial-setup-wizard">2.1 Ersteinrichtungs-Assistent (Setup Wizard)</h3>
+<p>Beim ersten Start einer neuen Instanz fängt YADS den gesamten Datenverkehr ab und präsentiert einen <strong>Setup-Assistenten</strong>. Sie müssen diesen 4-schrittigen Prozess abschließen, bevor Sie auf das Dashboard zugreifen können:</p>
 <ol>
-<li><strong>Dashboard</strong>: You will land on the main dashboard showing an overview of your targets.</li>
-<li><strong>Add Target</strong>: Use the input box at the top (or "Add Target" button) to enter a domain (e.g., <code>example.com</code>).</li>
-<li><strong>Run Scan</strong>: Once added, click the "Scan" button to start gathering data.</li>
+    <li><strong>Lizenz</strong>: Geben Sie Ihren gültigen YADS-Lizenzschlüssel ein.</li>
+    <li><strong>Datenbank</strong>: Definieren Sie ein sicheres Passwort für die interne PostgreSQL-Datenbank. Dieses Passwort wird automatisch in <code>/app/data/config.env</code> gespeichert.</li>
+    <li><strong>Initialisierung</strong>:
+        <ul>
+            <li><strong>Upgrade</strong>: Behält vorhandene Daten bei und führt Schema-Migrationen durch (verwenden Sie dies für Updates).</li>
+            <li><strong>Purge (Factory Reset)</strong>: <strong>WARNUNG</strong>: Löscht ALLE Daten und beginnt von vorne.</li>
+        </ul>
+    </li>
+    <li><strong>Admin Erstellen</strong>: Erstellen Sie das erste Systemadministrator-Konto.</li>
+</ol>
+<blockquote>
+    <p><strong>Setup erneut ausführen</strong>:<br>
+    Wenn Sie diesen Assistenten erneut ausführen müssen (z. B. für einen Factory Reset), starten Sie den Container mit der Umgebungsvariablen <code>SETUP_COMPLETE=false</code> neu:<br>
+    <code>docker compose run -e SETUP_COMPLETE=false -p 8000:8000 yads-api</code><br>
+    Oder bearbeiten Sie manuell <code>/app/data/config.env</code>, setzen Sie <code>SETUP_COMPLETE=False</code> und starten Sie neu.</p>
+</blockquote>
+
+<h3 id="2-2-accessing-the-system">2.2 Zugriff auf das System</h3>
+<p>Navigieren Sie zu Ihrer YADS-Instanz (z.B. <code>https://yads.your-domain.com</code>).</p>
+<ul>
+    <li><strong>Login</strong>: Geben Sie Ihren Benutzernamen und Ihr Passwort ein.</li>
+    <li><strong>MFA</strong>: Falls aktiviert, geben Sie Ihr zeitbasiertes Einmalpasswort (TOTP) aus Ihrer Authenticator-App ein.</li>
+</ul>
+
+<h3 id="2-3-interface-preferences">2.3 Oberflächen-Einstellungen</h3>
+<ul>
+    <li><strong>Tag/Nacht-Modus</strong>: Klicken Sie auf das Mond/Sonne-Symbol in der oberen Navigationsleiste, um zwischen dunklem (Standard) und hellem Design zu wechseln.</li>
+</ul>
+
+<h3 id="2-4-first-steps">2.4 Die ersten Schritte</h3>
+<ol>
+    <li><strong>Dashboard</strong>: Sie landen auf dem Haupt-Dashboard, das eine Übersicht Ihrer Ziele zeigt.</li>
+    <li><strong>Ziel hinzufügen</strong>: Verwenden Sie das Eingabefeld oben (oder die Schaltfläche "Ziel hinzufügen"), um eine Domain einzugeben (z.B. <code>example.com</code>).</li>
+    <li><strong>Scan starten</strong>: Klicken Sie nach dem Hinzufügen auf die Schaltfläche "Scan", um mit der Datenerfassung zu beginnen.</li>
 </ol>
 <hr />
 <h2>3. Dashboard Overview</h2>

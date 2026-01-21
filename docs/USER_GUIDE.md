@@ -43,15 +43,32 @@ Welcome to the **YADS (Yet Another Domain Scanner)** manual. This guide covers a
 
 ## 2. Getting Started
 
-### Accessing the System
+### 2.1 Initial Setup Wizard (First Run)
+Upon the first launch of a new instance, YADS intercepts all traffic and presents a **Setup Wizard**. You must complete this 4-step process before accessing the dashboard:
+
+1.  **License**: Enter your valid YADS license key.
+2.  **Database**: Define a secure password for the internal PostgreSQL database. This password is automatically persisted to `/app/data/config.env`.
+3.  **Initialization**:
+    *   **Upgrade**: Preserves existing data and runs schema migrations (use this for updates).
+    *   **Purge (Factory Reset)**: **WARNING**: Deletes ALL data and starts fresh.
+4.  **Admin Creation**: Create the first System Administrator account.
+
+> **Re-running the Setup**:
+> If you need to re-run this wizard (e.g. to factory reset), restart the container with the environment variable `SETUP_COMPLETE=false`:
+> ```bash
+> docker compose run -e SETUP_COMPLETE=false -p 8000:8000 yads-api
+> ```
+> Or manually edit `/app/data/config.env` to set `SETUP_COMPLETE=False` and restart.
+
+### 2.2 Accessing the System
 Navigate to your YADS instance (e.g., `https://yads.your-domain.com`).
 *   **Login**: Enter your username and password.
 *   **MFA**: If enabled, enter your Time-based One-Time Password (TOTP) from your authenticator app.
 
-### Interface Preferences
+### 2.3 Interface Preferences
 *   **Day/Night Mode**: Toggle the Moon/Sun icon in the top navigation bar to switch between Dark (default) and Light themes.
 
-### First Steps
+### 2.4 First Steps
 1.  **Dashboard**: You will land on the main dashboard showing an overview of your targets.
 2.  **Add Target**: Use the input box at the top (or "Add Target" button) to enter a domain (e.g., `example.com`).
 3.  **Run Scan**: Once added, click the "Scan" button to start gathering data.

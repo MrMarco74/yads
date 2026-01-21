@@ -382,7 +382,10 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                              existing = session.exec(select(Tenant).where(Tenant.id == tid)).first()
                              if existing:
                                  # Skip overwriting existing Tenant
+                                 logger.info(f"Skipping existing Tenant ID {tid}")
                                  continue
+                             else:
+                                 logger.info(f"Restoring new Tenant ID {tid}")
                     
                     # For other tables (Target, etc.), we already purged them, so safe to add.
                     # Or full wipe -> safe.
@@ -391,6 +394,10 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
                     session.add(db_obj)
                     count_records += 1
                 logger.debug(f"Restored {count_records} records for {table_name}")
+                
+                # Critical: Flush tenants immediately so FKs work for subsequent tables
+                if table_name == "tenant":
+                    session.flush()
                     
         session.commit()
         logger.info("Database restore flush complete.")

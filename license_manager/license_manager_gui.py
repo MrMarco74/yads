@@ -14,6 +14,8 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email import encoders
 import subprocess
+import re
+import shutil
 
 # Import DB Manager
 try:
@@ -40,7 +42,7 @@ class LicenseManagerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("YADS License Manager (DB Connected)")
-        self.root.geometry("700x750")
+        self.root.geometry("850x900")
 
         # Init DB
         db_manager.init_db()
@@ -93,6 +95,17 @@ class LicenseManagerApp:
             try:
                 with open(self.public_key_path, "rb") as f:
                     self.public_key = serialization.load_pem_public_key(f.read())
+                
+                # Auto-populate display
+                pem = self.public_key.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                b64 = base64.b64encode(pem).decode('utf-8')
+                if hasattr(self, 'txt_pub_export'):
+                    self.txt_pub_export.delete(1.0, tk.END)
+                    self.txt_pub_export.insert(tk.END, b64)
+                    
             except Exception:
                 pass
 
@@ -113,6 +126,8 @@ class LicenseManagerApp:
         ttk.Label(frame, text="Public Key (Base64 for YADS Config):").pack(anchor="w")
         self.txt_pub_export = tk.Text(frame, height=4, width=60)
         self.txt_pub_export.pack(pady=5)
+        
+        ttk.Button(frame, text="Update YADS Config (../yads/config.py)", command=self.update_yads_config).pack(pady=5)
 
     def generate_keys(self):
         if os.path.exists(self.private_key_path):
@@ -142,11 +157,11 @@ class LicenseManagerApp:
             self.lbl_key_status.config(text="Keys Generated!", foreground="green")
             
             # Export Public Key String
-            der = pub.public_bytes(
-                encoding=serialization.Encoding.DER,
+            pem = pub.public_bytes(
+                encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
-            b64 = base64.b64encode(der).decode('utf-8')
+            b64 = base64.b64encode(pem).decode('utf-8')
             self.txt_pub_export.delete(1.0, tk.END)
             self.txt_pub_export.insert(tk.END, b64)
             
@@ -220,7 +235,7 @@ class LicenseManagerApp:
         ttk.Label(frame, text="Features:").pack(anchor="w", pady=(10, 0))
         
         self.feature_vars = {}
-        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks"]
+        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants"]
         
         f_frame = ttk.Frame(frame)
         f_frame.pack(fill="x", pady=2)
@@ -239,9 +254,15 @@ class LicenseManagerApp:
         ttk.Button(btn_frame, text="Save Customer Defaults", command=self.save_defaults).pack(side="right", padx=5)
 
         # Output
-        ttk.Label(frame, text="Signed License Key:").pack(anchor="w")
-        self.txt_license_out = tk.Text(frame, height=4)
-        self.txt_license_out.pack(fill="x")
+        ttk.Label(frame, text="Signed License Key:").pack(anchor="w", pady=(10, 0))
+        
+        out_frame = ttk.Frame(frame)
+        out_frame.pack(fill="both", expand=True, pady=5)
+        
+        self.txt_license_out = tk.Text(out_frame, height=12)
+        self.txt_license_out.pack(side="left", fill="both", expand=True)
+        
+        ttk.Button(out_frame, text="Copy", command=self.copy_generated_key).pack(side="left", padx=5, anchor="n")
 
     def on_customer_selected(self, event):
         name = self.cmb_customer.get().strip()
@@ -375,6 +396,12 @@ class LicenseManagerApp:
     def draft_email(self):
         key = self.txt_license_out.get("1.0", tk.END).strip()
         cust = self.cmb_customer.get().strip()
+        # Use field email if available
+        email = self.ent_email.get().strip()
+        
+        self._generate_email_draft(key, cust, email)
+
+    def _generate_email_draft(self, key, cust, recipient_email=None):
         if not key or not cust: return
 
         # Paths
@@ -403,9 +430,8 @@ class LicenseManagerApp:
         msg['Subject'] = f"Your YADS License Key - {cust}"
         msg['From'] = "support@yads-security.com"
         
-        # Use email from field if present
-        recipient = self.ent_email.get().strip()
-        msg['To'] = recipient if recipient else cust # Fallback if empty
+        # Use email from argument if present
+        msg['To'] = recipient_email if recipient_email else cust # Fallback if empty (bad but matches orig logic)
         
         msg.preamble = 'This is a multi-part message in MIME format.'
 
@@ -434,7 +460,7 @@ class LicenseManagerApp:
             msg.attach(msgImage)
 
         # 5. Save .eml File
-        filename = f"License_{cust.replace(' ', '_')}.eml"
+        filename = f"License_{cust.replace(' ', '_')}_{int(time.time())}.eml"
         filepath = os.path.join(output_dir, filename)
         
         try:
@@ -447,7 +473,11 @@ class LicenseManagerApp:
             else:
                 webbrowser.open(filepath)
                 
-            self.lbl_verify_status.config(text=f"Draft saved: {filename}", foreground="green") # Feedback elsewhere?
+            # Feedback if UI exists (hacky check but safe)
+            if hasattr(self, 'lbl_verify_status'):
+                self.lbl_verify_status.config(text=f"Draft saved: {filename}", foreground="green")
+            else:
+                 messagebox.showinfo("Draft Saved", f"Email draft saved to:\n{filepath}")
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not create/open email draft: {e}\nSaved to: {filepath}")
@@ -524,7 +554,7 @@ class LicenseManagerApp:
 
     def setup_history_tab(self):
         frame = ttk.Frame(self.tab_history)
-        frame.pack(fill="both", padx=10, pady=10)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         ttk.Button(frame, text="Refresh List", command=self.refresh_history).pack(anchor="e", pady=5)
         
@@ -544,6 +574,7 @@ class LicenseManagerApp:
 
         self.context_menu = tk.Menu(frame, tearoff=0)
         self.context_menu.add_command(label="Copy Key", command=self.copy_key_from_menu)
+        self.context_menu.add_command(label="Resend License Mail", command=self.resend_email_from_history)
         self.context_menu.add_command(label="Archive License", command=self.archive_selected_license)
         
         self.refresh_history()
@@ -556,6 +587,35 @@ class LicenseManagerApp:
 
     def copy_key_from_menu(self):
         self.on_history_double_click(None)
+
+    def resend_email_from_history(self):
+        sel = self.tree.selection()
+        if not sel: return
+        item = sel[0]
+        
+        # Get Data
+        vals = self.tree.item(item, "values")
+        tags = self.tree.item(item, "tags")
+        
+        if not tags: return
+        
+        key = tags[0]
+        customer_name = vals[1]
+        
+        # Check if email is available in tags [2nd element]
+        email = None
+        if len(tags) > 1:
+            email = tags[1]
+            if email == "None" or not email.strip(): email = None
+            
+        if not email:
+            # Fallback: Ask user or warn?
+            # User requirement: "use basically the customer email address"
+            # If missing, maybe ask? Or just proceed with None (which fallsback to name as To)
+            if not messagebox.askyesno("Missing Email", f"No email found for '{customer_name}'.\nDraft without specific recipient?"):
+                return
+
+        self._generate_email_draft(key, customer_name, email)
 
     def archive_selected_license(self):
         sel = self.tree.selection()
@@ -583,11 +643,11 @@ class LicenseManagerApp:
                 lic["max_targets"], 
                 lic["expires_at"], 
                 lic["created_at"]
-            ), tags=(lic["key"],))
+            ), tags=(lic["key"], str(lic.get("email") or "")))
 
     def setup_archive_tab(self):
         frame = ttk.Frame(self.tab_archive)
-        frame.pack(fill="both", padx=10, pady=10)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         ttk.Button(frame, text="Refresh List", command=self.refresh_archive).pack(anchor="e", pady=5)
         
@@ -727,6 +787,71 @@ class LicenseManagerApp:
             self.txt_verify_out.insert(tk.END, str(e))
 
 
+
+    def copy_generated_key(self):
+        key = self.txt_license_out.get("1.0", tk.END).strip()
+        if key:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(key)
+            self.root.update()
+            messagebox.showinfo("Copied", "License key copied to clipboard.")
+        else:
+            messagebox.showwarning("Empty", "No key to copy.")
+
+    def update_yads_config(self):
+        # 1. Get current public key string
+        pub_b64 = self.txt_pub_export.get("1.0", tk.END).strip()
+        if not pub_b64:
+            messagebox.showerror("Error", "No Public Key to update. Check keys first.")
+            return
+
+        # 2. Locate config.py
+        # Assume standard structure: yads/license_manager/gui.py -> ../yads/config.py
+        # Current file dir
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(base_dir, "..", "yads", "config.py")
+        config_path = os.path.abspath(config_path)
+
+        if not os.path.exists(config_path):
+             # Ask user
+             config_path = filedialog.askopenfilename(
+                 title="Select yads/config.py",
+                 filetypes=[("Python Files", "*.py")]
+             )
+             if not config_path: return
+
+        # 3. Read & Update
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Regex Replace
+            # Pattern: LICENSE_PUBLIC_KEY: str = "..."
+            pattern = r'LICENSE_PUBLIC_KEY:\s*str\s*=\s*".*?"'
+            replacement = f'LICENSE_PUBLIC_KEY: str = "{pub_b64}"'
+            
+            new_content, count = re.subn(pattern, replacement, content)
+            
+            if count == 0:
+                # Try simpler pattern just in case
+                pattern = r'LICENSE_PUBLIC_KEY\s*=\s*".*?"'
+                replacement = f'LICENSE_PUBLIC_KEY = "{pub_b64}"'
+                new_content, count = re.subn(pattern, replacement, content)
+            
+            if count == 0:
+                 messagebox.showerror("Error", "Could not find LICENSE_PUBLIC_KEY variable in config file.")
+                 return
+
+            # Backup
+            shutil.copy(config_path, config_path + ".bak")
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+                
+            messagebox.showinfo("Success", f"Updated {config_path}!\n\nPlease restart the YADS API to apply changes:\ndocker compose restart yads-api")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to update config: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()

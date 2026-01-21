@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support & Installation - YADS</title>
-    <link rel="stylesheet" href="https://yads-security.com/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
     <style>
         .support-section { margin-bottom: 4rem; padding: 2.5rem; }
@@ -25,24 +25,24 @@
             <div class="nav-links">
                 <a href="index.html">Home</a>
                 <a href="product.html">Features</a>
-                <a href="support.html#setup">Setup</a>
-                <a href="support.html" class="active">Support</a>
+                <a href="support.html">Setup</a>
+                <a href="docs.html" class="active">Documentation</a>
                 <a href="changes.html">Changes</a>
                 <a href="contact.html">Contact</a>
-                <a href="https://yads-security.de/de/support.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
+                <a href="https://yads-security.de/support.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
             </div>
             <a href="contact.html" class="btn-primary">Get Demo</a>
         </div>
     </nav>
 
-    <header class="hero" style="min-height: 40vh; padding-top: 8rem;">
+    <header class="hero hero-small">
         <div class="container hero-content">
             <h1>Support & <span class="text-gradient">Installation</span></h1>
             <p>Everything you need to install, configure, and run YADS.</p>
         </div>
     </header>
 
-    <div class="container" style="margin-top: -4rem; position: relative; z-index: 10;">
+    <div class="container" style="margin-top: 4rem;">
         
         <!-- DOWNLOAD SECTION -->
         <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
@@ -85,25 +85,25 @@ docker images | grep yads
 # Should list yads-api and yads-worker
             </div>
 
-            <h3 style="margin-top: 2rem;">Step 2: Configuration</h3>
-            <p>Create a <code>.env</code> file in the same directory as <code>docker-compose.yml</code>:</p>
+            <h3 style="margin-top: 2rem;">Step 2: Launch</h3>
+            <p>Navigate to the directory and start the stack:</p>
             <div class="code-block">
-# .env File
-# --- Database ---
-POSTGRES_PASSWORD=secure_password_here
-
-# --- Security ---
-SECRET_KEY=random_string_here
+docker compose up -d
             </div>
-            <p class="text-sm text-gray-400 mt-2"><strong>Note:</strong> You will configure the license key via the web interface later.</p>
 
-            <div class="relative pl-8 border-l-2 border-indigo-500/30 pb-8">
+            <div class="relative pl-8 border-l-2 border-indigo-500/30 pb-8" style="margin-top: 2rem;">
                 <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-4 border-gray-900"></div>
-                <h4 class="text-lg font-bold text-white mb-2">3. Start & License</h4>
-                <p class="text-gray-400 mb-2">Run <code>docker compose up -d</code>.</p>
-                <p class="text-gray-400">After startup, log in and navigate to <strong>Settings > System Settings > License Management</strong> to enter your key.</p>
+                <h4 class="text-lg font-bold text-white mb-2">3. Setup Wizard (Automated Configuration)</h4>
+                <p class="text-gray-400 mb-2">Open <code>http://localhost:8000</code> in your browser.</p>
+                <p class="text-gray-400 mb-2">You will be automatically redirected to the <strong>Setup Wizard</strong>.</p>
+                <ul style="color: #94a3b8; font-size: 0.95rem;">
+                    <li><strong>License:</strong> Enter your license key.</li>
+                    <li><strong>Database:</strong> Set a secure password for the database.</li>
+                    <li><strong>Initialization:</strong> Choose between Upgrade (keep data) or Factory Reset.</li>
+                    <li><strong>Admin:</strong> Create your personal administrator account.</li>
+                </ul>
             </div>
-            <p><strong>Default Login:</strong> <code>admin</code> / <code>admin</code> (Change immediately!)</p>
+            <p style="margin-top: 1rem;"><strong style="color: #10b981;">Done!</strong> YADS is now fully configured and ready to use.</p>
         </div>
 
         <!-- TECHNICAL GUIDE SUMMARY -->

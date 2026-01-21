@@ -10,8 +10,6 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://yads:yads@db:5432/yads
-      - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - MFA_ENABLED=false
@@ -35,8 +33,6 @@ services:
       target: dev
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:yads@db:5432/yads
-      - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
     volumes:
@@ -60,7 +56,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=yads
+      - POSTGRES_PASSWORD=changeme
       - POSTGRES_DB=yads
     ports:
       - "5432:5432"
