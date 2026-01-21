@@ -183,6 +183,26 @@ async def export_form_excel(target_id: int, session: Session = Depends(get_sessi
         
     return generate_form_excel(data, f"form_discovery_{target.domain}")
 
+@router.get("/traffic", response_class=HTMLResponse)
+async def view_traffic_history(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
+    """
+    Web view for HTTP Traffic History.
+    """
+    query = select(HTTPTraffic).join(Target)
+    if user.tenant_id:
+        query = query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        query = query.where(Target.tenant_id == None)
+        
+    # Fetch latest 500 entries for performance
+    traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc()).limit(500)).all()
+    
+    return templates.TemplateResponse("reports_traffic.html", {
+        "request": request,
+        "user": user,
+        "traffic": traffic
+    })
+
 @router.get("/traffic/excel")
 async def export_traffic_excel(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """

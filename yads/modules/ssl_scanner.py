@@ -2,7 +2,7 @@ import ssl
 import socket
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from yads.core.base import BaseScannerModule

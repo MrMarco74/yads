@@ -188,6 +188,7 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 # -- Static & Templates --
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
 templates = Jinja2Templates(directory="yads/api/templates")
+templates.env.add_extension('jinja2.ext.do')
 
 # Inject Globals
 templates.env.globals['settings'] = settings

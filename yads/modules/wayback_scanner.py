@@ -1,6 +1,6 @@
 import requests
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import datetime
 from yads.core.base import BaseScannerModule
 

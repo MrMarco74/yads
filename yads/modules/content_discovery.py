@@ -1,6 +1,6 @@
 import requests
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from yads.core.base import BaseScannerModule
 from yads.core.rate_limiter import RateLimiter

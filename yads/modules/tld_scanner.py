@@ -4,7 +4,7 @@ import dns.resolver
 import requests
 import concurrent.futures
 import socket
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import tldextract
 
 from yads.core.base import BaseScannerModule

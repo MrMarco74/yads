@@ -369,7 +369,7 @@
                     <h2 class="text-xl font-semibold text-white">DNS Analysis</h2>
                 </div>
 
-                {% if dns_result %}
+                {% if dns_result and dns_result.data %}
                     <!-- Subdomains -->
                     <div class="mb-6">
                         <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Discovered Subdomains</h3>
@@ -535,7 +535,7 @@
                     <h2 class="text-xl font-semibold text-white">Web Analysis</h2>
                 </div>
 
-                {% if web_result %}
+                {% if web_result and web_result.data %}
                     <div class="space-y-6">
                         <!-- Top Row: Screenshot & Visual Identity -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1008,7 +1008,7 @@
                      <h2 class="text-xl font-semibold text-white">Historical Intelligence</h2>
                 </div>
 
-                {% if wayback_result %}
+                {% if wayback_result and wayback_result.data %}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div class="bg-gray-900/40 rounded-lg p-5 border border-gray-700/30">
                             <h3 class="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Wayback Machine</h3>
@@ -1076,7 +1076,7 @@
             </div>
 
             <!-- CRAWLER / SITE MAP ANALYSIS -->
-            {% if crawler_result %}
+            {% if crawler_result and crawler_result.data %}
             <div class="bg-gray-800/50 border border-purple-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
                 <div class="flex items-center gap-3 mb-6">
                      <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400">
@@ -1196,7 +1196,7 @@
                 {% set sc_nodes = [] %}
                 {% for n in crawler_result.data.nodes %}
                     {% if n.screenshot %}
-                        {% do sc_nodes.append(n) %}
+                        {% set _ = sc_nodes.append(n) %}
                     {% endif %}
                 {% endfor %}
 
@@ -1364,7 +1364,7 @@
             </div>
 
             <!-- CONTENT DISCOVERY CARD -->
-            {% if content_discovery_result %}
+            {% if content_discovery_result and content_discovery_result.data %}
             <div class="bg-gray-800/50 border border-teal-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
@@ -1448,7 +1448,7 @@
                     <h2 class="text-xl font-semibold text-white">Typosquatting Discovery</h2>
                 </div>
 
-                {% if typosquat_result %}
+                {% if typosquat_result and typosquat_result.data %}
                     <div class="grid grid-cols-2 gap-4 mb-6">
                         <div class="bg-gray-900/30 rounded-lg p-4">
                             <p class="text-xs text-gray-500 mb-1">Total Variations Checked</p>
@@ -1520,7 +1520,7 @@
                     </div>
                 </div>
 
-                {% if tld_result %}
+                {% if tld_result and tld_result.data %}
                     <div class="grid grid-cols-3 gap-4 mb-6">
                         <div class="bg-gray-900/30 rounded-lg p-4 text-center">
                             <p class="text-xs text-gray-500 mb-1">Total TLDs Scanned</p>
@@ -1664,7 +1664,7 @@
                 </div>
 
                 <!-- Main Target Screenshot -->
-                {% if visual_result.data.screenshot_path %}
+                {% if visual_result and visual_result.data and visual_result.data.screenshot_path %}
                 <div class="mb-6 rounded-xl overflow-hidden border border-gray-700 bg-black/40 group relative">
                     <div class="absolute top-3 left-3 z-10">
                         <span class="px-2 py-1 bg-pink-600/80 text-white text-[10px] font-bold rounded shadow-lg backdrop-blur-md border border-pink-400/30">
@@ -1691,7 +1691,7 @@
                 </div>
                 {% endif %}
 
-                {% if visual_result %}
+                {% if visual_result and visual_result.data %}
                     {% if visual_result.data.logos %}
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
                             {% for logo in visual_result.data.logos %}
@@ -1770,7 +1770,7 @@
                     <h2 class="text-xl font-semibold text-white">SSL/TLS Configuration</h2>
                 </div>
 
-                {% if ssl_result %}
+                {% if ssl_result and ssl_result.data %}
                     {% if ssl_result.data.error %}
                          <div class="bg-red-900/20 border border-red-900/50 rounded p-4 text-center">
                             <p class="text-red-400 text-sm font-bold">SSL Connection Failed</p>
@@ -1877,7 +1877,7 @@
                     <h2 class="text-xl font-semibold text-white">Infrastructure & Reputation</h2>
                 </div>
 
-                {% if infra_result %}
+                {% if infra_result and infra_result.data %}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- IP & ASN -->
                         <div>

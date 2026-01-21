@@ -3,7 +3,7 @@ import re
 import requests
 import logging
 from urllib.parse import urljoin, urlparse, urlunparse
-from typing import Any, Dict, List, Set, Deque
+from typing import Any, Dict, List, Set, Deque, Optional
 from collections import deque, Counter
 
 import hashlib

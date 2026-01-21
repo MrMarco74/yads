@@ -6,7 +6,7 @@ import logging
 import time
 import random
 import uuid
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Optional
 
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError

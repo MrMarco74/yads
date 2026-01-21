@@ -2,7 +2,7 @@ import socket
 import logging
 import dns.resolver
 import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from ipwhois import IPWhois
 
 from yads.core.base import BaseScannerModule
