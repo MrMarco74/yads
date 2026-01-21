@@ -8,7 +8,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.11.0"
+    VERSION: str = "1.12.0"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:changeme@db:5432/yads")
@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # Licensing (Ed25519 Public Key)
     # This key matches the Private Key held by the vendor.
     LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQTFJZ2pBSUx6elI2cHNsSFpidHJER1BHUlcxclNhSDVhLyszM2dEdWVNdVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+    LICENSE_KEY: Optional[str] = None
 
     # Setup Wizard
     SETUP_COMPLETE: bool = False

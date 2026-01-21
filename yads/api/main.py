@@ -161,6 +161,16 @@ async def lifespan(app: FastAPI):
             
             # --- Seed Changelog ---
             seed_changelog()
+
+            # --- Load License Key to Settings ---
+            with Session(engine) as session:
+                from yads.models import SystemConfig
+                lic = session.get(SystemConfig, "license_key")
+                if lic and lic.value:
+                    settings.LICENSE_KEY = lic.value
+                    logger.info("License key loaded from database into runtime settings.")
+                else:
+                    logger.warning("No license key found in database.")
                 
             break
         except Exception:
