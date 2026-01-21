@@ -354,15 +354,35 @@ def seed_changelog():
             )
             session.add(entry_1130)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.13.1").first():
+            entry_1131 = ChangelogEntry(
+                title="YADS v1.13.1: Queue Status \u0026 Purge Fixes",
+                version="1.13.1",
+                content="""
+                <h3>🐛 Critical Bug Fixes</h3>
+                <ul>
+                    <li><strong>Dashboard Auto-Update:</strong> Fixed queue status widget not updating automatically. The stats endpoint now correctly calculates and provides security scores.</li>
+                    <li><strong>Queue Purge:</strong> Resolved missing logger error that prevented the "Clear Queue" function from working properly.</li>
+                    <li><strong>Template Rendering:</strong> Ensured all required fields are present in the dashboard stats HTMX endpoint to prevent silent rendering failures.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li><strong>Logger Initialization:</strong> Added proper <code>scan_logger</code> initialization in queue router for consistent logging.</li>
+                    <li><strong>Security Score Calculation:</strong> Dashboard stats endpoint now includes real-time security score computation matching the main dashboard logic.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1131)
+
         session.commit()
         print("Changelog seeded successfully.")
 
 def seed_notifications():
     with Session(engine) as session:
-        if not session.query(Notification).where(Notification.title == "YADS v1.13.0 Update").first():
+        if not session.query(Notification).where(Notification.title == "YADS v1.13.1 Update").first():
             note = Notification(
-                title="YADS v1.13.0 Update",
-                text="The latest update v1.13.0 is now live! This release focuses on security hardening with comprehensive credential protection and automated release validation. Check 'Recent Changes' for details.",
+                title="YADS v1.13.1 Update",
+                text="The latest update v1.13.1 is now live! This release fixes critical queue bugs including dashboard auto-update and queue purge functionality. Check 'Recent Changes' for details.",
                 type="update",
                 color="purple",
                 icon="rocket"

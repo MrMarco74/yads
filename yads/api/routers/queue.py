@@ -11,6 +11,8 @@ from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
 import logging
 
+scan_logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/queue",
     tags=["queue"]
