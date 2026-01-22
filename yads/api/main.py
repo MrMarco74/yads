@@ -379,7 +379,7 @@ async def bulk_scan_targets(
                 # Bulk scan is also a MANUAL action, BUT we now RESPECT the queue pause.
                 # If Queue is Paused, valid consumer won't pick it up OR worker will abort if it checks DB.
                 # We set ignore_queue_pause=False (default).
-                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types])
+                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types, user.tenant_id])
                 count += 1
         except Exception as e:
             logger.error(f"Failed to queue target {tid_str}: {e}")
@@ -641,7 +641,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     # Always dispatch to Redis (even if paused, it waits there).
     # This ensures argments are preserved.
     # We pass ignore_queue_pause=False so it respects the "Stop All" state.
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types])
+    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types, user.tenant_id])
     
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 
@@ -2748,7 +2748,7 @@ def add_target(domain: str, session: Session = Depends(get_session), user: User 
         session.commit()
         session.refresh(target)
     
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain])
+    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, None, target.tenant_id])
     return target
 
 @app.get("/api/targets/", response_model=List[Target])
@@ -3702,12 +3702,14 @@ async def get_network_graph(
     filter_empty: bool = False,
     filter_online: str = "all",
     include_web_links: bool = False,
+    max_nodes: int = 500,  # Limit for performance - prevents browser from crashing on large datasets
     session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user)
 ):
     """
     Returns graph data (nodes, edges) for the Network Relationship visualization.
     Integrates DNS records and Subdomains.
+    max_nodes: Maximum number of target nodes to process (default 500 for performance)
     """
     from sqlmodel import or_, and_, text
     from urllib.parse import urlparse
@@ -3736,8 +3738,18 @@ async def get_network_graph(
 
     if target_id:
         query = query.where(Target.id == target_id)
-        
+    
+    # Get total count before limiting
+    from sqlmodel import func as sqlfunc
+    count_query = select(sqlfunc.count()).select_from(query.subquery())
+    total_targets = session.exec(count_query).one()
+    
+    # Apply limit for performance
+    query = query.limit(max_nodes)
     targets = session.exec(query).all()
+    
+    # Track if results were truncated
+    truncated = total_targets > max_nodes
     
     nodes = {} # id -> node object (Cytoscape format: {data: {...}})
     edges = [] # list of edge objects (Cytoscape format: {data: {...}})
@@ -4001,7 +4013,10 @@ async def get_network_graph(
 
     return {
         "nodes": list(nodes.values()),
-        "edges": edges
+        "edges": edges,
+        "truncated": truncated,
+        "total_targets": total_targets,
+        "displayed_targets": len(targets)
     }
 
 @app.get("/api/visualizations/network/export")
@@ -4217,6 +4232,161 @@ async def view_redirect_graph(request: Request, session: Session = Depends(get_s
 async def view_network_graph(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     targets = session.exec(select(Target).order_by(Target.domain)).all()
     return templates.TemplateResponse("network_graph.html", {"request": request, "domains": targets, "user": user})
+
+
+@app.get("/api/visualizations/network/render-image")
+async def render_network_graph_image(
+    filter_online: str = "all",
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user)
+):
+    """
+    Server-side rendering of network graph as a static PNG image.
+    Handles large graphs (100k+ nodes) that can't be rendered in browser.
+    """
+    import networkx as nx
+    import numpy as np
+    import matplotlib
+    matplotlib.use('Agg')  # Non-interactive backend for server-side rendering
+    import matplotlib.pyplot as plt
+    from io import BytesIO
+    from datetime import datetime
+    
+    logger.info(f"[GraphRender] Starting server-side render for tenant {user.tenant_id}")
+    
+    # Filter by user's tenant
+    if user.role == "admin" and not user.tenant_id:
+        query = select(Target)
+    else:
+        query = select(Target).where(Target.tenant_id == user.tenant_id)
+    
+    targets = session.exec(query).all()
+    target_ids = [t.id for t in targets]
+    target_map = {t.id: t.domain for t in targets}
+    
+    logger.info(f"[GraphRender] Processing {len(targets)} targets...")
+    
+    # Build NetworkX graph
+    G = nx.DiGraph()
+    
+    # Add target nodes
+    for t in targets:
+        G.add_node(t.domain, type='domain', label=t.domain)
+    
+    # Fetch scan results for edges
+    if target_ids:
+        results = session.exec(
+            select(ScanResult).where(
+                ScanResult.target_id.in_(target_ids),
+                ScanResult.module_name.in_(['subdomain_scanner', 'infrastructure_scanner', 'web_analyzer'])
+            )
+        ).all()
+        
+        # Group by target and get latest per module
+        latest_by_target = {}
+        for r in results:
+            key = (r.target_id, r.module_name)
+            if key not in latest_by_target:
+                latest_by_target[key] = r
+        
+        for (t_id, mod), res in latest_by_target.items():
+            if not res.data or t_id not in target_map:
+                continue
+            source = target_map[t_id]
+            
+            if mod == 'subdomain_scanner':
+                for sub_entry in res.data.get("subdomains", [])[:50]:  # Limit per target
+                    sub = sub_entry.get("subdomain")
+                    if sub and sub != source:
+                        G.add_node(sub, type='subdomain', label=sub)
+                        G.add_edge(source, sub)
+            
+            elif mod == 'infrastructure_scanner':
+                ip = res.data.get("ip")
+                if ip:
+                    G.add_node(ip, type='ip', label=ip)
+                    G.add_edge(source, ip)
+            
+            elif mod == 'web_analyzer':
+                chain = res.data.get("redirect_chain", [])
+                prev = source
+                for hop in chain[:5]:  # Limit chain depth
+                    hop_clean = hop.replace("https://", "").replace("http://", "").split("/")[0]
+                    if hop_clean and hop_clean != prev:
+                        G.add_node(hop_clean, type='redirect', label=hop_clean)
+                        G.add_edge(prev, hop_clean)
+                        prev = hop_clean
+    
+    logger.info(f"[GraphRender] Graph has {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+    
+    # Create figure with appropriate size
+    node_count = G.number_of_nodes()
+    fig_size = min(100, max(20, node_count / 50))  # Scale figure size with nodes
+    fig, ax = plt.subplots(figsize=(fig_size, fig_size), facecolor='#0f172a')
+    ax.set_facecolor('#0f172a')
+    
+    # Calculate layout (spring layout for large graphs)
+    logger.info(f"[GraphRender] Computing layout...")
+    if node_count > 5000:
+        pos = nx.spring_layout(G, k=2/np.sqrt(node_count), iterations=20, seed=42)
+    elif node_count > 1000:
+        pos = nx.spring_layout(G, k=1/np.sqrt(node_count), iterations=50, seed=42)
+    else:
+        pos = nx.spring_layout(G, seed=42)
+    
+    # Color nodes by type
+    colors = []
+    sizes = []
+    for node in G.nodes():
+        ntype = G.nodes[node].get('type', 'unknown')
+        if ntype == 'domain':
+            colors.append('#4f46e5')  # Indigo
+            sizes.append(100)
+        elif ntype == 'subdomain':
+            colors.append('#0ea5e9')  # Cyan
+            sizes.append(30)
+        elif ntype == 'ip':
+            colors.append('#10b981')  # Emerald
+            sizes.append(50)
+        elif ntype == 'redirect':
+            colors.append('#8b5cf6')  # Purple
+            sizes.append(40)
+        else:
+            colors.append('#64748b')  # Slate
+            sizes.append(20)
+    
+    logger.info(f"[GraphRender] Drawing graph...")
+    
+    # Draw
+    nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=sizes, ax=ax, alpha=0.9)
+    nx.draw_networkx_edges(G, pos, edge_color='#475569', alpha=0.3, arrows=True, ax=ax, arrowsize=5)
+    
+    # Only draw labels for smaller graphs
+    if node_count < 500:
+        nx.draw_networkx_labels(G, pos, font_size=6, font_color='#94a3b8', ax=ax)
+    
+    ax.axis('off')
+    
+    # Add watermark/info
+    fig.text(0.02, 0.02, f"YADS Network Graph | {datetime.now().strftime('%Y-%m-%d %H:%M')} | {node_count} nodes", 
+             fontsize=10, color='#64748b', ha='left')
+    
+    # Save to buffer
+    buf = BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='#0f172a', edgecolor='none')
+    buf.seek(0)
+    plt.close(fig)
+    
+    logger.info(f"[GraphRender] Render complete!")
+    
+    return StreamingResponse(
+        buf,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'attachment; filename="network_graph_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png"'
+        }
+    )
+
 
 # --- Analytics ---
 
