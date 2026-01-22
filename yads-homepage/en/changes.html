@@ -128,6 +128,32 @@
     <div class="container">
 
         <div class="timeline">
+            <!-- Version 1.13.2 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.13.2</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Multi-Tenancy & Performance Update</h2>
+                    
+                    <h3>🛡️ Multi-Tenancy Improvements</h3>
+                    <ul>
+                        <li><strong>Queue Isolation:</strong> Each tenant now sees only their own tasks in the queue view.</li>
+                        <li><strong>Tenant-scoped Purge:</strong> "Queue Purge" only clears tasks belonging to the current tenant.</li>
+                    </ul>
+                    <h3>⚡ Performance Optimizations</h3>
+                    <ul>
+                        <li><strong>Network Graph Limit:</strong> New <code>max_nodes</code> limit prevents browser crashes on large datasets.</li>
+                        <li><strong>UI Slider:</strong> "Max Targets" slider to adjust node count (100-2000).</li>
+                        <li><strong>Truncation Warning:</strong> Alert displayed when not all data is shown.</li>
+                    </ul>
+                    <h3>🖼️ Server-Side Graph Rendering</h3>
+                    <ul>
+                        <li><strong>Full Graph Image:</strong> New button for server-side image generation using NetworkX/matplotlib.</li>
+                        <li><strong>100k+ Nodes:</strong> Enables visualization of very large infrastructures as static PNG.</li>
+                        <li><strong>Loading Indicator:</strong> "Please wait" spinner during server rendering.</li>
+                    </ul>
+                </div>
+            </div>
+
             <!-- Version 1.12.0 -->
             <div class="change-entry">
                 <span class="version-badge">v1.12.0</span>

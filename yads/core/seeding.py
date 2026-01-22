@@ -374,15 +374,41 @@ def seed_changelog():
             )
             session.add(entry_1131)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.13.2").first():
+            entry_1132 = ChangelogEntry(
+                title="YADS v1.13.2: Multi-Tenancy & Performance Update",
+                version="1.13.2",
+                content="""
+                <h3>🛡️ Multi-Tenancy Improvements</h3>
+                <ul>
+                    <li><strong>Queue Isolation:</strong> Each tenant now sees only their own tasks in the queue view.</li>
+                    <li><strong>Tenant-scoped Purge:</strong> "Queue Purge" only clears tasks belonging to the current tenant, leaving other tenants unaffected.</li>
+                </ul>
+                <h3>⚡ Performance Optimizations</h3>
+                <ul>
+                    <li><strong>Network Graph Limit:</strong> New <code>max_nodes</code> limit prevents browser crashes on large datasets (100k+ nodes).</li>
+                    <li><strong>UI Slider:</strong> "Max Targets" slider (100-2000) to adjust node count displayed.</li>
+                    <li><strong>Truncation Warning:</strong> Alert displayed when not all data is shown due to limits.</li>
+                </ul>
+                <h3>🖼️ Server-Side Graph Rendering</h3>
+                <ul>
+                    <li><strong>Full Graph Image:</strong> New button for server-side image generation using NetworkX/matplotlib.</li>
+                    <li><strong>100k+ Nodes:</strong> Enables visualization of very large infrastructures as static PNG.</li>
+                    <li><strong>Loading Indicator:</strong> "Please wait" spinner during server rendering.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1132)
+
         session.commit()
         print("Changelog seeded successfully.")
 
 def seed_notifications():
     with Session(engine) as session:
-        if not session.query(Notification).where(Notification.title == "YADS v1.13.1 Update").first():
+        if not session.query(Notification).where(Notification.title == "YADS v1.13.2 Update").first():
             note = Notification(
-                title="YADS v1.13.1 Update",
-                text="The latest update v1.13.1 is now live! This release fixes critical queue bugs including dashboard auto-update and queue purge functionality. Check 'Recent Changes' for details.",
+                title="YADS v1.13.2 Update",
+                text="The latest update v1.13.2 is now live! This release adds per-tenant queue isolation, network graph performance optimizations, and server-side graph rendering for large datasets. Check 'Recent Changes' for details.",
                 type="update",
                 color="purple",
                 icon="rocket"

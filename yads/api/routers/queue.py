@@ -40,6 +40,36 @@ def timestamp_to_time(ts):
 templates.env.filters["timestamp_to_time"] = timestamp_to_time
 
 
+def extract_tenant_from_task(task: dict) -> int | None:
+    """
+    Extract tenant_id from a Celery task dict.
+    Task args are: [target_id, domain, scan_types, tenant_id]
+    """
+    try:
+        args = task.get('args', [])
+        if isinstance(args, (list, tuple)) and len(args) > 3:
+            return args[3]  # tenant_id is at position 3
+    except:
+        pass
+    return None
+
+
+def filter_tasks_by_tenant(tasks: list, tenant_id: int) -> list:
+    """Filter task list to only include tasks belonging to specified tenant."""
+    if tenant_id is None:
+        return tasks  # Platform admin without tenant sees all
+    
+    filtered = []
+    for task in tasks:
+        task_tenant = extract_tenant_from_task(task)
+        # Include task if:
+        # 1. task_tenant matches user's tenant, OR
+        # 2. task_tenant is None (legacy tasks without tenant_id - show to admin only)
+        if task_tenant == tenant_id:
+            filtered.append(task)
+    return filtered
+
+
 @router.get("/", response_class=HTMLResponse)
 async def view_queue(
     request: Request,
@@ -80,6 +110,11 @@ async def view_queue(
         for worker, tasks in scheduled_raw.items():
             scheduled_tasks.extend(tasks)
 
+        # Filter by tenant (unless platform admin with no tenant)
+        active_tasks = filter_tasks_by_tenant(active_tasks, user.tenant_id)
+        reserved_tasks = filter_tasks_by_tenant(reserved_tasks, user.tenant_id)
+        scheduled_tasks = filter_tasks_by_tenant(scheduled_tasks, user.tenant_id)
+
     except Exception as e:
         print(f"Error inspecting Celery: {e}")
         return templates.TemplateResponse("queue.html", {
@@ -98,12 +133,13 @@ async def view_queue(
     import base64
 
     queued_tasks = []
-    queue_len = 0
+    queue_len = 0  # Total global queue length
+    tenant_queue_len = 0  # Tenant-filtered queue length
     try:
         r = redis_client
         queue_len = r.llen("celery")
-        # Peek top 50
-        raw_items = r.lrange("celery", 0, 49)
+        # Peek top 100 to allow for filtering
+        raw_items = r.lrange("celery", 0, 99)
         
         for raw in raw_items:
             try:
@@ -111,6 +147,7 @@ async def view_queue(
                 # Helper to extract args safely
                 domain = "?"
                 scan_types = []
+                task_tenant_id = None
                 # Celery Protocol v2: [args, kwargs, embedding]
                 # Body is often base64 encoded pickle or json
                 
@@ -121,21 +158,28 @@ async def view_queue(
                         body_str = base64.b64decode(body_b64).decode('utf-8')
                         body_json = json.loads(body_str)
                         # Expecting [args, kwargs, embed]
-                        # args: [target_id, domain, [scan_types]]
+                        # args: [target_id, domain, scan_types, tenant_id]
                         if isinstance(body_json, list) and len(body_json) > 0:
                             args = body_json[0]
                             if len(args) > 1: domain = args[1]
                             if len(args) > 2: scan_types = args[2]
+                            if len(args) > 3: task_tenant_id = args[3]
                     except:
                         # Fallback if not base64 or complex body
                         domain = "Raw Data"
 
+                # Filter by tenant
+                if user.tenant_id is not None and task_tenant_id != user.tenant_id:
+                    continue  # Skip tasks from other tenants
+
+                tenant_queue_len += 1
                 queued_tasks.append({
                     "id": item_data.get('headers', {}).get('id', '?'),
                     "name": item_data.get('headers', {}).get('task', 'Unknown Task'),
                     "args": f"{domain} {scan_types}",
                     "domain": domain, 
-                    "scan_types": scan_types
+                    "scan_types": scan_types,
+                    "tenant_id": task_tenant_id
                 })
             except Exception as e:
                  queued_tasks.append({"id": "?", "name": "Parse Error", "args": str(e)})
@@ -149,8 +193,8 @@ async def view_queue(
         "active_tasks": active_tasks,
         "reserved_tasks": reserved_tasks,
         "scheduled_tasks": scheduled_tasks,
-        "queued_tasks": queued_tasks, # New
-        "queue_length": queue_len,    # New
+        "queued_tasks": queued_tasks,
+        "queue_length": tenant_queue_len,  # Show tenant-filtered count
         "queue_active": queue_active,
         "settings": settings
     })
@@ -221,56 +265,104 @@ async def purge_queue(
     session: Session = Depends(get_session)
 ):
     """
-    Panic: Clear the queue.
+    Clear queue for current tenant only.
+    Does NOT affect other tenants' tasks.
     """
+    import json
+    import base64
+    
     try:
-        # 1. Purge via Celery Control (Broker)
         celery_app = Celery("yads_purge", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-        purged_count = celery_app.control.purge()
-        
-        # 2. Force Clear Redis List 'celery' (just in case)
         r = redis_client
-        r_count = r.delete("celery")
         
-        # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
-        scan_logger.warning("Revoking all active and reserved tasks...")
-        # 3. REVOKE All Active & Reserved Tasks (The "Everything" part)
-        scan_logger.warning("Revoking all active and reserved tasks...")
+        # 1. Selectively remove from Redis queue (only tenant's tasks)
+        # Instead of purging all, we need to:
+        # - Read all items from queue
+        # - Keep items NOT belonging to this tenant
+        # - Remove items belonging to this tenant
+        purged_count = 0
+        
+        queue_len = r.llen("celery")
+        if queue_len > 0:
+            # Get all items
+            all_items = r.lrange("celery", 0, -1)
+            items_to_keep = []
+            
+            for raw in all_items:
+                try:
+                    item_data = json.loads(raw)
+                    task_tenant_id = None
+                    
+                    body_b64 = item_data.get('body')
+                    if body_b64:
+                        try:
+                            body_str = base64.b64decode(body_b64).decode('utf-8')
+                            body_json = json.loads(body_str)
+                            if isinstance(body_json, list) and len(body_json) > 0:
+                                args = body_json[0]
+                                if len(args) > 3:
+                                    task_tenant_id = args[3]
+                        except:
+                            pass
+                    
+                    # Keep if NOT this tenant's task
+                    if task_tenant_id != user.tenant_id:
+                        items_to_keep.append(raw)
+                    else:
+                        purged_count += 1
+                        
+                except:
+                    # If we can't parse, keep it to be safe
+                    items_to_keep.append(raw)
+            
+            # Atomically replace queue with filtered items
+            if purged_count > 0:
+                pipe = r.pipeline()
+                pipe.delete("celery")
+                for item in items_to_keep:
+                    pipe.rpush("celery", item)
+                pipe.execute()
+        
+        # 2. REVOKE Active & Reserved Tasks (Tenant-Filtered)
+        scan_logger.warning(f"Revoking active and reserved tasks for tenant {user.tenant_id}...")
         i = celery_app.control.inspect()
+        revoked_count = 0
         
-        # Inspector can be None or return None types if no workers responding
         if i:
-             # Stop Reserved (Pre-fetched but not started)
-             reserved = i.reserved()
-             if reserved:
+            # Stop Reserved (Pre-fetched but not started)
+            reserved = i.reserved()
+            if reserved:
                 for worker, tasks in reserved.items():
                     if not tasks: continue
                     for task in tasks:
-                        t_id = task.get("id")
-                        scan_logger.info(f"Revoking RESERVED task: {t_id}")
-                        celery_app.control.revoke(t_id, terminate=True)
+                        task_tenant = extract_tenant_from_task(task)
+                        if task_tenant == user.tenant_id:
+                            t_id = task.get("id")
+                            scan_logger.info(f"Revoking RESERVED task: {t_id}")
+                            celery_app.control.revoke(t_id, terminate=True)
+                            revoked_count += 1
 
-             # Stop Active (Currently running)
-             active = i.active()
-             if active:
+            # Stop Active (Currently running)
+            active = i.active()
+            if active:
                 for worker, tasks in active.items():
                     if not tasks: continue
                     for task in tasks:
-                        t_id = task.get("id")
-                        scan_logger.info(f"Revoking ACTIVE task: {t_id}")
-                        # terminate=True kills the worker process executing the task
-                        celery_app.control.revoke(t_id, terminate=True)
+                        task_tenant = extract_tenant_from_task(task)
+                        if task_tenant == user.tenant_id:
+                            t_id = task.get("id")
+                            scan_logger.info(f"Revoking ACTIVE task: {t_id}")
+                            celery_app.control.revoke(t_id, terminate=True)
+                            revoked_count += 1
         else:
-            scan_logger.warning("Celery Inspector failed/timed out. Could not revoke running tasks (ghosts may remain until worker restart).")
+            scan_logger.warning("Celery Inspector failed/timed out.")
         
-        scan_logger.warning(f"Queue Purged! Celery Purged: {purged_count}, Redis Deleted: {r_count}")
+        scan_logger.warning(f"Tenant Queue Purged! Removed: {purged_count}, Revoked: {revoked_count}")
         
-        # 4. RESET Database Status (The Missing Link) - TENANT AWARE
-        # Fixes "Zombie" statuses in the UI for tasks that were just deleted
+        # 3. RESET Database Status - TENANT AWARE
         from yads.models import Target
         from sqlmodel import or_, and_
         
-        # Reset all 'queued' or 'running' targets to 'idle' FOR THIS TENANT ONLY
         statement = select(Target).where(
             and_(
                 Target.tenant_id == user.tenant_id,
@@ -291,34 +383,30 @@ async def purge_queue(
 
     except Exception as e:
         scan_logger.error(f"Failed to purge queue: {e}")
-        # Even on error, we might want to return the widget if HTMX, but let's stick to redirect for error visibility or handle IT
-        # For simplicity, if HTMX, we just return the widget and maybe log to console/toast?
-        # The user wants the layout fixed. 
         if request.headers.get("HX-Request"):
-             # Get current state for widget re-render
-             conf = session.get(SystemConfig, "QUEUE_ACTIVE")
-             queue_active = True
-             if conf and conf.value.lower() == "false":
-                 queue_active = False
+            conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+            queue_active = True
+            if conf and conf.value.lower() == "false":
+                queue_active = False
                  
-             return templates.TemplateResponse("components/queue_widget.html", {
+            return templates.TemplateResponse("components/queue_widget.html", {
                 "request": request,
                 "queue_active": queue_active
-             })
+            })
 
         return RedirectResponse(url=f"/queue?error=Purge+Failed:+{e}", status_code=303)
 
     # HTMX Support: Return updated widget
     if request.headers.get("HX-Request"):
-         # Get current state for widget re-render
-         conf = session.get(SystemConfig, "QUEUE_ACTIVE")
-         queue_active = True
-         if conf and conf.value.lower() == "false":
-             queue_active = False
+        conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+        queue_active = True
+        if conf and conf.value.lower() == "false":
+            queue_active = False
              
-         return templates.TemplateResponse("components/queue_widget.html", {
+        return templates.TemplateResponse("components/queue_widget.html", {
             "request": request,
             "queue_active": queue_active
-         })
+        })
 
     return RedirectResponse(url="/queue?msg=Queue+Cleared", status_code=303)
+

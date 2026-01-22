@@ -94,11 +94,12 @@ class LogCapture:
 import socket
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True)
-def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = None, ignore_queue_pause: bool = False):
+def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = None, tenant_id: int = None, ignore_queue_pause: bool = False):
     """
     Main orchestration task.
     Runs configured scanners for the given target.
     If scan_types is None, runs all available scanners.
+    tenant_id is passed for queue filtering purposes (actual tenant is derived from target in DB).
     """
     bind = True # Required for self.retry to work? No, need to change decorator
 

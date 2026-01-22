@@ -76,6 +76,27 @@
                      <option value="offline">Offline Only</option>
                  </select>
             </div>
+            
+            <div class="pt-2">
+                 <label class="text-xs text-slate-500 mb-1 block">Max Targets (Performance)</label>
+                 <input type="range" id="maxNodesSlider" min="100" max="2000" value="500" step="100" class="w-full accent-indigo-500">
+                 <div class="flex justify-between text-[10px] text-slate-500">
+                     <span>100</span>
+                     <span id="maxNodesValue" class="text-indigo-400 font-bold">500</span>
+                     <span>2000</span>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Server-side Full Render -->
+        <div class="p-4 border-b border-slate-800 bg-gradient-to-r from-emerald-900/20 to-transparent">
+            <h2 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">Full Graph (Server Render)</h2>
+            <p class="text-[10px] text-slate-500 mb-3">For large datasets (100k+ nodes). Renders on server and downloads as PNG.</p>
+            <button id="serverRenderBtn" class="w-full py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg flex items-center justify-center gap-2 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg id="serverRenderIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span id="serverRenderText">Generate Full Graph Image</span>
+                <svg id="serverRenderSpinner" class="w-4 h-4 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            </button>
         </div>
 
         <!-- Export -->
@@ -160,7 +181,8 @@
         showWebLinks: false,
         dimDns: false,
         showAttackPaths: false,
-        availability: 'all'
+        availability: 'all',
+        maxNodes: 500
     };
     
     // Check if extensions are loaded
@@ -183,15 +205,21 @@
         // Reset timeout state
         clearTimeout(renderTimeout);
         document.getElementById('forceRenderBtn').classList.add('hidden');
+        hideTruncationWarning();
         
         if(cy) cy.destroy(); // Ensure cleanup
 
         try {
-            const resp = await fetch(`/api/visualizations/network?filter_online=${config.availability}&include_web_links=${config.showWebLinks}`);
+            const resp = await fetch(`/api/visualizations/network?filter_online=${config.availability}&include_web_links=${config.showWebLinks}&max_nodes=${config.maxNodes}`);
             
             showLoading(true, "Processing data...");
             const data = await resp.json();
             lastGraphData = data; // Save for fallback
+            
+            // Show truncation warning if data was limited
+            if (data.truncated) {
+                showTruncationWarning(data.displayed_targets, data.total_targets);
+            }
             
             updateStats(data.nodes.length, data.edges.length);
             
@@ -432,6 +460,16 @@
              // initGraph(); // REMOVED - Manual trigger only
         });
 
+        // Max Nodes Slider
+        const maxNodesSlider = document.getElementById('maxNodesSlider');
+        const maxNodesValue = document.getElementById('maxNodesValue');
+        if (maxNodesSlider) {
+            maxNodesSlider.addEventListener('input', (e) => {
+                config.maxNodes = parseInt(e.target.value);
+                if (maxNodesValue) maxNodesValue.innerText = config.maxNodes;
+            });
+        }
+
         // Refresh
         document.getElementById('refreshBtn').addEventListener('click', () => {
             if(cy) cy.destroy();
@@ -464,6 +502,55 @@
              // Ideally backend should match UI filters.
              // For now, let's just trigger download.
              window.open(url, '_blank');
+        });
+        
+        // Server-side full graph render
+        document.getElementById('serverRenderBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('serverRenderBtn');
+            const text = document.getElementById('serverRenderText');
+            const icon = document.getElementById('serverRenderIcon');
+            const spinner = document.getElementById('serverRenderSpinner');
+            
+            // Show loading state
+            btn.disabled = true;
+            text.innerText = 'Rendering... Please wait';
+            icon.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`/api/visualizations/network/render-image?filter_online=${config.availability}`);
+                
+                if (!response.ok) {
+                    throw new Error('Render failed');
+                }
+                
+                // Download the image
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `network_graph_${new Date().toISOString().slice(0,10)}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                text.innerText = 'Download Complete!';
+                setTimeout(() => {
+                    text.innerText = 'Generate Full Graph Image';
+                }, 2000);
+                
+            } catch (e) {
+                console.error('Server render failed:', e);
+                text.innerText = 'Error - Try Again';
+                setTimeout(() => {
+                    text.innerText = 'Generate Full Graph Image';
+                }, 3000);
+            } finally {
+                btn.disabled = false;
+                icon.classList.remove('hidden');
+                spinner.classList.add('hidden');
+            }
         });
     }
 
@@ -560,6 +647,28 @@
     
     function showEmptyState() {
           document.getElementById('loading').innerHTML = '<div class="text-slate-400 text-center">No data found in scope.<br>Try adjusting filters or scan more targets.</div>';
+    }
+    
+    function showTruncationWarning(displayed, total) {
+        // Create or show warning element
+        let warning = document.getElementById('truncationWarning');
+        if (!warning) {
+            warning = document.createElement('div');
+            warning.id = 'truncationWarning';
+            warning.className = 'absolute top-4 right-4 bg-amber-900/90 border border-amber-600 rounded-lg p-3 text-xs text-amber-200 max-w-xs z-20 backdrop-blur';
+            document.querySelector('.flex-1.bg-black').appendChild(warning);
+        }
+        warning.innerHTML = `
+            <div class="font-bold text-amber-400 mb-1">⚠️ Data Limited</div>
+            <div>Showing ${displayed.toLocaleString()} of ${total.toLocaleString()} targets.</div>
+            <div class="mt-1 text-amber-300/70">Increase "Max Targets" slider to show more (may slow down rendering).</div>
+        `;
+        warning.style.display = 'block';
+    }
+    
+    function hideTruncationWarning() {
+        const warning = document.getElementById('truncationWarning');
+        if (warning) warning.style.display = 'none';
     }
 
 </script>
