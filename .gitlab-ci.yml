@@ -36,7 +36,7 @@ build_images:
     # We export variables needed for docker-compose.prod.yml substitution
     - export IMAGE_YADS=$IMAGE_YADS
     - export POSTGRES_PASSWORD=dummy_build_pass # Only needed for config valid check if referenced, but 'build' typically ignores values unless used in build args
-    
+
     - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml build yads-api
     - docker compose -p yads-prod -f docker-compose.prod.yml -f docker-compose.build.yml push yads-api
 
@@ -67,6 +67,7 @@ deploy_to_portainer:
   variables:
     COMPOSE_FILE_PATH: "docker-compose.prod.yml"
     PORTAINER_STACK_TYPE: "2" # 1=Swarm, 2=Standalone/Compose
+    STACK_NAME: "yads"
 
 # --- CLEANUP STAGE ---
 cleanup:
@@ -74,6 +75,3 @@ cleanup:
   script:
     - docker system prune -af --volumes || true
   when: always
-
-
-
