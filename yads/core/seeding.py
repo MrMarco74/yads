@@ -400,15 +400,35 @@ def seed_changelog():
             )
             session.add(entry_1132)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.13.3").first():
+            entry_1133 = ChangelogEntry(
+                title="YADS v1.13.3: Critical Template Fix",
+                version="1.13.3",
+                content="""
+                <h3>🐛 Critical Bug Fixes</h3>
+                <ul>
+                    <li><strong>Target Detail Page:</strong> Fixed 'dict object has no attribute response_headers' error that caused 500 errors when viewing target details.</li>
+                    <li><strong>HTTP Traffic Modal:</strong> Added null checks for missing request_headers and response_headers data in the HTTP traffic display.</li>
+                    <li><strong>Exception Handling:</strong> Improved error logging with full tracebacks for better debugging of template rendering issues.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li><strong>Template Safety:</strong> Enhanced Jinja2 template robustness with defensive null checks for optional dictionary fields.</li>
+                    <li><strong>Error Visibility:</strong> Added generic exception handler to capture and log unhandled exceptions with complete stack traces.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1133)
+
         session.commit()
         print("Changelog seeded successfully.")
 
 def seed_notifications():
     with Session(engine) as session:
-        if not session.query(Notification).where(Notification.title == "YADS v1.13.2 Update").first():
+        if not session.query(Notification).where(Notification.title == "YADS v1.13.3 Update").first():
             note = Notification(
-                title="YADS v1.13.2 Update",
-                text="The latest update v1.13.2 is now live! This release adds per-tenant queue isolation, network graph performance optimizations, and server-side graph rendering for large datasets. Check 'Recent Changes' for details.",
+                title="YADS v1.13.3 Update",
+                text="Critical bug fix release v1.13.3 is now live! This release fixes the target detail page error and improves template error handling. Check 'Recent Changes' for details.",
                 type="update",
                 color="purple",
                 icon="rocket"
