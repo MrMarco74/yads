@@ -105,7 +105,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
     if scan_types is None:
         # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner", "api_discovery", "form_discovery"]
+        scan_types = ["dns_cleanup", "subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner", "api_discovery", "form_discovery"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
@@ -284,6 +284,33 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                          session.commit()
                 except Exception as e:
                     logger.error(f"[Worker] Error in DNS Record Scanner: {e}")
+                    session.rollback()
+
+            # 1c. Run DNS Cleanup Scanner (Archive dead targets)
+            if "dns_cleanup" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Checking DNS health..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.dns_cleanup_scanner import DNSCleanupScanner
+                    cleanup_scan = DNSCleanupScanner(db_session=session)
+                    logger.info(f"[Worker] Running {cleanup_scan.module_name}...")
+                    
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {cleanup_scan.module_name} for {domain}")
+                        result = cleanup_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                         result.log_content = sanitize_null_bytes(captured_logs)
+                         session.add(result)
+                         session.commit()
+                         
+                except Exception as e:
+                    logger.error(f"[Worker] Error in DNS Cleanup Scanner: {e}")
                     session.rollback()
 
             # 2. Run Web Scanner
@@ -863,9 +890,13 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                                  
                                  # Queue Scan (Conditional)
                                  if auto_queue_enabled:
-                                     celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain, scan_types])
+                                     # FIX: Only queue new subdomains with dns_scanner to prevent recursive explosion
+                                     # User request: "new targets, which have been added during the subdomain scan, 
+                                     # should only conduct the scan type DNS Records (Simple)"
+                                     subdomain_scan_types = ['dns_scanner']
+                                     celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id])
                                      queued_count += 1
-                                     logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {scan_types}")
+                                     logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {subdomain_scan_types}")
                                  else:
                                      logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
                                  

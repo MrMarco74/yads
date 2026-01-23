@@ -128,6 +128,26 @@
     <div class="container">
 
         <div class="timeline">
+            <!-- Version 1.13.3 -->
+            <div class="change-entry">
+                <span class="version-badge">v1.13.3</span>
+                <div class="change-card">
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Kritischer Template-Fix</h2>
+                    
+                    <h3>🐛 Kritische Fehlerbehebungen</h3>
+                    <ul>
+                        <li><strong>Target Detail Seite:</strong> Fehler 'dict object has no attribute response_headers' behoben, der 500-Fehler beim Anzeigen von Target-Details verursachte.</li>
+                        <li><strong>HTTP Traffic Modal:</strong> Null-Checks für fehlende request_headers und response_headers Daten hinzugefügt.</li>
+                        <li><strong>Exception Handling:</strong> Verbesserte Fehlerprotokollierung mit vollständigen Tracebacks für besseres Debugging von Template-Rendering-Problemen.</li>
+                    </ul>
+                    <h3>🔧 Technische Verbesserungen</h3>
+                    <ul>
+                        <li><strong>Template-Sicherheit:</strong> Verbesserte Jinja2-Template-Robustheit mit defensiven Null-Checks für optionale Dictionary-Felder.</li>
+                        <li><strong>Fehler-Sichtbarkeit:</strong> Generischer Exception-Handler hinzugefügt, um unbehandelte Exceptions mit vollständigen Stack-Traces zu erfassen.</li>
+                    </ul>
+                </div>
+            </div>
+
             <!-- Version 1.13.2 -->
             <div class="change-entry">
                 <span class="version-badge">v1.13.2</span>

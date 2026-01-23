@@ -253,7 +253,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -281,6 +281,7 @@ app.include_router(cert_timeline.router)
 app.include_router(asr.router)
 app.include_router(cloud_assets.router)
 app.include_router(search.router)
+app.include_router(archived.router)
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
@@ -351,7 +352,7 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
     final_types = [t for t in scan_types_selected if t in valid_types]
     
     if "full_scan" in final_types:
@@ -616,6 +617,43 @@ async def bulk_delete_targets(
         
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
+@app.post("/targets/bulk/archive", response_class=HTMLResponse)
+async def bulk_archive_targets(
+    target_ids: List[int] = Form(...),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+):
+    """
+    Archives multiple targets.
+    """
+    if not target_ids:
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+
+    ids_to_archive = set(target_ids)
+    
+    # Verify ownership
+    owned_targets = session.exec(
+        select(Target).where(
+            Target.id.in_(ids_to_archive), 
+            Target.tenant_id == user.tenant_id,
+            Target.is_archived == False
+        )
+    ).all()
+    
+    count = 0
+    from datetime import datetime
+    for target in owned_targets:
+        target.is_archived = True
+        target.archived_at = datetime.utcnow()
+        target.archived_reason = "manual"
+        session.add(target)
+        count += 1
+        
+    session.commit()
+    
+    msg = f"Archived+{count}+targets"
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
 @app.post("/targets/{target_id}/scan")
 async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))):
     # Tenant Scope Check
@@ -628,7 +666,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
     selected_types = [t for t in scan_types if t in valid_types]
     
     if "full_scan" in selected_types:
@@ -675,7 +713,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
         logger.warning(f"Dashboard update check failed: {e}")
 
     # Calculate stats (Tenant Scoped)
-    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
+    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False)).one()
     
     # Total scans is bit harder to filter if scanresult doesn't have tenant_id. 
     # We have to join.
@@ -687,7 +725,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     offset = 0
     
     # Fetch Paginated Targets (Tenant Scoped)
-    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
     
     # Fetch Active Scans (Tenant Scoped)
     active_scans = session.exec(select(Target).where(Target.scan_status == "running", Target.tenant_id == user.tenant_id)).all()
@@ -929,7 +967,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
 @app.get("/dashboard/stats", response_class=HTMLResponse)
 async def dashboard_stats(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
     """HTMX endpoint for auto-updating stats"""
-    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
+    total_targets = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False)).one()
     total_scans_count = session.exec(select(func.count(ScanResult.id)).join(Target).where(Target.tenant_id == user.tenant_id)).one()
     
     # Queue Stats
@@ -1031,10 +1069,10 @@ async def dashboard_targets(request: Request, page: int = 1, limit: int = 9, ses
     Returns just the table rows/grid.
     """
     offset = (page - 1) * limit
-    total_count = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id)).one()
+    total_count = session.exec(select(func.count()).select_from(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False)).one()
     
     # Fetch Paginated (Tenant Scoped)
-    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
+    targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False).order_by(Target.created_at.desc()).offset(offset).limit(limit)).all()
     
     total_pages = (total_count + limit - 1) // limit
     
@@ -1300,6 +1338,7 @@ async def view_target_table(
     # New: Sorting & Scope
     filter_scope: str = "all", # "all", "external", "internal"
     filter_root_domain: Optional[str] = None, # For the dedicated root filter
+    filter_archived: str = "no", # "yes", "no", "only"
     
     session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user)
@@ -1323,6 +1362,13 @@ async def view_target_table(
 
     # Base Query (Tenant Scoped)
     query = select(Target).where(Target.tenant_id == user.tenant_id)
+
+    # -- Filter: Archived --
+    if filter_archived == "no":
+        query = query.where(Target.is_archived == False)
+    elif filter_archived == "only":
+        query = query.where(Target.is_archived == True)
+    # else filter_archived == "yes" -> show all
     
     # -- Filter: Domain (Wildcard) --
     if filter_domain:
@@ -4257,12 +4303,21 @@ async def view_network_graph(request: Request, session: Session = Depends(get_se
 @app.get("/api/visualizations/network/render-image")
 async def render_network_graph_image(
     filter_online: str = "all",
+    include_labels: bool = True,
+    include_edge_labels: bool = True,
+    max_label_length: int = 25,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user)
 ):
     """
     Server-side rendering of network graph as a static PNG image.
     Handles large graphs (100k+ nodes) that can't be rendered in browser.
+
+    Args:
+        filter_online: Filter targets by online status
+        include_labels: Whether to include node labels (DNS/Web names)
+        include_edge_labels: Whether to include edge labels (connection types)
+        max_label_length: Maximum length for labels before truncation
     """
     import networkx as nx
     import numpy as np
@@ -4271,27 +4326,28 @@ async def render_network_graph_image(
     import matplotlib.pyplot as plt
     from io import BytesIO
     from datetime import datetime
-    
+
     logger.info(f"[GraphRender] Starting server-side render for tenant {user.tenant_id}")
-    
+
     # Filter by user's tenant
     if user.role == "admin" and not user.tenant_id:
         query = select(Target)
     else:
         query = select(Target).where(Target.tenant_id == user.tenant_id)
-    
+
     targets = session.exec(query).all()
     target_ids = [t.id for t in targets]
     target_map = {t.id: t.domain for t in targets}
-    
+
     logger.info(f"[GraphRender] Processing {len(targets)} targets...")
-    
+
     # Build NetworkX graph
     G = nx.DiGraph()
-    
-    # Add target nodes
+
+    # Add target nodes with full labels
     for t in targets:
-        G.add_node(t.domain, type='domain', label=t.domain)
+        display_label = t.domain if len(t.domain) <= max_label_length else t.domain[:max_label_length-3] + "..."
+        G.add_node(t.domain, type='domain', label=t.domain, display_label=display_label)
     
     # Fetch scan results for edges
     if target_ids:
@@ -4313,28 +4369,30 @@ async def render_network_graph_image(
             if not res.data or t_id not in target_map:
                 continue
             source = target_map[t_id]
-            
+
             if mod == 'subdomain_scanner':
                 for sub_entry in res.data.get("subdomains", [])[:50]:  # Limit per target
                     sub = sub_entry.get("subdomain")
                     if sub and sub != source:
-                        G.add_node(sub, type='subdomain', label=sub)
-                        G.add_edge(source, sub)
-            
+                        display_label = sub if len(sub) <= max_label_length else sub[:max_label_length-3] + "..."
+                        G.add_node(sub, type='subdomain', label=sub, display_label=display_label)
+                        G.add_edge(source, sub, label='subdomain', connection_type='subdomain')
+
             elif mod == 'infrastructure_scanner':
                 ip = res.data.get("ip")
                 if ip:
-                    G.add_node(ip, type='ip', label=ip)
-                    G.add_edge(source, ip)
-            
+                    G.add_node(ip, type='ip', label=ip, display_label=ip)
+                    G.add_edge(source, ip, label='resolves_to', connection_type='resolves_to')
+
             elif mod == 'web_analyzer':
                 chain = res.data.get("redirect_chain", [])
                 prev = source
                 for hop in chain[:5]:  # Limit chain depth
                     hop_clean = hop.replace("https://", "").replace("http://", "").split("/")[0]
                     if hop_clean and hop_clean != prev:
-                        G.add_node(hop_clean, type='redirect', label=hop_clean)
-                        G.add_edge(prev, hop_clean)
+                        display_label = hop_clean if len(hop_clean) <= max_label_length else hop_clean[:max_label_length-3] + "..."
+                        G.add_node(hop_clean, type='redirect', label=hop_clean, display_label=display_label)
+                        G.add_edge(prev, hop_clean, label='redirects_to', connection_type='redirects_to')
                         prev = hop_clean
     
     logger.info(f"[GraphRender] Graph has {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
@@ -4376,20 +4434,77 @@ async def render_network_graph_image(
             sizes.append(20)
     
     logger.info(f"[GraphRender] Drawing graph...")
-    
-    # Draw
+
+    # Draw nodes
     nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=sizes, ax=ax, alpha=0.9)
+
+    # Draw edges
     nx.draw_networkx_edges(G, pos, edge_color='#475569', alpha=0.3, arrows=True, ax=ax, arrowsize=5)
-    
-    # Only draw labels for smaller graphs
-    if node_count < 500:
-        nx.draw_networkx_labels(G, pos, font_size=6, font_color='#94a3b8', ax=ax)
-    
+
+    # Draw node labels (DNS names, Web names)
+    if include_labels:
+        # Adaptive font size based on node count
+        if node_count < 100:
+            label_font_size = 8
+        elif node_count < 500:
+            label_font_size = 6
+        elif node_count < 2000:
+            label_font_size = 4
+        else:
+            label_font_size = 3
+
+        # Use display_label for better readability
+        display_labels = {node: G.nodes[node].get('display_label', node) for node in G.nodes()}
+
+        nx.draw_networkx_labels(
+            G, pos,
+            labels=display_labels,
+            font_size=label_font_size,
+            font_color='#94a3b8',
+            font_weight='normal',
+            ax=ax,
+            verticalalignment='bottom',
+            horizontalalignment='center'
+        )
+
+    # Draw edge labels (Connection names: subdomain, resolves_to, redirects_to, etc.)
+    if include_edge_labels and node_count < 1000:  # Only for manageable graph sizes
+        # Adaptive font size for edge labels
+        if node_count < 100:
+            edge_font_size = 6
+        elif node_count < 500:
+            edge_font_size = 5
+        else:
+            edge_font_size = 4
+
+        edge_labels = {(u, v): data.get('label', '') for u, v, data in G.edges(data=True)}
+
+        nx.draw_networkx_edge_labels(
+            G, pos,
+            edge_labels=edge_labels,
+            font_size=edge_font_size,
+            font_color='#64748b',
+            font_weight='light',
+            ax=ax,
+            alpha=0.7,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#0f172a', edgecolor='none', alpha=0.7)
+        )
+
     ax.axis('off')
-    
-    # Add watermark/info
-    fig.text(0.02, 0.02, f"YADS Network Graph | {datetime.now().strftime('%Y-%m-%d %H:%M')} | {node_count} nodes", 
-             fontsize=10, color='#64748b', ha='left')
+
+    # Add watermark/info with legend
+    info_text = f"YADS Network Graph | {datetime.now().strftime('%Y-%m-%d %H:%M')} | {node_count} nodes, {G.number_of_edges()} edges"
+    fig.text(0.02, 0.02, info_text, fontsize=10, color='#64748b', ha='left')
+
+    # Add legend for node types
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='#4f46e5', label='Domain'),
+        Patch(facecolor='#0ea5e9', label='Subdomain'),
+        Patch(facecolor='#10b981', label='IP Address'),
+        Patch(facecolor='#8b5cf6', label='Redirect')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', framealpha=0.8, facecolor='#1e293b', edgecolor='#475569', labelcolor='#94a3b8')
     
     # Save to buffer
     buf = BytesIO()

@@ -47,6 +47,11 @@ class Target(SQLModel, table=True):
     scan_status: str = Field(default="idle") # idle, running, failed
     scan_progress: Optional[str] = Field(default=None) # e.g. "Running DNS Scanner..."
     
+    # Archiving (for DNS cleanup)
+    is_archived: bool = Field(default=False, index=True)
+    archived_at: Optional[datetime] = None
+    archived_reason: Optional[str] = None  # "dns_dead", "manual", "out_of_scope"
+    
     # Tagging
     tags: List[str] = Field(default=[], sa_column=Column(JSONB))
     
