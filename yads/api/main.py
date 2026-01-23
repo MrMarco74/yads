@@ -311,6 +311,26 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code
     )
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    logger.error(f"Unhandled exception at {request.url}: {exc}\n{tb}")
+    
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return templates.TemplateResponse("error.html", {
+            "request": request, 
+            "status_code": 500,
+            "detail": f"Internal Server Error: {str(exc)}",
+            "user": None
+        }, status_code=500)
+    
+    return JSONResponse(
+        {"detail": "Internal Server Error", "error": str(exc)}, 
+        status_code=500
+    )
+
 
 # -- UI Routes --
 

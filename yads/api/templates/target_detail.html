@@ -1154,17 +1154,25 @@
                                                                 <div>
                                                                     <div class="text-[10px] uppercase text-gray-500 font-bold mb-1">Request Headers</div>
                                                                     <div class="text-gray-400 break-words bg-gray-900 p-2 rounded">
+                                                                        {% if entry.request_headers %}
                                                                         {% for k,v in entry.request_headers.items() %}
                                                                             <div><span class="text-indigo-400">{{ k }}:</span> {{ v }}</div>
                                                                         {% endfor %}
+                                                                        {% else %}
+                                                                        <span class="text-gray-500 italic">N/A</span>
+                                                                        {% endif %}
                                                                     </div>
                                                                 </div>
                                                                 <div>
                                                                     <div class="text-[10px] uppercase text-gray-500 font-bold mb-1">Response Headers</div>
                                                                     <div class="text-gray-400 break-words bg-gray-900 p-2 rounded">
+                                                                        {% if entry.response_headers %}
                                                                          {% for k,v in entry.response_headers.items() %}
                                                                             <div><span class="text-emerald-400">{{ k }}:</span> {{ v }}</div>
                                                                         {% endfor %}
+                                                                        {% else %}
+                                                                        <span class="text-gray-500 italic">N/A</span>
+                                                                        {% endif %}
                                                                     </div>
                                                                 </div>
                                                             </div>
