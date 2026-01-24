@@ -27,12 +27,13 @@ class ChangelogManager:
         """Initialize changelog manager"""
         self.changelog_data: Optional[Dict] = None
 
-    def collect_interactive(self, version: str) -> Dict:
+    def collect_interactive(self, version: str, interactive: bool = True) -> Dict:
         """
-        Collect changelog entries interactively.
+        Collect changelog entries.
 
         Args:
             version: Version string for this release
+            interactive: If False, use default title and empty sections.
 
         Returns:
             Dictionary with changelog data
@@ -41,46 +42,53 @@ class ChangelogManager:
         print(f"  Changelog Collection for v{version}")
         print(f"{'='*60}\n")
 
-        # Collect release title
-        title = input("Release title (e.g., 'Performance Improvements'): ").strip()
-        if not title:
+        if not interactive:
+            print("Non-interactive mode: using defaults.")
             title = f"Release {version}"
+            sections = []
+        else:
+            # Collect release title
+            title = input("Release title (e.g., 'Performance Improvements'): ").strip()
+            if not title:
+                title = f"Release {version}"
+            
+            # (Rest of interactive collection)
 
-        # Collect sections
-        sections = []
+            # Collect sections
+            sections = []
 
-        print("\n--- Available sections ---")
-        for idx, (key, label) in enumerate(self.SECTION_EMOJIS.items(), 1):
-            print(f"{idx}. {label}")
-        print("0. Done adding sections\n")
+            print("\n--- Available sections ---")
+            for idx, (key, label) in enumerate(self.SECTION_EMOJIS.items(), 1):
+                print(f"{idx}. {label}")
+            print("0. Done adding sections\n")
 
-        while True:
-            section_choice = input("Select section (number) or 0 when done: ").strip()
+            while True:
+                section_choice = input("Select section (number) or 0 when done: ").strip()
 
-            if section_choice == '0':
-                break
+                if section_choice == '0':
+                    break
 
-            try:
-                section_idx = int(section_choice) - 1
-                section_keys = list(self.SECTION_EMOJIS.keys())
+                try:
+                    section_idx = int(section_choice) - 1
+                    section_keys = list(self.SECTION_EMOJIS.keys())
 
-                if 0 <= section_idx < len(section_keys):
-                    section_key = section_keys[section_idx]
-                    section_name = self.SECTION_EMOJIS[section_key]
+                    if 0 <= section_idx < len(section_keys):
+                        section_key = section_keys[section_idx]
+                        section_name = self.SECTION_EMOJIS[section_key]
 
-                    # Collect items for this section
-                    items = self._collect_section_items(section_name)
+                        # Collect items for this section
+                        items = self._collect_section_items(section_name)
 
-                    if items:
-                        sections.append({
-                            'key': section_key,
-                            'name': section_name,
-                            'items': items
-                        })
-                else:
-                    print("Invalid section number. Try again.")
-            except ValueError:
-                print("Please enter a number.")
+                        if items:
+                            sections.append({
+                                'key': section_key,
+                                'name': section_name,
+                                'items': items
+                            })
+                    else:
+                        print("Invalid section number. Try again.")
+                except ValueError:
+                    print("Please enter a number.")
 
         if not sections:
             print("\nWarning: No changelog sections added!")
@@ -176,13 +184,14 @@ sections:
 
         return self.changelog_data
 
-    def generate_python_code(self, changelog_data: Dict, language: str = 'en') -> str:
+    def generate_python_code(self, changelog_data: Dict, language: str = 'en', checksum: Optional[str] = None) -> str:
         """
         Generate Python code for seeding.py ChangelogEntry.
 
         Args:
             changelog_data: Changelog data dictionary
             language: 'en' or 'de'
+            checksum: Optional SHA256 checksum
 
         Returns:
             Python code string
@@ -204,6 +213,9 @@ sections:
                 item_escaped = item.replace('"', '\\"')
                 html_parts.append(f'            <li>{item_escaped}</li>')
             html_parts.append("        </ul>")
+
+        if checksum:
+            html_parts.append(f'<p style=\\\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\\\">SHA256: {checksum}</p>')
 
         html_content = '\n'.join(html_parts)
 
@@ -270,12 +282,13 @@ sections:
 
         return code
 
-    def generate_html(self, changelog_data: Dict) -> str:
+    def generate_html(self, changelog_data: Dict, checksum: Optional[str] = None) -> str:
         """
         Generate HTML for changes.html.
 
         Args:
             changelog_data: Changelog data dictionary
+            checksum: Optional SHA256 checksum
 
         Returns:
             HTML string
@@ -301,6 +314,9 @@ sections:
             for item in items:
                 html_parts.append(f'                    <li>{item}</li>')
             html_parts.append('                </ul>')
+
+        if checksum:
+            html_parts.append(f'                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: {checksum}</p>')
 
         html_parts.extend([
             '            </div>',

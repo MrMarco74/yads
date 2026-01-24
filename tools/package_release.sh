@@ -170,7 +170,12 @@ sed -i "s/yads_v[0-9.]*_customer_pkg.zip/${RELEASE_NAME}.zip/g" yads-homepage/en
 sed -i "s/Download v[0-9.]* (.zip)/Download v${VERSION} (.zip)/g" yads-homepage/en/support.html
 sed -i "s/SHA256:<\/strong> [a-f0-9]*/SHA256:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
 
-echo -e "Homepage updated with version ${VERSION} and new hash."
+# Update placehoders in Changelog & Seeding
+sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads/core/seeding.py
+sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/de/changes.html
+sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/en/changes.html
+
+echo -e "Homepage and changelogs updated with version ${VERSION} and current hash."
 
 # 9. Generate version.json for Update Checker
 echo -e "${BLUE}>> Generating version.json for Update Checker...${NC}"

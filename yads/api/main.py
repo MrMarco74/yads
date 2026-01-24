@@ -730,6 +730,15 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
     # Fetch Active Scans (Tenant Scoped)
     active_scans = session.exec(select(Target).where(Target.scan_status == "running", Target.tenant_id == user.tenant_id)).all()
     
+    # Calculate Dead DNS Count
+    dns_dead_count = session.exec(
+        select(func.count()).select_from(Target).where(
+            Target.tenant_id == user.tenant_id, 
+            Target.is_archived == True, 
+            Target.archived_reason == "dns_dead"
+        )
+    ).one()
+    
     total_pages = (total_targets + limit - 1) // limit
     
     # Calculate Last Scan for each target per module
@@ -947,7 +956,8 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             "queue_active": queue_active,
             "compliance": compliance_stats,
             "security_score": avg_security_score,
-            "security_grade": avg_grade
+            "security_grade": avg_grade,
+            "dns_dead_count": dns_dead_count
         },
         "pagination": {
         },
@@ -1228,7 +1238,7 @@ async def get_scan_status(target_id: int):
     # Check Redis for live status first
     status_msg = r.get(f"scan:status:{target_id}")
     if status_msg:
-        return {"status": status_msg.decode("utf-8")}
+        return {"status": status_msg}
         
     # Fallback to DB if no live status (e.g. idle or finished)
     with Session(engine) as session:
@@ -1265,7 +1275,7 @@ async def get_scan_logs(target_id: int, session: Session = Depends(get_session),
             entry = json.loads(l)
             parsed_logs.append(entry)
         except:
-            parsed_logs.append({"msg": l.decode('utf-8')})
+            parsed_logs.append({"msg": l})
             
     return {"logs": parsed_logs}
 
@@ -1294,7 +1304,7 @@ async def component_log_lines(request: Request, target_id: int):
             entry = json.loads(l)
             parsed_logs.append(entry)
         except:
-            parsed_logs.append({"msg": l.decode('utf-8'), "ts": "", "level": "INFO"})
+            parsed_logs.append({"msg": l, "ts": "", "level": "INFO"})
             
     return templates.TemplateResponse("_log_viewer_lines.html", {
         "request": request, 

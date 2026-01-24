@@ -30,6 +30,6 @@ networkx
 matplotlib
 
 # Release automation dependencies
-deepl>=1.15.0
+
 pyyaml>=6.0
 rich>=13.7.0

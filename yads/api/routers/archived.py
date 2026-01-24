@@ -3,7 +3,7 @@ Router for Archived Targets report and management.
 """
 
 from fastapi import APIRouter, Depends, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select, func
 from yads.database import get_session
 from yads.models import Target, User
@@ -63,8 +63,10 @@ async def restore_target(
 
 @router.post("/cleanup-scan")
 async def trigger_cleanup_scan(
+    request: Request,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user_html)
+    user: User = Depends(get_current_user_html),
+    next: str = "/reports/archived"
 ):
     """Trigger a cleanup scan for all targets in the tenant"""
     from yads.worker import celery_app
@@ -80,4 +82,28 @@ async def trigger_cleanup_scan(
     for t in targets:
         celery_app.send_task("yads.worker.run_all_scans", args=[t.id, t.domain, ["dns_cleanup"], user.tenant_id])
         
-    return {"status": "success", "message": f"Queued cleanup scan for {len(targets)} targets."}
+    return RedirectResponse(url=f"{next}?msg=Cleanup scan queued for {len(targets)} targets", status_code=303)
+
+@router.post("/bulk-delete-dead")
+async def bulk_delete_dead(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html)
+):
+    """Permanently delete all targets archived due to dead DNS"""
+    dead_targets = session.exec(
+        select(Target).where(
+            Target.tenant_id == user.tenant_id,
+            Target.is_archived == True,
+            Target.archived_reason == "dns_dead"
+        )
+    ).all()
+    
+    count = 0
+    for t in dead_targets:
+        session.delete(t)
+        count += 1
+        
+    session.commit()
+    
+    # Redirect back to archived list so HTMX refreshes the page
+    return RedirectResponse(url=f"/reports/archived?msg=Deleted {count} dead DNS targets", status_code=303)

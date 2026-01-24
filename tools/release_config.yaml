@@ -25,8 +25,8 @@ upload:
 
 # Translation settings
 translation:
-  service: deepl  # 'deepl', 'google', or 'manual'
-  api_key: ${DEEPL_API_KEY}  # From environment variable
+  service: gemini  # 'gemini' or 'manual'
+  api_key: ${GEMINI_API_KEY}  # From environment variable
   source_lang: EN
   target_lang: DE
 

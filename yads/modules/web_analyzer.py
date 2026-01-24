@@ -3,6 +3,7 @@ import dns.resolver
 import requests
 from typing import Any, Dict, Optional
 from playwright.sync_api import sync_playwright
+import time
 
 from yads.core.base import BaseScannerModule
 from yads.config import settings
@@ -334,7 +335,7 @@ class WebAnalyzer(BaseScannerModule):
 
         return results
 
-    def _scan_secrets(self, content: str, results: Dict[str, Any]):
+    def _scan_secrets(self, content: str, results: Dict[str, Any], source: str = "Main Page"):
         """
         Scans HTML/JS content for known secret patterns.
         """
@@ -356,14 +357,47 @@ class WebAnalyzer(BaseScannerModule):
                 # No Redaction per user request
                 redacted = full_match
                 
+                # Calculate Line Number
+                line_number = content.count('\n', 0, match.start()) + 1
+                
+                # Context Extraction
+                # Default window
+                start_offset = max(0, match.start() - 100)
+                end_offset = min(len(content), match.end() + 100)
+                
+                # If we have newlines, try to align to full lines for better context in code
+                line_start = content.rfind('\n', 0, match.start())
+                if line_start != -1:
+                    # Look back 2 more lines
+                    l2 = content.rfind('\n', 0, line_start)
+                    if l2 != -1:
+                        l3 = content.rfind('\n', 0, l2)
+                        start_offset = l3 + 1 if l3 != -1 else 0
+                    else:
+                        start_offset = 0
+                
+                line_end = content.find('\n', match.end())
+                if line_end != -1:
+                    # Look forward 2 more lines
+                    l2 = content.find('\n', line_end + 1)
+                    if l2 != -1:
+                        l3 = content.find('\n', l2 + 1)
+                        end_offset = l3 if l3 != -1 else len(content)
+                    else:
+                        end_offset = len(content)
+                
+                context_snippet = content[start_offset:end_offset]
+
                 # Check for uniqueness
-                if not any(s['value'] == redacted for s in results["secrets"]):
+                if not any(s['value'] == redacted and s.get('source') == source for s in results["secrets"]):
                     results["secrets"].append({
                         "type": name,
                         "value": redacted,
-                        "snippet": "..." # Snippets hard in minified JS, keeping concise
+                        "source": source,
+                        "line": line_number,
+                        "context": context_snippet.strip()
                     })
-                    self.logger.warning(f"Potential Secret Found: {name}")
+                    self.logger.warning(f"Potential Secret Found: {name} in {source} at line {line_number}")
 
     def _scan_api_endpoints(self, content: str, results: Dict[str, Any], page=None):
         """
@@ -518,8 +552,7 @@ class WebAnalyzer(BaseScannerModule):
                 results["title"] = page.title()
                 
                 # 0. Secret Scanning
-                self._scan_secrets(content, results)
-                self._scan_secrets(content, results)
+                self._scan_secrets(content, results, source="Main HTML")
                 self._scan_api_endpoints(content, results, page)
                 
                 # 0.1 JS SAST Analysis
@@ -799,7 +832,7 @@ class WebAnalyzer(BaseScannerModule):
                         analyzed_count += 1
                         
                         # 0. Check Secrets in JS Code
-                        self._scan_secrets(content, results)
+                        self._scan_secrets(content, results, source=src)
                         
                         # Check Sinks
                         for name, regex in sinks.items():

@@ -1,37 +1,67 @@
 """
 Translation System
 
-Handles automated translation of changelog entries using DeepL API.
+Handles automated translation of changelog entries using Google Gemini (AI Studio) or Vertex AI (GCP).
 """
 
+import json
+import os
 from typing import Dict, List, Optional
 
 
 class ChangelogTranslator:
-    """Translate changelog entries EN → DE"""
+    """Translate changelog entries EN → DE using Gemini or Vertex AI"""
 
-    def __init__(self, api_key: Optional[str] = None, service: str = 'deepl'):
+    def __init__(self, api_key: Optional[str] = None, service: str = 'gemini', project_id: Optional[str] = None, location: Optional[str] = 'us-central1'):
         """
         Initialize translator.
 
         Args:
-            api_key: API key for translation service
-            service: Translation service ('deepl', 'google', or 'manual')
+            api_key: API key for Gemini (AI Studio)
+            service: Translation service ('gemini', 'vertexai', or 'manual')
+            project_id: GCP project ID (for Vertex AI)
+            location: GCP location (for Vertex AI)
         """
         self.api_key = api_key
         self.service = service
-        self.translator = None
+        self.project_id = project_id
+        self.location = location
+        self.model = None
 
-        if service == 'deepl' and api_key:
-            try:
-                import deepl
-                self.translator = deepl.Translator(api_key)
-            except ImportError:
-                print("⚠️  Warning: deepl package not installed. Install with: pip install deepl")
-                self.service = 'manual'
-            except Exception as e:
-                print(f"⚠️  Warning: DeepL initialization failed: {e}")
-                self.service = 'manual'
+        if service == 'gemini' and api_key:
+            self._initialize_gemini(api_key)
+        elif service == 'vertexai':
+            self._initialize_vertexai(project_id, location)
+
+    def _initialize_gemini(self, api_key: str):
+        """Initialize Google AI Studio Gemini"""
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        except ImportError:
+            print("⚠️  Warning: google-generativeai package not installed. Install with: pip install google-generativeai")
+            self.service = 'manual'
+        except Exception as e:
+            print(f"⚠️  Warning: Gemini initialization failed: {e}")
+            self.service = 'manual'
+
+    def _initialize_vertexai(self, project_id: Optional[str], location: str):
+        """Initialize Google Cloud Vertex AI"""
+        try:
+            import vertexai
+            from vertexai.generative_models import GenerativeModel
+            
+            vertexai.init(project={project_id}, location=location)
+            self.model = GenerativeModel('gemini-1.5-flash')
+            print(f"☁️  Vertex AI initialized (Project: {project_id or 'default'}, Location: {location})")
+        except ImportError:
+            print("⚠️  Warning: google-cloud-aiplatform package not installed. Install with: pip install google-cloud-aiplatform")
+            self.service = 'manual'
+        except Exception as e:
+            print(f"⚠️  Warning: Vertex AI initialization failed: {e}")
+            print("Ensure you have valid GCP credentials (ADC) or are running on a GCP resource.")
+            self.service = 'manual'
 
     def translate_changelog(self, changelog_data: Dict) -> Dict:
         """
@@ -43,16 +73,16 @@ class ChangelogTranslator:
         Returns:
             Changelog data with German text
         """
-        if self.service == 'deepl' and self.translator:
-            return self._translate_with_deepl(changelog_data)
+        if self.service in ['gemini', 'vertexai'] and self.model:
+            return self._translate_automated(changelog_data)
         elif self.service == 'manual':
             return self._translate_manual(changelog_data)
         else:
             raise ValueError(f"Unsupported translation service: {self.service}")
 
-    def _translate_with_deepl(self, changelog_data: Dict) -> Dict:
+    def _translate_automated(self, changelog_data: Dict) -> Dict:
         """
-        Translate using DeepL API.
+        Translate using automated Gemini/Vertex AI API.
 
         Args:
             changelog_data: English changelog data
@@ -61,48 +91,39 @@ class ChangelogTranslator:
             German changelog data
         """
         try:
-            # Translate title
-            title_result = self.translator.translate_text(
-                changelog_data['title'],
-                source_lang="EN",
-                target_lang="DE"
-            )
-            title_de = title_result.text
+            source_name = "Vertex AI" if self.service == 'vertexai' else "Gemini"
+            print(f"🤖 {source_name} is translating...")
+            
+            # Prepare the prompt
+            prompt = f"""
+            Translate the following changelog JSON from English to German.
+            Keep the JSON structure exactly as it is. 
+            Only translate the 'title' and the strings in the 'items' lists.
+            Do NOT translate the emojis or keys.
+            Ensure the tone is professional but concise.
 
-            # Translate sections
-            sections_de = []
-            for section in changelog_data['sections']:
-                items_de = []
+            JSON:
+            {json.dumps(changelog_data, indent=2)}
+            """
 
-                for item in section['items']:
-                    try:
-                        result = self.translator.translate_text(
-                            item,
-                            source_lang="EN",
-                            target_lang="DE"
-                        )
-                        items_de.append(result.text)
-                    except Exception as e:
-                        print(f"⚠️  Translation failed for item: {item}")
-                        print(f"   Error: {e}")
-                        print(f"   Using manual fallback...")
-                        manual_translation = input(f"   DE translation for '{item}': ").strip()
-                        items_de.append(manual_translation or item)
-
-                sections_de.append({
-                    'key': section.get('key', ''),
-                    'name': section['name'],  # Keep emoji unchanged
-                    'items': items_de
-                })
-
-            return {
-                'version': changelog_data['version'],
-                'title': title_de,
-                'sections': sections_de
-            }
+            response = self.model.generate_content(prompt)
+            
+            # Extract JSON from response (handling potential markdown formatting)
+            text = response.text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.endswith("```"):
+                text = text[:-3]
+            
+            translated_data = json.loads(text)
+            
+            if 'sections' not in translated_data or 'title' not in translated_data:
+                raise ValueError("AI returned invalid JSON structure")
+                
+            return translated_data
 
         except Exception as e:
-            print(f"⚠️  DeepL API error: {e}")
+            print(f"⚠️  Automated translation failed: {e}")
             print("Falling back to manual translation...")
             return self._translate_manual(changelog_data)
 
@@ -154,17 +175,12 @@ class ChangelogTranslator:
         Returns:
             True if service is available
         """
-        if self.service == 'deepl' and self.translator:
+        if self.model:
             try:
-                # Try a simple translation
-                result = self.translator.translate_text(
-                    "Hello",
-                    source_lang="EN",
-                    target_lang="DE"
-                )
-                return result.text == "Hallo"
+                response = self.model.generate_content("Say 'OK'")
+                return "OK" in response.text
             except Exception as e:
-                print(f"DeepL connection test failed: {e}")
+                print(f"Connection test failed: {e}")
                 return False
         elif self.service == 'manual':
             return True

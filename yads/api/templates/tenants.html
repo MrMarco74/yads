@@ -27,7 +27,7 @@
                 <label class="block mb-1 text-sm text-gray-400">Tenant Name</label>
                 <input type="text" name="name" placeholder="Acme Corp" required class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
             </div>
-            <button type="submit" class="h-10 px-6 font-bold text-white bg-blue-600 rounded hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/30">Create Tenant</button>
+            <button type="submit" class="h-10 px-6 font-bold text-white bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors border border-slate-600 shadow-lg">Create Tenant</button>
         </form>
     </div>
 
@@ -58,12 +58,12 @@
                         {{ tenant.targets|length }}
                     </td>
                     <td class="px-6 py-4 space-x-2 flex items-center">
-                        <button onclick="openRenameModal({{ tenant.id }}, '{{ tenant.name }}')" class="px-3 py-1 text-xs font-bold text-blue-100 bg-blue-900/50 border border-blue-800 rounded hover:bg-blue-800 transition-colors">Rename</button>
-                        <button onclick="openLicenseModal({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.osint_enabled|lower }}, {{ tenant.osint_quota_max }}, {{ tenant.osint_cost_per_search }})" class="px-3 py-1 text-xs font-bold text-purple-100 bg-purple-900/50 border border-purple-800 rounded hover:bg-purple-800 transition-colors">License</button>
-                        <button onclick="openManageUsers({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.allowed_users|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-teal-100 bg-teal-900/50 border border-teal-800 rounded hover:bg-teal-800 transition-colors">Users</button>
+                        <button onclick="openRenameModal({{ tenant.id }}, '{{ tenant.name }}')" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">Rename</button>
+                        <button onclick="openLicenseModal({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.osint_enabled|lower }}, {{ tenant.osint_quota_max }}, {{ tenant.osint_cost_per_search }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">License</button>
+                        <button onclick="openManageUsers({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.allowed_users|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">Users</button>
                         <form action="/tenants/delete" method="post" class="inline" onsubmit="return confirm('DANGER: This will delete ALL users, targets, and scan results for this tenant. Continue?');">
                             <input type="hidden" name="tenant_id" value="{{ tenant.id }}">
-                            <button class="px-3 py-1 text-xs font-bold text-red-100 bg-red-900/50 border border-red-800 rounded hover:bg-red-800 transition-colors">Delete</button>
+                            <button class="px-3 py-1 text-xs font-bold text-red-300 bg-slate-800 border border-slate-700 rounded hover:bg-red-950 hover:border-red-900 transition-colors">Delete</button>
                         </form>
                     </td>
                 </tr>
@@ -102,7 +102,7 @@
                         Cancel
                     </button>
                     <button type="submit" 
-                            class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5">
+                            class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg border border-slate-600 shadow-lg transition-all">
                         Save Changes
                     </button>
                 </div>
@@ -157,7 +157,7 @@
                         Cancel
                     </button>
                     <button type="submit" 
-                            class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-purple-500/20 transition-all transform hover:-translate-y-0.5">
+                            class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg border border-slate-600 shadow-lg transition-all">
                         Save License
                     </button>
                 </div>
@@ -203,7 +203,7 @@
                         Cancel
                     </button>
                     <button type="submit" 
-                            class="bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-teal-500/20 transition-all transform hover:-translate-y-0.5">
+                            class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg border border-slate-600 shadow-lg transition-all">
                         Save Assignments
                     </button>
                 </div>

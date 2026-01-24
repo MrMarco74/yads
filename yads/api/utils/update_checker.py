@@ -38,8 +38,29 @@ class UpdateService:
             # Use requests (already a dependency)
             response = requests.get(UpdateService.VERSION_URL, timeout=5.0)
             response.raise_for_status()
-            data = response.json()
             
+            try:
+                data = response.json()
+            except json.JSONDecodeError:
+                # If server returns malformed JSON (e.g. unescaped quotes in 'text' field)
+                # We try a simple regex cleanup for the 'text' field
+                import re
+                raw_text = response.text
+                match = re.search(r'("text":\s*")(.*?)("(?:\n|\s)*,)', raw_text, re.DOTALL)
+                if match:
+                    prefix, content, suffix = match.groups()
+                    # Escape internal quotes that aren't already escaped
+                    # We match quotes that are NOT preceded by a backslash
+                    fixed_content = re.sub(r'([^\\])"', r'\1\"', content)
+                    # Also handle the case where a quote is at the very beginning of content
+                    if fixed_content.startswith('"'):
+                        fixed_content = '\\"' + fixed_content[1:]
+                        
+                    fixed_text = raw_text.replace(match.group(0), f'{prefix}{fixed_content}{suffix}')
+                    data = json.loads(fixed_text)
+                else:
+                    raise
+
             # Expected format: {"version": "1.13.0", "text": "New features available!", "url": "https://..."}
             remote_version = data.get("version")
             
