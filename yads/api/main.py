@@ -4326,11 +4326,16 @@ async def export_network_graph(
             color_hex = styles.get('compromised') if data.get('compromised') else styles.get(ctype, styles['default'])
             r, g, b = hex_to_rgb(color_hex)
             
-            # XML Escape
-            label = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+            # Helper for XML Escaping
+            def xml_escape(val):
+                return str(val).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
+
+            # XML Escape Node Data
+            nid_safe = xml_escape(nid)
+            label_safe = xml_escape(label)
             
-            xml_lines.append(f'    <node id="{nid}">')
-            xml_lines.append(f'      <data key="d0">{label}</data>')
+            xml_lines.append(f'    <node id="{nid_safe}">')
+            xml_lines.append(f'      <data key="d0">{label_safe}</data>')
             xml_lines.append(f'      <data key="d1">{ctype}</data>')
             xml_lines.append(f'      <data key="d2">{risk}</data>')
             xml_lines.append(f'      <data key="d3">{is_comp}</data>')
@@ -4347,8 +4352,12 @@ async def export_network_graph(
              lbl = data.get("label", "")
              is_risk = str(data.get("is_risk", False)).lower()
              
-             xml_lines.append(f'    <edge id="e{edge_id}" source="{src}" target="{dst}">')
-             xml_lines.append(f'      <data key="e0">{lbl}</data>')
+             src_safe = xml_escape(src)
+             dst_safe = xml_escape(dst)
+             lbl_safe = xml_escape(lbl)
+             
+             xml_lines.append(f'    <edge id="e{edge_id}" source="{src_safe}" target="{dst_safe}">')
+             xml_lines.append(f'      <data key="e0">{lbl_safe}</data>')
              xml_lines.append(f'      <data key="e1">{is_risk}</data>')
              xml_lines.append('    </edge>')
              edge_id += 1
