@@ -13,13 +13,13 @@ upload:
     port: 22
 
   ftp:
-    host: yads-security.com
+    host: www209.your-server.de
     user: ftpuser
     password: ${YADS_FTP_PASSWORD}  # From environment variable
     port: 21
     tls: true  # Use FTPS (FTP over TLS) - recommended
     verify_ssl: true  # Verify server certificate
-    ca_cert: ~/.yads/server-ca.crt  # Optional: custom CA certificate
+    # ca_cert: ~/.yads/server-ca.crt  # Not needed - DigiCert is system-trusted
 
   paths:
     releases: /var/www/releases

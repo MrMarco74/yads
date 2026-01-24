@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import sys
 import os
 import threading
@@ -101,6 +101,9 @@ class ReleaseGUI:
 
         self.start_btn = ttk.Button(ctrl_row, text="🚀 Run Release Process", command=self._run_release_thread)
         self.start_btn.pack(side=tk.RIGHT, padx=5)
+
+        self.download_btn = ttk.Button(ctrl_row, text="📥 Download Files", command=self._download_release_files)
+        self.download_btn.pack(side=tk.RIGHT, padx=5)
 
         # Log Section
         log_frame = ttk.LabelFrame(frame, text=" Execution Logs ", padding="5")
@@ -227,11 +230,95 @@ class ReleaseGUI:
             pass
         self.root.after(100, self._process_logs)
 
+    def _download_release_files(self):
+        """Download/save release files locally before uploading"""
+        import shutil
+
+        # Ask user for destination folder
+        dest_dir = filedialog.askdirectory(
+            title="Select folder to save release files",
+            initialdir=str(Path.home() / "Downloads")
+        )
+
+        if not dest_dir:
+            return  # User cancelled
+
+        dest_path = Path(dest_dir)
+
+        # Get current version from config.py
+        try:
+            from yads.config import settings
+            version = settings.VERSION
+        except:
+            # Fallback: read from version.json
+            version_file = self.project_root / "releases" / "version.json"
+            if version_file.exists():
+                import json
+                with open(version_file) as f:
+                    version = json.load(f).get("version", "unknown")
+            else:
+                version = "unknown"
+
+        # List of files to download
+        files_to_copy = [
+            f"releases/yads_v{version}_customer_pkg.zip",
+            "releases/version.json",
+            "releases/version_de.json",
+            "yads-homepage/en/support.html",
+            "yads-homepage/en/changes.html",
+            "yads-homepage/en/docs.html",
+            "yads-homepage/de/support.html",
+            "yads-homepage/de/changes.html",
+            "yads-homepage/de/docs.html",
+        ]
+
+        copied = []
+        missing = []
+
+        for file_path in files_to_copy:
+            src = self.project_root / file_path
+            if src.exists():
+                # Preserve directory structure or flatten?
+                # Let's create subdirs to keep it organized
+                rel_dest = dest_path / file_path
+                rel_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, rel_dest)
+                copied.append(file_path)
+            else:
+                missing.append(file_path)
+
+        # Show result
+        msg = f"Downloaded {len(copied)} files to:\n{dest_dir}\n"
+        if missing:
+            msg += f"\nMissing files ({len(missing)}):\n" + "\n".join(f"  - {f}" for f in missing)
+
+        if copied:
+            messagebox.showinfo("Download Complete", msg)
+            self._log(f"\n📥 Downloaded {len(copied)} release files to {dest_dir}\n", "success")
+        else:
+            messagebox.showwarning("No Files", "No release files found to download.\nRun the release process first.")
+
     def _run_release_thread(self):
+        # Safety prompt when not in dry-run mode
+        if not self.dry_run_var.get():
+            result = messagebox.askyesnocancel(
+                "Upload Confirmation",
+                "You are about to upload files to the server.\n\n"
+                "Have you downloaded a local backup first?\n\n"
+                "Yes = Continue with upload\n"
+                "No = Download files first\n"
+                "Cancel = Abort"
+            )
+            if result is None:  # Cancel
+                return
+            elif result is False:  # No - download first
+                self._download_release_files()
+                return
+
         self.log_view.config(state=tk.NORMAL)
         self.log_view.delete(1.0, tk.END)
         self.log_view.config(state=tk.DISABLED)
-        
+
         self.start_btn.config(state=tk.DISABLED)
         thread = threading.Thread(target=self._execute_release, daemon=True)
         thread.start()
