@@ -365,8 +365,8 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
     bind = True # Required for self.retry to work? No, need to change decorator
 
     if scan_types is None:
-        # Default includes 'subdomain_scanner' (heavy) which covers DNS records too.
-        scan_types = ["dns_cleanup", "subdomain_scanner", "web_analyzer", "nuclei_scanner", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "cloud_scanner", "api_discovery", "form_discovery"]
+        # Default now only includes DNS reconnaissance as per user request.
+        scan_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner"]
         
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
