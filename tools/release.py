@@ -63,8 +63,17 @@ class ReleaseOrchestrator:
             api_key=translation_config.get('api_key'),
             service=translation_config.get('service', 'gemini'),
             project_id=translation_config.get('project_id'),
-            location=translation_config.get('location', 'us-central1')
+            location=translation_config.get('location', 'us-central1'),
+            model_name=translation_config.get('model', 'gemini-2.0-flash')
         )
+
+        # Share the AI model with changelog manager for AI-powered changelog generation
+        if self.translator.model:
+            self.changelog_manager.set_ai_model(
+                self.translator.model,
+                self.translator.service
+            )
+            print(f"  ✅ AI changelog generation enabled ({self.translator.service})")
 
         # Initialize uploader
         self.uploader = ReleaseUploader(
@@ -197,7 +206,11 @@ class ReleaseOrchestrator:
             if use_editor:
                 changelog_en = self.changelog_manager.collect_from_editor(new_version_str)
             else:
-                changelog_en = self.changelog_manager.collect_interactive(new_version_str, interactive=interactive)
+                changelog_en = self.changelog_manager.collect_interactive(
+                    new_version_str,
+                    interactive=interactive,
+                    project_root=str(self.project_root)
+                )
 
             # Preview English changelog
             self.changelog_manager.preview_changelog(changelog_en)
@@ -219,7 +232,16 @@ class ReleaseOrchestrator:
                 print("⏭️  Skipping translation in dry-run mode")
                 changelog_de = changelog_en  # Use English as placeholder
             else:
-                changelog_de = self.translator.translate_changelog(changelog_en)
+                changelog_de = self.translator.translate_changelog(changelog_en, interactive=interactive)
+
+                # Check if translation actually happened (if not interactive and AI failed, it's just a copy)
+                if not interactive and self.translator.service == 'manual':
+                    # This means it fell back to manual but manual was skipped
+                    print("\n⚠️  Warning: Automated translation failed and manual input is disabled.")
+                    confirm = input("Proceed with English content for German translation? [y/N]: ").strip().lower()
+                    if confirm != 'y':
+                        print("Aborted: Translation missing.")
+                        return False
 
                 # Preview German changelog
                 print("\n--- German Translation Preview ---\n")
@@ -317,11 +339,17 @@ class ReleaseOrchestrator:
                 print("="*60)
 
                 try:
-                    self.uploader.upload_release(new_version_str, dry_run=False)
+                    success = self.uploader.upload_release(new_version_str, dry_run=False)
+                    if not success:
+                        print("\n❌ Upload failed!")
+                        self.file_updater.rollback()
+                        return False
                 except Exception as e:
-                    print(f"\n⚠️  Upload failed: {e}")
+                    print(f"\n❌ Upload failed: {e}")
                     print(f"\nYou can retry later with:")
                     print(f"  ./tools/release.py upload --version {new_version_str}\n")
+                    self.file_updater.rollback()
+                    return False
             else:
                 print("\n⏭️  Skipping upload (--no-upload)")
 
@@ -331,7 +359,9 @@ class ReleaseOrchestrator:
                 print("  STEP 8: Git Commit & Tag")
                 print("="*60 + "\n")
 
-                self._git_commit_and_tag(new_version_str, changelog_en['title'])
+                if not self._git_commit_and_tag(new_version_str, changelog_en['title'], interactive=interactive):
+                    print("\n❌ Git operations failed!")
+                    return False
             else:
                 print("\n⏭️  Skipping git commit (--no-commit)")
 
@@ -379,7 +409,7 @@ class ReleaseOrchestrator:
             print(f"\n❌ Upload failed: {e}\n")
             return False
 
-    def _git_commit_and_tag(self, version: str, title: str) -> None:
+    def _git_commit_and_tag(self, version: str, title: str, interactive: bool = True) -> bool:
         """
         Create git commit and tag.
 
@@ -389,48 +419,63 @@ class ReleaseOrchestrator:
         """
         commit_message = f"Release v{version}: {title}"
 
-        # Stage all changes
-        subprocess.run(
-            ['git', 'add', '-A'],
-            cwd=self.project_root,
-            check=True
-        )
+        # Subprocess calls
+        try:
+            # Stage all changes
+            subprocess.run(
+                ['git', 'add', '-A'],
+                cwd=self.project_root,
+                check=True
+            )
 
-        # Commit
-        subprocess.run(
-            ['git', 'commit', '-m', commit_message],
-            cwd=self.project_root,
-            check=True
-        )
+            # Commit
+            subprocess.run(
+                ['git', 'commit', '-m', commit_message],
+                cwd=self.project_root,
+                check=True
+            )
 
-        print(f"  ✅ Committed: {commit_message}")
+            print(f"  ✅ Committed: {commit_message}")
 
-        # Create tag
-        tag_name = f"v{version}"
-        subprocess.run(
-            ['git', 'tag', '-a', tag_name, '-m', f"Release {version}"],
-            cwd=self.project_root,
-            check=True
-        )
+            # Create tag
+            tag_name = f"v{version}"
+            subprocess.run(
+                ['git', 'tag', '-a', tag_name, '-m', f"Release {version}"],
+                cwd=self.project_root,
+                check=True
+            )
 
-        print(f"  ✅ Tagged: {tag_name}")
+            print(f"  ✅ Tagged: {tag_name}")
+        except subprocess.CalledProcessError as e:
+            print(f"  ❌ Git error: {e}")
+            return False
 
         # Ask about push
+        if not interactive:
+            print("  ⏭️  Skipping push (non-interactive mode)")
+            return True
+
         push = input("\nPush to remote? [y/N]: ").strip().lower()
         if push == 'y':
-            subprocess.run(
-                ['git', 'push'],
-                cwd=self.project_root,
-                check=True
-            )
-            subprocess.run(
-                ['git', 'push', '--tags'],
-                cwd=self.project_root,
-                check=True
-            )
-            print("  ✅ Pushed to remote")
+            try:
+                subprocess.run(
+                    ['git', 'push'],
+                    cwd=self.project_root,
+                    check=True
+                )
+                subprocess.run(
+                    ['git', 'push', '--tags'],
+                    cwd=self.project_root,
+                    check=True
+                )
+                print("  ✅ Pushed to remote")
+            except subprocess.CalledProcessError as e:
+                print(f"  ❌ Push failed: {e}")
+                return False
         else:
             print("  ⏭️  Skipped push (run 'git push && git push --tags' manually)")
+
+        return True
 
 
 def main():

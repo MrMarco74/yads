@@ -38,6 +38,15 @@ class ReleaseGUI:
         self.root.geometry("850x850")
         self.root.minsize(800, 700)
 
+        # Set window icon
+        icon_path = script_dir / "release_icon.png"
+        if icon_path.exists():
+            try:
+                self.icon = tk.PhotoImage(file=str(icon_path))
+                self.root.iconphoto(True, self.icon)
+            except Exception as e:
+                print(f"Error loading icon: {e}")
+
         self.project_root = script_dir.parent
         self.config_dir = Path.home() / ".yads"
         self.config_file = self.config_dir / "release_gui.yaml"
@@ -149,6 +158,19 @@ class ReleaseGUI:
         self.gcp_location.grid(row=3, column=1, sticky="w", pady=2, padx=10)
         self.gcp_location.insert(0, "us-central1")
 
+        ttk.Label(gcp_frame, text="AI Model:").grid(row=4, column=0, sticky="w", pady=2)
+        self.ai_model = ttk.Combobox(gcp_frame, values=[
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro",
+            "gemini-1.5-pro-latest"
+        ], width=30)
+        self.ai_model.set("gemini-2.0-flash")
+        self.ai_model.grid(row=4, column=1, sticky="w", pady=2, padx=10)
+        ttk.Label(gcp_frame, text="(Used for changelog & translation)", foreground="gray").grid(row=4, column=2, sticky="w")
+
         save_btn = ttk.Button(frame, text="💾 Save Configuration", command=self._save_config)
         save_btn.pack(pady=20)
 
@@ -162,9 +184,9 @@ class ReleaseGUI:
                     self.ftp_path.insert(0, data.get('ftp_path', '/var/www/'))
                     self.ai_service.set(data.get('ai_service', 'gemini'))
                     self.gemini_key.insert(0, data.get('gemini_key', ''))
-                    self.gcp_project.insert(0, data.get('gcp_project', ''))
                     self.gcp_location.delete(0, tk.END)
                     self.gcp_location.insert(0, data.get('gcp_location', 'us-central1'))
+                    self.ai_model.set(data.get('ai_model', 'gemini-2.0-flash'))
             except Exception as e:
                 self._log(f"Error loading config: {e}\n", "error")
 
@@ -177,7 +199,8 @@ class ReleaseGUI:
             'ai_service': self.ai_service.get(),
             'gemini_key': self.gemini_key.get(),
             'gcp_project': self.gcp_project.get(),
-            'gcp_location': self.gcp_location.get()
+            'gcp_location': self.gcp_location.get(),
+            'ai_model': self.ai_model.get()
         }
         try:
             with open(self.config_file, 'w') as f:
@@ -286,8 +309,17 @@ class ReleaseGUI:
                 api_key=self.gemini_key.get() if service == 'gemini' else None,
                 service=service,
                 project_id=self.gcp_project.get() if service == 'vertexai' else None,
-                location=self.gcp_location.get() if service == 'vertexai' else 'us-central1'
+                location=self.gcp_location.get() if service == 'vertexai' else 'us-central1',
+                model_name=self.ai_model.get()
             )
+
+            # Share AI model with changelog manager for AI-powered changelog generation
+            if orchestrator.translator.model:
+                orchestrator.changelog_manager.set_ai_model(
+                    orchestrator.translator.model,
+                    orchestrator.translator.service
+                )
+                print(f"  ✅ AI changelog generation enabled ({orchestrator.translator.service})")
 
             # Re-initialize uploader with the final overridden configuration
             from release_lib.uploader import ReleaseUploader
@@ -313,6 +345,6 @@ class ReleaseGUI:
             self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = tk.Tk(className="yads-release-manager")
     app = ReleaseGUI(root)
     root.mainloop()

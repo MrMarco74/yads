@@ -155,10 +155,10 @@ class ReleaseConfig:
         translation_service = self.get('translation.service')
         if translation_service == 'gemini':
             if not self.get('translation.api_key'):
-                print("⚠️  Warning: Missing translation.api_key for Gemini. Fallback to manual translation enabled.")
+                print("⚠️  Warning: Missing translation.api_key for Gemini. Fallback to manual translation will be used.")
         elif translation_service == 'vertexai':
             if not self.get('translation.project_id'):
-                print("⚠️  Warning: Missing translation.project_id for Vertex AI. Fallback to manual translation enabled.")
+                print("⚠️  Warning: Missing translation.project_id for Vertex AI. Fallback to manual translation will be used.")
 
         if errors:
             raise ValueError(
@@ -208,10 +208,11 @@ upload:
     homepage_en: /var/www/html/en
     homepage_de: /var/www/html/de
 
-# Translation settings
+# Translation settings (also used for AI-powered changelog generation)
 translation:
   service: gemini  # 'gemini', 'vertexai', or 'manual'
   api_key: ${GEMINI_API_KEY}  # For 'gemini' service
+  model: gemini-2.0-flash  # AI model for translation and changelog generation
   # For Vertex AI:
   # project_id: my-gcp-project
   # location: us-central1
