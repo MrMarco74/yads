@@ -209,6 +209,142 @@ class HTTPTraffic(SQLModel, table=True):
     response_headers: dict = Field(default={}, sa_column=Column(JSONB))
     response_body_snippet: Optional[str] = Field(default=None, sa_column=Column(Text))
     duration: float
-    
+
     target: Target = Relationship(back_populates="http_traffic")
+
+
+class ComplianceTrend(SQLModel, table=True):
+    """
+    Stores historical compliance scores for trend analysis by framework.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    framework: str = Field(index=True)  # soc2, gdpr, pci_dss, hipaa, iso27001
+    score: int
+    grade: str
+    passing_controls: int
+    failing_controls: int
+    recorded_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class RemediationTask(SQLModel, table=True):
+    """
+    Tracks remediation tasks for compliance findings.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    target_id: Optional[int] = Field(default=None, foreign_key="target.id", index=True)
+    framework: str
+    control_id: str
+    finding_description: str
+    title: str
+    description: Optional[str] = None
+    priority: str = Field(default="medium")  # critical, high, medium, low
+    status: str = Field(default="open")  # open, in_progress, resolved, wont_fix
+    due_date: Optional[datetime] = None
+    sla_breached: bool = Field(default=False)
+    assignee: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    resolved_at: Optional[datetime] = None
+
+
+class ComplianceTargetStatus(SQLModel, table=True):
+    """
+    Stores per-target compliance status for each framework.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    target_id: int = Field(foreign_key="target.id", index=True)
+    framework: str = Field(index=True)
+    score: int
+    grade: str
+    passing_controls: int
+    failing_controls: int
+    findings: List[dict] = Field(default=[], sa_column=Column(JSONB))
+    last_assessed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ============================================================================
+# Distributed Worker Models
+# ============================================================================
+
+class WorkerNode(SQLModel, table=True):
+    """
+    Represents a distributed worker node in the cluster.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    node_id: str = Field(unique=True, index=True)  # UUID + hostname hash
+    hostname: str
+    ip_address: str
+    is_primary: bool = Field(default=False)  # Auto-registered main worker
+    is_active: bool = Field(default=True)
+    registered_at: datetime = Field(default_factory=datetime.utcnow)
+    last_heartbeat: datetime = Field(default_factory=datetime.utcnow)
+    max_concurrent_tasks: int = Field(default=4)
+    max_network_mbps: float = Field(default=100.0)
+    current_load: float = Field(default=0.0)  # 0-1 percentage
+    current_tasks: int = Field(default=0)
+    auth_token_hash: str  # Hashed registration token
+    status: str = Field(default="pending")  # pending, active, offline, suspended, draining
+
+    # Capabilities (scan types this worker can handle)
+    capabilities: List[str] = Field(default=[], sa_column=Column(JSONB))
+
+    # Metadata
+    version: Optional[str] = None  # YADS version running on worker
+    cpu_count: Optional[int] = None
+    memory_mb: Optional[int] = None
+
+    # Relationships
+    tasks: List["WorkerTask"] = Relationship(back_populates="worker_node")
+
+
+class WorkerTask(SQLModel, table=True):
+    """
+    Tracks individual tasks assigned to workers.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: str = Field(unique=True, index=True)  # Celery task ID
+    worker_node_id: Optional[int] = Field(default=None, foreign_key="workernode.id", index=True)
+    target_id: int = Field(foreign_key="target.id", index=True)
+    tenant_id: Optional[int] = Field(foreign_key="tenant.id", index=True)
+
+    # Timing
+    queued_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    # Status tracking
+    status: str = Field(default="queued")  # queued, assigned, running, completed, failed, cancelled
+    scan_types: List[str] = Field(default=[], sa_column=Column(JSONB))
+    error_message: Optional[str] = None
+
+    # Progress tracking
+    progress_percent: int = Field(default=0)
+    current_module: Optional[str] = None
+
+    # Relationships
+    worker_node: Optional[WorkerNode] = Relationship(back_populates="tasks")
+
+
+class ResourceQuota(SQLModel, table=True):
+    """
+    Defines resource limits at global or per-tenant level.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)  # NULL = global
+
+    # Concurrency limits
+    max_concurrent_scans: int = Field(default=10)
+    max_daily_scans: int = Field(default=1000)
+
+    # Network limits
+    max_network_throughput_mbps: float = Field(default=50.0)
+
+    # Current usage (updated in real-time)
+    current_concurrent_scans: int = Field(default=0)
+    scans_today: int = Field(default=0)
+    last_reset_date: Optional[datetime] = None  # For daily counter reset
+
+    # Priority (higher = more priority in queue)
+    priority: int = Field(default=5)  # 1-10 scale
 

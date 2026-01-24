@@ -446,5 +446,167 @@ def migrate():
         except Exception as e:
             print(f"   Error creating notification: {e}")
 
+        # 24. Create ComplianceTrend Table
+        print(">> Creating compliancetrend table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS compliancetrend (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    framework VARCHAR NOT NULL,
+                    score INTEGER NOT NULL,
+                    grade VARCHAR NOT NULL,
+                    passing_controls INTEGER NOT NULL DEFAULT 0,
+                    failing_controls INTEGER NOT NULL DEFAULT 0,
+                    recorded_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_compliancetrend_tenant_id ON compliancetrend (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_compliancetrend_framework ON compliancetrend (framework);
+                CREATE INDEX IF NOT EXISTS ix_compliancetrend_recorded_at ON compliancetrend (recorded_at);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating compliancetrend table: {e}")
+
+        # 25. Create RemediationTask Table
+        print(">> Creating remediationtask table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS remediationtask (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    target_id INTEGER REFERENCES target(id),
+                    framework VARCHAR NOT NULL,
+                    control_id VARCHAR NOT NULL,
+                    finding_description TEXT NOT NULL,
+                    title VARCHAR NOT NULL,
+                    description TEXT,
+                    priority VARCHAR DEFAULT 'medium',
+                    status VARCHAR DEFAULT 'open',
+                    due_date TIMESTAMP WITHOUT TIME ZONE,
+                    sla_breached BOOLEAN DEFAULT FALSE,
+                    assignee VARCHAR,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    resolved_at TIMESTAMP WITHOUT TIME ZONE
+                );
+                CREATE INDEX IF NOT EXISTS ix_remediationtask_tenant_id ON remediationtask (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_remediationtask_target_id ON remediationtask (target_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating remediationtask table: {e}")
+
+        # 26. Create ComplianceTargetStatus Table
+        print(">> Creating compliancetargetstatus table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS compliancetargetstatus (
+                    id SERIAL PRIMARY KEY,
+                    target_id INTEGER NOT NULL REFERENCES target(id),
+                    framework VARCHAR NOT NULL,
+                    score INTEGER NOT NULL,
+                    grade VARCHAR NOT NULL,
+                    passing_controls INTEGER NOT NULL DEFAULT 0,
+                    failing_controls INTEGER NOT NULL DEFAULT 0,
+                    findings JSONB DEFAULT '[]'::jsonb,
+                    last_assessed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_compliancetargetstatus_target_id ON compliancetargetstatus (target_id);
+                CREATE INDEX IF NOT EXISTS ix_compliancetargetstatus_framework ON compliancetargetstatus (framework);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating compliancetargetstatus table: {e}")
+
+        # 27. Create WorkerNode Table (Distributed Workers)
+        print(">> Creating workernode table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS workernode (
+                    id SERIAL PRIMARY KEY,
+                    node_id VARCHAR NOT NULL UNIQUE,
+                    hostname VARCHAR NOT NULL,
+                    ip_address VARCHAR NOT NULL,
+                    is_primary BOOLEAN DEFAULT FALSE,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    registered_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    last_heartbeat TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    max_concurrent_tasks INTEGER DEFAULT 4,
+                    max_network_mbps FLOAT DEFAULT 100.0,
+                    current_load FLOAT DEFAULT 0.0,
+                    current_tasks INTEGER DEFAULT 0,
+                    auth_token_hash VARCHAR NOT NULL,
+                    status VARCHAR DEFAULT 'pending',
+                    capabilities JSONB DEFAULT '[]'::jsonb,
+                    version VARCHAR,
+                    cpu_count INTEGER,
+                    memory_mb INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS ix_workernode_node_id ON workernode (node_id);
+                CREATE INDEX IF NOT EXISTS ix_workernode_status ON workernode (status);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating workernode table: {e}")
+
+        # 28. Create WorkerTask Table (Distributed Workers)
+        print(">> Creating workertask table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS workertask (
+                    id SERIAL PRIMARY KEY,
+                    task_id VARCHAR NOT NULL UNIQUE,
+                    worker_node_id INTEGER REFERENCES workernode(id),
+                    target_id INTEGER NOT NULL REFERENCES target(id),
+                    tenant_id INTEGER REFERENCES tenant(id),
+                    queued_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    started_at TIMESTAMP WITHOUT TIME ZONE,
+                    completed_at TIMESTAMP WITHOUT TIME ZONE,
+                    status VARCHAR DEFAULT 'queued',
+                    scan_types JSONB DEFAULT '[]'::jsonb,
+                    error_message TEXT,
+                    progress_percent INTEGER DEFAULT 0,
+                    current_module VARCHAR
+                );
+                CREATE INDEX IF NOT EXISTS ix_workertask_task_id ON workertask (task_id);
+                CREATE INDEX IF NOT EXISTS ix_workertask_worker_node_id ON workertask (worker_node_id);
+                CREATE INDEX IF NOT EXISTS ix_workertask_target_id ON workertask (target_id);
+                CREATE INDEX IF NOT EXISTS ix_workertask_tenant_id ON workertask (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_workertask_status ON workertask (status);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating workertask table: {e}")
+
+        # 29. Create ResourceQuota Table (Distributed Workers)
+        print(">> Creating resourcequota table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resourcequota (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER REFERENCES tenant(id),
+                    max_concurrent_scans INTEGER DEFAULT 10,
+                    max_daily_scans INTEGER DEFAULT 1000,
+                    max_network_throughput_mbps FLOAT DEFAULT 50.0,
+                    current_concurrent_scans INTEGER DEFAULT 0,
+                    scans_today INTEGER DEFAULT 0,
+                    last_reset_date TIMESTAMP WITHOUT TIME ZONE,
+                    priority INTEGER DEFAULT 5
+                );
+                CREATE INDEX IF NOT EXISTS ix_resourcequota_tenant_id ON resourcequota (tenant_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating resourcequota table: {e}")
+
+        print("\nMigration Complete!")
+
+
 if __name__ == "__main__":
     migrate()

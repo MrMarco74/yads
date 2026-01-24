@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-4">
+            <a href="/settings" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            </a>
+            <div>
+                <h1 class="text-3xl font-bold text-white">Unified Scan Logs</h1>
+                <p class="text-gray-400 text-sm">Real-time aggregated logs from all workers.</p>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex items-center gap-4">
+            <select id="filter-tenant" class="bg-gray-800 border border-gray-700 text-white rounded px-3 py-2 text-sm">
+                <option value="">All Tenants</option>
+                {% for t in tenants %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+            <select id="filter-worker" class="bg-gray-800 border border-gray-700 text-white rounded px-3 py-2 text-sm">
+                <option value="">All Workers</option>
+                {% for w in workers %}
+                <option value="{{ w.node_id }}">{{ w.hostname }}</option>
+                {% endfor %}
+            </select>
+            <select id="filter-level" class="bg-gray-800 border border-gray-700 text-white rounded px-3 py-2 text-sm">
+                <option value="">All Levels</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+                <option value="ERROR">ERROR</option>
+            </select>
+            <button id="toggle-auto-refresh" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2 px-4 rounded transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span>Auto-Refresh: ON</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div id="log-stats" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 grid grid-cols-4 gap-4">
+        <div class="text-center">
+            <div id="stat-total" class="text-2xl font-bold text-white">-</div>
+            <div class="text-xs text-gray-500">Total Entries</div>
+        </div>
+        <div class="text-center">
+            <div id="stat-info" class="text-2xl font-bold text-blue-400">-</div>
+            <div class="text-xs text-gray-500">INFO</div>
+        </div>
+        <div class="text-center">
+            <div id="stat-warning" class="text-2xl font-bold text-yellow-400">-</div>
+            <div class="text-xs text-gray-500">WARNING</div>
+        </div>
+        <div class="text-center">
+            <div id="stat-error" class="text-2xl font-bold text-red-400">-</div>
+            <div class="text-xs text-gray-500">ERROR</div>
+        </div>
+    </div>
+
+    <!-- Log Container -->
+    <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden">
+        <!-- Header -->
+        <div class="bg-gray-800 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div id="live-indicator" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span class="text-xs text-gray-400">Live Feed</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-gray-500">
+                <span>Last updated: <span id="last-update">-</span></span>
+                <button id="clear-logs" class="text-gray-400 hover:text-white transition-colors">Clear View</button>
+            </div>
+        </div>
+
+        <!-- Log Entries -->
+        <div id="log-container" class="h-[600px] overflow-y-auto font-mono text-xs p-2 space-y-1">
+            <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <p>Loading logs...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let autoRefresh = true;
+    let lastTimestamp = null;
+    let refreshInterval = null;
+    const logContainer = document.getElementById('log-container');
+
+    // Level colors
+    const levelColors = {
+        'INFO': 'text-blue-400',
+        'WARNING': 'text-yellow-400',
+        'ERROR': 'text-red-400',
+        'DEBUG': 'text-gray-500'
+    };
+
+    // Format timestamp
+    function formatTime(isoString) {
+        const d = new Date(isoString);
+        return d.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+    }
+
+    // Build query params from filters
+    function getFilterParams() {
+        const params = new URLSearchParams();
+        params.append('limit', '100');
+
+        const tenant = document.getElementById('filter-tenant').value;
+        const worker = document.getElementById('filter-worker').value;
+        const level = document.getElementById('filter-level').value;
+
+        if (tenant) params.append('tenant_id', tenant);
+        if (worker) params.append('worker_id', worker);
+        if (level) params.append('level', level);
+        if (lastTimestamp) params.append('since', lastTimestamp);
+
+        return params.toString();
+    }
+
+    // Render a single log entry
+    function renderLogEntry(log) {
+        const levelClass = levelColors[log.level] || 'text-gray-400';
+        const time = formatTime(log.ts);
+
+        return `
+            <div class="flex items-start gap-2 px-2 py-1 hover:bg-gray-800 rounded">
+                <span class="text-gray-600 flex-shrink-0">${time}</span>
+                <span class="${levelClass} w-16 flex-shrink-0">${log.level}</span>
+                <span class="text-gray-500 w-20 flex-shrink-0 truncate" title="Target ${log.target_id}">T#${log.target_id || '-'}</span>
+                <span class="text-gray-600 w-20 flex-shrink-0 truncate" title="${log.worker_node_id || ''}">${log.worker_node_id ? log.worker_node_id.substring(0, 12) : '-'}</span>
+                <span class="text-gray-300 flex-1">${escapeHtml(log.msg)}</span>
+            </div>
+        `;
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Update stats
+    function updateStats(logs) {
+        const total = logs.length;
+        const info = logs.filter(l => l.level === 'INFO').length;
+        const warning = logs.filter(l => l.level === 'WARNING').length;
+        const error = logs.filter(l => l.level === 'ERROR').length;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-info').textContent = info;
+        document.getElementById('stat-warning').textContent = warning;
+        document.getElementById('stat-error').textContent = error;
+    }
+
+    // Fetch and render logs
+    async function fetchLogs(reset = false) {
+        if (reset) {
+            lastTimestamp = null;
+            logContainer.innerHTML = '';
+        }
+
+        try {
+            const response = await fetch('/api/workers/logs/unified?' + getFilterParams());
+            const data = await response.json();
+
+            if (data.logs && data.logs.length > 0) {
+                // Update last timestamp
+                const scores = data.logs.map(l => l.score || 0);
+                if (scores.length > 0) {
+                    lastTimestamp = Math.max(...scores);
+                }
+
+                // Render logs (reverse for newest at bottom)
+                const html = data.logs.reverse().map(renderLogEntry).join('');
+
+                if (reset || logContainer.querySelector('.text-center')) {
+                    logContainer.innerHTML = html;
+                } else {
+                    logContainer.insertAdjacentHTML('beforeend', html);
+                }
+
+                // Auto-scroll to bottom
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+                // Update stats
+                updateStats(data.logs);
+            } else if (reset) {
+                logContainer.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <p>No logs matching current filters.</p>
+                    </div>
+                `;
+            }
+
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+        } catch (error) {
+            console.error('Failed to fetch logs:', error);
+        }
+    }
+
+    // Toggle auto-refresh
+    function toggleAutoRefresh() {
+        autoRefresh = !autoRefresh;
+        const btn = document.getElementById('toggle-auto-refresh');
+        const indicator = document.getElementById('live-indicator');
+
+        if (autoRefresh) {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Auto-Refresh: ON</span>';
+            btn.classList.remove('bg-gray-600');
+            btn.classList.add('bg-emerald-600');
+            indicator.classList.add('animate-pulse', 'bg-emerald-500');
+            indicator.classList.remove('bg-gray-500');
+            startAutoRefresh();
+        } else {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Auto-Refresh: OFF</span>';
+            btn.classList.add('bg-gray-600');
+            btn.classList.remove('bg-emerald-600');
+            indicator.classList.remove('animate-pulse', 'bg-emerald-500');
+            indicator.classList.add('bg-gray-500');
+            stopAutoRefresh();
+        }
+    }
+
+    function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(() => fetchLogs(false), 3000);
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+    }
+
+    // Event listeners
+    document.getElementById('toggle-auto-refresh').addEventListener('click', toggleAutoRefresh);
+    document.getElementById('clear-logs').addEventListener('click', () => {
+        logContainer.innerHTML = '<div class="text-center py-8 text-gray-500"><p>View cleared.</p></div>';
+        lastTimestamp = null;
+    });
+
+    // Filter change handlers
+    ['filter-tenant', 'filter-worker', 'filter-level'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => fetchLogs(true));
+    });
+
+    // Initial load
+    fetchLogs(true);
+    if (autoRefresh) startAutoRefresh();
+})();
+</script>
+{% endblock %}

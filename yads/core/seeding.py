@@ -420,6 +420,29 @@ def seed_changelog():
             )
             session.add(entry_1133)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.13.4").first():
+            entry_1134 = ChangelogEntry(
+                title="YADS v1.13.4: Release Tools & UI Polish",
+                version="1.13.4",
+                content="""
+                <h3>🚀 Release Management</h3>
+                <ul>
+                    <li><strong>Robust Translator:</strong> Fixed crashes when Gemini API key is missing by automatically falling back to manual translation mode.</li>
+                    <li><strong>Non-Interactive Fixes:</strong> Resolved "EOF when reading a line" errors for fully automated release builds.</li>
+                    <li><strong>Strict Process Control:</strong> Release process now aborts immediately on any step failure to prevent partial/corrupt releases.</li>
+                </ul>
+                <h3>💅 UI UX Improvements</h3>
+                <ul>
+                    <li><strong>Settings Layout:</strong> Refactored Settings page to use a responsive grid that scales to full width (up to 4 columns) on large screens.</li>
+                    <li><strong>Graph Visualization:</strong> Disabled domain name truncation in "Generate Full Graph Image" to ensure complete visibility of all targets.</li>
+                    <li><strong>Toggle Component:</strong> Fixed rendering issues with "Auto-Queue" toggles by implementing a standard DOM-based switch.</li>
+                </ul>
+                """
+            )
+            session.add(entry_1134)
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 

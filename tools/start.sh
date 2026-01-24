@@ -18,6 +18,25 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# Virtual Environment Setup
+VENV_DIR="$SCRIPT_DIR/.venv"
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Activate
+source "$VENV_DIR/bin/activate"
+
+# Check & Install Requirements
+if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+    echo "Checking dependencies..."
+    pip install -q --upgrade pip
+    pip install -q -r "$SCRIPT_DIR/requirements.txt"
+else
+    echo -e "${RED}Warning: requirements.txt not found in $SCRIPT_DIR${NC}"
+fi
+
 # Run
 echo "Starting GUI..."
 python3 "$APP_PATH"

@@ -155,3 +155,64 @@ All services communicate over an internal bridge network `yads-net`. The API ser
 YADS includes built-in backup tools.
 *   **Automated**: The API container runs a script `/app/scripts/backup_db.sh` on startup.
 *   **Manual**: You can trigger a full system backup (Database + Screenshots) from the Web UI under `Settings > Backup & Restore`. The resulting ZIP file is encrypted and password-protected.
+
+---
+
+## 4. Distributed Worker System
+
+YADS supports horizontal scaling of scanning capacity through a distributed worker architecture. This enables deploying workers across multiple Docker Swarm nodes.
+
+### Quick Overview
+
+| Feature | Description |
+|---------|-------------|
+| **Horizontal Scaling** | Add worker nodes to increase scanning capacity |
+| **Load Balancing** | Tasks routed to least-loaded workers |
+| **Health Monitoring** | Automatic offline detection and task requeuing |
+| **Resource Quotas** | Per-tenant and global limits on concurrent scans |
+| **Unified Logging** | Aggregated log view across all workers |
+
+### Deployment Modes
+
+1. **Standalone** (Default): Single worker, no coordination
+2. **Primary Worker**: Runs on manager node, auto-registered
+3. **Secondary Workers**: Distributed across Swarm nodes
+
+### Quick Start for Distributed Mode
+
+```bash
+# 1. Set registration token
+export WORKER_REGISTRATION_TOKEN=$(openssl rand -base64 32)
+
+# 2. Initialize Docker Swarm
+docker swarm init
+
+# 3. Label worker nodes
+docker node update --label-add yads-worker=true <node-name>
+
+# 4. Deploy stack
+docker stack deploy -c docker-compose.swarm.yml yads
+
+# 5. Scale workers
+docker service scale yads_yads-worker=5
+```
+
+### Configuration
+
+Key environment variables for distributed mode:
+
+| Variable | Service | Description |
+|----------|---------|-------------|
+| `WORKER_MODE` | All | `primary`, `secondary`, or `standalone` |
+| `WORKER_REGISTRATION_TOKEN` | Manager + Workers | Pre-shared token for registration |
+| `MANAGER_URL` | Workers | URL of the manager API |
+| `WORKER_MAX_TASKS` | Workers | Max concurrent tasks per worker |
+
+### Management
+
+Access worker management via:
+- **Web UI**: Settings > Distributed Workers
+- **API**: `GET /api/workers/`
+- **Logs**: `/workers/logs` or `GET /api/workers/logs/unified`
+
+For complete documentation, see **[DISTRIBUTED_WORKERS.md](DISTRIBUTED_WORKERS.md)**.

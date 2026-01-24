@@ -1,0 +1,91 @@
+<div class="stats-container">
+    <!-- Queue Status Banner -->
+    <div class="queue-status {% if stats.is_paused %}paused{% else %}active{% endif %}">
+        <div class="status-indicator">
+            <div class="status-dot {% if stats.is_paused %}paused{% else %}active{% endif %}"></div>
+            <span class="status-text">
+                Queue {% if stats.is_paused %}Paused{% else %}Active{% endif %}
+            </span>
+        </div>
+        <span style="font-size: 0.875rem; color: var(--text-secondary);">
+            {{ stats.active + stats.pending + stats.reserved }} total
+        </span>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value green">{{ stats.active }}</div>
+            <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value amber">{{ stats.pending }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value primary">{{ stats.reserved }}</div>
+            <div class="stat-label">Reserved</div>
+        </div>
+    </div>
+
+    <!-- Running Targets -->
+    {% if stats.running_targets %}
+    <div class="section-title">Running Scans</div>
+    <div class="running-list">
+        {% for target in stats.running_targets[:5] %}
+        <div class="running-item">
+            <div class="running-domain">{{ target.domain }}</div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ target.progress }}%"></div>
+            </div>
+            <div class="progress-text">{{ target.progress }}%</div>
+        </div>
+        {% endfor %}
+        {% if stats.running_targets|length > 5 %}
+        <div class="empty-state">
+            +{{ stats.running_targets|length - 5 }} more running...
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Active Tasks Details -->
+    {% if stats.active_tasks and not stats.running_targets %}
+    <div class="section-title">Active Tasks</div>
+    <div class="running-list">
+        {% for task in stats.active_tasks[:5] %}
+        <div class="running-item">
+            <div class="running-domain">{{ task.domain }}</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                Worker: {{ task.worker }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Alerts -->
+    {% if alerts %}
+    <div class="section-title">Notifications</div>
+    <div class="alerts-list">
+        {% for alert in alerts %}
+        <div class="alert-item {{ alert.color }}">
+            <div class="alert-header">
+                <span class="alert-title">{{ alert.title }}</span>
+                <span class="alert-time">{{ alert.created_at }}</span>
+            </div>
+            <div class="alert-text">{{ alert.text[:100] }}{% if alert.text|length > 100 %}...{% endif %}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not stats.running_targets and not stats.active_tasks and not alerts %}
+    <div class="empty-state" style="margin-top: 2rem;">
+        <svg style="width: 48px; height: 48px; color: var(--text-secondary); margin-bottom: 1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>All quiet. No active scans.</div>
+    </div>
+    {% endif %}
+</div>

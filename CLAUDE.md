@@ -38,6 +38,26 @@ uvicorn yads.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Run Celery worker in separate terminal
 python scripts/start_worker.py
+
+# Run distributed secondary worker (requires MANAGER_URL and token)
+WORKER_MODE=secondary MANAGER_URL=http://localhost:8000 \
+  WORKER_REGISTRATION_TOKEN=your_token \
+  python scripts/start_distributed_worker.py
+```
+
+**Docker Swarm Deployment:**
+```bash
+# Initialize Swarm
+docker swarm init
+
+# Label worker nodes
+docker node update --label-add yads-worker=true <node-name>
+
+# Deploy stack
+docker stack deploy -c docker-compose.swarm.yml yads
+
+# Scale workers
+docker service scale yads_yads-worker=5
 ```
 
 ### Database Operations
@@ -275,6 +295,53 @@ Ed25519 signature verification on every scan:
 - Separate UI view for archived targets
 - Prevents wasted scans on dead domains
 
+**6. Distributed Workers:**
+Horizontal scaling via Docker Swarm:
+- `WorkerManager` (`yads/core/worker_manager.py`): Central coordinator
+- `WorkerClient` (`yads/core/worker_client.py`): Worker-side communication
+- Workers register with pre-shared token, send heartbeats every 30s
+- Tasks routed to least-loaded worker with capacity
+- Resource quotas enforced per-tenant and globally
+
+### Distributed Worker Architecture
+
+**Components:**
+- **`yads/core/worker_manager.py`**: Central coordinator for registration, heartbeat, task routing
+- **`yads/core/worker_client.py`**: Worker-side client for manager communication
+- **`yads/api/routers/workers.py`**: REST API endpoints for worker management
+- **`yads/core/redis_logger.py`**: `DistributedRedisLogHandler` with tenant tagging
+
+**Worker Modes:**
+```python
+from yads.core.worker_client import WorkerMode
+
+# Modes set via WORKER_MODE environment variable:
+# - "standalone": No distributed coordination (default, backwards compatible)
+# - "primary": Runs on manager node, uses database directly
+# - "secondary": Runs on worker node, communicates via HTTP API
+```
+
+**New Database Models:**
+```python
+from yads.models import WorkerNode, WorkerTask, ResourceQuota
+
+# WorkerNode: Registered worker with status, capabilities, load
+# WorkerTask: Task tracking with progress, assigned worker
+# ResourceQuota: Per-tenant or global resource limits
+```
+
+**Key Configuration:**
+| Environment Variable | Description |
+|---------------------|-------------|
+| `WORKER_MODE` | `standalone`, `primary`, or `secondary` |
+| `MANAGER_URL` | Manager API URL (for secondary workers) |
+| `WORKER_REGISTRATION_TOKEN` | Pre-shared token for registration |
+| `WORKER_MAX_TASKS` | Max concurrent tasks per worker |
+
+**Startup Scripts:**
+- `scripts/start_worker.py`: Standard/primary worker startup
+- `scripts/start_distributed_worker.py`: Secondary worker with registration
+
 ## Key Technologies
 
 - **FastAPI**: Web framework with OpenAPI docs at `/docs`
@@ -326,12 +393,20 @@ python scripts/verification/verify_schedules.py
 - `securitytrend`: Historical security scores
 - `httptraffic`: Request/response logs from crawler
 
+**Distributed Worker Tables:**
+- `workernode`: Registered workers with status, capabilities, load metrics
+- `workertask`: Task tracking with progress, assigned worker, timing
+- `resourcequota`: Per-tenant or global resource limits (concurrent scans, daily limits)
+
 **Important Relationships:**
 - `Target.tenant_id → Tenant.id` (1:N)
 - `User.tenant_id → Tenant.id` (N:1, primary tenant)
 - `UserTenantLink` (M:N for cross-tenant access)
 - `ScanResult.target_id → Target.id` (N:1)
 - `ModuleState` unique on `(target_id, module_name)`
+- `WorkerTask.worker_node_id → WorkerNode.id` (N:1)
+- `WorkerTask.target_id → Target.id` (N:1)
+- `ResourceQuota.tenant_id → Tenant.id` (N:1, NULL for global)
 
 ## Common Maintenance Tasks
 

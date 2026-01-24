@@ -111,6 +111,7 @@
                 <a href="support.html">Installation</a>
                 <a href="docs.html">Dokumentation</a>
                 <a href="changes.html" class="active">Änderungen</a>
+                <a href="story.html">Entstehung</a>
                 <a href="contact.html">Kontakt</a>
                 <a href="https://yads-security.com/changes.html" class="lang-switch" style="opacity: 0.7;">🇺🇸 EN</a>
             </div>
@@ -128,6 +129,54 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.14.0 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.14.0</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verteiltes Worker-System</h2>
+
+                <h3>🚀 Hauptfeature: Horizontale Skalierung</h3>
+                <ul>
+                    <li><strong>Verteilte Worker:</strong> YADS-Worker uber mehrere Docker-Swarm-Knoten fur horizontale Skalierung bereitstellen.</li>
+                    <li><strong>Load Balancing:</strong> Automatische Task-Verteilung an Worker mit geringster Auslastung.</li>
+                    <li><strong>Health Monitoring:</strong> Automatische Offline-Erkennung mit Task-Wiedereinreihung bei Worker-Ausfall.</li>
+                    <li><strong>Ressourcen-Quotas:</strong> Pro-Mandant und globale Limits fur gleichzeitige Scans und tagliche Kontingente.</li>
+                </ul>
+
+                <h3>📊 Einheitliche Protokollierung</h3>
+                <ul>
+                    <li><strong>Aggregierte Log-Ansicht:</strong> Logs aller Worker in einer einzigen Echtzeit-Ansicht.</li>
+                    <li><strong>Mandanten-Filter:</strong> Logs nach Organisation, Worker oder Log-Level filtern.</li>
+                    <li><strong>Erweiterte Metadaten:</strong> Logs enthalten jetzt Mandanten- und Worker-Informationen.</li>
+                </ul>
+
+                <h3>🎛️ Worker-Verwaltung</h3>
+                <ul>
+                    <li><strong>Einstellungs-UI:</strong> Neuer Bereich "Verteilte Worker" auf der Einstellungsseite.</li>
+                    <li><strong>Registrierungstoken:</strong> Sichere tokenbasierte Worker-Authentifizierung.</li>
+                    <li><strong>Worker-Steuerung:</strong> Worker pausieren, fortsetzen und entleeren ohne Neustart.</li>
+                    <li><strong>Cluster-Statistiken:</strong> Echtzeit-Ansicht der Cluster-Kapazitat und -Auslastung.</li>
+                </ul>
+
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li><strong>Neue Datenbankmodelle:</strong> WorkerNode, WorkerTask, ResourceQuota Tabellen fur verteilten Zustand.</li>
+                    <li><strong>Worker Client:</strong> Worker-seitige Komponente fur Manager-Kommunikation und Heartbeats.</li>
+                    <li><strong>Docker Swarm:</strong> Neue docker-compose.swarm.yml fur Multi-Node-Deployments.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Version 1.13.4 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.13.4</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Release 1.13.4</h2>
+
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
             <!-- Version 1.13.3 -->
             <div class="change-entry">
                 <span class="version-badge">v1.13.3</span>

@@ -1,6 +1,6 @@
 from celery import Celery
 from sqlmodel import Session, create_engine, select
-from yads.models import ScanResult, Target, SystemConfig, Tenant, SecurityTrend
+from yads.models import ScanResult, Target, SystemConfig, Tenant, SecurityTrend, ComplianceTrend, ComplianceTargetStatus
 from datetime import datetime
 import os
 import dns.resolver
@@ -14,9 +14,13 @@ from yads.modules.visual_osint import VisualOSINT
 from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
 from yads.core.base import sanitize_null_bytes
+from yads.core.worker_client import get_worker_client, initialize_worker_client, WorkerMode
 
 # Configure Logging
 logger = configure_logging("yads-worker")
+
+# Global worker client instance
+_worker_client = None
 
 # Initialize Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
@@ -49,12 +53,23 @@ def on_worker_process_init(**kwargs):
     This ensures each forked worker process gets a fresh connection pool,
     preventing 'PGRES_TUPLES_OK' and other multiprocessing DB errors.
     """
+    global _worker_client
     from yads.database import engine
     logger.info("[Worker] Signal: Process Init. Disposing DB engine to reset pool.")
     try:
         engine.dispose()
     except Exception as e:
         logger.error(f"[Worker] Failed to dispose engine on process init: {e}")
+
+    # Initialize worker client for distributed mode
+    try:
+        _worker_client = initialize_worker_client()
+        if _worker_client.is_distributed:
+            logger.info(f"[Worker] Distributed mode: {_worker_client.state.mode.value}, node_id: {_worker_client.node_id}")
+        else:
+            logger.info("[Worker] Running in standalone mode (no distributed coordination)")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to initialize worker client: {e}")
 
 
 # Database access for worker
@@ -92,6 +107,10 @@ celery_app.conf.beat_schedule = {
     },
     'daily-security-trends': {
         'task': 'yads.worker.calculate_security_trends',
+        'schedule': 24 * 3600.0, # Run every 24 hours
+    },
+    'daily-compliance-trends': {
+        'task': 'yads.worker.calculate_compliance_trends',
         'schedule': 24 * 3600.0, # Run every 24 hours
     },
 }
@@ -177,6 +196,83 @@ def calculate_security_trends():
         logger.error(f"[Worker] Failed to calculate security trends: {e}")
 
 
+@celery_app.task(name="yads.worker.calculate_compliance_trends")
+def calculate_compliance_trends():
+    """
+    Calculates and stores daily compliance scores for each tenant and framework.
+    """
+    from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+    from yads.database import engine
+    from yads.models import Tenant, Target, ComplianceTrend
+    from sqlmodel import Session, select, text
+    import logging
+
+    logger = logging.getLogger("yads-worker")
+    logger.info("[Worker] Starting daily compliance trend calculation...")
+
+    try:
+        with Session(engine) as session:
+            # Fetch all tenants
+            tenants = session.exec(select(Tenant)).all()
+
+            for tenant in tenants:
+                # Fetch all non-archived targets for this tenant
+                targets = session.exec(select(Target).where(
+                    Target.tenant_id == tenant.id,
+                    Target.is_archived == False
+                )).all()
+
+                if not targets:
+                    continue
+
+                # Get latest scan results for all targets
+                target_ids = [t.id for t in targets]
+                target_ids_str = ",".join(str(tid) for tid in target_ids)
+
+                query = f"""
+                    SELECT DISTINCT ON (target_id, module_name)
+                        target_id, module_name, data
+                    FROM scanresult
+                    WHERE target_id IN ({target_ids_str})
+                    ORDER BY target_id, module_name, scanned_at DESC
+                """
+                results = session.exec(text(query)).all()
+
+                # Build target data structure
+                target_data = {t.id: {} for t in targets}
+                target_map = {t.id: t.domain for t in targets}
+
+                for tid, mod, data in results:
+                    if tid in target_data:
+                        target_data[tid][mod] = data
+
+                # Calculate score for each framework
+                for framework_id in FRAMEWORKS.keys():
+                    try:
+                        scorer = get_framework_scorer(framework_id)
+                        stats = scorer.calculate_score(target_data, target_map)
+
+                        # Store trend record
+                        trend = ComplianceTrend(
+                            tenant_id=tenant.id,
+                            framework=framework_id,
+                            score=stats.get('score', 100),
+                            grade=stats.get('grade', 'A'),
+                            passing_controls=stats.get('passing_controls', 0),
+                            failing_controls=stats.get('failing_controls', 0)
+                        )
+                        session.add(trend)
+                        logger.info(f"[Worker] Recorded {framework_id} trend for tenant {tenant.name}: {stats.get('score')}%")
+
+                    except Exception as fw_e:
+                        logger.warning(f"[Worker] Failed to calculate {framework_id} trend: {fw_e}")
+
+            session.commit()
+            logger.info("[Worker] Compliance trend calculation finished.")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to calculate compliance trends: {e}")
+
+
 import io
 
 
@@ -249,16 +345,34 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
         except:
             return False
 
-    # Setup Redis Logging
-    from yads.core.redis_logger import RedisLogHandler
-    redis_handler = RedisLogHandler(target_id)
+    # Setup Redis Logging (with distributed support)
+    from yads.core.redis_logger import DistributedRedisLogHandler, RedisLogHandler
+
+    # Use distributed handler if worker client is available
+    global _worker_client
+    worker_node_id = _worker_client.node_id if _worker_client and _worker_client.is_distributed else None
+
+    if worker_node_id:
+        redis_handler = DistributedRedisLogHandler(
+            target_id=target_id,
+            tenant_id=tenant_id,
+            worker_node_id=worker_node_id
+        )
+    else:
+        redis_handler = RedisLogHandler(target_id)
+
     # Be more specific with logger format for UI
     redis_handler.setFormatter(logging.Formatter("%(message)s"))
-    
+
     # Attach to root logger to capture everything during this task
     # We use a try/finally block around the entire scan logic to ensure removal
     root_logger = logging.getLogger()
     root_logger.addHandler(redis_handler)
+
+    # Report task started to worker manager
+    celery_task_id = self.request.id if hasattr(self, 'request') and self.request else None
+    if _worker_client and _worker_client.is_distributed and celery_task_id:
+        _worker_client.report_task_started(celery_task_id)
 
     try:
         with Session(engine) as session:
@@ -1027,6 +1141,74 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
                 session.rollback()
 
+            # Post-Scan Compliance Recalculation
+            try:
+                from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+                from yads.models import ComplianceTargetStatus, ComplianceTrend
+                from sqlmodel import text as sql_text
+
+                logger.info(f"[Worker] Recalculating compliance status for {domain}...")
+
+                # Get latest scan results for this target
+                query = """
+                    SELECT DISTINCT ON (module_name)
+                        module_name, data
+                    FROM scanresult
+                    WHERE target_id = :target_id
+                    ORDER BY module_name, scanned_at DESC
+                """
+                results = session.exec(sql_text(query), params={"target_id": target_id}).all()
+
+                target_data = {target_id: {}}
+                for mod, data in results:
+                    target_data[target_id][mod] = data
+
+                target_map = {target_id: domain}
+
+                # Calculate and store status for each framework
+                for framework_id in FRAMEWORKS.keys():
+                    try:
+                        scorer = get_framework_scorer(framework_id)
+                        stats = scorer.calculate_score(target_data, target_map)
+
+                        # Upsert ComplianceTargetStatus
+                        existing = session.exec(
+                            select(ComplianceTargetStatus).where(
+                                ComplianceTargetStatus.target_id == target_id,
+                                ComplianceTargetStatus.framework == framework_id
+                            )
+                        ).first()
+
+                        if existing:
+                            existing.score = stats.get('score', 100)
+                            existing.grade = stats.get('grade', 'A')
+                            existing.passing_controls = stats.get('passing_controls', 0)
+                            existing.failing_controls = stats.get('failing_controls', 0)
+                            existing.findings = stats.get('findings', [])
+                            existing.last_assessed_at = datetime.utcnow()
+                            session.add(existing)
+                        else:
+                            new_status = ComplianceTargetStatus(
+                                target_id=target_id,
+                                framework=framework_id,
+                                score=stats.get('score', 100),
+                                grade=stats.get('grade', 'A'),
+                                passing_controls=stats.get('passing_controls', 0),
+                                failing_controls=stats.get('failing_controls', 0),
+                                findings=stats.get('findings', [])
+                            )
+                            session.add(new_status)
+
+                    except Exception as fw_e:
+                        logger.warning(f"[Worker] Failed to calculate {framework_id} compliance: {fw_e}")
+
+                session.commit()
+                logger.info(f"[Worker] Compliance status updated for {domain}")
+
+            except Exception as e:
+                logger.error(f"[Worker] Error in compliance recalculation: {e}")
+                session.rollback()
+
             # Reset status
             try:
                  t = session.get(Target, target_id)
@@ -1048,7 +1230,11 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             })
 
         logger.info(f"[Worker] Finished scan for {domain}")
-    
+
+        # Report task completed to worker manager
+        if _worker_client and _worker_client.is_distributed and celery_task_id:
+            _worker_client.report_task_completed(celery_task_id, success=True)
+
     finally:
         # Cleanup Handler
         if 'root_logger' in locals() and 'redis_handler' in locals():

@@ -31,6 +31,7 @@
                 <a href="support.html">Setup</a>
                 <a href="docs.html" class="active">Documentation</a>
                 <a href="changes.html">Changes</a>
+                <a href="story.html">Origin Story</a>
                 <a href="contact.html">Contact</a>
                 <a href="https://yads-security.de/docs.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
             </div>
@@ -62,7 +63,11 @@
 <li><a href="#9-data-management--reports">9. Data Management & Reports</a></li>
 <li><a href="#10-user-management--security">10. User Management & Security</a></li>
 <li><a href="#11-multi-tenancy">11. Multi-Tenancy</a></li>
-<li><a href="#12-system-settings--queue">12. System Settings & Queue</a></li>
+<li><a href="#12-system-settings--queue">12. System Settings & Queue</a>
+    <ul>
+        <li><a href="#distributed-workers">Distributed Workers</a></li>
+    </ul>
+</li>
 <li><a href="#13-best-practices">13. Best Practices</a></li>
 <li><a href="#14-troubleshooting">14. Troubleshooting</a></li>
 <li><a href="#15-support">15. Support</a></li>
@@ -211,7 +216,7 @@
 *   <strong>Wayback Machine</strong>: Looks for historical files and endpoints.
 *   <strong>FULL SCAN</strong>: Runs all available modules.</p>
 <h3>Scheduled Scans</h3>
-<p>** (New in v1.8.0)<strong>
+<p>** (New in v1.13.4)<strong>
 You can automate your reconnaissance by setting up recurring schedules.
 1.  Navigate to the </strong>Schedules<strong> page via the sidebar.
 2.  Click </strong>"Create Schedule"<strong>.
@@ -249,28 +254,28 @@ You can automate your reconnaissance by setting up recurring schedules.
 </li>
 </ul>
 <h3>Vulnerability Scanning (Active)</h3>
-<p><strong>(New in v1.5.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
 *   <strong>Capabilities</strong>: Scans for 5000+ known vulnerabilities (CVEs), misconfigurations, and exposed panels.
 *   <strong>Severity</strong>: Findings are categorized as Critical, High, Medium, Low, or Info.
 *   <strong>Usage</strong>: Select "Nuclei Vulnerability Scan" in the <em>New Scan</em> modal.</p>
 <h3>Stealth Port Scanning</h3>
-<p><strong>(New in v1.5.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 *   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
 *   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.</p>
 <h3>JavaScript SAST</h3>
-<p><strong>(New in v1.5.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 *   <strong>Static Analysis</strong>: Automatically downloads and analyzes client-side JavaScript files.
 *   <strong>Sink Detection</strong>: Identifies potential DOM XSS sinks (e.g. <code>innerHTML</code>, <code>document.write</code>).
 *   <strong>Route Discovery</strong>: Extracts hidden API routes from JS code.</p>
 <h3>API Discovery</h3>
-<p><strong>(New in v1.4.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 Part of the Web Analyzer, this module automatically detects:
 *   <strong>Documentation</strong>: Finds <code>swagger.json</code>, <code>openapi.yaml</code>, and WSDL files.
 *   <strong>Endpoints</strong>: Identifies GraphQL endpoints (<code>/graphql</code>) and versioned REST paths (<code>/api/v1/</code>).
 *   <strong>Results</strong>: displayed in the <strong>Web Analysis</strong> card on the Target Details page.</p>
 <h3>SOC2 Compliance Engine</h3>
-<p><strong>(New in v1.3.5)</strong>
+<p><strong>(New in v1.13.4)</strong>
 Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Score</strong>: Calculated dynamically (0-100%) based on active scan results.
 *   <strong>Penalties</strong>:
@@ -281,7 +286,7 @@ Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Insights</strong>: Hover over the score widget on the Dashboard to see specific failings.</p>
 <hr />
 <h2>7. OSINT Brand Monitoring</h2>
-<p><strong>(New in v1.3.2)</strong></p>
+<p><strong>(New in v1.13.4)</strong></p>
 <p>The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.</p>
 <h3>Google Cloud Setup (Prerequisite)</h3>
 <p>To use this feature, your Tenant Admin must configure the <strong>Google Cloud Vision API</strong>:
@@ -316,7 +321,7 @@ Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
 *   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
 *   <strong>Zoom/Pan</strong>: Navigate large infrastructures easily.
-*   <strong>Attack Path Visualization</strong> (New in v1.7.0):
+*   <strong>Attack Path Visualization</strong> (New in v1.13.4):
     *   <strong>Toggle</strong>: Switch on "Attack Paths" to highlight risky edges and compromised nodes.
     *   <strong>Insights</strong>: Visualizes potential lateral movement paths based on vulnerability and network data.</p>
 <h3>Analytics Dashboard</h3>
@@ -325,7 +330,7 @@ Real-time scoring of your infrastructure's compliance readiness.
     *   <strong>Tech Distribution</strong>: charts showing most common technologies (e.g., "80% Nginx").
     *   <strong>Risk Overview</strong>: Summary of critical vulnerabilities across the portfolio.</p>
 <h3>Compliance &amp; Grading</h3>
-<p><strong>(Updated in v1.5.2)</strong>
+<p><strong>(Updated in v1.13.4)</strong>
 Found at the top of every <strong>Target Detail</strong> page:
 *   <strong>Security Grade (A-F)</strong>: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
 *   <strong>Risk Factors</strong>: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
@@ -345,14 +350,14 @@ Found at the top of every <strong>Target Detail</strong> page:
     - <strong>Type</strong>: Indicates if the link was found via a webpage link (<code>link</code>), Mail Exchange record (<code>MX</code>), Nameserver (<code>NS</code>), etc.
     - <strong>Export</strong>: Click "Export PDF" from the <strong>Reports</strong> page.</p>
 <h3>Dead Links Analysis</h3>
-<p><strong>(New in v1.4.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 Identify health issues within your own inventory.
 - <strong>Access</strong>: Go to <code>Analytics &gt; Dead Links</code>.
 - <strong>Unreachable Targets</strong>: Lists targets that failed recent scans (Offline or Server Error).
 - <strong>Orphaned Targets</strong>: Lists targets in your inventory that are <strong>not linked to</strong> by any other target in your scope. Useful for finding forgotten assets.</p>
 <hr />
 <h2>9. Data Management &amp; Reports</h2>
-<p><strong>(Centralized in v1.5.2)</strong></p>
+<p><strong>(Centralized in v1.13.4)</strong></p>
 <p>YADS provides dedicated reports to help you analyze specific data sets and risks.</p>
 <h3>Sensitive Data</h3>
 <p><strong>Path:</strong> <code>/secrets</code>
@@ -437,7 +442,7 @@ A visual breakdown of the technology stack usage across your portfolio.
 *   <strong>Management</strong>: Admins can rename tenants and manage memberships via the <strong>Tenants</strong> page.
 *   <strong>Platform Admin</strong>: An Admin without a specific tenant sees <em>everything</em> and can manage the tenants themselves.</p>
 <h3>Webhook Notifications</h3>
-<p><strong>(New in v1.4.0)</strong>
+<p><strong>(New in v1.13.4)</strong>
 Tenants can configure real-time webhooks to integrate with external systems (Slack, Discord, Tines, etc.).
 1.  Go to <strong>Tenant Settings</strong>.
 2.  Scroll to the <strong>Webhook Notifications</strong> card.
@@ -457,6 +462,32 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <li><strong>Web Timeout</strong>: Set global timeout for HTTP requests (default: 10s).</li>
 <li><strong>Concurrent Limits</strong>: Define how many headers scanners run in parallel.</li>
 </ul>
+<h3>Distributed Workers</h3>
+<p>YADS supports horizontal scaling through distributed workers across Docker Swarm nodes.</p>
+<ul>
+<li><strong>Worker Registration Token</strong>: Generate and manage the token used for worker authentication</li>
+<li><strong>Global Resource Limits</strong>: Set max concurrent scans and network throughput limits</li>
+<li><strong>Worker Status</strong>: View active workers, their load, and task counts in real-time</li>
+<li><strong>Worker Controls</strong>: Suspend, Resume, or Drain workers without restarting services</li>
+</ul>
+<h4>Worker States</h4>
+<table>
+<tr><th>State</th><th>Description</th></tr>
+<tr><td>Active</td><td>Running and accepting new tasks</td></tr>
+<tr><td>Suspended</td><td>Paused, not accepting new tasks</td></tr>
+<tr><td>Draining</td><td>Finishing current tasks before going offline</td></tr>
+<tr><td>Offline</td><td>Not responding (missed heartbeats)</td></tr>
+</table>
+<h4>Unified Logging</h4>
+<p>Access aggregated logs from all workers via <strong>Settings &gt; View Unified Scan Logs</strong>. Filter by:</p>
+<ul>
+<li><strong>Tenant</strong>: See logs for specific organizations</li>
+<li><strong>Worker</strong>: Debug specific worker nodes</li>
+<li><strong>Log Level</strong>: Filter by INFO, WARNING, or ERROR</li>
+</ul>
+<blockquote>
+<p><strong>Note</strong>: For detailed setup instructions, see the <a href="https://github.com/your-org/yads/blob/main/docs/DISTRIBUTED_WORKERS.md">Distributed Workers Documentation</a>.</p>
+</blockquote>
 <hr />
 <h2>13. Best Practices</h2>
 <p>To get the most out of YADS, consider these tips:</p>
@@ -490,7 +521,7 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <h2>15. Support</h2>
 <p>For technical support or to report bugs: info@yads-security.com</p>
 <hr />
-<p><em>Verified for YADS v1.13.1</em></p>
+<p><em>Verified for YADS v1.13.4</em></p>
         </main>
     </div>
     
