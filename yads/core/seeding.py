@@ -488,7 +488,7 @@ def seed_changelog():
 
 
 
-        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: [SHA256_HASH_TBD]</p>
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 4aa44d62971ca0584852953bb96dc8b697c2f3074f7ed8d03d7a96c1c2bd226c</p>
 
 
 
@@ -572,7 +572,7 @@ def seed_changelog():
 
 
 
-        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: [SHA256_HASH_TBD]</p>
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 4aa44d62971ca0584852953bb96dc8b697c2f3074f7ed8d03d7a96c1c2bd226c</p>
 
 
 
@@ -594,6 +594,124 @@ def seed_changelog():
 
 
             session.add(entry_1142)
+
+
+
+
+
+
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.14.2").first():
+
+
+
+
+
+
+
+
+            entry_1142 = ChangelogEntry(
+
+
+
+
+
+
+
+
+                title="YADS v1.14.2: Release 1.14.2",
+
+
+
+
+
+
+
+
+                version="1.14.2",
+
+
+
+
+
+
+
+
+                content="""
+
+
+
+
+
+
+
+
+                <h3>🔧 Technical Improvements</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Various bug fixes and improvements</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 4aa44d62971ca0584852953bb96dc8b697c2f3074f7ed8d03d7a96c1c2bd226c</p>
+
+
+
+
+
+
+
+
+                """
+
+
+
+
+
+
+
+
+            )
+
+
+
+
+
+
+
+
+            session.add(entry_1142)
+
+
 
 
 
