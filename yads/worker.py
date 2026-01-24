@@ -575,7 +575,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         session.commit()
 
                     from yads.modules.dns_cleanup_scanner import DNSCleanupScanner
-                    cleanup_scan = DNSCleanupScanner(db_session=session)
+                    cleanup_scan = DNSCleanupScanner(session)
                     logger.info(f"[Worker] Running {cleanup_scan.module_name}...")
                     
                     with LogCapture() as logs:
