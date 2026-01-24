@@ -443,6 +443,72 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.14.0").first():
+
+
+
+
+            entry_1140 = ChangelogEntry(
+
+
+
+
+                title="YADS v1.14.0: Pipeline Bugfixes",
+
+
+
+
+                version="1.14.0",
+
+
+
+
+                content="""
+
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+
+                <ul>
+
+
+
+
+                    <li>Pipeline Bugfixes</li>
+
+
+
+
+                </ul>
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: [SHA256_HASH_TBD]</p>
+
+
+
+
+                """
+
+
+
+
+            )
+
+
+
+
+            session.add(entry_1140)
+
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
