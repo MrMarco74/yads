@@ -17,6 +17,9 @@ upload:
     user: ftpuser
     password: ${YADS_FTP_PASSWORD}  # From environment variable
     port: 21
+    tls: true  # Use FTPS (FTP over TLS) - recommended
+    verify_ssl: true  # Verify server certificate
+    ca_cert: ~/.yads/server-ca.crt  # Optional: custom CA certificate
 
   paths:
     releases: /var/www/releases
