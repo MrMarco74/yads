@@ -22,9 +22,9 @@ upload:
     # ca_cert: ~/.yads/server-ca.crt  # Not needed - DigiCert is system-trusted
 
   paths:
-    releases: /var/www/releases
-    homepage_en: /var/www/html/en
-    homepage_de: /var/www/html/de
+    releases: /en/releases
+    homepage_en: /en
+    homepage_de: /de
 
 # Translation settings
 translation:

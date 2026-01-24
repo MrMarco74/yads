@@ -6,7 +6,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.13.4"
+    VERSION: str = "1.14.2"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:changeme@db:5432/yads")
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     AUTO_QUEUE_SUBDOMAINS: bool = False
     SCAN_QUEUE_RATE_LIMIT: Optional[str] = None
     WEB_REQUEST_TIMEOUT: int = int(os.getenv("YADS_WEB_TIMEOUT", 10))
+    QUEUE_PAUSE_ON_BOOT: bool = os.getenv("QUEUE_PAUSE_ON_BOOT", "false").lower() == "true"
 
     # Authentication & Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "changeme_in_production_please_super_secret")

@@ -96,7 +96,7 @@ class TyposquatScanner(BaseScannerModule):
         logger.info(f"Starting parallel scan of {total_to_scan} targets...")
         
         checked_count = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_url = {executor.submit(check_variant, var): var for var in scan_list}
             for future in concurrent.futures.as_completed(future_to_url):
                 checked_count += 1

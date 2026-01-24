@@ -313,7 +313,7 @@ class SubdomainScanner(DNSRecordScanner):
             except Exception:
                 return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_sub = {executor.submit(verify_domain, sub): sub for sub in potential_full_domains}
             total_subs = len(potential_full_domains)
             completed_count = 0
@@ -347,7 +347,7 @@ class SubdomainScanner(DNSRecordScanner):
         if "takeover_risks" not in results:
             results["takeover_risks"] = []
             
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             # Helper to check a single sub
             def check_sub_cname(sub_entry):
                 sub_domain = sub_entry['subdomain']

@@ -160,7 +160,7 @@ class TLDScanner(BaseScannerModule):
         # Limit to maybe 50-100 threads? IANA list has ~1500 TLDs. 
         # 1500/100 = 15 batches. 2s timeout. ~30s scan. Acceptable.
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_tld = {executor.submit(check_tld, tld): tld for tld in all_tlds}
             
             for future in concurrent.futures.as_completed(future_to_tld):

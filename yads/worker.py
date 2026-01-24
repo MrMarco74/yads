@@ -61,6 +61,13 @@ def on_worker_process_init(**kwargs):
     except Exception as e:
         logger.error(f"[Worker] Failed to dispose engine on process init: {e}")
 
+    # Initialize bandwidth limiter and patch requests module
+    try:
+        _patch_requests_with_throttling()
+        logger.info("[Worker] Bandwidth throttling enabled for HTTP requests")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to initialize bandwidth throttling: {e}")
+
     # Initialize worker client for distributed mode
     try:
         _worker_client = initialize_worker_client()
@@ -70,6 +77,51 @@ def on_worker_process_init(**kwargs):
             logger.info("[Worker] Running in standalone mode (no distributed coordination)")
     except Exception as e:
         logger.warning(f"[Worker] Failed to initialize worker client: {e}")
+
+
+def _patch_requests_with_throttling():
+    """
+    Monkey-patch the requests module to use bandwidth throttling.
+    This ensures all HTTP requests respect the NETWORK_RATE_LIMIT setting.
+    """
+    import requests
+    from yads.core.rate_limiter import get_bandwidth_limiter
+
+    bandwidth_limiter = get_bandwidth_limiter()
+
+    # Store original functions
+    _original_request = requests.Session.request
+
+    def throttled_request(self, method, url, **kwargs):
+        """Wrapper that adds bandwidth throttling to requests."""
+        # Make the request
+        response = _original_request(self, method, url, **kwargs)
+
+        # Track bandwidth usage
+        try:
+            # Estimate request size
+            request_size = len(url) + 500  # Headers estimate
+
+            # Track response size
+            response_size = 0
+            if hasattr(response, 'content') and response.content:
+                response_size = len(response.content)
+            elif hasattr(response, 'headers'):
+                content_length = response.headers.get('content-length')
+                if content_length:
+                    response_size = int(content_length)
+
+            total_bytes = request_size + response_size
+            if total_bytes > 0:
+                bandwidth_limiter.consume(total_bytes)
+        except Exception as e:
+            logger.debug(f"Bandwidth tracking error: {e}")
+
+        return response
+
+    # Apply patch
+    requests.Session.request = throttled_request
+    logger.debug("Patched requests.Session.request with bandwidth throttling")
 
 
 # Database access for worker
