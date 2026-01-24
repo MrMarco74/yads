@@ -2,7 +2,7 @@
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_PATH="$SCRIPT_DIR/release_gui.py"
+APP_PATH="$SCRIPT_DIR/release_gui_fluent.py"
 
 # Colors
 GREEN='\033[0;32m'

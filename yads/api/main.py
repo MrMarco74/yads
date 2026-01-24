@@ -112,36 +112,38 @@ async def lifespan(app: FastAPI):
                 
             logger.info("Database connected, tables created, and schema migrated.")
             
-            # Enforce Paused State on Boot (User Request)
+            # Enforce Paused State on Boot (Configurable)
             with Session(engine) as session:
                 from yads.models import SystemConfig
                 config = session.get(SystemConfig, "QUEUE_ACTIVE")
                 if not config:
-                    config = SystemConfig(key="QUEUE_ACTIVE", value="false")
+                    # If key doesn't exist, default to ACTIVE (unless pause on boot is requested)
+                    default_state = "false" if settings.QUEUE_PAUSE_ON_BOOT else "true"
+                    config = SystemConfig(key="QUEUE_ACTIVE", value=default_state)
                     session.add(config)
                     session.commit()
                 else:
-                    # Ensure it starts as false if we want strict "no auto start on boot" 
-                    # even if it was true before? 
-                    # The user said: "change the worker in such a way, that he is not autostarting scans after the docker container has been startet"
-                    # This implies ALWAYS pausing on boot.
-                    if config.value.lower() == "true":
-                        config.value = "false"
-                        session.add(config)
-                        session.commit()
+                    # If key exists, check if we should force pause
+                    if settings.QUEUE_PAUSE_ON_BOOT:
+                         if config.value.lower() == "true":
+                            config.value = "false"
+                            session.add(config)
+                            session.commit()
+                            logger.info("Auto-start disabled: Queue execution paused by configuration.")
             
-            # Broadcast Pause Command
-            try:
-                from yads.worker import celery_app
-                # We must import celery_app here or at top. 
-                # Note: importing worker inside main might cause circular import if worker imports main.
-                # worker.py imports settings, logging, modules. It does NOT import main. Safe.
-                
-                # Cancel consumer to stop processing queue
-                celery_app.control.cancel_consumer('celery', reply=True)
-                logger.info("Auto-start disabled: Queue execution paused.")
-            except Exception as e:
-                logger.warning(f"Failed to pause worker on boot: {e}")
+            # Broadcast Pause Command IF actually paused
+            # We check the DB state again to be sure
+            with Session(engine) as session:
+                from yads.models import SystemConfig
+                config = session.get(SystemConfig, "QUEUE_ACTIVE")
+                if config and config.value.lower() == "false":
+                    try:
+                        from yads.worker import celery_app
+                        celery_app.control.cancel_consumer('celery', reply=True)
+                        logger.info("Queue consumer cancelled (Paused).")
+                    except Exception as e:
+                        logger.warning(f"Failed to pause worker on boot: {e}")
+            
             
             # Create Default Admin if None Exist
             with Session(engine) as session:
@@ -757,13 +759,11 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             last_scans[state.target_id][state.module_name] = state.last_scanned_at
 
     # Queue Stats
-    import redis
-    queue_len = 0
-    try:
-        r = redis_client
-        queue_len = r.llen('celery')
-    except Exception:
-        pass
+    # Queue Stats (From DB for accuracy & tenant isolation)
+    queue_len = session.exec(select(func.count()).select_from(Target).where(
+        Target.tenant_id == user.tenant_id, 
+        Target.scan_status == "queued"
+    )).one()
     
     from yads.models import SystemConfig
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
@@ -984,13 +984,11 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
     total_scans_count = session.exec(select(func.count(ScanResult.id)).join(Target).where(Target.tenant_id == user.tenant_id)).one()
     
     # Queue Stats
-    import redis
-    queue_len = 0
-    try:
-        r = redis_client
-        queue_len = r.llen('celery')
-    except Exception:
-        pass
+    # Queue Stats (From DB for accuracy & tenant isolation)
+    queue_len = session.exec(select(func.count()).select_from(Target).where(
+        Target.tenant_id == user.tenant_id, 
+        Target.scan_status == "queued"
+    )).one()
     
     from yads.models import SystemConfig
     config = session.get(SystemConfig, "QUEUE_ACTIVE")

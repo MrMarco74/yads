@@ -151,7 +151,8 @@ class ReleaseOrchestrator:
         skip_upload: bool = False,
         skip_commit: bool = False,
         use_editor: bool = False,
-        interactive: bool = True
+        interactive: bool = True,
+        target_version: str = None
     ) -> bool:
         """
         Execute full release process.
@@ -162,6 +163,7 @@ class ReleaseOrchestrator:
             skip_upload: If True, skip upload step
             skip_commit: If True, skip git commit
             use_editor: If True, use editor for changelog
+            target_version: If provided, use this version instead of bumping
 
         Returns:
             True if successful
@@ -183,12 +185,21 @@ class ReleaseOrchestrator:
 
             config_file = self.project_root / "yads" / "config.py"
             current_version = extract_version_from_file(str(config_file))
-            new_version_str = current_version.bump(bump_type)
-            new_version = SemanticVersion(new_version_str)
 
-            print(f"\nCurrent version: {current_version}")
-            print(f"New version:     {new_version}")
-            print(f"Bump type:       {bump_type.upper()}\n")
+            if target_version:
+                # Use manually specified version
+                new_version_str = target_version
+                new_version = SemanticVersion(new_version_str)
+                print(f"\nCurrent version: {current_version}")
+                print(f"New version:     {new_version}")
+                print(f"Mode:            MANUAL OVERRIDE\n")
+            else:
+                # Auto-bump version
+                new_version_str = current_version.bump(bump_type)
+                new_version = SemanticVersion(new_version_str)
+                print(f"\nCurrent version: {current_version}")
+                print(f"New version:     {new_version}")
+                print(f"Bump type:       {bump_type.upper()}\n")
 
             if not dry_run and interactive:
                 confirm = input("Proceed with this version bump? [y/N]: ").strip().lower()
@@ -389,22 +400,28 @@ class ReleaseOrchestrator:
                 self.file_updater.rollback()
             raise
 
-    def retry_upload(self, version: str) -> bool:
+    def retry_upload(self, version: str, dry_run: bool = False) -> bool:
         """
         Retry upload for an existing release.
 
         Args:
             version: Version string to upload
+            dry_run: If True, only show what would be uploaded
 
         Returns:
             True if successful
         """
-        print(f"\n📤 Retrying upload for version {version}...\n")
+        if dry_run:
+            print(f"\n🔍 DRY RUN: Showing upload plan for version {version}...\n")
+        else:
+            print(f"\n📤 Retrying upload for version {version}...\n")
 
-        self.load_config()
+        # Only load config if not already loaded (preserves GUI overrides)
+        if not hasattr(self, 'config') or self.config is None:
+            self.load_config()
 
         try:
-            return self.uploader.upload_release(version, dry_run=False)
+            return self.uploader.upload_release(version, dry_run=dry_run)
         except Exception as e:
             print(f"\n❌ Upload failed: {e}\n")
             return False

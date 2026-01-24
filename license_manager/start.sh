@@ -2,7 +2,7 @@
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_PATH="$SCRIPT_DIR/license_manager_gui.py"
+APP_PATH="$SCRIPT_DIR/license_manager_fluent.py"
 
 # Colors
 GREEN='\033[0;32m'
@@ -18,18 +18,20 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check Dependencies
-echo "Checking dependencies..."
-python3 -c "import cryptography" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "Installing required library: cryptography..."
-    pip3 install cryptography
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to install dependencies. Please run 'pip3 install cryptography' manually.${NC}"
-        read -p "Press Enter to exit..."
-        exit 1
-    fi
+# Virtual Environment Setup
+VENV_DIR="$SCRIPT_DIR/.venv"
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
 fi
+
+# Activate
+source "$VENV_DIR/bin/activate"
+
+# Check & Install Requirements
+echo "Checking dependencies..."
+pip install -q --upgrade pip
+pip install -q PySide6 PySide6-Fluent-Widgets cryptography
 
 # Run
 echo "Starting GUI..."
