@@ -213,7 +213,7 @@ class ReleaseUploader:
 
     def _upload_ftp(self, files: List[Tuple[str, str]], version: str) -> bool:
         """
-        Upload via FTP.
+        Upload via FTP/FTPS.
 
         Args:
             files: List of (local_path, remote_path) tuples
@@ -223,6 +223,8 @@ class ReleaseUploader:
             True if successful
         """
         import ftplib
+        import ssl
+        import time
 
         ftp_config = self.config.get('upload', {}).get('ftp', {})
 
@@ -230,14 +232,45 @@ class ReleaseUploader:
         user = ftp_config.get('user')
         password = ftp_config.get('password')
         port = ftp_config.get('port', 21)
+        use_tls = ftp_config.get('tls', True)  # Default to TLS
+        verify_ssl = ftp_config.get('verify_ssl', True)
+        ca_cert = ftp_config.get('ca_cert')  # Path to CA certificate bundle
 
-        print(f"\n📤 Uploading via FTP to {host}...\n")
+        print(f"\n📤 Uploading via {'FTPS' if use_tls else 'FTP'} to {host}...\n")
 
         try:
-            # Connect to FTP server
-            ftp = ftplib.FTP()
-            ftp.connect(host, port)
-            ftp.login(user, password)
+            if use_tls:
+                # Create SSL context
+                ssl_context = ssl.create_default_context()
+
+                if not verify_ssl:
+                    print("  ⚠️  SSL certificate verification disabled")
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                elif ca_cert:
+                    # Use custom CA certificate
+                    ca_cert_path = os.path.expanduser(ca_cert)
+                    if os.path.exists(ca_cert_path):
+                        ssl_context.load_verify_locations(ca_cert_path)
+                        print(f"  🔐 Using CA certificate: {ca_cert_path}")
+                    else:
+                        print(f"  ⚠️  CA certificate not found: {ca_cert_path}")
+                        print("      Falling back to system certificates")
+
+                # Connect with TLS
+                ftp = ftplib.FTP_TLS(context=ssl_context)
+                ftp.connect(host, port, timeout=30)
+                ftp.login(user, password)
+
+                # Switch to secure data connection
+                ftp.prot_p()
+                print("  🔒 TLS connection established\n")
+            else:
+                # Plain FTP (not recommended)
+                print("  ⚠️  Using unencrypted FTP connection\n")
+                ftp = ftplib.FTP()
+                ftp.connect(host, port, timeout=30)
+                ftp.login(user, password)
 
             for local_file, remote_path in files:
                 local_full_path = self.project_root / local_file
@@ -267,6 +300,38 @@ class ReleaseUploader:
             ftp.quit()
             print(f"✅ All files uploaded successfully via FTP\n")
             return True
+
+        except ftplib.error_perm as e:
+            error_msg = str(e)
+            if '530' in error_msg:
+                print(f"\n❌ FTP authentication failed: {e}")
+                print("   Check username and password in config")
+            elif '550' in error_msg:
+                print(f"\n❌ FTP permission denied: {e}")
+                print("   Check file/directory permissions on server")
+            else:
+                print(f"\n❌ FTP permission error: {e}")
+            raise
+
+        except ftplib.error_temp as e:
+            print(f"\n❌ FTP temporary error: {e}")
+            print("   Server may be busy or you may be rate-limited")
+            print("   Wait a few minutes before retrying")
+            raise
+
+        except ssl.SSLCertVerificationError as e:
+            print(f"\n❌ SSL certificate verification failed: {e}")
+            print("\n   Possible solutions:")
+            print("   1. Set 'verify_ssl: false' in config (not recommended)")
+            print("   2. Add server's CA cert to 'ca_cert' in config")
+            print("   3. Install server's CA cert system-wide")
+            raise
+
+        except ConnectionRefusedError as e:
+            print(f"\n❌ FTP connection refused: {e}")
+            print("   Your IP may be blocked due to too many failed attempts")
+            print("   Contact your hosting provider to unblock your IP")
+            raise
 
         except Exception as e:
             print(f"\n❌ FTP upload failed: {e}\n")
