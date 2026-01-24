@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap - YADS</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .roadmap-container {
+            max-width: 1000px;
+            margin: 4rem auto;
+        }
+
+        .roadmap-section {
+            margin-bottom: 4rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.5s forwards;
+        }
+
+        .roadmap-section:nth-child(2) { animation-delay: 0.1s; }
+        .roadmap-section:nth-child(3) { animation-delay: 0.2s; }
+        .roadmap-section:nth-child(4) { animation-delay: 0.3s; }
+        .roadmap-section:nth-child(5) { animation-delay: 0.4s; }
+        .roadmap-section:nth-child(6) { animation-delay: 0.5s; }
+
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-icon {
+            font-size: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+        }
+
+        .roadmap-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .roadmap-card p.section-intro {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .feature-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .feature-table th,
+        .feature-table td {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .feature-table th {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .feature-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .feature-table td:first-child {
+            width: 30%;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .feature-table td:last-child {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feature-table tr:hover {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .status-badge.available {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.planned {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-primary);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .status-badge.research {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .feature-table th,
+            .feature-table td {
+                display: block;
+                width: 100%;
+            }
+
+            .feature-table th {
+                display: none;
+            }
+
+            .feature-table td:first-child {
+                width: 100%;
+                padding-bottom: 0.5rem;
+                border-bottom: none;
+            }
+
+            .feature-table td:last-child {
+                padding-top: 0;
+            }
+
+            .feature-table tr {
+                display: block;
+                padding: 1rem 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .feature-table tr:last-child {
+                border-bottom: none;
+            }
+        }
+    </style>
+    <link rel="icon" type="image/png" href="./images/favicon.png">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">
+                <img src="./images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <span class="text-gradient">YADS</span> Security
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product.html">Features</a>
+                <a href="support.html">Setup</a>
+                <a href="docs.html">Documentation</a>
+                <a href="changes.html">Changes</a>
+                <a href="roadmap.html" class="active">Roadmap</a>
+                <a href="story.html">Origin Story</a>
+                <a href="contact.html">Contact</a>
+                <a href="https://yads-security.de/roadmap.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
+            </div>
+            <a href="contact.html" class="btn-primary">Get Demo</a>
+        </div>
+    </nav>
+
+    <header class="hero hero-small">
+        <div class="container hero-content">
+            <h1>Product <span class="text-gradient">Roadmap</span></h1>
+            <p>A glimpse into the future of YADS Security Platform.</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="roadmap-container">
+
+            <!-- New Scanner Modules -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🔬</span>
+                    <h2 class="section-title">New Scanner Modules</h2>
+                </div>
+                <div class="roadmap-card">
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Enhanced OSINT & Brand Intelligence</td>
+                                <td>Improved brand monitoring with deeper web searches, lookalike detection, and reputation tracking across multiple data sources.</td>
+                            </tr>
+                            <tr>
+                                <td>Email Intelligence Gatherer</td>
+                                <td>Discover email addresses associated with target domains through breach databases, public sources, and pattern analysis.</td>
+                            </tr>
+                            <tr>
+                                <td>Social Media Reconnaissance</td>
+                                <td>Automated discovery of corporate social media accounts, employee profiles, and brand mentions across major platforms.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Deception Detection -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🛡️</span>
+                    <h2 class="section-title">Deception Technology Detection</h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        A new detection module that identifies defensive deception infrastructure with confidence scoring. Each detection includes a <strong>confidence score</strong> and <strong>risk rating</strong> to help assess the target environment.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Capability</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Honeypot Detection</td>
+                                <td>Identify web and service-level honeypots through behavioral analysis and fingerprinting techniques.</td>
+                            </tr>
+                            <tr>
+                                <td>DNS Sinkhole Identification</td>
+                                <td>Detect domains redirected to sinkhole infrastructure, commonly used by security teams and ISPs.</td>
+                            </tr>
+                            <tr>
+                                <td>Tarpit Recognition</td>
+                                <td>Identify network tarpits designed to slow down attackers and automated scanning tools.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Platform Improvements -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">⚙️</span>
+                    <h2 class="section-title">Platform Improvements</h2>
+                </div>
+                <div class="roadmap-card">
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Proxy Support (Zscaler, etc.)</td>
+                                <td>Configure HTTP/HTTPS proxy settings for all scanner modules (except Nmap). Essential for enterprise environments using security gateways like Zscaler, Netskope, or corporate proxies.</td>
+                            </tr>
+                            <tr>
+                                <td>Custom TLS Certificates</td>
+                                <td>Support for custom CA certificates and client certificates for scanning internal infrastructure behind corporate PKI.</td>
+                            </tr>
+                            <tr>
+                                <td>One-Click Updates</td>
+                                <td>In-app update mechanism that pulls the latest Docker image and performs a graceful restart without manual intervention.</td>
+                            </tr>
+                            <tr>
+                                <td>Enhanced Logging & SIEM</td>
+                                <td>Structured logging with MITRE ATT&CK event tagging, improved Splunk integration, and syslog forwarding for comprehensive audit trails.</td>
+                            </tr>
+                            <tr>
+                                <td>Tenant-Aware Workers</td>
+                                <td>Assign dedicated worker nodes to specific tenants or configure them as shared resources for flexible multi-tenant deployments.</td>
+                            </tr>
+                            <tr>
+                                <td>System Administration Dashboard</td>
+                                <td>Central view of all workers, active tasks, queue depth, and real-time resource metrics (CPU, RAM, Network).</td>
+                            </tr>
+                            <tr>
+                                <td>Storage Analytics</td>
+                                <td>Monitor disk usage across screenshot folders and scan artifacts with cleanup recommendations.</td>
+                            </tr>
+                            <tr>
+                                <td>Prometheus/Grafana Export</td>
+                                <td>Native metrics endpoint for infrastructure monitoring, alerting integration, and performance dashboards.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Automation & Integrations -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🔗</span>
+                    <h2 class="section-title">Automation & Integrations</h2>
+                </div>
+                <div class="roadmap-card">
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Integration</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Jira</td>
+                                <td>Automatically create and update issues based on scan findings, with customizable severity mapping and project assignment.</td>
+                            </tr>
+                            <tr>
+                                <td>ServiceNow</td>
+                                <td>Push security incidents to ServiceNow ITSM for ticketing, workflow automation, and change management integration.</td>
+                            </tr>
+                            <tr>
+                                <td>Cortex XSOAR</td>
+                                <td>Bi-directional integration for SOAR playbook orchestration, automated response, and incident enrichment.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Mobile Experience -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">📱</span>
+                    <h2 class="section-title">Mobile Experience</h2>
+                </div>
+                <div class="roadmap-card">
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Mobile Dashboard <span class="status-badge available">Available</span></td>
+                                <td>Lightweight mobile-optimized interface for queue monitoring, scan control, and alert notifications on the go. Access at <code>/mobile</code> on your YADS instance.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 YADS Security. All rights reserved.</p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="impressum.html">Imprint</a> |
+                <a href="datenschutz.html">Privacy</a> |
+                <a href="haftungsausschluss.html">Disclaimer</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
