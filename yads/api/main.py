@@ -3185,14 +3185,31 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     # Custom Wordlist Status
     has_custom_wordlist = False
     custom_wordlist_lines = 0
+    default_wordlist_count = 18 # Default fallback list size
     try:
-        # Assuming run from root or predictable structure
-        # yads/api/main.py -> yads/data/wordlists/subdomains.txt
-        wordlist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "wordlists", "subdomains.txt")
+        # Use BASE_DIR from settings for robust path resolution
+        # yads/data/wordlists/subdomains.txt
+        wordlist_path = os.path.join(settings.BASE_DIR, "data", "wordlists", "subdomains.txt")
+        
+        # Fallback for Docker environment if path resolution is weird
+        if not os.path.exists(wordlist_path):
+            wordlist_path = "/app/yads/data/wordlists/subdomains.txt"
+        
         if os.path.exists(wordlist_path):
             has_custom_wordlist = True
             with open(wordlist_path, 'rb') as f:
                 custom_wordlist_lines = sum(1 for _ in f)
+    except:
+        pass
+
+    # Nuclei Update Status
+    nuclei_last_updated = "Never"
+    try:
+        nuclei_path = "/root/nuclei-templates"
+        if os.path.exists(nuclei_path):
+             # Check modification time
+             mtime = os.path.getmtime(nuclei_path)
+             nuclei_last_updated = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
     except:
         pass
 
@@ -3287,6 +3304,8 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "license_limit": license_limit,
         "global_max_concurrent_scans": global_max_concurrent_scans,
         "global_max_network_mbps": global_max_network_mbps,
+        "default_wordlist_count": default_wordlist_count,
+        "nuclei_last_updated": nuclei_last_updated
     })
 
 @app.post("/settings", response_class=HTMLResponse)

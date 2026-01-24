@@ -25,8 +25,8 @@
             <div class="nav-links">
                 <a href="index.html">Startseite</a>
                 <a href="product.html">Funktionen</a>
-                <a href="support.html">Installation</a>
-                <a href="docs.html" class="active">Dokumentation</a>
+                <a href="support.html" class="active">Installation</a>
+                <a href="docs.html">Dokumentation</a>
                 <a href="changes.html">Änderungen</a>
                 <a href="story.html">Entstehung</a>
                 <a href="contact.html">Kontakt</a>
@@ -130,6 +130,67 @@ docker compose up -d
                     <p style="font-size: 0.9rem; margin-bottom: 0;">Task Queue & Caching Layer.</p>
                 </div>
             </div>
+        </div>
+
+        <!-- DISTRIBUTED WORKERS -->
+        <div class="glass-card support-section" id="distributed-workers" style="border-left: 4px solid #ec4899;">
+            <h2 class="support-header">4. Verteilte Worker (Optional)</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                Für groß angelegte Deployments unterstützt YADS horizontale Skalierung durch mehrere Worker-Nodes in einem Docker Swarm Cluster.
+            </p>
+
+            <h3>Voraussetzungen</h3>
+            <ul>
+                <li>Docker Swarm auf allen Nodes initialisiert</li>
+                <li>Netzwerkverbindung zwischen Manager und Worker-Nodes</li>
+                <li>Redis von allen Nodes erreichbar (Overlay-Netzwerk)</li>
+            </ul>
+
+            <h3 style="margin-top: 2rem;">Schritt 1: Docker Swarm initialisieren</h3>
+            <p>Auf dem Manager-Node (wo yads-api läuft):</p>
+            <div class="code-block">
+docker swarm init --advertise-addr &lt;MANAGER_IP&gt;
+            </div>
+            <p>Dies gibt einen Join-Befehl aus. Führen Sie ihn auf jedem Worker-Node aus:</p>
+            <div class="code-block">
+docker swarm join --token &lt;TOKEN&gt; &lt;MANAGER_IP&gt;:2377
+            </div>
+
+            <h3 style="margin-top: 2rem;">Schritt 2: Worker-Registrierungstoken generieren</h3>
+            <p>In der YADS-Oberfläche gehen Sie zu <strong>Einstellungen → Verteilte Worker</strong> und klicken Sie auf <strong>"Token generieren"</strong>.</p>
+            <p>Kopieren Sie das Token – Sie benötigen es für jeden sekundären Worker.</p>
+
+            <h3 style="margin-top: 2rem;">Schritt 3: Sekundäre Worker bereitstellen</h3>
+            <p>Verwenden Sie die Swarm-Deployment-Datei aus dem Release:</p>
+            <div class="code-block">
+# Umgebungsvariablen setzen
+export WORKER_REGISTRATION_TOKEN=&lt;ihr-token&gt;
+export REDIS_URL=redis://&lt;manager-ip&gt;:6379/0
+
+# Worker im Swarm bereitstellen
+docker stack deploy -c docker-compose.swarm.yml yads
+            </div>
+
+            <h3 style="margin-top: 2rem;">Schritt 4: Worker überprüfen</h3>
+            <p>In der YADS-Oberfläche unter <strong>Einstellungen → Verteilte Worker</strong> sollten Sie sehen:</p>
+            <ul style="color: #94a3b8;">
+                <li><strong>Aktive Worker</strong>: Liste aller verbundenen Worker-Nodes</li>
+                <li><strong>Lastverteilung</strong>: Aktuelle Task-Anzahl pro Worker</li>
+                <li><strong>Gesundheitsstatus</strong>: Heartbeat-Status (aktualisiert alle 30s)</li>
+            </ul>
+
+            <div style="margin-top: 1.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 1rem; border-radius: 0.5rem;">
+                <strong style="color: #818cf8;">💡 Tipp:</strong>
+                <span style="color: #94a3b8;"> Worker verbinden sich nach Netzwerkunterbrechungen automatisch wieder. Tasks von ausgefallenen Workern werden automatisch neu eingereiht.</span>
+            </div>
+
+            <h3 style="margin-top: 2rem;">Worker-Steuerung</h3>
+            <p>Sie können Worker ohne Neustart der Dienste verwalten:</p>
+            <ul style="color: #94a3b8;">
+                <li><strong>Pausieren</strong>: Keine neuen Tasks akzeptieren (aktuelle beenden)</li>
+                <li><strong>Fortsetzen</strong>: Wieder neue Tasks akzeptieren</li>
+                <li><strong>Entleeren</strong>: Ordentlich herunterfahren nach Abschluss aller Tasks</li>
+            </ul>
         </div>
 
         <!-- USER GUIDE LINK -->

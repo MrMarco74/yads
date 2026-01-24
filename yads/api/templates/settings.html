@@ -224,7 +224,7 @@
                     </div>
                     <button type="submit" form="delete-wordlist-form" class="w-full text-center text-xs text-red-400 hover:text-red-300 border border-red-900/50 rounded py-1 bg-red-900/10">Delete & Revert</button>
                 {% else %}
-                    <p class="text-xs text-gray-500 italic text-center">Using system default wordlist.</p>
+                    <p class="text-xs text-gray-500 italic text-center">Using system default wordlist ({{ default_wordlist_count }} words).</p>
                 {% endif %}
                 </div>
                 
@@ -244,7 +244,8 @@
                     <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
                     <div>
                         <span class="text-sm font-medium text-gray-200 block">Nuclei Templates</span>
-                        <span class="text-[10px] text-gray-500">Update vulnerability signatures from ProjectDiscovery.</span>
+                        <span class="text-[10px] text-gray-500 block">Update vulnerability signatures from ProjectDiscovery.</span>
+                        <span class="text-[10px] text-gray-600 block mt-0.5">Last updated: {{ nuclei_last_updated }}</span>
                     </div>
                     <button type="button" 
                             hx-post="/admin/tools/nuclei-update" 
@@ -353,7 +354,7 @@
                             </button>
                         </div>
                         <div id="worker-token-display" class="font-mono text-xs bg-gray-800 p-2 rounded border border-gray-600 text-gray-300 break-all">
-                            <span hx-get="/api/workers/token/current" hx-trigger="load" hx-swap="innerHTML">Loading...</span>
+                            <span hx-get="/api/workers/token/current?t={{ now }}" hx-trigger="load" hx-swap="innerHTML">Loading...</span>
                         </div>
                     </div>
 

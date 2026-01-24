@@ -132,6 +132,67 @@ docker compose up -d
             </div>
         </div>
 
+        <!-- DISTRIBUTED WORKERS -->
+        <div class="glass-card support-section" id="distributed-workers" style="border-left: 4px solid #ec4899;">
+            <h2 class="support-header">4. Distributed Workers (Optional)</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                For large-scale deployments, YADS supports horizontal scaling by running multiple worker nodes across a Docker Swarm cluster.
+            </p>
+
+            <h3>Prerequisites</h3>
+            <ul>
+                <li>Docker Swarm initialized on all nodes</li>
+                <li>Network connectivity between manager and worker nodes</li>
+                <li>Redis accessible from all nodes (overlay network)</li>
+            </ul>
+
+            <h3 style="margin-top: 2rem;">Step 1: Initialize Docker Swarm</h3>
+            <p>On the manager node (where yads-api runs):</p>
+            <div class="code-block">
+docker swarm init --advertise-addr &lt;MANAGER_IP&gt;
+            </div>
+            <p>This will output a join command. Run it on each worker node:</p>
+            <div class="code-block">
+docker swarm join --token &lt;TOKEN&gt; &lt;MANAGER_IP&gt;:2377
+            </div>
+
+            <h3 style="margin-top: 2rem;">Step 2: Generate Worker Registration Token</h3>
+            <p>In the YADS UI, go to <strong>Settings → Distributed Workers</strong> and click <strong>"Generate Token"</strong>.</p>
+            <p>Copy the token – you'll need it for each secondary worker.</p>
+
+            <h3 style="margin-top: 2rem;">Step 3: Deploy Secondary Workers</h3>
+            <p>Use the Swarm deployment file included in the release:</p>
+            <div class="code-block">
+# Set environment variables
+export WORKER_REGISTRATION_TOKEN=&lt;your-token&gt;
+export REDIS_URL=redis://&lt;manager-ip&gt;:6379/0
+
+# Deploy workers across the swarm
+docker stack deploy -c docker-compose.swarm.yml yads
+            </div>
+
+            <h3 style="margin-top: 2rem;">Step 4: Verify Workers</h3>
+            <p>In the YADS UI under <strong>Settings → Distributed Workers</strong>, you should see:</p>
+            <ul style="color: #94a3b8;">
+                <li><strong>Active Workers</strong>: List of all connected worker nodes</li>
+                <li><strong>Load Distribution</strong>: Current task count per worker</li>
+                <li><strong>Health Status</strong>: Heartbeat status (updates every 30s)</li>
+            </ul>
+
+            <div style="margin-top: 1.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 1rem; border-radius: 0.5rem;">
+                <strong style="color: #818cf8;">💡 Tip:</strong>
+                <span style="color: #94a3b8;"> Workers automatically reconnect after network interruptions. Tasks from failed workers are requeued automatically.</span>
+            </div>
+
+            <h3 style="margin-top: 2rem;">Worker Control</h3>
+            <p>You can manage workers without restarting services:</p>
+            <ul style="color: #94a3b8;">
+                <li><strong>Suspend</strong>: Stop accepting new tasks (finish current ones)</li>
+                <li><strong>Resume</strong>: Accept new tasks again</li>
+                <li><strong>Drain</strong>: Gracefully shut down after completing all tasks</li>
+            </ul>
+        </div>
+
         <!-- USER GUIDE LINK -->
         <div class="glass-card support-section" id="manual" style="text-align: center; padding: 3rem;">
             <h2>User Manual</h2>

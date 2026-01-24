@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation - YADS</title>
+    <title>Dokumentation - YADS</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         /* Markdown Overrides */
@@ -41,10 +41,10 @@
 
     <div class="container docs-layout">
         <aside class="docs-sidebar">
-            <h4 style="margin-bottom: 1rem; color: #fff;">Contents</h4>
+            <h4 style="margin-bottom: 1rem; color: #fff;">Inhalt</h4>
             <ul>
-                <li><a href="#table-of-contents">Table of Contents</a></li>
-<li><a href="#1-introduction">1. Introduction</a></li>
+                <li><a href="#table-of-contents">Inhaltsverzeichnis</a></li>
+<li><a href="#1-introduction">1. Einführung</a></li>
 <li><a href="#2-getting-started">2. Erste Schritte</a>
     <ul>
         <li><a href="#2-1-initial-setup-wizard">2.1 Ersteinrichtungs-Assistent</a></li>
@@ -54,64 +54,68 @@
         <li><a href="#2-5-licensed-features">2.5 Lizenzierte Funktionen</a></li>
     </ul>
 </li>
-<li><a href="#3-dashboard-overview">3. Dashboard Overview</a></li>
-<li><a href="#4-target-management">4. Target Management</a></li>
-<li><a href="#5-running-scans">5. Running Scans</a></li>
-<li><a href="#6-analysis-modules">6. Analysis Modules</a></li>
-<li><a href="#7-osint-brand-monitoring">7. OSINT Brand Monitoring</a></li>
-<li><a href="#8-visualizations">8. Visualizations</a></li>
-<li><a href="#9-data-management--reports">9. Data Management & Reports</a></li>
-<li><a href="#10-user-management--security">10. User Management & Security</a></li>
-<li><a href="#11-multi-tenancy">11. Multi-Tenancy</a></li>
-<li><a href="#12-system-settings--queue">12. System Settings & Queue</a>
+<li><a href="#3-dashboard-overview">3. Dashboard-Übersicht</a></li>
+<li><a href="#4-target-management">4. Target-Verwaltung</a></li>
+<li><a href="#5-running-scans">5. Scans durchführen</a></li>
+<li><a href="#6-analysis-modules">6. Analyse-Module</a></li>
+<li><a href="#7-osint-brand-monitoring">7. OSINT Markenüberwachung</a></li>
+<li><a href="#8-visualizations">8. Visualisierungen</a></li>
+<li><a href="#9-data-management--reports">9. Datenverwaltung & Berichte</a></li>
+<li><a href="#10-user-management--security">10. Benutzerverwaltung & Sicherheit</a></li>
+<li><a href="#11-multi-tenancy">11. Mandantenfähigkeit</a></li>
+<li><a href="#12-system-settings--queue">12. Systemeinstellungen & Queue</a>
     <ul>
         <li><a href="#verteilte-worker">Verteilte Worker</a></li>
     </ul>
 </li>
-<li><a href="#13-best-practices">13. Best Practices</a></li>
-<li><a href="#14-troubleshooting">14. Troubleshooting</a></li>
+<li><a href="#13-best-practices">13. Best Practices</a>
+    <ul>
+        <li><a href="#empfohlene-scan-reihenfolge">Empfohlene Reihenfolge</a></li>
+    </ul>
+</li>
+<li><a href="#14-troubleshooting">14. Fehlerbehebung</a></li>
 <li><a href="#15-support">15. Support</a></li>
 
             </ul>
         </aside>
         <main class="docs-content">
-            <h1>YADS - Comprehensive User Guide</h1>
+            <h1>YADS - Umfassendes Benutzerhandbuch</h1>
 <p><strong>Version:</strong> 1.13.1
-<strong>Last Updated:</strong> 2026-01-21</p>
-<p>Welcome to the <strong>YADS (Yet Another Domain Scanner)</strong> manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.</p>
+<strong>Zuletzt aktualisiert:</strong> 2026-01-21</p>
+<p>Willkommen zum <strong>YADS (Yet Another Domain Scanner)</strong> Handbuch. Diese Anleitung deckt alle Aspekte der Anwendung ab, vom ersten Scan bis zur erweiterten Konfiguration und Mandantenfähigkeit.</p>
 <hr />
-<h2>Table of Contents</h2>
+<h2>Inhaltsverzeichnis</h2>
 <ol>
-<li><a href="#1-introduction">Introduction</a></li>
-<li><a href="#2-getting-started">Getting Started</a></li>
-<li><a href="#3-dashboard-overview">Dashboard Overview</a></li>
-<li><a href="#4-target-management">Target Management</a></li>
-<li><a href="#5-running-scans">Running Scans</a></li>
-<li><a href="#6-analysis-modules">Analysis Modules</a></li>
-<li><a href="#7-osint-brand-monitoring">OSINT Brand Monitoring</a></li>
-<li><a href="#8-visualizations">Visualizations</a></li>
-<li><a href="#9-data-management--reports">Data Management &amp; Reports</a><ul>
-<li><a href="#sensitive-data">Sensitive Data</a></li>
-<li><a href="#email-security">Email Security</a></li>
-<li><a href="#port-exposure">Port Exposure</a></li>
+<li><a href="#1-introduction">Einführung</a></li>
+<li><a href="#2-getting-started">Erste Schritte</a></li>
+<li><a href="#3-dashboard-overview">Dashboard-Übersicht</a></li>
+<li><a href="#4-target-management">Target-Verwaltung</a></li>
+<li><a href="#5-running-scans">Scans durchführen</a></li>
+<li><a href="#6-analysis-modules">Analyse-Module</a></li>
+<li><a href="#7-osint-brand-monitoring">OSINT Markenüberwachung</a></li>
+<li><a href="#8-visualizations">Visualisierungen</a></li>
+<li><a href="#9-data-management--reports">Datenverwaltung &amp; Berichte</a><ul>
+<li><a href="#sensitive-data">Sensible Daten</a></li>
+<li><a href="#email-security">E-Mail-Sicherheit</a></li>
+<li><a href="#port-exposure">Port-Exposition</a></li>
 <li><a href="#technology-drift">Technology Drift</a></li>
-<li><a href="#attack-surface-reduction">Attack Surface Reduction</a></li>
+<li><a href="#attack-surface-reduction">Angriffsflächen-Reduktion</a></li>
 </ul>
 </li>
-<li><a href="#10-user-management--security">User Management &amp; Security</a></li>
-<li><a href="#11-multi-tenancy">Multi-Tenancy</a></li>
-<li><a href="#12-system-settings--queue">System Settings &amp; Queue</a></li>
+<li><a href="#10-user-management--security">Benutzerverwaltung &amp; Sicherheit</a></li>
+<li><a href="#11-multi-tenancy">Mandantenfähigkeit</a></li>
+<li><a href="#12-system-settings--queue">Systemeinstellungen &amp; Queue</a></li>
 </ol>
 <hr />
-<h2>1. Introduction</h2>
-<p><strong>YADS</strong> is an automated security reconnaissance platform designed to map, analyze, and monitor internet-facing assets. It combines multiple scanning techniques—DNS enumeration, port scanning, web analysis, and vulnerability detection—into a single, easy-to-use interface.</p>
-<h3>Key Features</h3>
+<h2>1. Einführung</h2>
+<p><strong>YADS</strong> ist eine automatisierte Sicherheits-Reconnaissance-Plattform, die entwickelt wurde, um internetfähige Assets zu erfassen, zu analysieren und zu überwachen. Sie kombiniert mehrere Scan-Techniken – DNS-Enumeration, Port-Scanning, Web-Analyse und Schwachstellenerkennung – in einer einzigen, benutzerfreundlichen Oberfläche.</p>
+<h3>Hauptfunktionen</h3>
 <ul>
-<li><strong>Asset Discovery</strong>: Find subdomains and forgotten infrastructure.</li>
-<li><strong>Vulnerability Scanning</strong>: Detect outdated software (CVEs) and misconfigurations.</li>
-<li><strong>Visual Intelligence</strong>: Capture screenshots and visualize network relationships.</li>
-<li><strong>Continuous Monitoring</strong>: Track changes over time with change detection.</li>
-<li><strong>Multi-User &amp; Multi-Tenant</strong>: Securely manage multiple teams or clients within one instance.</li>
+<li><strong>Asset-Erkennung</strong>: Subdomains und vergessene Infrastruktur finden.</li>
+<li><strong>Schwachstellen-Scanning</strong>: Veraltete Software (CVEs) und Fehlkonfigurationen erkennen.</li>
+<li><strong>Visuelle Intelligenz</strong>: Screenshots erfassen und Netzwerkbeziehungen visualisieren.</li>
+<li><strong>Kontinuierliche Überwachung</strong>: Änderungen im Zeitverlauf mit Änderungserkennung verfolgen.</li>
+<li><strong>Multi-User &amp; Multi-Tenant</strong>: Mehrere Teams oder Kunden sicher in einer Instanz verwalten.</li>
 </ul>
 <hr />
 <h2>2. Erste Schritte</h2>
@@ -166,362 +170,424 @@
     <li><strong>tenants</strong>: Mandantenfähigkeit und Kundenisolation für professionelle Dienstleister.</li>
 </ul>
 <hr />
-<h2>3. Dashboard Overview</h2>
-<p>The Dashboard is your command center.</p>
+<h2>3. Dashboard-Übersicht</h2>
+<p>Das Dashboard ist Ihre Kommandozentrale.</p>
 <ul>
-<li><strong>Critical Attention HUD</strong>: A prominent alert block at the top highlighting immediate threats (e.g. Expired SSL, Critical Vulnerabilities). If the system is secure, this block will confirm it.</li>
-<li><strong>Stats Cards</strong>: Fast view of Total Targets, Active Scans, and Queue status.</li>
-<li><strong>Target List</strong>: A paginated table of all your monitored domains.<ul>
-<li><strong>Status Indicators</strong>: Shows if a scan is <code>Idle</code>, <code>Queued</code>, <code>Running</code>, or <code>Failed</code>.</li>
-<li><strong>Health Checks</strong>: Quick indicators for SSL status, Online status, and Risk Score.</li>
+<li><strong>Kritische Aufmerksamkeits-HUD</strong>: Ein prominenter Warnblock oben, der unmittelbare Bedrohungen hervorhebt (z.B. abgelaufenes SSL, kritische Schwachstellen). Bei sicherem System wird dies bestätigt.</li>
+<li><strong>Statistik-Karten</strong>: Schnellansicht von Gesamt-Targets, aktiven Scans und Queue-Status.</li>
+<li><strong>Target-Liste</strong>: Eine paginierte Tabelle aller überwachten Domains.<ul>
+<li><strong>Status-Indikatoren</strong>: Zeigt an, ob ein Scan <code>Idle</code>, <code>Queued</code>, <code>Running</code> oder <code>Failed</code> ist.</li>
+<li><strong>Gesundheitschecks</strong>: Schnellindikatoren für SSL-Status, Online-Status und Risikobewertung.</li>
 </ul>
 </li>
-<li><strong>Live Activity</strong>: The "Active Scans" panel on the right shows real-time progress of running jobs.</li>
+<li><strong>Live-Aktivität</strong>: Das Panel "Aktive Scans" rechts zeigt den Echtzeit-Fortschritt laufender Jobs.</li>
 </ul>
 <hr />
-<h2>4. Target Management</h2>
-<h3>Adding Targets</h3>
+<h2>4. Target-Verwaltung</h2>
+<h3>Targets hinzufügen</h3>
 <ul>
-<li><strong>Single</strong>: Enter a domain in the dashboard input.</li>
-<li><strong>Bulk Import</strong>: Click the "Import" button to upload a text file (one domain per line) or paste a list.<ul>
-<li><em>Option</em>: "Verify DNS" checks if domains are resolvable before adding them.</li>
+<li><strong>Einzeln</strong>: Domain im Dashboard-Eingabefeld eingeben.</li>
+<li><strong>Massenimport</strong>: Klicken Sie auf "Import", um eine Textdatei hochzuladen (eine Domain pro Zeile) oder eine Liste einzufügen.<ul>
+<li><em>Option</em>: "DNS verifizieren" prüft, ob Domains auflösbar sind, bevor sie hinzugefügt werden.</li>
 </ul>
 </li>
 </ul>
-<h3>Bulk Actions</h3>
-<p>Select multiple targets using the checkboxes in the table to perform batch operations:
-*   <strong>Bulk Scan</strong>: Trigger specific scan modules for all selected targets.
-*   <strong>Bulk Delete</strong>: Remove targets and their data.</p>
-<h3>Filtering</h3>
-<p>Use the column filters in the <strong>Table View</strong> to find specific targets:
-*   <strong>Filter by Name</strong>: Search for partial domain matches.
-*   <strong>Filter by Status</strong>: Show only <code>Failed</code> or <code>Running</code> scans.
-*   <strong>Filter by Tags</strong>: Organize targets using custom tags.</p>
+<h3>Massenaktionen</h3>
+<p>Wählen Sie mehrere Targets über die Checkboxen in der Tabelle für Batch-Operationen:
+*   <strong>Massen-Scan</strong>: Bestimmte Scan-Module für alle ausgewählten Targets auslösen.
+*   <strong>Massen-Löschen</strong>: Targets und deren Daten entfernen.</p>
+<h3>Filterung</h3>
+<p>Verwenden Sie die Spaltenfilter in der <strong>Tabellenansicht</strong>, um bestimmte Targets zu finden:
+*   <strong>Nach Name filtern</strong>: Nach Teil-Domain-Übereinstimmungen suchen.
+*   <strong>Nach Status filtern</strong>: Nur <code>Failed</code> oder <code>Running</code> Scans anzeigen.
+*   <strong>Nach Tags filtern</strong>: Targets mit benutzerdefinierten Tags organisieren.</p>
 <hr />
-<h2>5. Running Scans</h2>
-<p>You can run scans in two modes:</p>
+<h2>5. Scans durchführen</h2>
+<p>Sie können Scans in zwei Modi ausführen:</p>
 <h3>Quick Scan</h3>
-<p>Clicking the "Play" button on a target runs the <strong>Default Scan Profile</strong>, which includes:
-*   DNS Enumeration
-*   Web Analysis
-*   SSL Check</p>
-<h3>Custom Scan</h3>
-<p>On the <strong>Target Details</strong> page, click <strong>"New Scan"</strong> to open the advanced selector. You can toggle individual modules:
-*   <strong>Subdomain Recon</strong>: Finds <code>sub.example.com</code>.
-*   <strong>DNS Records</strong>: A/AAAA/MX/TXT records.
-*   <strong>Web Analyzer</strong>: Screenshots, tech stack, and headers.
-*   <strong>Typosquatting</strong>: Checks for phishing domains (e.g., <code>exampel.com</code>).
-*   <strong>CVE Scanner</strong>: Checks detected software against vulnerability databases.
-*   <strong>Port Scan</strong>: Probes common ports (80, 443, 8080, etc.).
-*   <strong>Wayback Machine</strong>: Looks for historical files and endpoints.
-*   <strong>FULL SCAN</strong>: Runs all available modules.</p>
-<h3>Scheduled Scans</h3>
-<p>** (New in v1.13.4)<strong>
-You can automate your reconnaissance by setting up recurring schedules.
-1.  Navigate to the </strong>Schedules<strong> page via the sidebar.
-2.  Click </strong>"Create Schedule"<strong>.
-3.  Select a Target and choose a Frequency (</strong>Daily<strong> or </strong>Weekly<strong>).
-    *   </strong>Daily<strong>: Runs every 24 hours.
-    *   </strong>Weekly**: Runs every 7 days.
-4.  Manage existing schedules (Delete/View Next Run) directly from the list.</p>
-<p><em>Note: Scheduled scans automatically execute the </em><em>FULL SCAN</em><em> profile to ensure comprehensive coverage.</em></p>
+<p>Klicken Sie auf die "Play"-Schaltfläche bei einem Target, um das <strong>Standard-Scan-Profil</strong> auszuführen, das beinhaltet:
+*   DNS-Enumeration
+*   Web-Analyse
+*   SSL-Prüfung</p>
+<h3>Benutzerdefinierter Scan</h3>
+<p>Auf der <strong>Target-Details</strong>-Seite klicken Sie auf <strong>"Neuer Scan"</strong>, um die erweiterte Auswahl zu öffnen. Sie können einzelne Module aktivieren:
+*   <strong>Subdomain Recon</strong>: Findet <code>sub.example.com</code>.
+*   <strong>DNS Records</strong>: A/AAAA/MX/TXT-Einträge.
+*   <strong>Web Analyzer</strong>: Screenshots, Tech-Stack und Header.
+*   <strong>Typosquatting</strong>: Prüft auf Phishing-Domains (z.B. <code>exampel.com</code>).
+*   <strong>CVE Scanner</strong>: Prüft erkannte Software gegen Schwachstellen-Datenbanken.
+*   <strong>Port Scan</strong>: Testet gängige Ports (80, 443, 8080, etc.).
+*   <strong>Wayback Machine</strong>: Sucht nach historischen Dateien und Endpunkten.
+*   <strong>FULL SCAN</strong>: Führt alle verfügbaren Module aus.</p>
+<h3>Geplante Scans</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+Sie können Ihre Reconnaissance automatisieren, indem Sie wiederkehrende Zeitpläne einrichten.
+1.  Navigieren Sie zur <strong>Zeitpläne</strong>-Seite über die Seitenleiste.
+2.  Klicken Sie auf <strong>"Zeitplan erstellen"</strong>.
+3.  Wählen Sie ein Target und eine Häufigkeit (<strong>Täglich</strong> oder <strong>Wöchentlich</strong>).
+    *   <strong>Täglich</strong>: Läuft alle 24 Stunden.
+    *   <strong>Wöchentlich</strong>: Läuft alle 7 Tage.
+4.  Verwalten Sie bestehende Zeitpläne (Löschen/Nächste Ausführung anzeigen) direkt aus der Liste.</p>
+<p><em>Hinweis: Geplante Scans führen automatisch das FULL SCAN-Profil aus, um umfassende Abdeckung zu gewährleisten.</em></p>
 <hr />
-<h2>6. Analysis Modules</h2>
+<h2>6. Analyse-Module</h2>
 <h3>Web Analyzer &amp; OSINT</h3>
-<p>Visits the page as a real user.
-*   <strong>Visuals</strong>: Full-page screenshot and favicon.
-*   <strong>Technologies</strong>: Identifies CMS (WordPress), Server (Nginx), and Frameworks.
-*   <strong>OSINT</strong>: Extracts emails, phone numbers, and social media links found on the page.</p>
-<h3>Vulnerability Report (CVEs)</h3>
+<p>Besucht die Seite wie ein echter Benutzer.
+*   <strong>Visuelles</strong>: Vollständiger Screenshot und Favicon.
+*   <strong>Technologien</strong>: Erkennt CMS (WordPress), Server (Nginx) und Frameworks.
+*   <strong>OSINT</strong>: Extrahiert E-Mails, Telefonnummern und Social-Media-Links von der Seite.</p>
+<h3>Schwachstellenbericht (CVEs)</h3>
 <ul>
-<li>Matches version numbers (e.g., "Apache 2.4.49") against known CVEs.</li>
-<li>Displays severity (CVSS) and descriptions.</li>
-<li><em>Note</em>: This logic relies on accurate version detection.</li>
+<li>Gleicht Versionsnummern (z.B. "Apache 2.4.49") mit bekannten CVEs ab.</li>
+<li>Zeigt Schweregrad (CVSS) und Beschreibungen an.</li>
+<li><em>Hinweis</em>: Diese Logik basiert auf genauer Versionserkennung.</li>
 </ul>
-<h3>Infrastructure Scanner</h3>
+<h3>Infrastruktur-Scanner</h3>
 <ul>
-<li><strong>Geo-Location</strong>: Maps the server IP to a physical location.</li>
-<li><strong>ASN Info</strong>: Identifies the hosting provider (e.g., AWS, DigitalOcean).</li>
-<li><strong>Cloud Check</strong>: Detects if the asset is on a major cloud provider.</li>
-<li><strong>Reputation</strong>: Checks IP against spam/malware blacklists.</li>
+<li><strong>Geo-Lokalisierung</strong>: Ordnet die Server-IP einem physischen Standort zu.</li>
+<li><strong>ASN-Info</strong>: Identifiziert den Hosting-Anbieter (z.B. AWS, DigitalOcean).</li>
+<li><strong>Cloud-Prüfung</strong>: Erkennt, ob das Asset bei einem großen Cloud-Anbieter gehostet wird.</li>
+<li><strong>Reputation</strong>: Prüft die IP gegen Spam-/Malware-Blacklists.</li>
 </ul>
 <h3>DNS &amp; Subdomain</h3>
 <ul>
-<li><strong>Passive Recon</strong>: Uses public logs (CT) to find subdomains without touching the target.<ul>
-<li><strong>Active Brute-force</strong>: Tries common subdomain names.</li>
-<li><strong>Dangling CNAMEs</strong>: Warns if a subdomain points to a non-existent cloud resource (hijacking risk).</li>
+<li><strong>Passive Recon</strong>: Nutzt öffentliche Logs (CT), um Subdomains zu finden, ohne das Ziel direkt zu kontaktieren.<ul>
+<li><strong>Aktives Brute-Force</strong>: Testet gängige Subdomain-Namen.</li>
+<li><strong>Dangling CNAMEs</strong>: Warnt, wenn eine Subdomain auf eine nicht existierende Cloud-Ressource zeigt (Hijacking-Risiko).</li>
 </ul>
 </li>
 </ul>
-<h3>Vulnerability Scanning (Active)</h3>
-<p><strong>(New in v1.13.4)</strong>
-YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
-*   <strong>Capabilities</strong>: Scans for 5000+ known vulnerabilities (CVEs), misconfigurations, and exposed panels.
-*   <strong>Severity</strong>: Findings are categorized as Critical, High, Medium, Low, or Info.
-*   <strong>Usage</strong>: Select "Nuclei Vulnerability Scan" in the <em>New Scan</em> modal.</p>
-<h3>Stealth Port Scanning</h3>
-<p><strong>(New in v1.13.4)</strong>
-*   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
-*   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.</p>
+<h3>Schwachstellen-Scanning (Aktiv)</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+YADS integriert jetzt <strong>Nuclei</strong> für aktive Schwachstellenerkennung.
+*   <strong>Fähigkeiten</strong>: Scannt nach 5000+ bekannten Schwachstellen (CVEs), Fehlkonfigurationen und exponierten Panels.
+*   <strong>Schweregrad</strong>: Befunde werden als Critical, High, Medium, Low oder Info kategorisiert.
+*   <strong>Verwendung</strong>: Wählen Sie "Nuclei Vulnerability Scan" im <em>Neuer Scan</em>-Dialog.</p>
+<h3>Stealth Port-Scanning</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+*   <strong>Stealth-Modus</strong>: Verwendet Nmap mit Evasion-Flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>), um Ports zu prüfen, ohne IDS/IPS auszulösen.
+*   <strong>Langsam &amp; Sicher</strong>: Für Stealth konzipiert, dauert dieser Scan länger, reduziert aber das Erkennungsrisiko.</p>
 <h3>JavaScript SAST</h3>
-<p><strong>(New in v1.13.4)</strong>
-*   <strong>Static Analysis</strong>: Automatically downloads and analyzes client-side JavaScript files.
-*   <strong>Sink Detection</strong>: Identifies potential DOM XSS sinks (e.g. <code>innerHTML</code>, <code>document.write</code>).
-*   <strong>Route Discovery</strong>: Extracts hidden API routes from JS code.</p>
-<h3>API Discovery</h3>
-<p><strong>(New in v1.13.4)</strong>
-Part of the Web Analyzer, this module automatically detects:
-*   <strong>Documentation</strong>: Finds <code>swagger.json</code>, <code>openapi.yaml</code>, and WSDL files.
-*   <strong>Endpoints</strong>: Identifies GraphQL endpoints (<code>/graphql</code>) and versioned REST paths (<code>/api/v1/</code>).
-*   <strong>Results</strong>: displayed in the <strong>Web Analysis</strong> card on the Target Details page.</p>
-<h3>SOC2 Compliance Engine</h3>
-<p><strong>(New in v1.13.4)</strong>
-Real-time scoring of your infrastructure's compliance readiness.
-*   <strong>Score</strong>: Calculated dynamically (0-100%) based on active scan results.
-*   <strong>Penalties</strong>:
-    *   <strong>Expired SSL</strong>: -20 pts
-    *   <strong>Critical CVEs</strong>: -15 pts
-    *   <strong>Risky Ports</strong>: -10 pts (e.g. 21, 23, 3389 open to internet)
-    *   <strong>Public Buckets</strong>: -25 pts
-*   <strong>Insights</strong>: Hover over the score widget on the Dashboard to see specific failings.</p>
+<p><strong>(Neu in v1.13.4)</strong>
+*   <strong>Statische Analyse</strong>: Lädt automatisch clientseitige JavaScript-Dateien herunter und analysiert sie.
+*   <strong>Sink-Erkennung</strong>: Identifiziert potenzielle DOM-XSS-Sinks (z.B. <code>innerHTML</code>, <code>document.write</code>).
+*   <strong>Routen-Erkennung</strong>: Extrahiert versteckte API-Routen aus JS-Code.</p>
+<h3>API-Erkennung</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+Teil des Web Analyzers, dieses Modul erkennt automatisch:
+*   <strong>Dokumentation</strong>: Findet <code>swagger.json</code>, <code>openapi.yaml</code> und WSDL-Dateien.
+*   <strong>Endpunkte</strong>: Identifiziert GraphQL-Endpunkte (<code>/graphql</code>) und versionierte REST-Pfade (<code>/api/v1/</code>).
+*   <strong>Ergebnisse</strong>: Werden in der <strong>Web-Analyse</strong>-Karte auf der Target-Detailseite angezeigt.</p>
+<h3>SOC2 Compliance-Engine</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+Echtzeit-Bewertung der Compliance-Bereitschaft Ihrer Infrastruktur.
+*   <strong>Score</strong>: Wird dynamisch (0-100%) basierend auf aktiven Scan-Ergebnissen berechnet.
+*   <strong>Abzüge</strong>:
+    *   <strong>Abgelaufenes SSL</strong>: -20 Pkt.
+    *   <strong>Kritische CVEs</strong>: -15 Pkt.
+    *   <strong>Riskante Ports</strong>: -10 Pkt. (z.B. 21, 23, 3389 aus dem Internet erreichbar)
+    *   <strong>Öffentliche Buckets</strong>: -25 Pkt.
+*   <strong>Einblicke</strong>: Bewegen Sie die Maus über das Score-Widget im Dashboard, um spezifische Mängel zu sehen.</p>
 <hr />
-<h2>7. OSINT Brand Monitoring</h2>
-<p><strong>(New in v1.13.4)</strong></p>
-<p>The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.</p>
-<h3>Google Cloud Setup (Prerequisite)</h3>
-<p>To use this feature, your Tenant Admin must configure the <strong>Google Cloud Vision API</strong>:
-1.  <strong>Enable API</strong>: In your Google Cloud Console, enable the <strong>"Cloud Vision API"</strong>.
-2.  <strong>API Key</strong>: Create an API Key in "Credentials".
-    *   <em>Important</em>: If you restrict your API Key (recommended), ensure <strong>Cloud Vision API</strong> is checked in the list of allowed APIs.
-3.  <strong>Billing</strong>: The Cloud Vision API requires an active Billing Account linked to the project (even for the free tier).</p>
-<h3>Reverse Image Search</h3>
+<h2>7. OSINT Markenüberwachung</h2>
+<p><strong>(Neu in v1.13.4)</strong></p>
+<p>Das OSINT-Modul hilft Ihnen, nicht überwachte Assets zu entdecken, indem es findet, wo Ihre Marken-Assets (Logos) im Web erscheinen.</p>
+<h3>Google Cloud Einrichtung (Voraussetzung)</h3>
+<p>Um diese Funktion zu nutzen, muss Ihr Mandanten-Admin die <strong>Google Cloud Vision API</strong> konfigurieren:
+1.  <strong>API aktivieren</strong>: Aktivieren Sie in Ihrer Google Cloud Console die <strong>"Cloud Vision API"</strong>.
+2.  <strong>API-Schlüssel</strong>: Erstellen Sie einen API-Schlüssel unter "Credentials".
+    *   <em>Wichtig</em>: Wenn Sie Ihren API-Schlüssel einschränken (empfohlen), stellen Sie sicher, dass <strong>Cloud Vision API</strong> in der Liste der erlaubten APIs aktiviert ist.
+3.  <strong>Abrechnung</strong>: Die Cloud Vision API erfordert ein aktives Abrechnungskonto, das mit dem Projekt verknüpft ist (auch für die kostenlose Stufe).</p>
+<h3>Rückwärts-Bildersuche</h3>
 <ol>
-<li><strong>Preparation</strong>: Ensure your Tenant Admin has configured the <strong>Google Cloud Vision API</strong> keys in the Tenant Settings.</li>
-<li><strong>Upload</strong>: Drag and drop your official logo (PNG/JPG) into the search zone.</li>
-<li><strong>Analysis</strong>: The system uses Google's <strong>Vision API (Web Detection)</strong> to find exact copies or visually similar images across the entire web.</li>
-<li><strong>Result Filtering</strong>:<ul>
-<li><strong>Unknown</strong>: Domains not currently in your target list. You can import these with one click.</li>
-<li><strong>Monitored</strong>: Domains you are already tracking.</li>
+<li><strong>Vorbereitung</strong>: Stellen Sie sicher, dass Ihr Mandanten-Admin die <strong>Google Cloud Vision API</strong>-Schlüssel in den Mandanten-Einstellungen konfiguriert hat.</li>
+<li><strong>Upload</strong>: Ziehen Sie Ihr offizielles Logo (PNG/JPG) per Drag &amp; Drop in die Suchzone.</li>
+<li><strong>Analyse</strong>: Das System nutzt Googles <strong>Vision API (Web Detection)</strong>, um exakte Kopien oder visuell ähnliche Bilder im gesamten Web zu finden.</li>
+<li><strong>Ergebnisfilterung</strong>:<ul>
+<li><strong>Unbekannt</strong>: Domains, die derzeit nicht in Ihrer Target-Liste sind. Sie können diese mit einem Klick importieren.</li>
+<li><strong>Überwacht</strong>: Domains, die Sie bereits verfolgen.</li>
 </ul>
 </li>
 </ol>
-<h3>License &amp; Quotas</h3>
-<p>This feature is licensed separately per tenant.
-*   <strong>Locked State</strong>: If you see a "Locked" icon in the sidebar, your tenant has not purchased this add-on.
-*   <strong>Usage Limits</strong>: Your admin sets a monthly search quota. If exceeded, searches will be blocked until the next cycle.</p>
+<h3>Lizenz &amp; Kontingente</h3>
+<p>Diese Funktion wird separat pro Mandant lizenziert.
+*   <strong>Gesperrter Status</strong>: Wenn Sie ein "Gesperrt"-Symbol in der Seitenleiste sehen, hat Ihr Mandant dieses Add-on nicht erworben.
+*   <strong>Nutzungslimits</strong>: Ihr Admin legt ein monatliches Suchkontingent fest. Bei Überschreitung werden Suchen bis zum nächsten Zyklus blockiert.</p>
 <hr />
-<h2>8. Visualizations</h2>
-<h3>Network Graph</h3>
-<p>An interactive node-graph showing relationships between Domains, IPs, and ASNs.
-*   <strong>Plot Graph</strong>: Click the "Plot Graph" button in the sidebar to fetch and display data.
-*   <strong>Context Messaging</strong>: If no data is available for the selected filters, the system will provide specific feedback (e.g., "Has this target been scanned?").
-*   <strong>Filters</strong>:
-    *   <strong>Show Web Links</strong>: Toggle visibility of HTTP-based edges.
-    *   <strong>Gray out DNS</strong>: Fades DNS connections to gray to highlight the web structure.
-*   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
-*   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
-*   <strong>Zoom/Pan</strong>: Navigate large infrastructures easily.
-*   <strong>Attack Path Visualization</strong> (New in v1.13.4):
-    *   <strong>Toggle</strong>: Switch on "Attack Paths" to highlight risky edges and compromised nodes.
-    *   <strong>Insights</strong>: Visualizes potential lateral movement paths based on vulnerability and network data.</p>
-<h3>Analytics Dashboard</h3>
-<p>High-level metrics for management.
-*   <strong>World Map</strong>: Physical location of all assets.
-    *   <strong>Tech Distribution</strong>: charts showing most common technologies (e.g., "80% Nginx").
-    *   <strong>Risk Overview</strong>: Summary of critical vulnerabilities across the portfolio.</p>
-<h3>Compliance &amp; Grading</h3>
-<p><strong>(Updated in v1.13.4)</strong>
-Found at the top of every <strong>Target Detail</strong> page:
-*   <strong>Security Grade (A-F)</strong>: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
-*   <strong>Risk Factors</strong>: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
-*   <strong>Compliance Gaps</strong>: Maps technical findings to industry standards:
-    *   <strong>OWASP Top 10</strong>: e.g. A05 (Misconfiguration), A02 (Crypto Failures).
-    *   <strong>GDPR / ISO 27001</strong>: Detects PII exposure and secrets.</p>
-<h3>Spiderweb (Redirect Graph)</h3>
-<p>Visualizes redirect chains.
-*   <strong>Entry Points</strong>: See where users land after typing a domain.</p>
-<h3>External Links Analysis</h3>
-<p>The <strong>External Links</strong> view helps you identify third-party dependencies and potential shadow IT.
-- <strong>Access</strong>: Go to <code>Reports &gt; External Links Report</code> or via Analytics.
-- <strong>Purpose</strong>: Lists all domains found during scans (via Crawler or DNS) that are <strong>not</strong> part of your defined Targets.
-- <strong>Features</strong>:
-    - <strong>Scope Awareness</strong>: Automatically excludes your own targets/subdomains.
-    - <strong>Sources</strong>: Shows which of your targets link to the external domain.
-    - <strong>Type</strong>: Indicates if the link was found via a webpage link (<code>link</code>), Mail Exchange record (<code>MX</code>), Nameserver (<code>NS</code>), etc.
-    - <strong>Export</strong>: Click "Export PDF" from the <strong>Reports</strong> page.</p>
-<h3>Dead Links Analysis</h3>
-<p><strong>(New in v1.13.4)</strong>
-Identify health issues within your own inventory.
-- <strong>Access</strong>: Go to <code>Analytics &gt; Dead Links</code>.
-- <strong>Unreachable Targets</strong>: Lists targets that failed recent scans (Offline or Server Error).
-- <strong>Orphaned Targets</strong>: Lists targets in your inventory that are <strong>not linked to</strong> by any other target in your scope. Useful for finding forgotten assets.</p>
+<h2>8. Visualisierungen</h2>
+<h3>Netzwerk-Graph</h3>
+<p>Ein interaktiver Knoten-Graph, der Beziehungen zwischen Domains, IPs und ASNs zeigt.
+*   <strong>Graph erstellen</strong>: Klicken Sie auf die Schaltfläche "Graph erstellen" in der Seitenleiste, um Daten abzurufen und anzuzeigen.
+*   <strong>Kontextnachrichten</strong>: Wenn keine Daten für die ausgewählten Filter verfügbar sind, gibt das System spezifisches Feedback (z.B. "Wurde dieses Target bereits gescannt?").
+*   <strong>Filter</strong>:
+    *   <strong>Web-Links anzeigen</strong>: Sichtbarkeit von HTTP-basierten Kanten umschalten.
+    *   <strong>DNS ausgrauen</strong>: Blendet DNS-Verbindungen grau aus, um die Web-Struktur hervorzuheben.
+*   <strong>Cluster</strong>: Sehen Sie, welche Domains dieselbe Hosting-Infrastruktur teilen.
+*   <strong>Zoom/Schwenken</strong>: Navigieren Sie einfach in großen Infrastrukturen.
+*   <strong>Angriffspfad-Visualisierung</strong> (Neu in v1.13.4):
+    *   <strong>Umschalten</strong>: Aktivieren Sie "Angriffspfade", um riskante Kanten und kompromittierte Knoten hervorzuheben.
+    *   <strong>Einblicke</strong>: Visualisiert potenzielle laterale Bewegungspfade basierend auf Schwachstellen- und Netzwerkdaten.</p>
+<h3>Analytics-Dashboard</h3>
+<p>Hochrangige Metriken für das Management.
+*   <strong>Weltkarte</strong>: Physischer Standort aller Assets.
+    *   <strong>Tech-Verteilung</strong>: Diagramme, die die häufigsten Technologien zeigen (z.B. "80% Nginx").
+    *   <strong>Risiko-Überblick</strong>: Zusammenfassung kritischer Schwachstellen im gesamten Portfolio.</p>
+<h3>Compliance &amp; Bewertung</h3>
+<p><strong>(Aktualisiert in v1.13.4)</strong>
+Oben auf jeder <strong>Target-Detail</strong>-Seite zu finden:
+*   <strong>Sicherheitsbewertung (A-F)</strong>: Ein zusammengesetzter Score basierend auf SSL, Headern, Schwachstellen und offenen Ports.
+*   <strong>Risikofaktoren</strong>: Listet explizit die Gründe für Score-Abzüge auf (z.B. "Fehlendes HSTS -10").
+*   <strong>Compliance-Lücken</strong>: Ordnet technische Befunde Industriestandards zu:
+    *   <strong>OWASP Top 10</strong>: z.B. A05 (Fehlkonfiguration), A02 (Krypto-Fehler).
+    *   <strong>DSGVO / ISO 27001</strong>: Erkennt PII-Exposition und Secrets.</p>
+<h3>Spiderweb (Redirect-Graph)</h3>
+<p>Visualisiert Redirect-Ketten.
+*   <strong>Einstiegspunkte</strong>: Sehen Sie, wo Benutzer nach Eingabe einer Domain landen.</p>
+<h3>Externe Links Analyse</h3>
+<p>Die <strong>Externe Links</strong>-Ansicht hilft Ihnen, Drittanbieter-Abhängigkeiten und potenzielle Shadow-IT zu identifizieren.
+- <strong>Zugriff</strong>: Gehen Sie zu <code>Berichte &gt; Externe Links Bericht</code> oder über Analytics.
+- <strong>Zweck</strong>: Listet alle während der Scans gefundenen Domains (via Crawler oder DNS), die <strong>nicht</strong> Teil Ihrer definierten Targets sind.
+- <strong>Funktionen</strong>:
+    - <strong>Scope-Bewusstsein</strong>: Schließt automatisch Ihre eigenen Targets/Subdomains aus.
+    - <strong>Quellen</strong>: Zeigt, welche Ihrer Targets zur externen Domain verlinken.
+    - <strong>Typ</strong>: Zeigt an, ob der Link über einen Webseiten-Link (<code>link</code>), Mail Exchange Record (<code>MX</code>), Nameserver (<code>NS</code>) etc. gefunden wurde.
+    - <strong>Export</strong>: Klicken Sie auf "PDF exportieren" auf der <strong>Berichte</strong>-Seite.</p>
+<h3>Tote Links Analyse</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+Identifizieren Sie Gesundheitsprobleme in Ihrem eigenen Inventar.
+- <strong>Zugriff</strong>: Gehen Sie zu <code>Analytics &gt; Tote Links</code>.
+- <strong>Nicht erreichbare Targets</strong>: Listet Targets, bei denen kürzliche Scans fehlgeschlagen sind (Offline oder Server-Fehler).
+- <strong>Verwaiste Targets</strong>: Listet Targets in Ihrem Inventar, die von keinem anderen Target in Ihrem Scope <strong>verlinkt werden</strong>. Nützlich zum Finden vergessener Assets.</p>
 <hr />
-<h2>9. Data Management &amp; Reports</h2>
-<p><strong>(Centralized in v1.13.4)</strong></p>
-<p>YADS provides dedicated reports to help you analyze specific data sets and risks.</p>
-<h3>Sensitive Data</h3>
-<p><strong>Path:</strong> <code>/secrets</code>
-Aggregates findings of exposed API Keys, Credentials, and Configuration files (e.g., <code>.env</code>, backups) detected by Nuclei and Web Analyzer.
-*   <strong>Categories</strong>: Credentials, Configs, PII.
-*   <strong>Action</strong>: Immediately rotate any credential found here.</p>
-<h3>Email Security</h3>
-<p><strong>Path:</strong> <code>/email-security</code>
-Analyzes SPF and DMARC records to identify domains vulnerable to email spoofing.
-*   <strong>Secure</strong>: Strong SPF + DMARC Reject/Quarantine.
-*   <strong>Monitoring</strong>: DMARC Policy is <code>none</code>.
-*   <strong>Vulnerable</strong>: Missing SPF or DMARC records.</p>
-<h3>Port Exposure</h3>
-<p><strong>Path:</strong> <code>/ports</code>
-A dashboard focusing on Nmap results to highlight risky open ports across your infrastructure.
-*   Highlights top open ports (e.g., 22 SSH, 3389 RDP).
-*   Lists all targets with open ports detected in the last scan.</p>
-<h3>Technology Drift</h3>
-<p><strong>Path:</strong> <code>/tech-drift</code>
-A timeline showing when technologies were <strong>Added</strong> or <strong>Removed</strong> from your assets.
-*   Use this to detect "Shadow IT" (e.g., a new Nginx server appearing overnight) or verify maintenance changes.</p>
-<h3>Attack Surface Reduction</h3>
-<p><strong>Path:</strong> <code>/asr</code>
-A "Cleanup List" of assets that should be reviewed for decommissioning.
-*   <strong>Dead Endpoints</strong>: Subdomains returning 404/5xx errors.
-*   <strong>Unconfigured Servers</strong>: Servers showing Default placeholder pages.
-*   <strong>Expired Certs</strong>: SSL Certificates that have expired.</p>
+<h2>9. Datenverwaltung &amp; Berichte</h2>
+<p><strong>(Zentralisiert in v1.13.4)</strong></p>
+<p>YADS bietet dedizierte Berichte, die Ihnen helfen, spezifische Datensätze und Risiken zu analysieren.</p>
+<h3>Sensible Daten</h3>
+<p><strong>Pfad:</strong> <code>/secrets</code>
+Aggregiert Funde von exponierten API-Schlüsseln, Anmeldedaten und Konfigurationsdateien (z.B. <code>.env</code>, Backups), die von Nuclei und Web Analyzer erkannt wurden.
+*   <strong>Kategorien</strong>: Anmeldedaten, Konfigurationen, PII.
+*   <strong>Aktion</strong>: Rotieren Sie sofort alle hier gefundenen Anmeldedaten.</p>
+<h3>E-Mail-Sicherheit</h3>
+<p><strong>Pfad:</strong> <code>/email-security</code>
+Analysiert SPF- und DMARC-Einträge, um Domains zu identifizieren, die für E-Mail-Spoofing anfällig sind.
+*   <strong>Sicher</strong>: Starke SPF + DMARC Reject/Quarantine.
+*   <strong>Monitoring</strong>: DMARC-Policy ist <code>none</code>.
+*   <strong>Anfällig</strong>: Fehlende SPF- oder DMARC-Einträge.</p>
+<h3>Port-Exposition</h3>
+<p><strong>Pfad:</strong> <code>/ports</code>
+Ein Dashboard mit Fokus auf Nmap-Ergebnisse, das riskante offene Ports in Ihrer Infrastruktur hervorhebt.
+*   Hebt die häufigsten offenen Ports hervor (z.B. 22 SSH, 3389 RDP).
+*   Listet alle Targets mit offenen Ports, die im letzten Scan erkannt wurden.</p>
+<h3>Technologie-Drift</h3>
+<p><strong>Pfad:</strong> <code>/tech-drift</code>
+Eine Zeitleiste, die zeigt, wann Technologien zu Ihren Assets <strong>hinzugefügt</strong> oder <strong>entfernt</strong> wurden.
+*   Verwenden Sie dies, um "Shadow IT" zu erkennen (z.B. ein neuer Nginx-Server, der über Nacht erscheint) oder Wartungsänderungen zu verifizieren.</p>
+<h3>Angriffsflächen-Reduktion</h3>
+<p><strong>Pfad:</strong> <code>/asr</code>
+Eine "Bereinigungsliste" von Assets, die auf Außerbetriebnahme geprüft werden sollten.
+*   <strong>Tote Endpunkte</strong>: Subdomains, die 404/5xx-Fehler zurückgeben.
+*   <strong>Unkonfigurierte Server</strong>: Server, die Standard-Platzhalterseiten anzeigen.
+*   <strong>Abgelaufene Zertifikate</strong>: SSL-Zertifikate, die abgelaufen sind.</p>
 <h3>Broken Link Hijacking</h3>
-<p><strong>Path:</strong> <code>/analytics/hijacking</code>
-Identifies broken external links (404s) on your assets that are pointing to valid domains.
-*   <strong>Risk</strong>: Attackers can register these domains and hijack the link/script execution.
-*   <strong>Action</strong>: Remove the broken link or register the domain.</p>
-<h3>Technology Radar</h3>
-<p><strong>Path:</strong> <code>/analytics/tech-radar</code>
-A visual breakdown of the technology stack usage across your portfolio.
-*   <strong>Categories</strong>: Servers, Frameworks, CMS.
-*   <strong>Usage</strong>: Identify outdated tech or unauthorized software stacks.</p>
-<h3>Exporting Data</h3>
-<p>You can export scan results...2)**</p>
-<p>All system exports are now consolidated under the <strong>Reports</strong> page in the sidebar.</p>
-<h3>Available Reports</h3>
+<p><strong>Pfad:</strong> <code>/analytics/hijacking</code>
+Identifiziert defekte externe Links (404s) auf Ihren Assets, die auf gültige Domains zeigen.
+*   <strong>Risiko</strong>: Angreifer können diese Domains registrieren und die Link-/Script-Ausführung übernehmen.
+*   <strong>Aktion</strong>: Entfernen Sie den defekten Link oder registrieren Sie die Domain.</p>
+<h3>Technologie-Radar</h3>
+<p><strong>Pfad:</strong> <code>/analytics/tech-radar</code>
+Eine visuelle Aufschlüsselung der Technologie-Stack-Nutzung in Ihrem Portfolio.
+*   <strong>Kategorien</strong>: Server, Frameworks, CMS.
+*   <strong>Verwendung</strong>: Identifizieren Sie veraltete Technologie oder nicht autorisierte Software-Stacks.</p>
+<h3>Daten exportieren</h3>
+<p>Alle Systemexporte sind jetzt unter der <strong>Berichte</strong>-Seite in der Seitenleiste konsolidiert.</p>
+<h3>Verfügbare Berichte</h3>
 <ul>
-<li><strong>Infrastructure Executive Summary</strong>: A professional PDF report detailing cloud providers, geographic distribution, and critical risks across your tenant.</li>
-<li><strong>Compliance Report</strong>: An interactive detailed breakdown of your SOC2 readiness score with an actionable "Improvement Plan" checklist.</li>
-<li><strong>External Links Report</strong>: PDF export of third-party domains linked to your infrastructure.</li>
+<li><strong>Infrastruktur Executive Summary</strong>: Ein professioneller PDF-Bericht mit Details zu Cloud-Anbietern, geografischer Verteilung und kritischen Risiken in Ihrem Mandanten.</li>
+<li><strong>Compliance-Bericht</strong>: Eine interaktive detaillierte Aufschlüsselung Ihres SOC2-Bereitschaftsscores mit einer umsetzbaren "Verbesserungsplan"-Checkliste.</li>
+<li><strong>Externe Links Bericht</strong>: PDF-Export von Drittanbieter-Domains, die mit Ihrer Infrastruktur verlinkt sind.</li>
 </ul>
-<h3>Data Exports</h3>
+<h3>Datenexporte</h3>
 <ul>
-<li><strong>Target CSV</strong>: Download your entire raw target inventory (Domain, Status, Last Scan) as a CSV file.</li>
-<li><strong>Excel Export</strong>: The Target Overview page features an expanded Excel export including all UI columns.</li>
-<li><strong>Backup</strong>: Admin users can export the entire database and assets as a ZIP file from the Settings page.</li>
+<li><strong>Target CSV</strong>: Laden Sie Ihr gesamtes Roh-Target-Inventar (Domain, Status, Letzter Scan) als CSV-Datei herunter.</li>
+<li><strong>Excel-Export</strong>: Die Target-Übersichtsseite bietet einen erweiterten Excel-Export mit allen UI-Spalten.</li>
+<li><strong>Backup</strong>: Admin-Benutzer können die gesamte Datenbank und Assets als ZIP-Datei von der Einstellungsseite exportieren.</li>
 </ul>
-<h3>System Logs</h3>
+<h3>System-Logs</h3>
 <ul>
-<li><strong>View Logs</strong>: Admins can inspect real-time application and worker logs for troubleshooting.</li>
-<li><strong>Stream</strong>: The log viewer updates live as scans progress.</li>
-</ul>
-<hr />
-<h2>10. User Management &amp; Security</h2>
-<p><em>(Admin Only)</em></p>
-<h3>Managing Users</h3>
-<p>Go to <strong>Users</strong> in the navbar.
-*   <strong>Create User</strong>: Define username, password, and initial role.
-*   <strong>Roles</strong>:
-    *   <strong>Viewer</strong>: Read-only access to dashboards.
-    *   <strong>Scanner</strong>: Can add targets and run scans.
-    *   <strong>Admin</strong>: Full system access, including settings and user management.</p>
-<h3>Multi-Factor Authentication (MFA)</h3>
-<ul>
-<li>Users can enable 2FA in their profile.</li>
-<li>Admins can see who has MFA enabled but cannot disable it for them (users must reset if lost, or Admin deletes user).</li>
-</ul>
-<h3>Tenant Assignment</h3>
-<ul>
-<li>Assign users to specific <strong>Tenants</strong> to isolate their view. A user assigned to "Client A" will only see targets belonging to "Client A".</li>
+<li><strong>Logs anzeigen</strong>: Admins können Echtzeit-Anwendungs- und Worker-Logs zur Fehlerbehebung einsehen.</li>
+<li><strong>Stream</strong>: Der Log-Viewer aktualisiert sich live während des Scan-Fortschritts.</li>
 </ul>
 <hr />
-<h2>11. Multi-Tenancy</h2>
-<p>YADS supports multiple isolated environments (Tenants).
-*   <strong>Isolation</strong>: Targets, Results, and Users are scoped to a Tenant.
-*   <strong>Switching</strong>: Users with access to multiple tenants can switch context via the dropdown in the top navigation bar.
-*   <strong>Management</strong>: Admins can rename tenants and manage memberships via the <strong>Tenants</strong> page.
-*   <strong>Platform Admin</strong>: An Admin without a specific tenant sees <em>everything</em> and can manage the tenants themselves.</p>
-<h3>Webhook Notifications</h3>
-<p><strong>(New in v1.13.4)</strong>
-Tenants can configure real-time webhooks to integrate with external systems (Slack, Discord, Tines, etc.).
-1.  Go to <strong>Tenant Settings</strong>.
-2.  Scroll to the <strong>Webhook Notifications</strong> card.
-3.  Add a URL and select events (e.g., <code>scan_finished</code>, <code>new_asset</code>).
-4.  Use the <strong>Test</strong> button to verify connectivity.</p>
-<hr />
-<h2>12. System Settings &amp; Queue</h2>
-<p><em>(Admin Only)</em></p>
-<h3>Queue Control</h3>
+<h2>10. Benutzerverwaltung &amp; Sicherheit</h2>
+<p><em>(Nur Admin)</em></p>
+<h3>Benutzer verwalten</h3>
+<p>Gehen Sie zu <strong>Benutzer</strong> in der Navigationsleiste.
+*   <strong>Benutzer erstellen</strong>: Definieren Sie Benutzername, Passwort und initiale Rolle.
+*   <strong>Rollen</strong>:
+    *   <strong>Viewer</strong>: Nur-Lese-Zugriff auf Dashboards.
+    *   <strong>Scanner</strong>: Kann Targets hinzufügen und Scans ausführen.
+    *   <strong>Admin</strong>: Voller Systemzugriff, einschließlich Einstellungen und Benutzerverwaltung.</p>
+<h3>Multi-Faktor-Authentifizierung (MFA)</h3>
 <ul>
-<li><strong>Pause/Resume</strong>: Stop the background worker from processing new scans. The worker will check for the Resume signal every 60 seconds.</li>
-<li><strong>Clear Queue</strong>: PANIC BUTTON. Cancels all pending and running scans and resets their status to "Idle" in the database. Use this if the system gets stuck.</li>
-<li><strong>System Reset</strong>: Reverts the system to a "Clean State". This removes all scan data and tenants, but preserves user accounts and system configurations.</li>
+<li>Benutzer können 2FA in ihrem Profil aktivieren.</li>
+<li>Admins können sehen, wer MFA aktiviert hat, können es aber nicht für sie deaktivieren (Benutzer müssen bei Verlust zurücksetzen, oder Admin löscht Benutzer).</li>
 </ul>
-<h3>Configuration</h3>
+<h3>Mandanten-Zuweisung</h3>
 <ul>
-<li><strong>Web Timeout</strong>: Set global timeout for HTTP requests (default: 10s).</li>
-<li><strong>Concurrent Limits</strong>: Define how many headers scanners run in parallel.</li>
+<li>Weisen Sie Benutzer bestimmten <strong>Mandanten</strong> zu, um deren Sicht zu isolieren. Ein Benutzer, der "Kunde A" zugewiesen ist, sieht nur Targets, die zu "Kunde A" gehören.</li>
+</ul>
+<hr />
+<h2>11. Mandantenfähigkeit</h2>
+<p>YADS unterstützt mehrere isolierte Umgebungen (Mandanten).
+*   <strong>Isolation</strong>: Targets, Ergebnisse und Benutzer sind auf einen Mandanten beschränkt.
+*   <strong>Wechseln</strong>: Benutzer mit Zugriff auf mehrere Mandanten können den Kontext über das Dropdown in der oberen Navigationsleiste wechseln.
+*   <strong>Verwaltung</strong>: Admins können Mandanten umbenennen und Mitgliedschaften über die <strong>Mandanten</strong>-Seite verwalten.
+*   <strong>Plattform-Admin</strong>: Ein Admin ohne spezifischen Mandanten sieht <em>alles</em> und kann die Mandanten selbst verwalten.</p>
+<h3>Webhook-Benachrichtigungen</h3>
+<p><strong>(Neu in v1.13.4)</strong>
+Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integrieren (Slack, Discord, Tines, etc.).
+1.  Gehen Sie zu <strong>Mandanten-Einstellungen</strong>.
+2.  Scrollen Sie zur <strong>Webhook-Benachrichtigungen</strong>-Karte.
+3.  Fügen Sie eine URL hinzu und wählen Sie Ereignisse (z.B. <code>scan_finished</code>, <code>new_asset</code>).
+4.  Verwenden Sie die <strong>Test</strong>-Schaltfläche, um die Verbindung zu überprüfen.</p>
+<hr />
+<h2>12. Systemeinstellungen &amp; Queue</h2>
+<p><em>(Nur Admin)</em></p>
+<h3>Queue-Steuerung</h3>
+<ul>
+<li><strong>Pause/Fortsetzen</strong>: Stoppt den Hintergrund-Worker von der Verarbeitung neuer Scans. Der Worker prüft alle 60 Sekunden auf das Fortsetzen-Signal.</li>
+<li><strong>Queue leeren</strong>: PANIK-KNOPF. Bricht alle ausstehenden und laufenden Scans ab und setzt ihren Status in der Datenbank auf "Idle" zurück. Verwenden Sie dies, wenn das System hängt.</li>
+<li><strong>System-Reset</strong>: Setzt das System in einen "sauberen Zustand" zurück. Dies entfernt alle Scan-Daten und Mandanten, behält aber Benutzerkonten und Systemkonfigurationen bei.</li>
+</ul>
+<h3>Konfiguration</h3>
+<ul>
+<li><strong>Web-Timeout</strong>: Legen Sie das globale Timeout für HTTP-Anfragen fest (Standard: 10s).</li>
+<li><strong>Gleichzeitigkeits-Limits</strong>: Definieren Sie, wie viele Header-Scanner parallel laufen.</li>
 </ul>
 <h3>Verteilte Worker</h3>
-<p>YADS unterstutzt horizontale Skalierung durch verteilte Worker uber Docker Swarm Nodes.</p>
+<p>YADS unterstützt horizontale Skalierung durch verteilte Worker über Docker Swarm Nodes.</p>
 <ul>
-<li><strong>Worker-Registrierungstoken</strong>: Generieren und verwalten Sie das Token fur die Worker-Authentifizierung</li>
+<li><strong>Worker-Registrierungstoken</strong>: Generieren und verwalten Sie das Token für die Worker-Authentifizierung</li>
 <li><strong>Globale Ressourcenlimits</strong>: Legen Sie maximale gleichzeitige Scans und Netzwerkdurchsatzgrenzen fest</li>
 <li><strong>Worker-Status</strong>: Zeigen Sie aktive Worker, deren Auslastung und Task-Anzahl in Echtzeit an</li>
 <li><strong>Worker-Steuerung</strong>: Pausieren, Fortsetzen oder Entleeren von Workern ohne Neustart der Dienste</li>
 </ul>
-<h4>Worker-Zustande</h4>
+<h4>Worker-Zustände</h4>
 <table>
 <tr><th>Zustand</th><th>Beschreibung</th></tr>
-<tr><td>Active</td><td>Lauft und akzeptiert neue Tasks</td></tr>
+<tr><td>Active</td><td>Läuft und akzeptiert neue Tasks</td></tr>
 <tr><td>Suspended</td><td>Pausiert, akzeptiert keine neuen Tasks</td></tr>
 <tr><td>Draining</td><td>Beendet aktuelle Tasks vor dem Offline-Gehen</td></tr>
 <tr><td>Offline</td><td>Antwortet nicht (fehlende Heartbeats)</td></tr>
 </table>
 <h4>Einheitliche Protokollierung</h4>
-<p>Greifen Sie auf aggregierte Logs aller Worker uber <strong>Einstellungen &gt; Einheitliche Scan-Logs anzeigen</strong> zu. Filtern nach:</p>
+<p>Greifen Sie auf aggregierte Logs aller Worker über <strong>Einstellungen &gt; Einheitliche Scan-Logs anzeigen</strong> zu. Filtern nach:</p>
 <ul>
-<li><strong>Mandant</strong>: Logs fur bestimmte Organisationen anzeigen</li>
+<li><strong>Mandant</strong>: Logs für bestimmte Organisationen anzeigen</li>
 <li><strong>Worker</strong>: Bestimmte Worker-Nodes debuggen</li>
 <li><strong>Log-Level</strong>: Nach INFO, WARNING oder ERROR filtern</li>
 </ul>
 <blockquote>
-<p><strong>Hinweis</strong>: Detaillierte Einrichtungsanweisungen finden Sie in der <a href="https://github.com/your-org/yads/blob/main/docs/DISTRIBUTED_WORKERS.md">Dokumentation fur verteilte Worker</a>.</p>
+<p><strong>Hinweis</strong>: Detaillierte Einrichtungsanweisungen finden Sie in der <a href="support.html#distributed-workers">Anleitung für verteilte Worker</a>.</p>
 </blockquote>
 <hr />
 <h2>13. Best Practices</h2>
-<p>To get the most out of YADS, consider these tips:</p>
+<p>Um das Beste aus YADS herauszuholen, beachten Sie diese Tipps:</p>
 <blockquote>
-<p><strong>💡 Pro Tip</strong>: Schedule regular scans during off-peak hours to minimize network impact.</p>
+<p><strong>💡 Profi-Tipp</strong>: Planen Sie regelmäßige Scans außerhalb der Spitzenzeiten, um die Netzwerkbelastung zu minimieren.</p>
 </blockquote>
 <ol>
-<li><strong>Tagging</strong>: Use tags creatively (e.g., <code>prod</code>, <code>dev</code>, <code>critical</code>) to organize targets.</li>
-<li><strong>Regular Reviews</strong>: Check the <strong>Analytics</strong> page weekly to spot trends in vulnerability counts.</li>
-<li><strong>Scope Definition</strong>: Be careful when adding root domains (e.g., <code>company.com</code>) as the <strong>Subdomain Recon</strong> module might find hundreds of assets.</li>
+<li><strong>Tagging</strong>: Verwenden Sie Tags kreativ (z.B. <code>prod</code>, <code>dev</code>, <code>critical</code>), um Targets zu organisieren.</li>
+<li><strong>Regelmäßige Überprüfung</strong>: Kontrollieren Sie die <strong>Analytics</strong>-Seite wöchentlich, um Trends bei Schwachstellen zu erkennen.</li>
+<li><strong>Scope-Definition</strong>: Seien Sie vorsichtig beim Hinzufügen von Root-Domains (z.B. <code>company.com</code>), da das <strong>Subdomain Recon</strong>-Modul Hunderte von Assets finden könnte.</li>
 </ol>
+
+<h3 id="empfohlene-scan-reihenfolge">Empfohlene Scan-Reihenfolge</h3>
+<p>Die folgende Vorgehensweise hat sich für umfassende Sicherheitsanalysen bewährt. Jede Phase baut auf der vorherigen auf und gewährleistet eine gründliche Abdeckung bei gleichzeitiger Effizienz.</p>
+
+<h4>Phase 1: Basisdaten aufbauen</h4>
+<p>Beginnen Sie mit der Erfassung bekannter Assets:</p>
+<ul>
+    <li><strong>DNS Records (Simple)</strong> - Grundlegende DNS-Informationen ermitteln</li>
+    <li><strong>Subdomain Recon</strong> - Alle Subdomains über Certificate Transparency Logs aufspüren</li>
+</ul>
+
+<h4>Phase 2: Aktive Hosts identifizieren</h4>
+<p>Ermitteln Sie, welche der gefundenen Assets aktiv Webinhalte bereitstellen:</p>
+<ul>
+    <li><strong>Quick Web Probe (80/443)</strong> - Prüfung auf Webserver an Standardports</li>
+</ul>
+
+<h4>Phase 3: Tiefenanalyse der Online-Assets</h4>
+<p>Für alle Targets mit Status "online" führen Sie eine umfassende Analyse durch:</p>
+<ul>
+    <li><strong>Web Analyzer</strong> - Erkennung des Technology Stacks</li>
+    <li><strong>CVE Scanner (Passive)</strong> - Abgleich bekannter Schwachstellen</li>
+    <li><strong>Infrastructure</strong> - Server- und Hosting-Analyse</li>
+    <li><strong>SSL Scanner</strong> - Zertifikats- und Verschlüsselungsanalyse</li>
+    <li><strong>Visual OSINT</strong> - Screenshot-Erfassung und visuelle Analyse</li>
+    <li><strong>Wayback Machine</strong> - Historische Daten aus Webarchiven</li>
+    <li><strong>Form Discovery (Passive)</strong> - Eingabeformulare und Endpunkte identifizieren</li>
+    <li><strong>Site Crawler</strong> - Seitenstruktur erfassen</li>
+    <li><strong>Content Discovery (Fuzzing)</strong> - Versteckte Pfade und Dateien finden</li>
+</ul>
+
+<h4>Phase 4: Scope erweitern</h4>
+<p>Entdecken Sie zusätzliche Domains, die zur Organisation gehören könnten:</p>
+<ul>
+    <li><strong>Typosquatting</strong> - Ähnlich aussehende Domains finden (potentielles Phishing)</li>
+    <li><strong>TLD Scanner</strong> - Domain über alle TLD-Varianten prüfen</li>
+</ul>
+
+<h4>Phase 5: Links verfolgen</h4>
+<p>Prüfen Sie die Reports, um weitere untersuchenswerte Targets zu identifizieren:</p>
+<ul>
+    <li><strong>External Links</strong> - Verlinkte externe Domains entdecken</li>
+    <li><strong>Dead Links</strong> - Defekte Links finden, die auf aufgegebene Assets hinweisen könnten</li>
+</ul>
+<blockquote>
+<p><strong>💡 Tipp:</strong> Wenn Sie in dieser Phase neue relevante Domains entdecken, fügen Sie diese als Targets hinzu und wiederholen Sie ab Phase 1 für genau diese neuen Domains.</p>
+</blockquote>
+
+<h4>Phase 6: Aktive Schwachstellentests</h4>
+<p>Nach Abschluss der passiven Reconnaissance folgen die aktiven Scans:</p>
+<ul>
+    <li><strong>Nuclei Vulnerability Scan (Active)</strong> - Umfassende Schwachstellenerkennung</li>
+    <li><strong>Stealth Nmap Scan (Slow)</strong> - Port-Scanning mit Rate-Limiting</li>
+</ul>
+<blockquote>
+<p><strong>⚠️ Hinweis:</strong> Aktive Scans erzeugen mehr Traffic und können Sicherheitswarnungen auslösen. Stellen Sie sicher, dass Sie über die entsprechende Berechtigung verfügen, bevor Sie diese Module ausführen.</p>
+</blockquote>
+
+<h4>Phase 7: Housekeeping</h4>
+<p>Abschließend bereinigen Sie Ihre Target-Liste:</p>
+<ul>
+    <li><strong>DNS Health Check (Cleanup)</strong> - Nicht erreichbare Domains identifizieren und archivieren</li>
+</ul>
+
 <hr />
-<h2>14. Troubleshooting</h2>
-<h3>Common Issues</h3>
-<h4>🛑 Scan stuck in "Pending"</h4>
+<h2>14. Fehlerbehebung</h2>
+<h3>Häufige Probleme</h3>
+<h4>🛑 Scan bleibt in "Pending" hängen</h4>
 <ul>
-<li><strong>Cause</strong>: The background worker might be paused or overloaded.</li>
-<li><strong>Fix</strong>: Check <strong>Settings &gt; Queue Control</strong> and ensure the queue is active. Check <strong>active workers</strong> count. The worker auto-heals every 60 seconds if it was paused.</li>
+<li><strong>Ursache</strong>: Der Hintergrund-Worker könnte pausiert oder überlastet sein.</li>
+<li><strong>Lösung</strong>: Prüfen Sie <strong>Einstellungen &gt; Queue-Steuerung</strong> und stellen Sie sicher, dass die Queue aktiv ist. Prüfen Sie die Anzahl der <strong>aktiven Worker</strong>. Der Worker heilt sich alle 60 Sekunden selbst, wenn er pausiert war.</li>
 </ul>
-<h4>⚠️ "Web Analyzer" failed</h4>
+<h4>⚠️ "Web Analyzer" fehlgeschlagen</h4>
 <ul>
-<li><strong>Cause</strong>: Target might be offline or blocking the scanner.</li>
-<li><strong>Fix</strong>: Try visiting the URL manually. Adjust <strong>Web Request Timeout</strong> in settings if the site is slow.</li>
+<li><strong>Ursache</strong>: Target könnte offline sein oder den Scanner blockieren.</li>
+<li><strong>Lösung</strong>: Versuchen Sie, die URL manuell zu besuchen. Passen Sie das <strong>Web Request Timeout</strong> in den Einstellungen an, wenn die Seite langsam ist.</li>
 </ul>
-<h4>🚫 MFA Code Rejected</h4>
+<h4>🚫 MFA-Code abgelehnt</h4>
 <ul>
-<li><strong>Cause</strong>: Time drift on the server or client.</li>
-<li><strong>Fix</strong>: Ensure your server time is synced via NTP.</li>
+<li><strong>Ursache</strong>: Zeitabweichung auf Server oder Client.</li>
+<li><strong>Lösung</strong>: Stellen Sie sicher, dass Ihre Serverzeit über NTP synchronisiert ist.</li>
 </ul>
 <hr />
 <h2>15. Support</h2>
-<p>For technical support or to report bugs: info@yads-security.com</p>
+<p>Für technischen Support oder um Fehler zu melden: support@yads-security.com</p>
 <hr />
-<p><em>Verified for YADS v1.13.4</em></p>
+<p><em>Verifiziert für YADS v1.13.4</em></p>
         </main>
     </div>
     
