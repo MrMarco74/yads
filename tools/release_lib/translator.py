@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 class ChangelogTranslator:
     """Translate changelog entries EN → DE using Gemini or Vertex AI"""
 
-    def __init__(self, api_key: Optional[str] = None, service: str = 'gemini', project_id: Optional[str] = None, location: Optional[str] = 'us-central1'):
+    def __init__(self, api_key: Optional[str] = None, service: str = 'gemini', project_id: Optional[str] = None, location: Optional[str] = 'us-central1', model_name: str = 'gemini-2.0-flash'):
         """
         Initialize translator.
 
@@ -21,40 +21,48 @@ class ChangelogTranslator:
             service: Translation service ('gemini', 'vertexai', or 'manual')
             project_id: GCP project ID (for Vertex AI)
             location: GCP location (for Vertex AI)
+            model_name: Name of the Gemini model to use
         """
         self.api_key = api_key
         self.service = service
         self.project_id = project_id
         self.location = location
+        self.model_name = model_name
         self.model = None
 
-        if service == 'gemini' and api_key:
-            self._initialize_gemini(api_key)
+        if service == 'gemini':
+            if api_key:
+                self._initialize_gemini(api_key, model_name)
+            else:
+                self.service = 'manual'
         elif service == 'vertexai':
-            self._initialize_vertexai(project_id, location)
+            if project_id:
+                self._initialize_vertexai(project_id, location, model_name)
+            else:
+                self.service = 'manual'
 
-    def _initialize_gemini(self, api_key: str):
+    def _initialize_gemini(self, api_key: str, model_name: str):
         """Initialize Google AI Studio Gemini"""
         try:
             import google.generativeai as genai
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel(model_name)
         except ImportError:
-            print("⚠️  Warning: google-generativeai package not installed. Install with: pip install google-generativeai")
+            print("⚠️  Warning: google-generativeai package not installed.")
             self.service = 'manual'
         except Exception as e:
             print(f"⚠️  Warning: Gemini initialization failed: {e}")
             self.service = 'manual'
 
-    def _initialize_vertexai(self, project_id: Optional[str], location: str):
+    def _initialize_vertexai(self, project_id: Optional[str], location: str, model_name: str):
         """Initialize Google Cloud Vertex AI"""
         try:
             import vertexai
             from vertexai.generative_models import GenerativeModel
             
-            vertexai.init(project={project_id}, location=location)
-            self.model = GenerativeModel('gemini-1.5-flash')
-            print(f"☁️  Vertex AI initialized (Project: {project_id or 'default'}, Location: {location})")
+            vertexai.init(project=project_id, location=location)
+            self.model = GenerativeModel(model_name)
+            print(f"☁️  Vertex AI initialized (Project: {project_id or 'default'}, Location: {location}, Model: {model_name})")
         except ImportError:
             print("⚠️  Warning: google-cloud-aiplatform package not installed. Install with: pip install google-cloud-aiplatform")
             self.service = 'manual'
@@ -63,24 +71,29 @@ class ChangelogTranslator:
             print("Ensure you have valid GCP credentials (ADC) or are running on a GCP resource.")
             self.service = 'manual'
 
-    def translate_changelog(self, changelog_data: Dict) -> Dict:
+    def translate_changelog(self, changelog_data: Dict, interactive: bool = True) -> Dict:
         """
         Translate changelog data from English to German.
 
         Args:
             changelog_data: Changelog data with English text
+            interactive: Whether to allow manual interaction/prompts
 
         Returns:
             Changelog data with German text
         """
-        if self.service in ['gemini', 'vertexai'] and self.model:
-            return self._translate_automated(changelog_data)
+        if self.service in ['gemini', 'vertexai']:
+            if self.model:
+                return self._translate_automated(changelog_data, interactive=interactive)
+            else:
+                print(f"⚠️  {self.service.capitalize()} model not initialized. Falling back to manual translation.")
+                return self._translate_manual(changelog_data, interactive=interactive)
         elif self.service == 'manual':
-            return self._translate_manual(changelog_data)
+            return self._translate_manual(changelog_data, interactive=interactive)
         else:
             raise ValueError(f"Unsupported translation service: {self.service}")
 
-    def _translate_automated(self, changelog_data: Dict) -> Dict:
+    def _translate_automated(self, changelog_data: Dict, interactive: bool = True) -> Dict:
         """
         Translate using automated Gemini/Vertex AI API.
 
@@ -125,18 +138,28 @@ class ChangelogTranslator:
         except Exception as e:
             print(f"⚠️  Automated translation failed: {e}")
             print("Falling back to manual translation...")
-            return self._translate_manual(changelog_data)
+            return self._translate_manual(changelog_data, interactive=interactive)
 
-    def _translate_manual(self, changelog_data: Dict) -> Dict:
+    def _translate_manual(self, changelog_data: Dict, interactive: bool = True) -> Dict:
         """
         Collect manual translations interactively.
 
         Args:
             changelog_data: English changelog data
+            interactive: Whether to allow manual interaction/prompts
 
         Returns:
             German changelog data
         """
+        if not interactive:
+            print("⏭️  Manual translation skipped (non-interactive mode).")
+            # Returns a copy of the English data structure
+            return {
+                'version': changelog_data['version'],
+                'title': changelog_data['title'],
+                'sections': [dict(s) for s in changelog_data['sections']]
+            }
+
         print("\n--- Manual German Translation ---\n")
 
         # Translate title
