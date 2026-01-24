@@ -327,6 +327,50 @@ class FileUpdater:
 
         self.backup_files.clear()
 
+    def finalize_checksum(self, version: str, checksum: str, dry_run: bool = False) -> List[Dict[str, any]]:
+        """
+        Replace checksum placeholders with actual hash.
+
+        Args:
+            version: Version string
+            checksum: Real SHA256 hash
+            dry_run: If True, only preview
+
+        Returns:
+            List of update results
+        """
+        results = []
+        placeholder = "[SHA256_HASH_TBD]"
+        
+        files_to_patch = [
+            self.project_root / "yads" / "core" / "seeding.py",
+            self.project_root / "yads-homepage" / "en" / "changes.html",
+            self.project_root / "yads-homepage" / "de" / "changes.html"
+        ]
+        
+        for file_path in files_to_patch:
+            if not file_path.exists():
+                continue
+                
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            if placeholder in content:
+                new_content = content.replace(placeholder, checksum)
+                
+                result = {
+                    'file': str(file_path),
+                    'matches': content.count(placeholder),
+                    'changed': True
+                }
+                
+                if not dry_run:
+                    self._backup_and_write(file_path, new_content)
+                
+                results.append(result)
+        
+        return results
+
     def update_all_files(
         self,
         version: str,

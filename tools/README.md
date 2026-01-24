@@ -11,7 +11,7 @@ Automation tools for the YADS release process.
 **Features**:
 - Semantic version bumping (major/minor/patch)
 - Interactive changelog collection
-- Automated German translation via DeepL
+- Automated German translation via Gemini
 - Multi-file updates (8+ files)
 - Release packaging integration
 - SSH/FTP upload with fallback
@@ -60,7 +60,7 @@ tools/
 │   ├── version.py          # Semantic versioning
 │   ├── config.py           # Configuration management
 │   ├── changelog.py        # Changelog generation
-│   ├── translator.py       # DeepL translation
+│   ├── translator.py       # Gemini translation
 │   ├── updater.py          # File update engine
 │   └── uploader.py         # SSH/FTP upload
 ├── release_config.yaml     # Example configuration
@@ -78,7 +78,7 @@ pip install -r requirements.txt
 ```
 
 Required packages:
-- `deepl` - DeepL translation API
+- `google-generativeai` - Gemini translation API
 - `pyyaml` - YAML configuration
 - `rich` - Terminal output
 
@@ -92,7 +92,7 @@ Required packages:
 vim ~/.yads/release.yaml
 
 # Set API keys
-export DEEPL_API_KEY='your-api-key'
+export GEMINI_API_KEY='your-api-key'
 ```
 
 ### 3. Test Configuration
@@ -183,8 +183,11 @@ upload:
     homepage_de: /var/www/html/de
 
 translation:
-  service: deepl
-  api_key: ${DEEPL_API_KEY}
+  service: gemini # 'gemini', 'vertexai', or 'manual'
+  api_key: ${GEMINI_API_KEY} # For 'gemini'
+  # For Vertex AI (keyless):
+  # project_id: my-gcp-project
+  # location: us-central1
 
 git:
   auto_commit: true
@@ -194,13 +197,13 @@ git:
 
 ## Troubleshooting
 
-### DeepL API Errors
+### Gemini API Errors
 
 **Issue**: Translation fails
 
 **Solution**:
-- Check API key: `echo $DEEPL_API_KEY`
-- Verify quota at https://www.deepl.com/account/usage
+- Check API key: `echo $GEMINI_API_KEY`
+- Verify quota at Google AI Studio
 - Use manual fallback (tool will prompt)
 
 ### SSH Upload Fails
@@ -248,16 +251,22 @@ You can also manually restore from `.bak` files if needed.
 
 ## API Keys
 
-### DeepL API
+### Google Gemini API (AI Studio)
 
-Sign up: https://www.deepl.com/pro-api
-
-Free tier: 500,000 characters/month (sufficient for releases)
+Sign up: https://aistudio.google.com/app/apikey
 
 Set environment variable:
 ```bash
-export DEEPL_API_KEY='your-key-here'
+export GEMINI_API_KEY='your-key-here'
 ```
+
+### Google Vertex AI (GCP)
+
+For automated, keyless authentication in CI/CD:
+
+1. Enable Vertex AI API in your GCP project.
+2. Configure `service: vertexai` and `project_id` in `release.yaml`.
+3. The tool will use **Application Default Credentials (ADC)**.
 
 ## Best Practices
 

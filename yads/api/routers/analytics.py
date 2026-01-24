@@ -6,7 +6,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
 from yads.database import engine
-from yads.models import Target, ScanResult, User
+from yads.models import Target, ScanResult, User, SecurityTrend
 from yads.auth.deps import get_current_active_user
 from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
@@ -297,62 +297,31 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
 @router.get("/trend/security")
 async def get_security_trend(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
-    Returns historical security trend data.
+    Returns historical security trend data from the SecurityTrend table.
     """
-    # 1. Scope
-    target_ids = []
-    if user.tenant_id:
-        targets = session.exec(select(Target.id).where(Target.tenant_id == user.tenant_id)).all()
-        target_ids = targets
-    elif user.role != "admin":
-        targets = session.exec(select(Target.id).where(Target.tenant_id == None)).all()
-        target_ids = targets
-    else:
-        # Admin - fetch all for global trend
-        targets = session.exec(select(Target.id)).all()
-        target_ids = targets
-
-    if not target_ids:
-        return {"labels": [], "data": []}
-
-    # 2. Fetch Historical Results (Infrastructure Scanner contains 'security_score')
-    # Limit to last 30 days
-    results = session.exec(select(ScanResult).where(
-        ScanResult.module_name == 'infrastructure_scanner',
-        ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.asc())).all()
-
-    # 3. Aggregate by Date
-    # { "YYYY-MM-DD": [score1, score2, ...] }
-    daily_scores = {}
+    # 1. Query Trend Records for User's Tenant
+    query = select(SecurityTrend).order_by(SecurityTrend.recorded_at.asc())
     
-    for res in results:
-        if not res.data: continue
-        
-        # Parse data
-        data = res.data
-        if isinstance(data, str):
-            try: data = json.loads(data)
-            except: continue
-            
-        score = data.get("security_score")
-        if score is None: continue
-        
-        date_str = res.scanned_at.strftime("%Y-%m-%d")
-        if date_str not in daily_scores:
-            daily_scores[date_str] = []
-        
-        daily_scores[date_str].append(score)
+    if user.tenant_id:
+        query = query.where(SecurityTrend.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        # Non-admin without tenant
+        query = query.where(SecurityTrend.tenant_id == None)
+    
+    # Limit to last 30 days
+    results = session.exec(query).all()
 
-    # 4. Calculate Average per Day
+    # 2. Format for Frontend
     labels = []
     data_points = []
     
-    for date_str in sorted(daily_scores.keys()):
-        scores = daily_scores[date_str]
-        avg_score = sum(scores) / len(scores)
-        labels.append(date_str)
-        data_points.append(round(avg_score, 1))
+    for res in results:
+        labels.append(res.recorded_at.strftime("%Y-%m-%d"))
+        data_points.append(res.score)
+
+    # 3. Fallback: If no records yet, return empty but descriptive
+    if not data_points:
+        return {"labels": [], "data": [], "message": "Trend data collection started. Check back in 24h."}
 
     return {
         "labels": labels[-30:], # Last 30 entries

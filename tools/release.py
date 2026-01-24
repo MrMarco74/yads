@@ -14,6 +14,7 @@ Usage:
 
 import sys
 import os
+import re
 import subprocess
 import argparse
 from pathlib import Path
@@ -53,29 +54,23 @@ class ReleaseOrchestrator:
 
     def load_config(self) -> None:
         """Load and validate configuration"""
-        try:
-            self.config = ReleaseConfig(self.config_path)
-            self.config.validate()
+        self.config = ReleaseConfig(self.config_path)
+        self.config.validate()
 
-            # Initialize translator
-            translation_config = self.config.get('translation', {})
-            self.translator = ChangelogTranslator(
-                api_key=translation_config.get('api_key'),
-                service=translation_config.get('service', 'deepl')
-            )
+        # Initialize translator
+        translation_config = self.config.get('translation', {})
+        self.translator = ChangelogTranslator(
+            api_key=translation_config.get('api_key'),
+            service=translation_config.get('service', 'gemini'),
+            project_id=translation_config.get('project_id'),
+            location=translation_config.get('location', 'us-central1')
+        )
 
-            # Initialize uploader
-            self.uploader = ReleaseUploader(
-                self.config.config,
-                str(self.project_root)
-            )
-
-        except FileNotFoundError as e:
-            print(f"\n❌ {e}\n")
-            sys.exit(1)
-        except ValueError as e:
-            print(f"\n❌ Configuration error:\n{e}\n")
-            sys.exit(1)
+        # Initialize uploader
+        self.uploader = ReleaseUploader(
+            self.config.config,
+            str(self.project_root)
+        )
 
     def pre_flight_checks(self) -> bool:
         """
@@ -146,7 +141,8 @@ class ReleaseOrchestrator:
         dry_run: bool = False,
         skip_upload: bool = False,
         skip_commit: bool = False,
-        use_editor: bool = False
+        use_editor: bool = False,
+        interactive: bool = True
     ) -> bool:
         """
         Execute full release process.
@@ -167,8 +163,8 @@ class ReleaseOrchestrator:
                 print("❌ Pre-flight checks failed!")
                 return False
 
-            # Load configuration (unless dry run and skipping upload)
-            if not (dry_run and skip_upload):
+            # Load configuration if not already loaded
+            if not hasattr(self, 'config') or self.config is None:
                 self.load_config()
 
             # Step 1: Version bump
@@ -185,11 +181,13 @@ class ReleaseOrchestrator:
             print(f"New version:     {new_version}")
             print(f"Bump type:       {bump_type.upper()}\n")
 
-            if not dry_run:
+            if not dry_run and interactive:
                 confirm = input("Proceed with this version bump? [y/N]: ").strip().lower()
                 if confirm != 'y':
                     print("Aborted by user.")
                     return False
+            elif not dry_run and not interactive:
+                print("Non-interactive mode: proceeding with version bump.")
 
             # Step 2: Changelog collection
             print("\n" + "="*60)
@@ -199,16 +197,18 @@ class ReleaseOrchestrator:
             if use_editor:
                 changelog_en = self.changelog_manager.collect_from_editor(new_version_str)
             else:
-                changelog_en = self.changelog_manager.collect_interactive(new_version_str)
+                changelog_en = self.changelog_manager.collect_interactive(new_version_str, interactive=interactive)
 
             # Preview English changelog
             self.changelog_manager.preview_changelog(changelog_en)
 
-            if not dry_run:
+            if not dry_run and interactive:
                 confirm = input("\nProceed with this changelog? [y/N]: ").strip().lower()
                 if confirm != 'y':
                     print("Aborted by user.")
                     return False
+            elif not dry_run and not interactive:
+                print("Non-interactive mode: proceeding with changelog.")
 
             # Step 3: Translation
             print("\n" + "="*60)
@@ -225,15 +225,18 @@ class ReleaseOrchestrator:
                 print("\n--- German Translation Preview ---\n")
                 self.changelog_manager.preview_changelog(changelog_de)
 
-            # Step 4: Generate code
+            # Step 4: Code Generation
             print("\n" + "="*60)
             print("  STEP 4: Code Generation")
             print("="*60 + "\n")
 
-            python_code_en = self.changelog_manager.generate_python_code(changelog_en, 'en')
+            # We use a placeholder for SHA256 if we don't know it yet
+            checksum_placeholder = "[SHA256_HASH_TBD]"
+            
+            python_code_en = self.changelog_manager.generate_python_code(changelog_en, 'en', checksum=checksum_placeholder)
             notification_code = self.changelog_manager.generate_notification_code(changelog_en, 'en')
-            html_en = self.changelog_manager.generate_html(changelog_en)
-            html_de = self.changelog_manager.generate_html(changelog_de)
+            html_en = self.changelog_manager.generate_html(changelog_en, checksum=checksum_placeholder)
+            html_de = self.changelog_manager.generate_html(changelog_de, checksum=checksum_placeholder)
 
             if dry_run:
                 print("--- Python Code (seeding.py) ---")
@@ -254,7 +257,6 @@ class ReleaseOrchestrator:
                 notification_code=notification_code,
                 dry_run=dry_run
             )
-
             # Display results
             for result in results:
                 status = "✅" if result['changed'] else "⏭️ "
@@ -275,8 +277,15 @@ class ReleaseOrchestrator:
             result = subprocess.run(
                 [str(package_script)],
                 cwd=self.project_root,
-                check=False
+                check=False,
+                capture_output=True,
+                text=True
             )
+
+            # Re-emit output to our log redirector
+            print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
 
             if result.returncode != 0:
                 print("\n❌ Packaging failed!")
@@ -285,6 +294,21 @@ class ReleaseOrchestrator:
                 return False
 
             print("\n✅ Packaging completed successfully")
+
+            # Extract SHA256 from output
+            sha256 = None
+            for line in result.stdout.splitlines():
+                if "SHA256:" in line:
+                    # Strip ANSI colors and get the hash
+                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                    if "SHA256:" in clean_line:
+                        sha256 = clean_line.split("SHA256:")[1].strip()
+                        break
+            
+            if sha256:
+                print(f"\nCaptured SHA256 checksum: {sha256}")
+                print("Finalizing metadata in files...")
+                self.file_updater.finalize_checksum(new_version_str, sha256, dry_run=False)
 
             # Step 7: Upload
             if not skip_upload:
@@ -507,7 +531,7 @@ Examples:
         print(f"\n✅ Configuration template created: {config_path}")
         print("\nEdit this file to add your credentials and settings.")
         print("Remember to set environment variables for sensitive data:\n")
-        print("  export DEEPL_API_KEY='your-api-key'")
+        print("  export GEMINI_API_KEY='your-api-key'")
         print("  export YADS_FTP_PASSWORD='your-ftp-password'\n")
         sys.exit(0)
 
@@ -523,12 +547,21 @@ Examples:
             args.config if hasattr(args, 'config') else None
         )
 
+        try:
+            orchestrator.load_config()
+            if not orchestrator.pre_flight_checks():
+                sys.exit(1)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n❌ Configuration error: {e}")
+            sys.exit(1)
+
         success = orchestrator.execute_release(
             bump_type=args.bump,
             dry_run=args.dry_run,
             skip_upload=args.no_upload,
             skip_commit=args.no_commit,
-            use_editor=args.editor
+            use_editor=args.editor,
+            interactive=True
         )
 
         sys.exit(0 if success else 1)
@@ -538,6 +571,12 @@ Examples:
             str(project_root),
             args.config if hasattr(args, 'config') else None
         )
+
+        try:
+            orchestrator.load_config()
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n❌ Configuration error: {e}")
+            sys.exit(1)
 
         success = orchestrator.retry_upload(args.version)
         sys.exit(0 if success else 1)

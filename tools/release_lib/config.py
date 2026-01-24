@@ -70,12 +70,7 @@ class ReleaseConfig:
             def replace_env_var(match):
                 var_name = match.group(1)
                 value = os.getenv(var_name)
-                if value is None:
-                    raise ValueError(
-                        f"Environment variable '${{{var_name}}}' not set. "
-                        f"Please set it before running the release tool."
-                    )
-                return value
+                return value if value is not None else f"${{{var_name}}}"
 
             return re.sub(r'\$\{([^}]+)\}', replace_env_var, obj)
         else:
@@ -156,11 +151,14 @@ class ReleaseConfig:
             if path_key not in paths:
                 errors.append(f"Missing upload.paths.{path_key}")
 
-        # Validate translation
+        # Validate translation (Warnings only, as translator provides manual fallback)
         translation_service = self.get('translation.service')
-        if translation_service == 'deepl':
+        if translation_service == 'gemini':
             if not self.get('translation.api_key'):
-                errors.append("Missing translation.api_key for DeepL")
+                print("⚠️  Warning: Missing translation.api_key for Gemini. Fallback to manual translation enabled.")
+        elif translation_service == 'vertexai':
+            if not self.get('translation.project_id'):
+                print("⚠️  Warning: Missing translation.project_id for Vertex AI. Fallback to manual translation enabled.")
 
         if errors:
             raise ValueError(
@@ -212,8 +210,11 @@ upload:
 
 # Translation settings
 translation:
-  service: deepl  # 'deepl', 'google', or 'manual'
-  api_key: ${DEEPL_API_KEY}  # From environment variable
+  service: gemini  # 'gemini', 'vertexai', or 'manual'
+  api_key: ${GEMINI_API_KEY}  # For 'gemini' service
+  # For Vertex AI:
+  # project_id: my-gcp-project
+  # location: us-central1
   source_lang: EN
   target_lang: DE
 

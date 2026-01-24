@@ -17,7 +17,7 @@ The YADS release automation tool (`tools/release.py`) streamlines the entire rel
 
 - ✅ Semantic version bumping (major/minor/patch)
 - ✅ Interactive changelog collection
-- ✅ Automated German translation (DeepL API)
+- ✅ Automated German translation (Gemini API)
 - ✅ Multi-file updates (8+ files)
 - ✅ Release packaging integration
 - ✅ SSH/FTP upload with fallback
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 ```
 
 This installs:
-- `deepl` - DeepL translation API
+- `google-generativeai` - Gemini translation API
 - `pyyaml` - YAML configuration parsing
 - `rich` - Enhanced terminal output
 
@@ -66,22 +66,22 @@ upload:
     homepage_de: /var/www/html/de
 
 translation:
-  service: deepl
-  api_key: ${DEEPL_API_KEY}
+  service: gemini
+  api_key: ${GEMINI_API_KEY}
 ```
 
 ### 4. Set Environment Variables
 
 ```bash
-export DEEPL_API_KEY='your-deepl-api-key'
+export GEMINI_API_KEY='your-gemini-api-key'
 export YADS_FTP_PASSWORD='your-ftp-password'  # if using FTP
 ```
 
 Add these to your `~/.bashrc` or `~/.zshrc` for persistence.
 
-### 5. Get DeepL API Key
+### 5. Get Gemini API Key
 
-1. Sign up at https://www.deepl.com/pro-api
+1. Sign up at https://aistudio.google.com/app/apikey
 2. Free tier: 500,000 characters/month (sufficient for releases)
 3. Copy API key and set environment variable
 
@@ -160,7 +160,8 @@ If upload fails, retry without re-running the entire release:
    - Preview before confirmation
 
 4. **Translation**
-   - Translates changelog to German via DeepL API
+   - Translates changelog to German via Gemini (AI Studio) or Vertex AI (GCP)
+   - Supports keyless authentication via Google Service Accounts
    - Fallback to manual input if API fails
    - Preview German translation
 
@@ -231,8 +232,8 @@ upload:
 
 # Translation settings
 translation:
-  service: deepl           # 'deepl', 'google', or 'manual'
-  api_key: ${DEEPL_KEY}
+  service: gemini           # 'gemini' or 'manual'
+  api_key: ${GEMINI_KEY}
   source_lang: EN
   target_lang: DE
 
@@ -257,21 +258,26 @@ api_key: ${DEEPL_API_KEY}
 password: ${YADS_FTP_PASSWORD}
 ```
 
-Set environment variables:
-
-```bash
-export DEEPL_API_KEY='your-key-here'
+export GEMINI_API_KEY='your-key-here'
 ```
+
+### Option B: Vertex AI (GCP Keyless)
+
+For fully automated CI/CD without manual keys:
+
+1.  **Configure Service**: Set `service: vertexai` in `release.yaml`.
+2.  **Project ID**: provide your GCP `project_id`.
+3.  **Auth**: Ensure the runner has the `Vertex AI User` role.
 
 ## Troubleshooting
 
-### DeepL API Errors
+### Gemini API Errors
 
 **Problem**: Translation fails with API error
 
 **Solutions**:
-1. Check API key is set: `echo $DEEPL_API_KEY`
-2. Verify API quota: https://www.deepl.com/account/usage
+1. Check API key is set: `echo $GEMINI_API_KEY`
+2. Verify API quota: Google AI Studio
 3. Use manual fallback: tool will prompt for manual translations
 4. Set service to 'manual' in config to skip API
 

@@ -1,6 +1,6 @@
 from celery import Celery
 from sqlmodel import Session, create_engine, select
-from yads.models import ScanResult, Target, SystemConfig
+from yads.models import ScanResult, Target, SystemConfig, Tenant, SecurityTrend
 from datetime import datetime
 import os
 import dns.resolver
@@ -60,8 +60,121 @@ def on_worker_process_init(**kwargs):
 # Database access for worker
 
 # Database access for worker
-# Use shared engine to prevent pool exhaustion when imported by API
 from yads.database import engine
+
+@celery_app.task(name="yads.worker.auto_dns_cleanup")
+def auto_dns_cleanup():
+    """
+    Periodic task to check DNS health for all active targets.
+    """
+    logger.info("[Worker] Starting periodic DNS cleanup scan for all active targets")
+    try:
+        with Session(engine) as session:
+            # Query all non-archived targets
+            targets = session.exec(select(Target).where(Target.is_archived == False)).all()
+            
+            for t in targets:
+                # Dispatch a scan with only dns_cleanup module
+                celery_app.send_task(
+                    "yads.worker.run_all_scans", 
+                    args=[t.id, t.domain, ["dns_cleanup"], t.tenant_id]
+                )
+            
+            logger.info(f"[Worker] Dispatched DNS health checks for {len(targets)} targets.")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to run auto_dns_cleanup: {e}")
+
+# -- Periodic Schedule Configuration --
+celery_app.conf.beat_schedule = {
+    'periodic-dns-cleanup': {
+        'task': 'yads.worker.auto_dns_cleanup',
+        'schedule': 6 * 3600.0, # Run every 6 hours (in seconds)
+    },
+    'daily-security-trends': {
+        'task': 'yads.worker.calculate_security_trends',
+        'schedule': 24 * 3600.0, # Run every 24 hours
+    },
+}
+celery_app.conf.timezone = 'UTC'
+
+
+@celery_app.task(name="yads.worker.calculate_security_trends")
+def calculate_security_trends():
+    """
+    Calculates and stores daily security score averages for each tenant.
+    """
+    from yads.core.scoring import calculate_target_score
+    from yads.database import engine
+    from yads.models import Tenant, Target, ScanResult, SecurityTrend
+    from sqlmodel import Session, select, text
+    import logging
+
+    logger = logging.getLogger("yads-worker")
+    logger.info("[Worker] Starting daily security trend calculation...")
+
+    try:
+        with Session(engine) as session:
+            # 1. Fetch all tenants
+            tenants = session.exec(select(Tenant)).all()
+            
+            for tenant in tenants:
+                # 2. Fetch all non-archived targets for this tenant
+                targets = session.exec(select(Target).where(
+                    Target.tenant_id == tenant.id,
+                    Target.is_archived == False
+                )).all()
+                
+                if not targets:
+                    continue
+                
+                total_target_score = 0
+                count = 0
+                
+                for t in targets:
+                    # 3. Get latest results for this target
+                    # Using similar logic to compliance/dashboard
+                    query = f"""
+                        SELECT DISTINCT ON (module_name) 
+                            module_name, data 
+                        FROM scanresult 
+                        WHERE target_id = {t.id}
+                          AND module_name IN ('ssl_scanner', 'web_analyzer', 'port_scanner')
+                        ORDER BY module_name, scanned_at DESC
+                    """
+                    latest_rows = session.exec(text(query)).all()
+                    
+                    # Convert to dict for scoring function
+                    class MockRes:
+                        def __init__(self, data): self.data = data
+                    
+                    latest_results = {row[0]: MockRes(row[1]) for row in latest_rows}
+                    
+                    # 4. Calculate Score
+                    score, grade, factors = calculate_target_score(t, latest_results)
+                    total_target_score += score
+                    count += 1
+                
+                if count > 0:
+                    avg_score = total_target_score / count
+                    
+                    # 5. Store in SecurityTrend
+                    trend = SecurityTrend(
+                        tenant_id=tenant.id,
+                        score=round(avg_score),
+                        grade=calculate_target_score(None, {})[1], # Default grade logic reuse or just pass avg?
+                        # actually get_grade is a better helper
+                    )
+                    # Use get_grade from scoring
+                    from yads.core.scoring import get_grade
+                    trend.grade = get_grade(round(avg_score))
+                    
+                    session.add(trend)
+                    logger.info(f"[Worker] Recorded trend for tenant {tenant.name}: {avg_score:.1f} ({trend.grade})")
+            
+            session.commit()
+            logger.info("[Worker] Security trend calculation finished.")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to calculate security trends: {e}")
 
 
 import io
