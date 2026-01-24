@@ -1,0 +1,242 @@
+# Docker Swarm Configuration for Distributed YADS Workers
+#
+# This configuration enables horizontal scaling of workers across multiple
+# Docker Swarm nodes. The manager node runs the API and primary worker,
+# while additional nodes run secondary workers.
+#
+# Deployment:
+#   1. Initialize Swarm on manager: docker swarm init
+#   2. Join worker nodes: docker swarm join --token <token> <manager-ip>:2377
+#   3. Label worker nodes: docker node update --label-add yads-worker=true <node-name>
+#   4. Deploy stack: docker stack deploy -c docker-compose.swarm.yml yads
+#
+# Environment Variables (set in .env or export before deploy):
+#   WORKER_REGISTRATION_TOKEN: Pre-shared token for worker registration
+#   POSTGRES_PASSWORD: Database password
+#   YADS_IMAGE: Container image (default: yads:latest)
+#
+# Scaling Workers:
+#   docker service scale yads_yads-worker=5
+
+
+services:
+  # ==========================================================================
+  # Core Services (Manager Node Only)
+  # ==========================================================================
+
+  yads-api:
+    image: ${YADS_IMAGE:-yads:latest}
+    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+      - MFA_ENABLED=${MFA_ENABLED:-true}
+      - WORKER_MODE=primary
+      - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
+    volumes:
+      - logs:/app/logs
+      - data:/app/data
+    networks:
+      - yads-internal
+      - yads-frontend
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  yads-worker-primary:
+    image: ${YADS_IMAGE:-yads:latest}
+    command: python /app/scripts/start_worker.py
+    environment:
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+      - WORKER_MODE=primary
+    volumes:
+      - logs:/app/logs
+      - nuclei_templates:/root/nuclei-templates
+    networks:
+      - yads-internal
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  # ==========================================================================
+  # Distributed Workers (Any Node with yads-worker=true label)
+  # ==========================================================================
+
+  yads-worker:
+    image: ${YADS_IMAGE:-yads:latest}
+    command: python /app/scripts/start_distributed_worker.py
+    environment:
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - MANAGER_URL=http://yads-api:8000
+      - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
+      - WORKER_MODE=secondary
+      - WORKER_MAX_TASKS=${WORKER_MAX_TASKS:-4}
+      - WORKER_MAX_NETWORK_MBPS=${WORKER_MAX_NETWORK_MBPS:-100}
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+    volumes:
+      - nuclei_templates:/root/nuclei-templates
+    networks:
+      - yads-internal
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    deploy:
+      mode: replicated
+      replicas: ${WORKER_REPLICAS:-2}
+      placement:
+        constraints:
+          - node.labels.yads-worker == true
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: stop-first
+      rollback_config:
+        parallelism: 1
+        delay: 30s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  # ==========================================================================
+  # Infrastructure (Manager Node Only)
+  # ==========================================================================
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=yads
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=yads
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # ==========================================================================
+  # Optional: Celery Beat Scheduler (Manager Node Only)
+  # ==========================================================================
+
+  yads-scheduler:
+    image: ${YADS_IMAGE:-yads:latest}
+    command: celery -A yads.worker beat --loglevel=INFO
+    environment:
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  logs:
+    driver: local
+  data:
+    driver: local
+  nuclei_templates:
+    driver: local
+
+
+networks:
+  yads-internal:
+    driver: overlay
+    attachable: true
+    encrypted: true  # Enable IPSec encryption for inter-node traffic
+    driver_opts:
+      encrypted: "true"
+
+  yads-frontend:
+    driver: overlay
+    attachable: true

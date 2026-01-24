@@ -253,7 +253,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -282,6 +282,9 @@ app.include_router(asr.router)
 app.include_router(cloud_assets.router)
 app.include_router(search.router)
 app.include_router(archived.router)
+app.include_router(workers.router)
+app.include_router(workers.ui_router)
+app.include_router(mobile.router)
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
@@ -3172,6 +3175,12 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     dns_conf = session.get(SystemConfig, "CUSTOM_DNS_SERVERS")
     if dns_conf:
         custom_dns_servers = dns_conf.value
+
+    # Load Network Rate Limit
+    network_rate_limit = ""
+    nrl_conf = session.get(SystemConfig, "NETWORK_RATE_LIMIT")
+    if nrl_conf:
+        network_rate_limit = nrl_conf.value
         
     # Custom Wordlist Status
     has_custom_wordlist = False
@@ -3221,7 +3230,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     license_data = None
     license_status = "Free Tier (Limit 5)"
     license_limit = 5
-    
+
     if license_conf and license_conf.value:
         data = license_manager.verify(license_conf.value)
         if data:
@@ -3231,6 +3240,24 @@ async def view_settings(request: Request, session: Session = Depends(get_session
             license_status = f"Valid (Customer: {data.get('sub')}, Expires: {exp_date})"
         else:
             license_status = "Invalid / Expired"
+
+    # --- Distributed Worker Settings ---
+    global_max_concurrent_scans = 50
+    global_max_network_mbps = 500
+
+    gmcs_conf = session.get(SystemConfig, "GLOBAL_MAX_CONCURRENT_SCANS")
+    if gmcs_conf:
+        try:
+            global_max_concurrent_scans = int(gmcs_conf.value)
+        except:
+            pass
+
+    gmnm_conf = session.get(SystemConfig, "GLOBAL_MAX_NETWORK_MBPS")
+    if gmnm_conf:
+        try:
+            global_max_network_mbps = float(gmnm_conf.value)
+        except:
+            pass
 
     return templates.TemplateResponse("settings.html", {
         "allowed_tenants": allowed_tenants,
@@ -3243,6 +3270,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "worker_concurrency": worker_concurrency,
         "approved_ciphers": approved_ciphers,
         "custom_dns_servers": custom_dns_servers,
+        "network_rate_limit": network_rate_limit,
         "has_custom_wordlist": has_custom_wordlist,
         "custom_wordlist_lines": custom_wordlist_lines,
         "session_minutes": session_minutes,
@@ -3257,6 +3285,8 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "license_status": license_status,
         "license_data": license_data,
         "license_limit": license_limit,
+        "global_max_concurrent_scans": global_max_concurrent_scans,
+        "global_max_network_mbps": global_max_network_mbps,
     })
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -3272,6 +3302,7 @@ async def update_settings(
     otp_window: int = Form(1),
     approved_ciphers: Optional[str] = Form(None),
     custom_dns_servers: str = Form(None),
+    network_rate_limit: str = Form(None),
     splunk_hec_url: str = Form(None),
     splunk_hec_token: str = Form(None),
     smtp_host: str = Form(None),
@@ -3281,6 +3312,10 @@ async def update_settings(
     
     # License
     license_key: Optional[str] = Form(None),
+
+    # Distributed Worker Settings
+    global_max_concurrent_scans: int = Form(50),
+    global_max_network_mbps: float = Form(500),
 
     session: Session = Depends(get_session)
 ):
@@ -3365,7 +3400,21 @@ async def update_settings(
          else:
              dns_conf.value = custom_dns_servers
              session.add(dns_conf)
-             
+
+    # Network Rate Limit
+    if network_rate_limit is not None:
+         nrl_conf = session.get(SystemConfig, "NETWORK_RATE_LIMIT")
+         if not nrl_conf:
+             nrl_conf = SystemConfig(key="NETWORK_RATE_LIMIT", value=network_rate_limit)
+             session.add(nrl_conf)
+         else:
+             nrl_conf.value = network_rate_limit
+             session.add(nrl_conf)
+
+    # Distributed Worker Settings
+    set_conf("GLOBAL_MAX_CONCURRENT_SCANS", str(global_max_concurrent_scans))
+    set_conf("GLOBAL_MAX_NETWORK_MBPS", str(global_max_network_mbps))
+
     session.commit()
     
     # Broadcast Updates
@@ -4356,7 +4405,8 @@ async def render_network_graph_image(
 
     # Add target nodes with full labels
     for t in targets:
-        display_label = t.domain if len(t.domain) <= max_label_length else t.domain[:max_label_length-3] + "..."
+        # User requested full names, so we disable truncation
+        display_label = t.domain 
         G.add_node(t.domain, type='domain', label=t.domain, display_label=display_label)
     
     # Fetch scan results for edges
@@ -4384,7 +4434,7 @@ async def render_network_graph_image(
                 for sub_entry in res.data.get("subdomains", [])[:50]:  # Limit per target
                     sub = sub_entry.get("subdomain")
                     if sub and sub != source:
-                        display_label = sub if len(sub) <= max_label_length else sub[:max_label_length-3] + "..."
+                        display_label = sub 
                         G.add_node(sub, type='subdomain', label=sub, display_label=display_label)
                         G.add_edge(source, sub, label='subdomain', connection_type='subdomain')
 
@@ -4400,7 +4450,7 @@ async def render_network_graph_image(
                 for hop in chain[:5]:  # Limit chain depth
                     hop_clean = hop.replace("https://", "").replace("http://", "").split("/")[0]
                     if hop_clean and hop_clean != prev:
-                        display_label = hop_clean if len(hop_clean) <= max_label_length else hop_clean[:max_label_length-3] + "..."
+                        display_label = hop_clean 
                         G.add_node(hop_clean, type='redirect', label=hop_clean, display_label=display_label)
                         G.add_edge(prev, hop_clean, label='redirects_to', connection_type='redirects_to')
                         prev = hop_clean

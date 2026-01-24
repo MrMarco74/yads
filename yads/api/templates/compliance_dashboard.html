@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Compliance Dashboard</h1>
+            <p class="text-sm text-slate-400">{{ framework_name }} Readiness Assessment</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
+                {{ total_targets }} Targets Assessed
+            </span>
+            <a href="/compliance/export/pdf?framework={{ framework }}"
+               class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export PDF
+            </a>
+            <a href="/compliance/export/csv?framework={{ framework }}"
+               class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- Framework Tabs -->
+    <div class="border-b border-slate-800">
+        <nav class="-mb-px flex space-x-8 overflow-x-auto">
+            {% for fw in frameworks %}
+            <a href="/compliance/?framework={{ fw.id }}"
+               class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
+               {% if framework == fw.id %}
+                   border-indigo-500 text-indigo-400
+               {% else %}
+                   border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600
+               {% endif %}">
+                {{ fw.name }}
+            </a>
+            {% endfor %}
+        </nav>
+    </div>
+
+    <!-- Score Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Main Score -->
+        <div class="md:col-span-1 rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col items-center justify-center relative overflow-hidden group">
+            <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+            <div class="relative z-10 text-center">
+                <div class="text-6xl font-black text-white mb-2 tracking-tighter">{{ stats.score }}<span class="text-2xl text-slate-500 font-normal">%</span></div>
+                <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold
+                    {% if stats.grade == 'A' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                    {% elif stats.grade == 'B' %}bg-blue-500/10 text-blue-400 border border-blue-500/20
+                    {% elif stats.grade == 'C' %}bg-yellow-500/10 text-yellow-400 border border-yellow-500/20
+                    {% else %}bg-red-500/10 text-red-400 border border-red-500/20{% endif %}">
+                    Grade {{ stats.grade }}
+                </div>
+            </div>
+
+            <!-- Circular Progress Background -->
+            <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none opacity-20">
+                <circle cx="50%" cy="50%" r="40%" stroke="currentColor" stroke-width="2" fill="none" class="text-slate-800" />
+                <circle cx="50%" cy="50%" r="40%" stroke="currentColor" stroke-width="2" fill="none"
+                    class="{% if stats.grade == 'A' %}text-emerald-500{% elif stats.grade == 'B' %}text-blue-500{% elif stats.grade == 'C' %}text-yellow-500{% else %}text-red-500{% endif %}"
+                    stroke-dasharray="251" stroke-dashoffset="{{ 251 - (251 * stats.score / 100) }}" />
+            </svg>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="md:col-span-3 grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Controls Passing -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Controls Passing</p>
+                <p class="text-2xl font-bold text-emerald-400">{{ stats.passing_controls }}</p>
+                <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5">
+                    {% set pass_pct = (stats.passing_controls / (stats.passing_controls + stats.failing_controls) * 100) if (stats.passing_controls + stats.failing_controls) > 0 else 100 %}
+                    <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ pass_pct }}%"></div>
+                </div>
+            </div>
+
+            <!-- Controls Failing -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Controls Failing</p>
+                <p class="text-2xl font-bold {% if stats.failing_controls > 0 %}text-red-400{% else %}text-slate-300{% endif %}">{{ stats.failing_controls }}</p>
+                <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5">
+                    {% set fail_pct = (stats.failing_controls / (stats.passing_controls + stats.failing_controls) * 100) if (stats.passing_controls + stats.failing_controls) > 0 else 0 %}
+                    <div class="bg-red-500 h-1.5 rounded-full" style="width: {{ fail_pct }}%"></div>
+                </div>
+            </div>
+
+            <!-- Total Findings -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Findings</p>
+                <p class="text-2xl font-bold text-white">{{ stats.findings|length }}</p>
+                <p class="text-xs text-slate-500 mt-1">Across all targets</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-white">30-Day Trend</h3>
+                <p class="text-sm text-slate-500">Compliance score over time</p>
+            </div>
+        </div>
+        <div class="h-48">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Control Breakdown -->
+    <div>
+        <h3 class="text-lg font-semibold text-white mb-4">Control Breakdown</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for control_id, data in stats.detailed_breakdown.items() %}
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-colors">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-mono text-slate-500">{{ control_id }}</span>
+                        </div>
+                        <h4 class="font-bold text-white mt-1">{{ data.name }}</h4>
+                        <p class="text-xs text-slate-500 mt-1">
+                            {% if data.status == 'PASS' %}
+                            All checks passed.
+                            {% else %}
+                            {{ data.issues|length }} issue(s) detected.
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if data.status == 'PASS' %}
+                    <div class="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    {% else %}
+                    <div class="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-400">Impact on Score</span>
+                    <span class="font-mono font-bold {% if data.deduction > 0 %}text-red-400{% else %}text-slate-500{% endif %}">
+                        -{{ data.deduction }} pts
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Per-Asset Compliance Breakdown -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-white">Per-Asset Compliance</h3>
+                <p class="text-sm text-slate-500">Compliance status by target (sorted by score)</p>
+            </div>
+            <button onclick="document.getElementById('target-table-body').setAttribute('hx-get', '/compliance/rows?framework={{ framework }}'); htmx.trigger('#target-table-body', 'revealed')"
+                    class="text-xs text-indigo-400 hover:text-indigo-300">
+                Refresh
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-xs">
+                    <tr>
+                        <th class="px-6 py-4 font-medium">Domain</th>
+                        <th class="px-6 py-4 font-medium">Score</th>
+                        <th class="px-6 py-4 font-medium">Grade</th>
+                        <th class="px-6 py-4 font-medium">Critical</th>
+                        <th class="px-6 py-4 font-medium">High</th>
+                        <th class="px-6 py-4 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="target-table-body" class="divide-y divide-slate-800/50">
+                    {% for t in targets %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/targets/{{ t.id }}" class="text-white hover:text-indigo-400 font-medium">{{ t.domain }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 bg-slate-800 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full {% if t.score >= 90 %}bg-emerald-500{% elif t.score >= 70 %}bg-yellow-500{% else %}bg-red-500{% endif %}" style="width: {{ t.score }}%"></div>
+                                </div>
+                                <span class="text-slate-300 text-sm">{{ t.score }}%</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold
+                                {% if t.grade == 'A' %}bg-emerald-500/10 text-emerald-400
+                                {% elif t.grade == 'B' %}bg-blue-500/10 text-blue-400
+                                {% elif t.grade == 'C' %}bg-yellow-500/10 text-yellow-400
+                                {% else %}bg-red-500/10 text-red-400{% endif %}">
+                                {{ t.grade }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if t.critical > 0 %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                                {{ t.critical }}
+                            </span>
+                            {% else %}
+                            <span class="text-slate-500">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if t.high > 0 %}
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                {{ t.high }}
+                            </span>
+                            {% else %}
+                            <span class="text-slate-500">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="/compliance/target/{{ t.id }}?framework={{ framework }}" class="text-indigo-400 hover:text-indigo-300 text-xs font-semibold">
+                                Details &rarr;
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                            No targets found. Add targets to start compliance assessment.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Remediation Tasks Panel -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden" x-data="{ showModal: false, selectedFinding: null }">
+        <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-white">Remediation Tasks</h3>
+                <p class="text-sm text-slate-500">Track and manage compliance fixes</p>
+            </div>
+            <button @click="showModal = true" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                New Task
+            </button>
+        </div>
+
+        {% if remediation_tasks %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-xs">
+                    <tr>
+                        <th class="px-6 py-4 font-medium">Task</th>
+                        <th class="px-6 py-4 font-medium">Control</th>
+                        <th class="px-6 py-4 font-medium">Priority</th>
+                        <th class="px-6 py-4 font-medium">Due Date</th>
+                        <th class="px-6 py-4 font-medium">Status</th>
+                        <th class="px-6 py-4 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for task in remediation_tasks %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-white">{{ task.title }}</div>
+                            <div class="text-xs text-slate-500 mt-1 truncate max-w-xs">{{ task.finding_description }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="font-mono text-xs text-slate-400">{{ task.control_id }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold
+                                {% if task.priority == 'critical' %}bg-red-500/10 text-red-400 border border-red-500/20
+                                {% elif task.priority == 'high' %}bg-amber-500/10 text-amber-400 border border-amber-500/20
+                                {% elif task.priority == 'medium' %}bg-blue-500/10 text-blue-400 border border-blue-500/20
+                                {% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}">
+                                {{ task.priority|upper }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if task.due_date %}
+                                {% if task.sla_breached %}
+                                <span class="text-red-400 font-medium">{{ task.due_date.strftime('%Y-%m-%d') }}</span>
+                                <span class="text-red-500 text-xs ml-1">OVERDUE</span>
+                                {% else %}
+                                <span class="text-slate-300">{{ task.due_date.strftime('%Y-%m-%d') }}</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-slate-500">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold
+                                {% if task.status == 'open' %}bg-slate-500/10 text-slate-400
+                                {% elif task.status == 'in_progress' %}bg-blue-500/10 text-blue-400
+                                {% elif task.status == 'resolved' %}bg-emerald-500/10 text-emerald-400
+                                {% else %}bg-slate-500/10 text-slate-400{% endif %}">
+                                {{ task.status|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button onclick="updateTaskStatus({{ task.id }}, 'in_progress')"
+                                        class="text-blue-400 hover:text-blue-300 text-xs {% if task.status != 'open' %}opacity-50 cursor-not-allowed{% endif %}">
+                                    Start
+                                </button>
+                                <button onclick="updateTaskStatus({{ task.id }}, 'resolved')"
+                                        class="text-emerald-400 hover:text-emerald-300 text-xs">
+                                    Resolve
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-slate-800 text-slate-500 mb-4">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+            </div>
+            <h3 class="text-lg font-medium text-white">No Active Tasks</h3>
+            <p class="text-slate-500 mt-2">Create a remediation task to track compliance fixes.</p>
+        </div>
+        {% endif %}
+
+        <!-- New Task Modal -->
+        <div x-show="showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             @keydown.escape.window="showModal = false">
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" @click="showModal = false"></div>
+            <div class="relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Create Remediation Task</h3>
+
+                <form action="/compliance/remediation" method="POST"
+                      hx-post="/compliance/remediation"
+                      hx-swap="none"
+                      @htmx:after-request="if(event.detail.successful) { showModal = false; location.reload(); }">
+
+                    <input type="hidden" name="framework" value="{{ framework }}">
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Title</label>
+                            <input type="text" name="title" required
+                                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Control ID</label>
+                            <select name="control_id" required
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                                {% for control in controls %}
+                                <option value="{{ control.id }}">{{ control.id }} - {{ control.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Finding Description</label>
+                            <textarea name="finding_description" rows="2" required
+                                      class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">Priority</label>
+                                <select name="priority"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-1">Due Date</label>
+                                <input type="date" name="due_date"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-1">Assignee</label>
+                            <input type="text" name="assignee" placeholder="Optional"
+                                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button type="button" @click="showModal = false"
+                                class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors">
+                            Create Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Findings Table -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="text-lg font-semibold text-white">All Findings</h3>
+            <p class="text-sm text-slate-500">Detailed list of compliance findings across all targets</p>
+        </div>
+
+        {% if stats.findings %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-xs">
+                    <tr>
+                        <th class="px-6 py-4 font-medium">Severity</th>
+                        <th class="px-6 py-4 font-medium">Control</th>
+                        <th class="px-6 py-4 font-medium">Finding</th>
+                        <th class="px-6 py-4 font-medium text-right">Deduction</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for finding in stats.findings %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-bold
+                                {% if finding.severity == 'critical' %}bg-red-500/10 text-red-400 border border-red-500/20
+                                {% elif finding.severity == 'high' %}bg-amber-500/10 text-amber-400 border border-amber-500/20
+                                {% elif finding.severity == 'medium' %}bg-blue-500/10 text-blue-400 border border-blue-500/20
+                                {% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}">
+                                {{ finding.severity|upper }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-mono text-xs text-slate-400">{{ finding.control_id }}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">{{ finding.control_name }}</div>
+                        </td>
+                        <td class="px-6 py-4 text-slate-300">
+                            {{ finding.description }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <span class="font-mono font-bold text-red-400">-{{ finding.deduction }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/10 text-emerald-400 mb-4">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="text-lg font-medium text-white">All Clear</h3>
+            <p class="text-slate-500 mt-2">No compliance findings detected. Great job!</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Trend Chart
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ trend_labels|tojson }},
+            datasets: [{
+                label: 'Compliance Score',
+                data: {{ trend_scores|tojson }},
+                borderColor: 'rgb(99, 102, 241)',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    min: 0,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(71, 85, 105, 0.3)'
+                    },
+                    ticks: {
+                        color: 'rgb(148, 163, 184)'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(71, 85, 105, 0.3)'
+                    },
+                    ticks: {
+                        color: 'rgb(148, 163, 184)'
+                    }
+                }
+            }
+        }
+    });
+
+    // Update task status
+    function updateTaskStatus(taskId, status) {
+        fetch(`/compliance/remediation/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: status })
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            }
+        });
+    }
+</script>
+{% endblock %}

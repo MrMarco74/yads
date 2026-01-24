@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <title>YADS Mobile</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-primary: #6366f1;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --border-color: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1rem;
+            padding-bottom: 6rem;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            background: linear-gradient(to right, #818cf8, #e879f9);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .last-update {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Stats Grid */
+        .stats-container {
+            display: contents;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.amber { color: var(--accent-amber); }
+        .stat-value.red { color: var(--accent-red); }
+        .stat-value.primary { color: var(--accent-primary); }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Queue Status Banner */
+        .queue-status {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .queue-status.paused {
+            border-color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .queue-status.active {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.active { background: var(--accent-green); }
+        .status-dot.paused { background: var(--accent-red); animation: none; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-text {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        /* Running Targets */
+        .section-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .running-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .running-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+        }
+
+        .running-domain {
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            word-break: break-all;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-primary);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+            text-align: right;
+        }
+
+        /* Alerts */
+        .alerts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .alert-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        .alert-item.red { border-left-color: var(--accent-red); }
+        .alert-item.amber { border-left-color: var(--accent-amber); }
+        .alert-item.green { border-left-color: var(--accent-green); }
+        .alert-item.blue { border-left-color: var(--accent-primary); }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .alert-time {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .alert-text {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Control Panel (Fixed Bottom) */
+        .control-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            padding: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            z-index: 100;
+        }
+
+        .control-btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .control-btn:active {
+            transform: scale(0.98);
+        }
+
+        .control-btn.primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .control-btn.success {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .control-btn.danger {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .control-btn.secondary {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .control-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Feedback Messages */
+        .control-feedback {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            font-weight: 500;
+            z-index: 200;
+            animation: slideIn 0.3s, fadeOut 0.3s 2s forwards;
+        }
+
+        .control-feedback.success {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .control-feedback.error {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        /* Loading indicator */
+        .htmx-request .stats-container {
+            opacity: 0.6;
+        }
+
+        /* Confirm Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            max-width: 320px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .modal-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-text {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+        }
+    </style>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span>YADS</span> Mobile
+        </div>
+        <div class="last-update">
+            Updated: <span id="update-time">{{ now }}</span>
+        </div>
+    </header>
+
+    <div id="stats-content"
+         hx-get="/mobile/stats"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML">
+        {% include "mobile/stats_fragment.html" %}
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        {% if stats.is_paused %}
+        <button class="control-btn success"
+                hx-post="/mobile/queue/resume"
+                hx-target="#feedback-container"
+                hx-swap="innerHTML">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Resume
+        </button>
+        {% else %}
+        <button class="control-btn danger"
+                hx-post="/mobile/queue/pause"
+                hx-target="#feedback-container"
+                hx-swap="innerHTML">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Pause
+        </button>
+        {% endif %}
+
+        <button class="control-btn secondary" onclick="showClearModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Clear
+        </button>
+
+        <button class="control-btn primary"
+                hx-get="/mobile/stats"
+                hx-target="#stats-content"
+                hx-swap="innerHTML">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Feedback Container -->
+    <div id="feedback-container"></div>
+
+    <!-- Clear Confirmation Modal -->
+    <div id="clear-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-title">Clear Queue?</div>
+            <div class="modal-text">This will remove all pending tasks from the queue. Running scans will continue.</div>
+            <div class="modal-buttons">
+                <button class="control-btn secondary" onclick="hideClearModal()">Cancel</button>
+                <button class="control-btn danger"
+                        hx-post="/mobile/queue/clear"
+                        hx-target="#feedback-container"
+                        hx-swap="innerHTML"
+                        onclick="hideClearModal()">
+                    Clear Queue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showClearModal() {
+            document.getElementById('clear-modal').classList.add('active');
+        }
+
+        function hideClearModal() {
+            document.getElementById('clear-modal').classList.remove('active');
+        }
+
+        // Update timestamp after HTMX request
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'stats-content') {
+                document.getElementById('update-time').textContent = new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            }
+        });
+
+        // Auto-hide feedback after showing
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'feedback-container') {
+                setTimeout(function() {
+                    document.getElementById('feedback-container').innerHTML = '';
+                    // Refresh stats after action
+                    htmx.trigger('#stats-content', 'htmx:trigger');
+                }, 2500);
+            }
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('clear-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideClearModal();
+            }
+        });
+    </script>
+</body>
+</html>

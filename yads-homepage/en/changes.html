@@ -111,6 +111,7 @@
                 <a href="support.html">Setup</a>
                 <a href="docs.html">Documentation</a>
                 <a href="changes.html" class="active">Changes</a>
+                <a href="story.html">Origin Story</a>
                 <a href="contact.html">Contact</a>
                 <a href="https://yads-security.de/changes.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
             </div>
@@ -128,6 +129,54 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.14.0 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.14.0</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Distributed Worker System</h2>
+
+                <h3>🚀 Major New Feature: Horizontal Scaling</h3>
+                <ul>
+                    <li><strong>Distributed Workers:</strong> Deploy YADS workers across multiple Docker Swarm nodes for horizontal scaling.</li>
+                    <li><strong>Load Balancing:</strong> Automatic task routing to least-loaded workers with capacity.</li>
+                    <li><strong>Health Monitoring:</strong> Automatic offline detection with task requeuing on worker failure.</li>
+                    <li><strong>Resource Quotas:</strong> Per-tenant and global limits on concurrent scans and daily quotas.</li>
+                </ul>
+
+                <h3>📊 Unified Logging</h3>
+                <ul>
+                    <li><strong>Aggregated Log View:</strong> See logs from all workers in a single real-time view.</li>
+                    <li><strong>Tenant Filtering:</strong> Filter logs by organization, worker, or log level.</li>
+                    <li><strong>Enhanced Metadata:</strong> Logs now include tenant and worker information for debugging.</li>
+                </ul>
+
+                <h3>🎛️ Worker Management</h3>
+                <ul>
+                    <li><strong>Settings UI:</strong> New "Distributed Workers" section in Settings page.</li>
+                    <li><strong>Registration Token:</strong> Secure token-based worker authentication.</li>
+                    <li><strong>Worker Controls:</strong> Suspend, Resume, and Drain workers without restarts.</li>
+                    <li><strong>Cluster Statistics:</strong> Real-time view of cluster capacity and utilization.</li>
+                </ul>
+
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li><strong>New Database Models:</strong> WorkerNode, WorkerTask, ResourceQuota tables for distributed state.</li>
+                    <li><strong>Worker Client:</strong> Worker-side component for manager communication and heartbeats.</li>
+                    <li><strong>Docker Swarm:</strong> New docker-compose.swarm.yml for multi-node deployments.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Version 1.13.4 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.13.4</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Release 1.13.4</h2>
+
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
             <!-- Version 1.13.3 -->
             <div class="change-entry">
                 <span class="version-badge">v1.13.3</span>

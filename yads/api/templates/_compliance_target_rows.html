@@ -1,0 +1,53 @@
+{% for t in targets %}
+<tr class="hover:bg-slate-800/30 transition-colors">
+    <td class="px-6 py-4">
+        <a href="/targets/{{ t.id }}" class="text-white hover:text-indigo-400 font-medium">{{ t.domain }}</a>
+    </td>
+    <td class="px-6 py-4">
+        <div class="flex items-center gap-2">
+            <div class="w-16 bg-slate-800 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full {% if t.score >= 90 %}bg-emerald-500{% elif t.score >= 70 %}bg-yellow-500{% else %}bg-red-500{% endif %}" style="width: {{ t.score }}%"></div>
+            </div>
+            <span class="text-slate-300 text-sm">{{ t.score }}%</span>
+        </div>
+    </td>
+    <td class="px-6 py-4">
+        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold
+            {% if t.grade == 'A' %}bg-emerald-500/10 text-emerald-400
+            {% elif t.grade == 'B' %}bg-blue-500/10 text-blue-400
+            {% elif t.grade == 'C' %}bg-yellow-500/10 text-yellow-400
+            {% else %}bg-red-500/10 text-red-400{% endif %}">
+            {{ t.grade }}
+        </span>
+    </td>
+    <td class="px-6 py-4">
+        {% if t.critical > 0 %}
+        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+            {{ t.critical }}
+        </span>
+        {% else %}
+        <span class="text-slate-500">0</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4">
+        {% if t.high > 0 %}
+        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            {{ t.high }}
+        </span>
+        {% else %}
+        <span class="text-slate-500">0</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-right">
+        <a href="/compliance/target/{{ t.id }}?framework={{ framework }}" class="text-indigo-400 hover:text-indigo-300 text-xs font-semibold">
+            Details &rarr;
+        </a>
+    </td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+        No targets found.
+    </td>
+</tr>
+{% endfor %}
