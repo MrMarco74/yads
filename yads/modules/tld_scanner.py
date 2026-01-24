@@ -15,25 +15,8 @@ logger = logging.getLogger(__name__)
 _TLD_CACHE = []
 
 def get_tld_list() -> List[str]:
-    global _TLD_CACHE
-    if _TLD_CACHE:
-        return _TLD_CACHE
-    
-    try:
-        # Fetch from IANA
-        # Using a timeout to not hang forever
-        resp = requests.get("https://data.iana.org/TLD/tlds-alpha-by-domain.txt", timeout=10)
-        if resp.status_code == 200:
-            lines = resp.text.splitlines()
-            # Skip comments and header (IANA header starts with #)
-            tlds = [line.strip().lower() for line in lines if line and not line.startswith('#')]
-            _TLD_CACHE = tlds
-            return tlds
-    except Exception as e:
-        logger.error(f"Failed to fetch TLD list: {e}")
-    
-    # Fallback to a common list if fetch fails
-    return ["com", "net", "org", "info", "biz", "de", "uk", "co.uk", "fr", "it", "es", "eu", "nl", "cn", "ru", "br", "au", "io", "co", "me", "tv"]
+    # Reduced default list for much faster scanning
+    return ["com", "net", "org", "info", "biz", "de", "com.de", "eu", "at", "ch", "it", "fr", "es", "uk", "co.uk", "us", "io", "co", "me", "cloud", "app", "dev", "tech", "online", "store", "shop"]
 
 class TLDScanner(BaseScannerModule):
     @property
@@ -100,23 +83,8 @@ class TLDScanner(BaseScannerModule):
                 
                 # It exists!
                 
-                # 1. ASN Lookup (Cached)
-                asn_info = {}
-                if primary_ip in ip_asn_cache:
-                    asn_info = ip_asn_cache[primary_ip]
-                else:
-                    try:
-                        from ipwhois import IPWhois
-                        obj = IPWhois(primary_ip)
-                        rdap = obj.lookup_rdap(depth=1)
-                        asn_info = {
-                            "asn": rdap.get("asn"),
-                            "org": rdap.get("asn_description"),
-                            "country": rdap.get("asn_country_code")
-                        }
-                        ip_asn_cache[primary_ip] = asn_info
-                    except Exception:
-                        pass
+                # Disable IPWhois - it's too slow for bulk scans
+                asn_info = {"asn": None, "org": "Unknown", "country": "Unknown"}
                 
                 # 2. Server Header (HTTP Request)
                 server_header = None
@@ -160,7 +128,8 @@ class TLDScanner(BaseScannerModule):
         # Limit to maybe 50-100 threads? IANA list has ~1500 TLDs. 
         # 1500/100 = 15 batches. 2s timeout. ~30s scan. Acceptable.
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # Increase concurrency for faster DNS checks
+        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             future_to_tld = {executor.submit(check_tld, tld): tld for tld in all_tlds}
             
             for future in concurrent.futures.as_completed(future_to_tld):

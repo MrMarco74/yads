@@ -8,6 +8,7 @@ from yads.core.base import BaseScannerModule
 from yads.models import Target
 import dns.resolver
 import logging
+from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +23,11 @@ class DNSCleanupScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "dns_cleanup"
     
-    def process(self, target_id: int, domain: str):
+    def run_scan(self, domain: str, target_id: Optional[int] = None) -> Dict:
         """
         Check if domain resolves to any IP.
         If not, mark as archived with reason 'dns_dead'.
-        
-        Returns:
-            ScanResult if target was archived, None otherwise
         """
-        from yads.models import ScanResult
         from datetime import datetime
         
         logger.info(f"[DNSCleanup] Checking DNS resolution for {domain}")
@@ -60,6 +57,13 @@ class DNSCleanupScanner(BaseScannerModule):
         # Determine if target is dead
         is_dead = not (has_a_record or has_aaaa_record)
         
+        result_data = {
+            "status": "dead" if is_dead else "alive",
+            "has_a_record": has_a_record,
+            "has_aaaa_record": has_aaaa_record,
+            "action": "none"
+        }
+
         if is_dead:
             # Archive the target
             target = self.db.get(Target, target_id)
@@ -71,6 +75,7 @@ class DNSCleanupScanner(BaseScannerModule):
                 self.db.commit()
                 
                 logger.warning(f"[DNSCleanup] Archived {domain} - no DNS resolution")
+                result_data["action"] = "archived"
                 
                 # Trigger webhook event
                 from yads.core.webhook_service import webhook_service
@@ -79,23 +84,6 @@ class DNSCleanupScanner(BaseScannerModule):
                     "reason": "dns_dead",
                     "archived_at": target.archived_at.isoformat()
                 })
-                
-                # Create scan result for history
-                result_data = {
-                    "status": "dead",
-                    "has_a_record": has_a_record,
-                    "has_aaaa_record": has_aaaa_record,
-                    "action": "archived"
-                }
-                
-                result = ScanResult(
-                    target_id=target_id,
-                    module_name=self.module_name,
-                    data=result_data,
-                    result_hash=self.compute_hash(result_data)
-                )
-                
-                return result
         else:
             logger.info(f"[DNSCleanup] {domain} is alive (has DNS records)")
             
@@ -109,6 +97,7 @@ class DNSCleanupScanner(BaseScannerModule):
                 self.db.commit()
                 
                 logger.info(f"[DNSCleanup] Restored {domain} - DNS now resolves")
+                result_data["action"] = "restored"
                 
                 # Trigger webhook event
                 from yads.core.webhook_service import webhook_service
@@ -117,4 +106,4 @@ class DNSCleanupScanner(BaseScannerModule):
                     "reason": "dns_alive"
                 })
         
-        return None
+        return result_data
