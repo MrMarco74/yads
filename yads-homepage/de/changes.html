@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recent Changes - YADS</title>
+    <title>Aktuelle Änderungen - YADS</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
         .timeline {
@@ -121,8 +121,8 @@
 
     <header class="hero hero-small">
         <div class="container hero-content">
-            <h1>Recent <span class="text-gradient">Updates</span></h1>
-            <p>Track the evolution of the YADS platform.</p>
+            <h1>Aktuelle <span class="text-gradient">Änderungen</span></h1>
+            <p>Verfolgen Sie die Entwicklung der YADS-Plattform.</p>
         </div>
     </header>
 
@@ -171,9 +171,24 @@
         <div class="change-entry">
             <span class="version-badge">v1.13.4</span>
             <div class="change-card">
-                <h2 style="margin-bottom: 1rem; color: #fff;">Release 1.13.4</h2>
+                <h2 style="margin-bottom: 1rem; color: #fff;">Release Manager & Graph-Verbesserungen</h2>
 
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li><strong>Release Manager Tools:</strong> Neue GUI-basierte Release-Automatisierung mit KI-gestützter Changelog-Generierung aus Git-Commits.</li>
+                    <li><strong>Mobile Dashboard:</strong> Schlanke, mobilfreundliche Oberfläche für Queue-Überwachung und -Steuerung.</li>
+                </ul>
+
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li><strong>Netzwerk-Graph:</strong> Verbessertes Density-Layout und Rendering-Performance für große Graphen.</li>
+                    <li><strong>Homepage:</strong> Vollständige deutsche Übersetzung der Dokumentation und Changelog-Seiten.</li>
+                </ul>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li><strong>Graph-Rendering:</strong> Randfälle in der Spiderweb-Visualisierung behoben.</li>
+                </ul>
             </div>
         </div>
 
@@ -280,17 +295,17 @@
             <div class="change-entry">
                 <span class="version-badge">v1.8.0</span>
                 <div class="change-card">
-                    <h2 style="margin-bottom: 1rem; color: #fff;">Scheduled Scans & API Stability</h2>
-                    
-                    <h3>📅 Scan Scheduling</h3>
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Geplante Scans & API-Stabilität</h2>
+
+                    <h3>📅 Scan-Planung</h3>
                     <ul>
-                        <li><strong>Recurring Scans:</strong> You can now schedule Daily or Weekly scans for any target.</li>
-                        <li><strong>Management UI:</strong> Full control over schedules via the new <i>/schedules</i> dashboard.</li>
+                        <li><strong>Wiederkehrende Scans:</strong> Sie können jetzt tägliche oder wöchentliche Scans für jedes Target planen.</li>
+                        <li><strong>Verwaltungs-UI:</strong> Volle Kontrolle über Zeitpläne über das neue <i>/schedules</i> Dashboard.</li>
                     </ul>
-                    <h3>🛠️ Core Stability</h3>
+                    <h3>🛠️ Kern-Stabilität</h3>
                     <ul>
-                        <li><strong>Startup Fixes:</strong> Resolved critical GUI crash issues related to scheduler initialization.</li>
-                        <li><strong>API Fixes:</strong> Improved authentication endpoint handling.</li>
+                        <li><strong>Startfixes:</strong> Kritische GUI-Absturzprobleme im Zusammenhang mit der Scheduler-Initialisierung behoben.</li>
+                        <li><strong>API-Fixes:</strong> Verbesserte Behandlung von Authentifizierungs-Endpunkten.</li>
                     </ul>
                 </div>
             </div>
@@ -299,17 +314,17 @@
             <div class="change-entry">
                 <span class="version-badge">v1.7.0</span>
                 <div class="change-card">
-                    <h2 style="margin-bottom: 1rem; color: #fff;">Attack Paths & Dark Mode</h2>
-                    
-                    <h3>🚀 New Features</h3>
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Angriffspfade & Dunkelmodus</h2>
+
+                    <h3>🚀 Neue Funktionen</h3>
                     <ul>
-                        <li><strong>Attack Path Visualization:</strong> New layer in the Network Graph to highlight risky edges and potential compromise chains.</li>
-                        <li><strong>Day/Night Mode:</strong> You can now toggle between Light and Dark themes for better visibility.</li>
-                        <li><strong>Analytics Extensions:</strong> New dashboards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong>.</li>
+                        <li><strong>Angriffspfad-Visualisierung:</strong> Neue Ebene im Netzwerk-Graph zur Hervorhebung riskanter Verbindungen und potenzieller Kompromittierungsketten.</li>
+                        <li><strong>Tag-/Nachtmodus:</strong> Sie können jetzt zwischen hellem und dunklem Design für bessere Sichtbarkeit wechseln.</li>
+                        <li><strong>Analytics-Erweiterungen:</strong> Neue Dashboards für <strong>Broken Link Hijacking</strong> und <strong>Technologie-Radar</strong>.</li>
                     </ul>
-                    <h3>🐛 Improvements</h3>
+                    <h3>🐛 Verbesserungen</h3>
                     <ul>
-                        <li><strong>Network Graph:</strong> Improved performance and added "Attack Path" filters.</li>
+                        <li><strong>Netzwerk-Graph:</strong> Verbesserte Performance und "Angriffspfad"-Filter hinzugefügt.</li>
                     </ul>
                 </div>
             </div>
@@ -318,15 +333,15 @@
             <div class="change-entry">
                 <span class="version-badge">v1.6.1</span>
                 <div class="change-card">
-                    <h2 style="margin-bottom: 1rem; color: #fff;">Report Fixes & Missing Analytics</h2>
-                    <h3>🐛 UI Fixes & Improvements</h3>
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Berichts-Fixes & Fehlende Analytics</h2>
+                    <h3>🐛 UI-Fixes & Verbesserungen</h3>
                     <ul>
-                        <li><strong>Reports Layout:</strong> Fixed a layout issue where the "Cloud Assets" card was misplaced in the dashboard grid.</li>
-                        <li><strong>Missing Reports:</strong> Added dedicated cards for <strong>Broken Link Hijacking</strong> and <strong>Technology Radar</strong> reports which were previously hidden.</li>
+                        <li><strong>Berichts-Layout:</strong> Layout-Problem behoben, bei dem die "Cloud Assets"-Karte im Dashboard-Raster falsch platziert war.</li>
+                        <li><strong>Fehlende Berichte:</strong> Dedizierte Karten für <strong>Broken Link Hijacking</strong> und <strong>Technologie-Radar</strong> Berichte hinzugefügt, die zuvor versteckt waren.</li>
                     </ul>
-                    <h3>📘 Documentation</h3>
+                    <h3>📘 Dokumentation</h3>
                     <ul>
-                        <li><strong>Updated User Guide:</strong> Documentation updated to include details on the new analytics reports.</li>
+                        <li><strong>Aktualisiertes Benutzerhandbuch:</strong> Dokumentation aktualisiert mit Details zu den neuen Analytics-Berichten.</li>
                     </ul>
                 </div>
             </div>
@@ -335,18 +350,18 @@
             <div class="change-entry">
                 <span class="version-badge">v1.5.2</span>
                 <div class="change-card">
-                    <h2 style="margin-bottom: 1rem; color: #fff;">Centralized Reporting Suite</h2>
-                    
-                    <h3>📊 Centralized Reporting Hub</h3>
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Zentralisierte Berichts-Suite</h2>
+
+                    <h3>📊 Zentralisierter Berichts-Hub</h3>
                     <ul>
-                        <li><strong>New Reports Dashboard:</strong> A dedicated page (<i>/reports</i>) bundling all system exports in one place.</li>
-                        <li><strong>Detailed Compliance Report:</strong> An interactive and printable breakdown of your SOC2 readiness score, including a full "Improvement Plan" checklist.</li>
-                        <li><strong>Target CSV Export:</strong> You can now export your entire raw target inventory to CSV for external analysis.</li>
+                        <li><strong>Neues Berichts-Dashboard:</strong> Eine dedizierte Seite (<i>/reports</i>), die alle System-Exporte an einem Ort bündelt.</li>
+                        <li><strong>Detaillierter Compliance-Bericht:</strong> Eine interaktive und druckbare Aufschlüsselung Ihres SOC2-Bereitschaftsscores, inklusive einer vollständigen "Verbesserungsplan"-Checkliste.</li>
+                        <li><strong>Target CSV-Export:</strong> Sie können jetzt Ihr gesamtes Roh-Target-Inventar als CSV für externe Analysen exportieren.</li>
                     </ul>
-                    <h3>📄 PDF Exports</h3>
+                    <h3>📄 PDF-Exporte</h3>
                     <ul>
-                        <li><strong>Infrastructure Report:</strong> Professional PDF executive summary of your cloud footprint and risks.</li>
-                        <li><strong>External Links Report:</strong> PDF export for third-party dependency analysis.</li>
+                        <li><strong>Infrastruktur-Bericht:</strong> Professionelle PDF-Executive-Summary Ihres Cloud-Footprints und der Risiken.</li>
+                        <li><strong>Externe Links Bericht:</strong> PDF-Export für Drittanbieter-Abhängigkeitsanalyse.</li>
                     </ul>
                 </div>
             </div>
@@ -355,19 +370,19 @@
             <div class="change-entry">
                 <span class="version-badge">v1.5.0</span>
                 <div class="change-card">
-                    <h2 style="margin-bottom: 1rem; color: #fff;">Deep Security & Compliance Update</h2>
-                    
-                    <h3>🚀 Deep Security Features</h3>
+                    <h2 style="margin-bottom: 1rem; color: #fff;">Tiefgehende Sicherheit & Compliance-Update</h2>
+
+                    <h3>🚀 Tiefgehende Sicherheitsfunktionen</h3>
                     <ul>
-                        <li><strong>Nuclei Vulnerability Integration:</strong> Active scanning for 5000+ known vulnerabilities using ProjectDiscovery's Nuclei. Findings are categorized instantly (Critical, High, Medium).</li>
-                        <li><strong>Stealth Nmap Scan:</strong> New "Stealth" option using evasion flags (<i>-sS, -T2, -D RND:5</i>) for undetectable port scanning.</li>
-                        <li><strong>JS SAST Analysis:</strong> Static Analysis of client-side JavaScript to detect DOM XSS sinks (<i>innerHTML, eval</i>) and hidden API routes.</li>
+                        <li><strong>Nuclei Schwachstellen-Integration:</strong> Aktives Scanning nach 5000+ bekannten Schwachstellen mit ProjectDiscovery's Nuclei. Befunde werden sofort kategorisiert (Critical, High, Medium).</li>
+                        <li><strong>Stealth Nmap Scan:</strong> Neue "Stealth"-Option mit Evasion-Flags (<i>-sS, -T2, -D RND:5</i>) für nicht erkennbares Port-Scanning.</li>
+                        <li><strong>JS SAST Analyse:</strong> Statische Analyse von clientseitigem JavaScript zur Erkennung von DOM XSS Sinks (<i>innerHTML, eval</i>) und versteckten API-Routen.</li>
                     </ul>
                     <h3>📊 Reporting & Compliance</h3>
                     <ul>
-                        <li><strong>Security Grade Mapping:</strong> Aggregates all scan data into an <strong>A-F Grade</strong> with clear risk factor deductions.</li>
-                        <li><strong>Compliance Dashboard:</strong> Automatically maps findings to standards like <strong>OWASP Top 10</strong> and <strong>GDPR/ISO27001</strong>.</li>
-                        <li><strong>Swagger/OpenAPI Parser:</strong> Automatically detects and displays API endpoints from <i>swagger.json</i> files.</li>
+                        <li><strong>Sicherheitsbewertungs-Mapping:</strong> Aggregiert alle Scan-Daten in eine <strong>A-F Bewertung</strong> mit klaren Risikofaktor-Abzügen.</li>
+                        <li><strong>Compliance-Dashboard:</strong> Ordnet Befunde automatisch Standards wie <strong>OWASP Top 10</strong> und <strong>DSGVO/ISO27001</strong> zu.</li>
+                        <li><strong>Swagger/OpenAPI Parser:</strong> Erkennt und zeigt automatisch API-Endpunkte aus <i>swagger.json</i>-Dateien an.</li>
                     </ul>
                 </div>
             </div>

@@ -68,7 +68,11 @@
         <li><a href="#distributed-workers">Distributed Workers</a></li>
     </ul>
 </li>
-<li><a href="#13-best-practices">13. Best Practices</a></li>
+<li><a href="#13-best-practices">13. Best Practices</a>
+    <ul>
+        <li><a href="#recommended-scanning-workflow">Recommended Workflow</a></li>
+    </ul>
+</li>
 <li><a href="#14-troubleshooting">14. Troubleshooting</a></li>
 <li><a href="#15-support">15. Support</a></li>
 
@@ -486,7 +490,7 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <li><strong>Log Level</strong>: Filter by INFO, WARNING, or ERROR</li>
 </ul>
 <blockquote>
-<p><strong>Note</strong>: For detailed setup instructions, see the <a href="https://github.com/your-org/yads/blob/main/docs/DISTRIBUTED_WORKERS.md">Distributed Workers Documentation</a>.</p>
+<p><strong>Note</strong>: For detailed setup instructions, see the <a href="support.html#distributed-workers">Distributed Workers Setup Guide</a>.</p>
 </blockquote>
 <hr />
 <h2>13. Best Practices</h2>
@@ -499,6 +503,70 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <li><strong>Regular Reviews</strong>: Check the <strong>Analytics</strong> page weekly to spot trends in vulnerability counts.</li>
 <li><strong>Scope Definition</strong>: Be careful when adding root domains (e.g., <code>company.com</code>) as the <strong>Subdomain Recon</strong> module might find hundreds of assets.</li>
 </ol>
+
+<h3 id="recommended-scanning-workflow">Recommended Scanning Workflow</h3>
+<p>The following sequence has proven effective for comprehensive security assessments. Each phase builds upon the previous one, ensuring thorough coverage while maintaining efficiency.</p>
+
+<h4>Phase 1: Build Your Baseline</h4>
+<p>Start by establishing a foundation of known assets:</p>
+<ul>
+    <li><strong>DNS Records (Simple)</strong> - Discover basic DNS information</li>
+    <li><strong>Subdomain Recon</strong> - Enumerate all subdomains via Certificate Transparency logs</li>
+</ul>
+
+<h4>Phase 2: Identify Live Hosts</h4>
+<p>Determine which discovered assets are actively serving web content:</p>
+<ul>
+    <li><strong>Quick Web Probe (80/443)</strong> - Check for web servers on standard ports</li>
+</ul>
+
+<h4>Phase 3: Deep Analysis of Online Assets</h4>
+<p>For all targets with status "online", run comprehensive analysis:</p>
+<ul>
+    <li><strong>Web Analyzer</strong> - Technology stack detection</li>
+    <li><strong>CVE Scanner (Passive)</strong> - Known vulnerability matching</li>
+    <li><strong>Infrastructure</strong> - Server and hosting analysis</li>
+    <li><strong>SSL Scanner</strong> - Certificate and encryption analysis</li>
+    <li><strong>Visual OSINT</strong> - Screenshot capture and visual analysis</li>
+    <li><strong>Wayback Machine</strong> - Historical data from web archives</li>
+    <li><strong>Form Discovery (Passive)</strong> - Identify input forms and endpoints</li>
+    <li><strong>Site Crawler</strong> - Map the site structure</li>
+    <li><strong>Content Discovery (Fuzzing)</strong> - Find hidden paths and files</li>
+</ul>
+
+<h4>Phase 4: Expand Your Scope</h4>
+<p>Discover additional domains that may belong to the organization:</p>
+<ul>
+    <li><strong>Typosquatting</strong> - Find lookalike domains (potential phishing)</li>
+    <li><strong>TLD Scanner</strong> - Check for the domain across all TLD variants</li>
+</ul>
+
+<h4>Phase 5: Follow the Links</h4>
+<p>Review reports to identify additional targets worth investigating:</p>
+<ul>
+    <li><strong>External Links</strong> - Discover linked external domains</li>
+    <li><strong>Dead Links</strong> - Find broken links that may indicate abandoned assets</li>
+</ul>
+<blockquote>
+<p><strong>💡 Tip:</strong> If you discover new relevant domains in this phase, add them as targets and repeat from Phase 1 for those specific domains.</p>
+</blockquote>
+
+<h4>Phase 6: Active Vulnerability Testing</h4>
+<p>Once passive reconnaissance is complete, proceed with active scanning:</p>
+<ul>
+    <li><strong>Nuclei Vulnerability Scan (Active)</strong> - Comprehensive vulnerability detection</li>
+    <li><strong>Stealth Nmap Scan (Slow)</strong> - Port scanning with rate limiting</li>
+</ul>
+<blockquote>
+<p><strong>⚠️ Note:</strong> Active scans generate more traffic and may trigger security alerts. Ensure you have proper authorization before running these modules.</p>
+</blockquote>
+
+<h4>Phase 7: Housekeeping</h4>
+<p>Finally, clean up your target list:</p>
+<ul>
+    <li><strong>DNS Health Check (Cleanup)</strong> - Identify and archive unreachable domains</li>
+</ul>
+
 <hr />
 <h2>14. Troubleshooting</h2>
 <h3>Common Issues</h3>
@@ -519,7 +587,7 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 </ul>
 <hr />
 <h2>15. Support</h2>
-<p>For technical support or to report bugs: info@yads-security.com</p>
+<p>For technical support or to report bugs: support@yads-security.com</p>
 <hr />
 <p><em>Verified for YADS v1.13.4</em></p>
         </main>

@@ -11,13 +11,19 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 
-from yads.api.deps import get_session, get_current_user, RoleChecker
+from yads.database import get_session
+from yads.auth.deps import get_current_user, RoleChecker
 from yads.models import User, Target, SystemConfig, Notification
 from yads.worker import celery_app
-from yads.config import templates
-import redis
+from fastapi.templating import Jinja2Templates
+from yads.config import settings
+
+templates = Jinja2Templates(directory="yads/api/templates")
+templates.env.globals['settings'] = settings
+
 import json
 import os
+import redis
 
 router = APIRouter(prefix="/mobile", tags=["mobile"])
 

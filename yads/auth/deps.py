@@ -98,10 +98,10 @@ class RoleChecker:
 class PlatformAdminChecker:
     """
     Checks if user is a Platform Admin (System Admin).
-    Definition: role='admin' AND tenant_id IS NULL
+    Definition: role='admin' (regardless of current tenant context)
     """
     def __call__(self, user: User = Depends(get_current_active_user)):
-        if user.role == "admin" and user.tenant_id is None:
+        if user.role == "admin":
             return user
         
         raise HTTPException(

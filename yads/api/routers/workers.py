@@ -31,7 +31,19 @@ ui_router = APIRouter(prefix="/workers", tags=["workers-ui"])
 
 # Templates for HTML fragments
 from fastapi.templating import Jinja2Templates
+from yads.config import settings
+
 templates = Jinja2Templates(directory="yads/api/templates")
+templates.env.globals['settings'] = settings
+
+def get_all_tenants():
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import Tenant
+    with Session(engine) as session:
+        return session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+templates.env.globals['get_available_tenants'] = get_all_tenants
 
 
 # =============================================================================
@@ -213,16 +225,126 @@ async def update_task_progress(
 # =============================================================================
 
 @router.get("/")
-async def list_workers(user: User = Depends(PlatformAdminChecker())):
+async def list_workers(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker())
+):
     """List all registered workers."""
     workers = worker_manager.get_worker_list()
+    
+    # Check if HTMX request
+    if request.headers.get("HX-Request"):
+        if not workers:
+            return HTMLResponse('''
+                <div class="text-center py-4 text-gray-500">
+                    <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                    <p class="text-xs">No workers registered</p>
+                    <p class="text-[10px] mt-1">Workers will appear here when they connect.</p>
+                </div>
+            ''')
+
+        # Build HTML for each worker
+        html_parts = []
+        for w in workers:
+            status_color = {
+                "active": "bg-green-500",
+                "offline": "bg-red-500",
+                "suspended": "bg-yellow-500",
+                "draining": "bg-amber-500",
+                "pending": "bg-gray-500"
+            }.get(w["status"], "bg-gray-500")
+
+            primary_badge = '<span class="ml-1 px-1 py-0.5 text-[8px] bg-indigo-600 text-white rounded">PRIMARY</span>' if w["is_primary"] else ""
+
+            actions = ""
+            if not w["is_primary"]:
+                if w["status"] == "active":
+                    actions = f'''
+                        <button hx-post="/api/workers/{w["node_id"]}/suspend" hx-swap="none" hx-confirm="Suspend worker {w["hostname"]}?"
+                                class="text-[9px] text-yellow-400 hover:text-yellow-300">Suspend</button>
+                        <span class="text-gray-600">|</span>
+                        <button hx-post="/api/workers/{w["node_id"]}/drain" hx-swap="none" hx-confirm="Drain worker {w["hostname"]}?"
+                                class="text-[9px] text-amber-400 hover:text-amber-300">Drain</button>
+                    '''
+                elif w["status"] == "suspended":
+                    actions = f'''
+                        <button hx-post="/api/workers/{w["node_id"]}/resume" hx-swap="none"
+                                class="text-[9px] text-green-400 hover:text-green-300">Resume</button>
+                    '''
+                elif w["status"] in ["offline", "draining"]:
+                    actions = f'''
+                        <button hx-delete="/api/workers/{w["node_id"]}" hx-swap="none" hx-confirm="Remove worker {w["hostname"]}?"
+                                class="text-[9px] text-red-400 hover:text-red-300">Remove</button>
+                    '''
+
+            html_parts.append(f'''
+                <div class="flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-gray-600 transition-colors">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-2 h-2 rounded-full {status_color} flex-shrink-0"></div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1">
+                                <span class="text-xs font-medium text-white truncate">{w["hostname"]}</span>
+                                {primary_badge}
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] text-gray-500">
+                                <span>{w["status"]}</span>
+                                <span>•</span>
+                                <span>{w["current_tasks"]}/{w["max_concurrent_tasks"]} tasks</span>
+                                <span>•</span>
+                                <span>{w["current_load"]}% load</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        {actions}
+                    </div>
+                </div>
+            ''')
+
+        return HTMLResponse(''.join(html_parts))
+
     return {"workers": workers}
 
 
 @router.get("/stats")
-async def get_cluster_stats(user: User = Depends(PlatformAdminChecker())):
+async def get_cluster_stats(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker())
+):
     """Get cluster-wide statistics."""
     stats = worker_manager.get_cluster_stats()
+    
+    # Check if HTMX request
+    if request.headers.get("HX-Request"):
+        utilization = stats.get("utilization_percent", 0)
+        util_color = "text-green-400" if utilization < 60 else ("text-yellow-400" if utilization < 80 else "text-red-400")
+
+        return HTMLResponse(f'''
+            <div class="grid grid-cols-4 gap-2 text-center">
+                <div>
+                    <div class="text-lg font-bold text-white">{stats.get("active_workers", 0)}</div>
+                    <div class="text-[10px] text-gray-500">Active</div>
+                </div>
+                <div>
+                    <div class="text-lg font-bold text-gray-400">{stats.get("offline_workers", 0)}</div>
+                    <div class="text-[10px] text-gray-500">Offline</div>
+                </div>
+                <div>
+                    <div class="text-lg font-bold text-white">{stats.get("total_running_tasks", 0)}/{stats.get("total_capacity", 0)}</div>
+                    <div class="text-[10px] text-gray-500">Tasks</div>
+                </div>
+                <div>
+                    <div class="text-lg font-bold {util_color}">{utilization:.0f}%</div>
+                    <div class="text-[10px] text-gray-500">Utilization</div>
+                </div>
+            </div>
+            <div class="mt-2 text-center text-[10px] text-gray-500">
+                {stats.get("queued_tasks", 0)} tasks queued
+            </div>
+        ''')
+        
     return stats
 
 
@@ -294,11 +416,31 @@ async def remove_worker(
 # =============================================================================
 
 @router.get("/token/current")
-async def get_registration_token(user: User = Depends(PlatformAdminChecker())):
+async def get_registration_token(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker())
+):
     """Get the current worker registration token."""
     token = worker_manager.get_registration_token()
     # Only show last 8 chars for security
     masked = "*" * 24 + token[-8:] if len(token) > 8 else token
+    
+    # Check if HTMX request
+    if request.headers.get("HX-Request"):
+        if not token:
+            return HTMLResponse('''
+                <span class="text-yellow-500">No token set. Click "Regenerate" to create one.</span>
+            ''')
+
+        return HTMLResponse(f'''
+            <span class="text-gray-300">{masked}</span>
+            <button type="button"
+                    onclick="navigator.clipboard.writeText('{token}').then(() => this.textContent = 'Copied!')"
+                    class="ml-2 text-[10px] text-emerald-400 hover:text-emerald-300">
+                Copy
+            </button>
+        ''')
+        
     return {"token_masked": masked, "is_set": bool(token)}
 
 
@@ -552,156 +694,4 @@ async def unified_logs_page(
     })
 
 
-# =============================================================================
-# HTML Fragment Endpoints (for HTMX)
-# =============================================================================
 
-@router.get("/", response_class=HTMLResponse)
-async def list_workers_html(
-    request: Request,
-    user: User = Depends(get_current_user_html)
-):
-    """List all workers as HTML fragment for HTMX."""
-    # Only admins can see worker list
-    if user.role != "admin":
-        return HTMLResponse('<p class="text-xs text-gray-500">Admin access required</p>')
-
-    workers = worker_manager.get_worker_list()
-
-    if not workers:
-        return HTMLResponse('''
-            <div class="text-center py-4 text-gray-500">
-                <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                </svg>
-                <p class="text-xs">No workers registered</p>
-                <p class="text-[10px] mt-1">Workers will appear here when they connect.</p>
-            </div>
-        ''')
-
-    # Build HTML for each worker
-    html_parts = []
-    for w in workers:
-        status_color = {
-            "active": "bg-green-500",
-            "offline": "bg-red-500",
-            "suspended": "bg-yellow-500",
-            "draining": "bg-amber-500",
-            "pending": "bg-gray-500"
-        }.get(w["status"], "bg-gray-500")
-
-        primary_badge = '<span class="ml-1 px-1 py-0.5 text-[8px] bg-indigo-600 text-white rounded">PRIMARY</span>' if w["is_primary"] else ""
-
-        actions = ""
-        if not w["is_primary"]:
-            if w["status"] == "active":
-                actions = f'''
-                    <button hx-post="/api/workers/{w["node_id"]}/suspend" hx-swap="none" hx-confirm="Suspend worker {w["hostname"]}?"
-                            class="text-[9px] text-yellow-400 hover:text-yellow-300">Suspend</button>
-                    <span class="text-gray-600">|</span>
-                    <button hx-post="/api/workers/{w["node_id"]}/drain" hx-swap="none" hx-confirm="Drain worker {w["hostname"]}?"
-                            class="text-[9px] text-amber-400 hover:text-amber-300">Drain</button>
-                '''
-            elif w["status"] == "suspended":
-                actions = f'''
-                    <button hx-post="/api/workers/{w["node_id"]}/resume" hx-swap="none"
-                            class="text-[9px] text-green-400 hover:text-green-300">Resume</button>
-                '''
-            elif w["status"] in ["offline", "draining"]:
-                actions = f'''
-                    <button hx-delete="/api/workers/{w["node_id"]}" hx-swap="none" hx-confirm="Remove worker {w["hostname"]}?"
-                            class="text-[9px] text-red-400 hover:text-red-300">Remove</button>
-                '''
-
-        html_parts.append(f'''
-            <div class="flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-gray-600 transition-colors">
-                <div class="flex items-center gap-2 min-w-0">
-                    <div class="w-2 h-2 rounded-full {status_color} flex-shrink-0"></div>
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-1">
-                            <span class="text-xs font-medium text-white truncate">{w["hostname"]}</span>
-                            {primary_badge}
-                        </div>
-                        <div class="flex items-center gap-2 text-[10px] text-gray-500">
-                            <span>{w["status"]}</span>
-                            <span>•</span>
-                            <span>{w["current_tasks"]}/{w["max_concurrent_tasks"]} tasks</span>
-                            <span>•</span>
-                            <span>{w["current_load"]}% load</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    {actions}
-                </div>
-            </div>
-        ''')
-
-    return HTMLResponse(''.join(html_parts))
-
-
-@router.get("/stats", response_class=HTMLResponse)
-async def get_cluster_stats_html(
-    request: Request,
-    user: User = Depends(get_current_user_html)
-):
-    """Get cluster stats as HTML fragment for HTMX."""
-    if user.role != "admin":
-        return HTMLResponse('')
-
-    stats = worker_manager.get_cluster_stats()
-
-    utilization = stats.get("utilization_percent", 0)
-    util_color = "text-green-400" if utilization < 60 else ("text-yellow-400" if utilization < 80 else "text-red-400")
-
-    return HTMLResponse(f'''
-        <div class="grid grid-cols-4 gap-2 text-center">
-            <div>
-                <div class="text-lg font-bold text-white">{stats.get("active_workers", 0)}</div>
-                <div class="text-[10px] text-gray-500">Active</div>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-gray-400">{stats.get("offline_workers", 0)}</div>
-                <div class="text-[10px] text-gray-500">Offline</div>
-            </div>
-            <div>
-                <div class="text-lg font-bold text-white">{stats.get("total_running_tasks", 0)}/{stats.get("total_capacity", 0)}</div>
-                <div class="text-[10px] text-gray-500">Tasks</div>
-            </div>
-            <div>
-                <div class="text-lg font-bold {util_color}">{utilization:.0f}%</div>
-                <div class="text-[10px] text-gray-500">Utilization</div>
-            </div>
-        </div>
-        <div class="mt-2 text-center text-[10px] text-gray-500">
-            {stats.get("queued_tasks", 0)} tasks queued
-        </div>
-    ''')
-
-
-@router.get("/token/current", response_class=HTMLResponse)
-async def get_token_html(
-    request: Request,
-    user: User = Depends(get_current_user_html)
-):
-    """Get masked token as HTML for HTMX."""
-    if user.role != "admin":
-        return HTMLResponse('<span class="text-gray-500">Admin access required</span>')
-
-    token = worker_manager.get_registration_token()
-
-    if not token:
-        return HTMLResponse('''
-            <span class="text-yellow-500">No token set. Click "Regenerate" to create one.</span>
-        ''')
-
-    # Mask token for display
-    masked = "*" * 24 + token[-8:] if len(token) > 8 else token
-    return HTMLResponse(f'''
-        <span class="text-gray-300">{masked}</span>
-        <button type="button"
-                onclick="navigator.clipboard.writeText('{token}').then(() => this.textContent = 'Copied!')"
-                class="ml-2 text-[10px] text-emerald-400 hover:text-emerald-300">
-            Copy
-        </button>
-    ''')

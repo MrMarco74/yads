@@ -93,6 +93,28 @@ class ChangelogTranslator:
         else:
             raise ValueError(f"Unsupported translation service: {self.service}")
 
+    # Section name translations (English → German)
+    SECTION_TRANSLATIONS = {
+        '🚀 New Features': '🚀 Neue Funktionen',
+        '🚀 Neue Funktionen': '🚀 Neue Funktionen',
+        '⚡ Improvements': '⚡ Verbesserungen',
+        '⚡ Verbesserungen': '⚡ Verbesserungen',
+        '🐛 Bug Fixes': '🐛 Fehlerbehebungen',
+        '🐛 Fehlerbehebungen': '🐛 Fehlerbehebungen',
+        '🔒 Security': '🔒 Sicherheit',
+        '🔒 Sicherheit': '🔒 Sicherheit',
+        '📈 Performance': '📈 Performance',
+        '📚 Documentation': '📚 Dokumentation',
+        '📚 Dokumentation': '📚 Dokumentation',
+        '💥 Breaking Changes': '💥 Breaking Changes',
+        '🔧 Technical Improvements': '🔧 Technische Verbesserungen',
+        '🔧 Technische Verbesserungen': '🔧 Technische Verbesserungen',
+    }
+
+    def _translate_section_name(self, name: str) -> str:
+        """Translate section name to German using predefined mappings."""
+        return self.SECTION_TRANSLATIONS.get(name, name)
+
     def _translate_automated(self, changelog_data: Dict, interactive: bool = True) -> Dict:
         """
         Translate using automated Gemini/Vertex AI API.
@@ -106,33 +128,45 @@ class ChangelogTranslator:
         try:
             source_name = "Vertex AI" if self.service == 'vertexai' else "Gemini"
             print(f"🤖 {source_name} is translating...")
-            
+
             # Prepare the prompt
             prompt = f"""
             Translate the following changelog JSON from English to German.
-            Keep the JSON structure exactly as it is. 
-            Only translate the 'title' and the strings in the 'items' lists.
-            Do NOT translate the emojis or keys.
+            Keep the JSON structure exactly as it is.
+            Translate the 'title', the 'name' fields in sections, and all strings in the 'items' lists.
+            Keep the emojis in the section names.
             Ensure the tone is professional but concise.
+
+            Standard section name translations:
+            - "🚀 New Features" → "🚀 Neue Funktionen"
+            - "⚡ Improvements" → "⚡ Verbesserungen"
+            - "🐛 Bug Fixes" → "🐛 Fehlerbehebungen"
+            - "🔒 Security" → "🔒 Sicherheit"
+            - "📚 Documentation" → "📚 Dokumentation"
+            - "🔧 Technical Improvements" → "🔧 Technische Verbesserungen"
 
             JSON:
             {json.dumps(changelog_data, indent=2)}
             """
 
             response = self.model.generate_content(prompt)
-            
+
             # Extract JSON from response (handling potential markdown formatting)
             text = response.text.strip()
             if text.startswith("```json"):
                 text = text[7:]
             if text.endswith("```"):
                 text = text[:-3]
-            
+
             translated_data = json.loads(text)
-            
+
             if 'sections' not in translated_data or 'title' not in translated_data:
                 raise ValueError("AI returned invalid JSON structure")
-                
+
+            # Ensure section names are consistently translated using our mapping
+            for section in translated_data.get('sections', []):
+                section['name'] = self._translate_section_name(section.get('name', ''))
+
             return translated_data
 
         except Exception as e:
@@ -153,11 +187,18 @@ class ChangelogTranslator:
         """
         if not interactive:
             print("⏭️  Manual translation skipped (non-interactive mode).")
-            # Returns a copy of the English data structure
+            # Returns a copy with section names translated
             return {
                 'version': changelog_data['version'],
                 'title': changelog_data['title'],
-                'sections': [dict(s) for s in changelog_data['sections']]
+                'sections': [
+                    {
+                        'key': s.get('key', ''),
+                        'name': self._translate_section_name(s['name']),
+                        'items': list(s['items'])
+                    }
+                    for s in changelog_data['sections']
+                ]
             }
 
         print("\n--- Manual German Translation ---\n")
@@ -171,7 +212,9 @@ class ChangelogTranslator:
         # Translate sections
         sections_de = []
         for section in changelog_data['sections']:
-            print(f"\n{section['name']}")
+            # Auto-translate section name
+            section_name_de = self._translate_section_name(section['name'])
+            print(f"\n{section['name']} → {section_name_de}")
 
             items_de = []
             for item in section['items']:
@@ -181,7 +224,7 @@ class ChangelogTranslator:
 
             sections_de.append({
                 'key': section.get('key', ''),
-                'name': section['name'],
+                'name': section_name_de,
                 'items': items_de
             })
 

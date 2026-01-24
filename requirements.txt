@@ -33,3 +33,4 @@ matplotlib
 
 pyyaml>=6.0
 rich>=13.7.0
+psutil
