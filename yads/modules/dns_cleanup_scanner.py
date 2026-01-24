@@ -4,7 +4,7 @@ DNS Cleanup Scanner Module
 Identifies dead DNS entries (domains without A/AAAA records) and archives them.
 """
 
-from yads.core.base import BaseScanner
+from yads.core.base import BaseScannerModule
 from yads.models import Target
 import dns.resolver
 import logging
@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class DNSCleanupScanner(BaseScanner):
+class DNSCleanupScanner(BaseScannerModule):
     """
     Scans targets to identify dead DNS entries.
     Archives targets that don't resolve to any IP address.
@@ -62,13 +62,13 @@ class DNSCleanupScanner(BaseScanner):
         
         if is_dead:
             # Archive the target
-            target = self.db_session.get(Target, target_id)
+            target = self.db.get(Target, target_id)
             if target and not target.is_archived:
                 target.is_archived = True
                 target.archived_at = datetime.utcnow()
                 target.archived_reason = "dns_dead"
-                self.db_session.add(target)
-                self.db_session.commit()
+                self.db.add(target)
+                self.db.commit()
                 
                 logger.warning(f"[DNSCleanup] Archived {domain} - no DNS resolution")
                 
@@ -92,7 +92,7 @@ class DNSCleanupScanner(BaseScanner):
                     target_id=target_id,
                     module_name=self.module_name,
                     data=result_data,
-                    result_hash=self.hash_result(result_data)
+                    result_hash=self.compute_hash(result_data)
                 )
                 
                 return result
@@ -100,13 +100,13 @@ class DNSCleanupScanner(BaseScanner):
             logger.info(f"[DNSCleanup] {domain} is alive (has DNS records)")
             
             # If target was previously archived but now resolves, unarchive it
-            target = self.db_session.get(Target, target_id)
+            target = self.db.get(Target, target_id)
             if target and target.is_archived and target.archived_reason == "dns_dead":
                 target.is_archived = False
                 target.archived_at = None
                 target.archived_reason = None
-                self.db_session.add(target)
-                self.db_session.commit()
+                self.db.add(target)
+                self.db.commit()
                 
                 logger.info(f"[DNSCleanup] Restored {domain} - DNS now resolves")
                 
