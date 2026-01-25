@@ -92,14 +92,14 @@ class CompliancePDFReport(FPDF):
         self.cell(0, 10, 'Control Breakdown', new_x="LMARGIN", new_y="NEXT", fill=True)
         self.ln(4)
 
-        # Table Header
+        # Table Header (Total: 185)
         self.set_font('helvetica', 'B', 10)
         self.set_fill_color(230, 230, 230)
-        self.cell(30, 8, 'Control', border=1, fill=True)
-        self.cell(60, 8, 'Name', border=1, fill=True)
+        self.cell(25, 8, 'Control', border=1, fill=True)
+        self.cell(55, 8, 'Name', border=1, fill=True)
         self.cell(20, 8, 'Status', border=1, fill=True)
         self.cell(25, 8, 'Deduction', border=1, fill=True)
-        self.cell(50, 8, 'Issues', border=1, fill=True)
+        self.cell(60, 8, 'Issues', border=1, fill=True)
         self.ln()
 
         self.set_font('helvetica', '', 9)
@@ -116,9 +116,9 @@ class CompliancePDFReport(FPDF):
             else:
                 self.set_text_color(239, 68, 68)
 
-            self.cell(30, 8, control_id, border=1)
+            self.cell(25, 8, control_id, border=1)
             self.set_text_color(0, 0, 0)
-            self.cell(60, 8, name, border=1)
+            self.cell(55, 8, name, border=1)
 
             if status == 'PASS':
                 self.set_text_color(16, 185, 129)
@@ -128,7 +128,7 @@ class CompliancePDFReport(FPDF):
 
             self.set_text_color(0, 0, 0)
             self.cell(25, 8, f'-{deduction}', border=1, align='C')
-            self.cell(50, 8, f'{issues_count} issue(s)' if issues_count > 0 else 'None', border=1)
+            self.cell(60, 8, f'{issues_count} issue(s)' if issues_count > 0 else 'None', border=1)
             self.ln()
 
         self.ln(4)
@@ -146,15 +146,15 @@ class CompliancePDFReport(FPDF):
             self.cell(0, 8, 'No targets assessed.')
             return
 
-        # Table Header
+        # Table Header (Total: 185)
         self.set_font('helvetica', 'B', 10)
         self.set_fill_color(230, 230, 230)
-        self.cell(70, 8, 'Domain', border=1, fill=True)
-        self.cell(25, 8, 'Score', border=1, fill=True, align='C')
+        self.cell(65, 8, 'Domain', border=1, fill=True)
+        self.cell(20, 8, 'Score', border=1, fill=True, align='C')
         self.cell(20, 8, 'Grade', border=1, fill=True, align='C')
         self.cell(25, 8, 'Passing', border=1, fill=True, align='C')
         self.cell(25, 8, 'Failing', border=1, fill=True, align='C')
-        self.cell(25, 8, 'Findings', border=1, fill=True, align='C')
+        self.cell(30, 8, 'Findings', border=1, fill=True, align='C')
         self.ln()
 
         self.set_font('helvetica', '', 9)
@@ -170,7 +170,7 @@ class CompliancePDFReport(FPDF):
             failing = target.get('failing', 0)
             findings_count = len(target.get('findings', []))
 
-            self.cell(70, 7, domain, border=1)
+            self.cell(65, 7, domain, border=1)
 
             # Color code score
             if score >= 90:
@@ -180,7 +180,7 @@ class CompliancePDFReport(FPDF):
             else:
                 self.set_text_color(239, 68, 68)
 
-            self.cell(25, 7, f'{score}%', border=1, align='C')
+            self.cell(20, 7, f'{score}%', border=1, align='C')
 
             # Grade color
             if grade == 'A':
@@ -195,7 +195,7 @@ class CompliancePDFReport(FPDF):
 
             self.cell(25, 7, str(passing), border=1, align='C')
             self.cell(25, 7, str(failing), border=1, align='C')
-            self.cell(25, 7, str(findings_count), border=1, align='C')
+            self.cell(30, 7, str(findings_count), border=1, align='C')
             self.ln()
 
         self.ln(4)
@@ -259,10 +259,10 @@ class CompliancePDFReport(FPDF):
             self.cell(0, 8, 'No active remediation tasks.')
             return
 
-        # Table Header
+        # Table Header (Total: 185)
         self.set_font('helvetica', 'B', 10)
         self.set_fill_color(230, 230, 230)
-        self.cell(60, 8, 'Task', border=1, fill=True)
+        self.cell(55, 8, 'Task', border=1, fill=True)
         self.cell(25, 8, 'Control', border=1, fill=True, align='C')
         self.cell(25, 8, 'Priority', border=1, fill=True, align='C')
         self.cell(25, 8, 'Status', border=1, fill=True, align='C')
@@ -280,7 +280,7 @@ class CompliancePDFReport(FPDF):
             due_date = task.due_date if hasattr(task, 'due_date') else task.get('due_date')
             sla_breached = task.sla_breached if hasattr(task, 'sla_breached') else task.get('sla_breached', False)
 
-            self.cell(60, 7, title, border=1)
+            self.cell(55, 7, title, border=1)
             self.cell(25, 7, control_id, border=1, align='C')
 
             # Priority color
@@ -322,22 +322,22 @@ class CompliancePDFReport(FPDF):
 
         self.set_font('helvetica', '', 10)
 
-        # General recommendations based on score
+        # General recommendations based on score (Width 180 for safety)
         if score < 70:
-            self.multi_cell(0, 6, '1. CRITICAL: Address all critical and high severity findings immediately.')
-            self.multi_cell(0, 6, '2. Implement a formal vulnerability management program with SLAs.')
-            self.multi_cell(0, 6, '3. Consider engaging a security consultant for remediation guidance.')
-            self.multi_cell(0, 6, '4. Review and update security policies and procedures.')
+            self.multi_cell(180, 6, '1. CRITICAL: Address all critical and high severity findings immediately.')
+            self.multi_cell(180, 6, '2. Implement a formal vulnerability management program with SLAs.')
+            self.multi_cell(180, 6, '3. Consider engaging a security consultant for remediation guidance.')
+            self.multi_cell(180, 6, '4. Review and update security policies and procedures.')
         elif score < 90:
-            self.multi_cell(0, 6, '1. Address remaining high severity findings within 30 days.')
-            self.multi_cell(0, 6, '2. Implement missing security headers and TLS best practices.')
-            self.multi_cell(0, 6, '3. Review exposed services and restrict access where possible.')
-            self.multi_cell(0, 6, '4. Establish regular compliance monitoring cadence.')
+            self.multi_cell(180, 6, '1. Address remaining high severity findings within 30 days.')
+            self.multi_cell(180, 6, '2. Implement missing security headers and TLS best practices.')
+            self.multi_cell(180, 6, '3. Review exposed services and restrict access where possible.')
+            self.multi_cell(180, 6, '4. Establish regular compliance monitoring cadence.')
         else:
-            self.multi_cell(0, 6, '1. Maintain current security posture with regular assessments.')
-            self.multi_cell(0, 6, '2. Address remaining low severity findings as time permits.')
-            self.multi_cell(0, 6, '3. Consider obtaining formal compliance certification.')
-            self.multi_cell(0, 6, '4. Document security controls for audit purposes.')
+            self.multi_cell(180, 6, '1. Maintain current security posture with regular assessments.')
+            self.multi_cell(180, 6, '2. Address remaining low severity findings as time permits.')
+            self.multi_cell(180, 6, '3. Consider obtaining formal compliance certification.')
+            self.multi_cell(180, 6, '4. Document security controls for audit purposes.')
 
         self.ln(4)
 

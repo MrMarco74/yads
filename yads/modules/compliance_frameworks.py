@@ -335,6 +335,12 @@ class SOC2Scorer(BaseComplianceFramework):
             if not port_mod:
                 continue
 
+            # Flag errors as failures for conservative scoring
+            if port_mod.get("error"):
+                deduction += 10
+                reasons.append(f"Port scan error on {target_map[tid]}: {port_mod['error']}")
+                continue
+
             ports = port_mod.get("open_ports", [])
             for p in ports:
                 port_num = p if isinstance(p, int) else p.get("port", 0)
@@ -778,6 +784,12 @@ class PCIDSSScorer(BaseComplianceFramework):
         for tid, modules in data.items():
             port_mod = modules.get("port_scanner") or modules.get("nmap_scanner")
             if not port_mod:
+                continue
+
+            # Flag errors as failures for conservative scoring
+            if port_mod.get("error"):
+                deduction += 15
+                reasons.append(f"Port scan error on {target_map[tid]}: {port_mod['error']}")
                 continue
 
             ports = port_mod.get("open_ports", [])

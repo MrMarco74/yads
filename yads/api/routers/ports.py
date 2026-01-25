@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request
+from typing import List, Dict, Any, Optional
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, text
 from yads.database import get_session
@@ -24,10 +25,17 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_ports_data(session: Session, user: User, for_export: bool = False):
+def _get_ports_data(session: Session, user: User, for_export: bool = False, q: str = None, port: str = None, exposed_only: bool = False):
     """
-    Shared logic to fetch and process port data.
+    Shared logic to fetch and process port data with filtering support.
     """
+    # Convert port to int if possible
+    port_int = None
+    if port and str(port).strip():
+        try:
+            port_int = int(port)
+        except (ValueError, TypeError):
+            pass
     # 1. Scope definition (Strict Tenant Isolation)
     targets_query = select(Target)
     if user.tenant_id:
@@ -44,9 +52,9 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False):
     # 2. Fetch Port Scan Results
     target_ids = tuple(t.id for t in targets)
     
-    # Robust approach: Get all 'port_scanner' results for these targets, ordered by date desc.
+    # Robust approach: Get all 'port_scanner' and 'nmap_scanner' results for these targets, ordered by date desc.
     statement = select(ScanResult).where(
-        ScanResult.module_name == "port_scanner",
+        ScanResult.module_name.in_(["port_scanner", "nmap_scanner"]),
         ScanResult.target_id.in_(target_ids)
     ).order_by(ScanResult.scanned_at.desc())
     
@@ -69,40 +77,61 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False):
         ip = "-"
         last_scanned = "Never"
         
+        # Prepare Data
+        data = res.data or {} if res else {}
+        ip = data.get("ip", "-")
+        last_scanned = res.scanned_at.strftime("%Y-%m-%d %H:%M") if res else "Never"
+        
+        # Extract Ports
         if res:
-            data = res.data or {}
-            
-            # Helper to extract ports based on the known structure from port_scanner.py
+            # Historically some results might have had http/https keys
             if data.get("http", {}).get("open"):
                 open_ports.append(80)
             if data.get("https", {}).get("open"):
                 open_ports.append(443)
                 
-            # If the module was Nmap or similar returning "open_ports" list
-            if "open_ports" in data:
-                 raw_ports = data.get("open_ports", [])
-                 if isinstance(raw_ports, list):
-                     for p in raw_ports:
-                         if isinstance(p, int) and p not in open_ports:
-                             open_ports.append(p)
-            
+            # Both port_scanner and nmap_scanner return "open_ports" as a list of dicts or ints
+            raw_ports = data.get("open_ports", [])
+            if isinstance(raw_ports, list):
+                for p in raw_ports:
+                    p_num = None
+                    if isinstance(p, int):
+                        p_num = p
+                    elif isinstance(p, dict) and "port" in p:
+                        p_num = p["port"]
+                    
+                    if p_num and p_num not in open_ports:
+                        open_ports.append(p_num)
+        
+        # Filtering Logic
+        match_q = True
+        if q:
+            q_lower = q.lower()
+            match_q = q_lower in t.domain.lower() or (ip and q_lower in ip.lower())
+        
+        match_port = True
+        if port_int:
+            match_port = port_int in open_ports
+        
+        match_exposed = True
+        if exposed_only:
+            match_exposed = len(open_ports) > 0
+        
+        if match_q and match_port and match_exposed:
             if open_ports:
                 open_ports.sort()
                 exposed_targets_count += 1
                 all_open_ports.extend(open_ports)
-                
-            ip = data.get("ip", "-")
-            last_scanned = res.scanned_at.strftime("%Y-%m-%d %H:%M")
-        
-        if res or not for_export: # For UI show all, for export maybe all too? Yes, let's keep consistent.
-             rows.append({
-                "target_id": t.id,
-                "domain": t.domain,
-                "ip": ip,
-                "ports": open_ports, # List of ints
-                "ports_str": ", ".join(map(str, open_ports)), # Helper for export
-                "last_scanned": last_scanned
-            })
+            
+            if res or not for_export:
+                 rows.append({
+                    "target_id": t.id,
+                    "domain": t.domain,
+                    "ip": ip,
+                    "ports": open_ports, # List of ints
+                    "ports_str": ", ".join(map(str, open_ports)), # Helper for export
+                    "last_scanned": last_scanned
+                })
     
     # Sort rows: Exposed first, then by domain
     rows.sort(key=lambda x: (len(x["ports"]) == 0, x["domain"]))
@@ -113,7 +142,8 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False):
     top_port = top_port[0] if top_port else None
     
     stats = {
-        "total_targets": len(targets),
+        "total_targets": len(rows),
+        "total_tenant_targets": len(targets),
         "exposed_targets": exposed_targets_count,
         "top_port": top_port,
         "top_ports_list": port_counts.most_common(5)
@@ -122,8 +152,20 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False):
     return rows, stats
 
 @router.get("/", response_class=HTMLResponse)
-async def list_open_ports(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
-    rows, stats = _get_ports_data(session, user)
+async def list_open_ports(
+    request: Request, 
+    session: Session = Depends(get_session), 
+    user: User = Depends(get_current_user_html),
+    q: Optional[str] = None,
+    port: Optional[str] = None,
+    exposed_only: Optional[str] = None
+):
+    # Normalize exposed_only to bool
+    is_exposed_only = False
+    if exposed_only and exposed_only.lower() == "true":
+        is_exposed_only = True
+
+    rows, stats = _get_ports_data(session, user, q=q, port=port, exposed_only=is_exposed_only)
     return templates.TemplateResponse("ports.html", {
         "request": request, 
         "user": user, 
@@ -132,8 +174,19 @@ async def list_open_ports(request: Request, session: Session = Depends(get_sessi
     })
 
 @router.get("/export/excel")
-async def export_ports_excel(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    rows, _ = _get_ports_data(session, user, for_export=True)
+async def export_ports_excel(
+    session: Session = Depends(get_session), 
+    user: User = Depends(get_current_active_user),
+    q: Optional[str] = None,
+    port: Optional[str] = None,
+    exposed_only: Optional[str] = None
+):
+    # Normalize exposed_only to bool
+    is_exposed_only = False
+    if exposed_only and exposed_only.lower() == "true":
+        is_exposed_only = True
+
+    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only)
     # Prepare flat data for export
     export_data = []
     for r in rows:
@@ -146,8 +199,19 @@ async def export_ports_excel(session: Session = Depends(get_session), user: User
     return generate_excel(export_data, "port_exposure_report")
 
 @router.get("/export/pdf")
-async def export_ports_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    rows, _ = _get_ports_data(session, user, for_export=True)
+async def export_ports_pdf(
+    session: Session = Depends(get_session), 
+    user: User = Depends(get_current_active_user),
+    q: Optional[str] = None,
+    port: Optional[str] = None,
+    exposed_only: Optional[str] = None
+):
+    # Normalize exposed_only to bool
+    is_exposed_only = False
+    if exposed_only and exposed_only.lower() == "true":
+        is_exposed_only = True
+
+    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only)
     # Prepare flat data for export
     export_data = []
     for r in rows:
