@@ -13,10 +13,17 @@ services:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - MFA_ENABLED=false
+      # TLS/SSL Certificate Settings (optional)
+      # - DISABLE_HTTPS_ONLY=false          # Emergency override to disable HTTPS-only mode
+      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt  # Custom CA for internal PKI
+      # - CLIENT_CERT_PATH=/app/certs/client.crt       # Client certificate for mTLS
+      # - CLIENT_KEY_PATH=/app/certs/client.key        # Client key for mTLS
     volumes:
       - ./logs:/app/logs
       - .:/app
       - nuclei_templates:/root/nuclei-templates
+      # Uncomment to mount certificates:
+      # - ./certs:/app/certs:ro
     depends_on:
       - db
       - redis
@@ -35,10 +42,17 @@ services:
     environment:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
+      # TLS/SSL Certificate Settings (optional)
+      # - DISABLE_HTTPS_ONLY=false          # Emergency override to disable HTTPS-only mode
+      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt  # Custom CA for internal PKI
+      # - CLIENT_CERT_PATH=/app/certs/client.crt       # Client certificate for mTLS
+      # - CLIENT_KEY_PATH=/app/certs/client.key        # Client key for mTLS
     volumes:
       - ./logs:/app/logs
       - .:/app
       - nuclei_templates:/root/nuclei-templates
+      # Uncomment to mount certificates:
+      # - ./certs:/app/certs:ro
     depends_on:
       - db
       - redis

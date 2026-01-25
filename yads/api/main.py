@@ -232,6 +232,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -- Prometheus Metrics Middleware --
+import time as _time
+from yads.core.metrics import get_metrics as _get_metrics
+
+@app.middleware("http")
+async def prometheus_metrics_middleware(request: Request, call_next):
+    """
+    Middleware to record HTTP request metrics for Prometheus.
+    Records request count and duration for each endpoint.
+    """
+    prom_metrics = _get_metrics()
+
+    # Skip metrics collection if disabled
+    if not prom_metrics.enabled:
+        return await call_next(request)
+
+    # Skip metrics endpoint itself to avoid recursion
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    start_time = _time.perf_counter()
+    response = await call_next(request)
+    duration = _time.perf_counter() - start_time
+
+    # Normalize path to avoid cardinality explosion
+    # Replace numeric IDs with placeholders
+    path_template = request.url.path
+    for route in app.routes:
+        if hasattr(route, 'path_regex') and route.path_regex:
+            match = route.path_regex.match(request.url.path)
+            if match:
+                path_template = route.path
+                break
+
+    # Record metrics
+    prom_metrics.record_http_request(
+        method=request.method,
+        path_template=path_template,
+        status_code=response.status_code,
+        duration_seconds=duration
+    )
+
+    return response
+
 # -- Celery --
 from celery import Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
@@ -255,7 +299,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -287,6 +331,9 @@ app.include_router(archived.router)
 app.include_router(workers.router)
 app.include_router(workers.ui_router)
 app.include_router(mobile.router)
+app.include_router(storage.router)
+app.include_router(updates.router)
+app.include_router(metrics.router)
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
@@ -357,7 +404,7 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
     final_types = [t for t in scan_types_selected if t in valid_types]
     
     if "full_scan" in final_types:
@@ -671,7 +718,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
     selected_types = [t for t in scan_types if t in valid_types]
     
     if "full_scan" in selected_types:
@@ -2201,17 +2248,129 @@ async def get_graph_data(target_id: int, session: Session = Depends(get_session)
     # Infra Result
     infra = next((r for r in results if r.module_name == 'infrastructure_scanner'), None)
     if infra and infra.data:
-         asn = infra.data.get("asn", {}).get("asn") 
+         asn = infra.data.get("asn", {}).get("asn")
          desc = infra.data.get("asn", {}).get("asn_description")
          if asn:
              asn_label = f"{asn}\n{desc}" if desc else asn
              asn_id = f"asn_{asn}"
              if not any(n['id'] == asn_id for n in nodes):
                   nodes.append({"id": asn_id, "label": asn_label, "color": "#a55eea", "shape": "box"})
-             
-             # Link to IP or Domain? 
+
+             # Link to IP or Domain?
              # If we have IPs, usually ASN is linked to IP. But for simplicity, link Domain -> ASN
              edges.append({"from": f"domain_{target.id}", "to": asn_id, "label": "hosted_by"})
+
+    # Deception Detection Results
+    deception = next((r for r in results if r.module_name == 'deception_detector'), None)
+    if deception and deception.data:
+        summary = deception.data.get("summary", {})
+
+        # Add honeypot nodes (amber/orange warning color)
+        for hp in deception.data.get("honeypots", []):
+            hp_name = hp.get("name", "Unknown")
+            hp_type = hp.get("type", "generic")
+            hp_conf = hp.get("confidence", 0)
+            hp_port = hp.get("port", 0)
+            hp_id = f"honeypot_{hp_type}_{hp_port}"
+
+            if not any(n['id'] == hp_id for n in nodes):
+                # Color based on confidence: higher = more red/orange
+                color = "#f97316" if hp_conf >= 70 else "#fbbf24"  # orange-500 or amber-400
+                nodes.append({
+                    "id": hp_id,
+                    "label": f"🍯 {hp_name}\n({hp_conf}%)",
+                    "color": color,
+                    "shape": "diamond",
+                    "size": 20 + (hp_conf // 10),
+                    "title": f"Honeypot: {hp.get('indicator', '')}"
+                })
+            edges.append({
+                "from": f"domain_{target.id}",
+                "to": hp_id,
+                "label": f"honeypot:{hp_port}",
+                "color": {"color": "#f97316", "opacity": 0.7},
+                "dashes": True
+            })
+
+        # Add sinkhole nodes (red warning color)
+        for sh in deception.data.get("sinkholes", []):
+            sh_operator = sh.get("sinkhole_operator", "Unknown")
+            sh_ip = sh.get("sinkhole_ip", "")
+            sh_conf = sh.get("confidence", 0)
+            sh_id = f"sinkhole_{sh_ip}" if sh_ip else f"sinkhole_{sh_operator}"
+
+            if not any(n['id'] == sh_id for n in nodes):
+                color = "#ef4444" if sh_conf >= 80 else "#f87171"  # red-500 or red-400
+                nodes.append({
+                    "id": sh_id,
+                    "label": f"🕳️ Sinkhole\n{sh_operator}",
+                    "color": color,
+                    "shape": "triangle",
+                    "size": 25,
+                    "title": f"Sinkhole: {sh.get('indicator', '')}"
+                })
+            edges.append({
+                "from": f"domain_{target.id}",
+                "to": sh_id,
+                "label": "sinkholed",
+                "color": {"color": "#ef4444", "opacity": 0.8},
+                "dashes": True,
+                "width": 2
+            })
+
+        # Add tarpit nodes (yellow warning color)
+        for tp in deception.data.get("tarpits", []):
+            tp_type = tp.get("type", "generic")
+            tp_port = tp.get("port", 0)
+            tp_delay = tp.get("response_delay_ms", 0)
+            tp_conf = tp.get("confidence", 0)
+            tp_id = f"tarpit_{tp_type}_{tp_port}"
+
+            if not any(n['id'] == tp_id for n in nodes):
+                color = "#eab308" if tp_conf >= 60 else "#facc15"  # yellow-500 or yellow-400
+                nodes.append({
+                    "id": tp_id,
+                    "label": f"🐢 Tarpit\n{tp_delay}ms",
+                    "color": color,
+                    "shape": "square",
+                    "size": 18,
+                    "title": f"Tarpit: {tp.get('indicator', '')}"
+                })
+            edges.append({
+                "from": f"domain_{target.id}",
+                "to": tp_id,
+                "label": f"tarpit:{tp_port}",
+                "color": {"color": "#eab308", "opacity": 0.6},
+                "dashes": [5, 5]
+            })
+
+        # Add summary node if significant detections found
+        if summary.get("total_detections", 0) > 0:
+            risk = summary.get("overall_risk", "none")
+            risk_colors = {
+                "critical": "#dc2626",
+                "high": "#ea580c",
+                "medium": "#ca8a04",
+                "low": "#65a30d",
+                "none": "#6b7280"
+            }
+            summary_id = f"deception_summary_{target.id}"
+            if not any(n['id'] == summary_id for n in nodes):
+                nodes.append({
+                    "id": summary_id,
+                    "label": f"⚠️ Deception\nRisk: {risk.upper()}",
+                    "color": risk_colors.get(risk, "#6b7280"),
+                    "shape": "star",
+                    "size": 30,
+                    "title": f"Total detections: {summary.get('total_detections', 0)}, Likelihood: {summary.get('deception_likelihood', 'unknown')}"
+                })
+            edges.append({
+                "from": f"domain_{target.id}",
+                "to": summary_id,
+                "label": "deception_analysis",
+                "color": {"color": risk_colors.get(risk, "#6b7280"), "opacity": 0.5},
+                "width": 3
+            })
 
     return {"nodes": nodes, "edges": edges}
 
@@ -3256,6 +3415,51 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         else:
             license_status = "Invalid / Expired"
 
+    # --- TLS/SSL Certificate Settings ---
+    https_only = False
+    custom_ca_cert_path = ""
+    client_cert_path = ""
+    client_key_path = ""
+    verify_ssl = True
+
+    # Environment variable override status
+    https_only_env_override = settings.DISABLE_HTTPS_ONLY
+
+    https_conf = session.get(SystemConfig, "HTTPS_ONLY")
+    if https_conf:
+        https_only = https_conf.value.lower() == "true"
+
+    ca_conf = session.get(SystemConfig, "CUSTOM_CA_CERT_PATH")
+    if ca_conf:
+        custom_ca_cert_path = ca_conf.value
+
+    cc_conf = session.get(SystemConfig, "CLIENT_CERT_PATH")
+    if cc_conf:
+        client_cert_path = cc_conf.value
+
+    ck_conf = session.get(SystemConfig, "CLIENT_KEY_PATH")
+    if ck_conf:
+        client_key_path = ck_conf.value
+
+    vs_conf = session.get(SystemConfig, "VERIFY_SSL")
+    if vs_conf:
+        verify_ssl = vs_conf.value.lower() != "false"
+
+    # Validate certificate files
+    tls_validation = {"valid": True, "errors": [], "warnings": []}
+    if custom_ca_cert_path and not os.path.exists(custom_ca_cert_path):
+        tls_validation["errors"].append(f"CA certificate not found: {custom_ca_cert_path}")
+        tls_validation["valid"] = False
+    if client_cert_path and not os.path.exists(client_cert_path):
+        tls_validation["errors"].append(f"Client certificate not found: {client_cert_path}")
+        tls_validation["valid"] = False
+    if client_key_path and not os.path.exists(client_key_path):
+        tls_validation["errors"].append(f"Client key not found: {client_key_path}")
+        tls_validation["valid"] = False
+    if bool(client_cert_path) != bool(client_key_path):
+        tls_validation["errors"].append("Client certificate and key must both be provided")
+        tls_validation["valid"] = False
+
     # --- Distributed Worker Settings ---
     global_max_concurrent_scans = 50
     global_max_network_mbps = 500
@@ -3273,6 +3477,28 @@ async def view_settings(request: Request, session: Session = Depends(get_session
             global_max_network_mbps = float(gmnm_conf.value)
         except:
             pass
+
+    # --- Prometheus Metrics Settings ---
+    metrics_enabled = settings.METRICS_ENABLED
+    metrics_auth_mode = settings.METRICS_AUTH_MODE
+    metrics_token = settings.METRICS_TOKEN or ""
+    metrics_include_tenant_labels = settings.METRICS_INCLUDE_TENANT_LABELS
+
+    me_conf = session.get(SystemConfig, "METRICS_ENABLED")
+    if me_conf:
+        metrics_enabled = me_conf.value.lower() == "true"
+
+    mam_conf = session.get(SystemConfig, "METRICS_AUTH_MODE")
+    if mam_conf:
+        metrics_auth_mode = mam_conf.value
+
+    mt_conf = session.get(SystemConfig, "METRICS_TOKEN")
+    if mt_conf:
+        metrics_token = mt_conf.value
+
+    mitl_conf = session.get(SystemConfig, "METRICS_INCLUDE_TENANT_LABELS")
+    if mitl_conf:
+        metrics_include_tenant_labels = mitl_conf.value.lower() == "true"
 
     return templates.TemplateResponse("settings.html", {
         "allowed_tenants": allowed_tenants,
@@ -3303,7 +3529,20 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "global_max_concurrent_scans": global_max_concurrent_scans,
         "global_max_network_mbps": global_max_network_mbps,
         "default_wordlist_count": default_wordlist_count,
-        "nuclei_last_updated": nuclei_last_updated
+        "nuclei_last_updated": nuclei_last_updated,
+        # TLS/SSL Settings
+        "https_only": https_only,
+        "https_only_env_override": https_only_env_override,
+        "custom_ca_cert_path": custom_ca_cert_path,
+        "client_cert_path": client_cert_path,
+        "client_key_path": client_key_path,
+        "verify_ssl": verify_ssl,
+        "tls_validation": tls_validation,
+        # Prometheus Metrics Settings
+        "metrics_enabled": metrics_enabled,
+        "metrics_auth_mode": metrics_auth_mode,
+        "metrics_token": metrics_token,
+        "metrics_include_tenant_labels": metrics_include_tenant_labels
     })
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -3333,6 +3572,19 @@ async def update_settings(
     # Distributed Worker Settings
     global_max_concurrent_scans: int = Form(50),
     global_max_network_mbps: float = Form(500),
+
+    # TLS/SSL Settings
+    https_only: bool = Form(False),
+    custom_ca_cert_path: Optional[str] = Form(None),
+    client_cert_path: Optional[str] = Form(None),
+    client_key_path: Optional[str] = Form(None),
+    verify_ssl: bool = Form(True),
+
+    # Prometheus Metrics Settings
+    metrics_enabled: bool = Form(False),
+    metrics_auth_mode: str = Form("token"),
+    metrics_token: Optional[str] = Form(None),
+    metrics_include_tenant_labels: bool = Form(False),
 
     session: Session = Depends(get_session)
 ):
@@ -3431,6 +3683,32 @@ async def update_settings(
     # Distributed Worker Settings
     set_conf("GLOBAL_MAX_CONCURRENT_SCANS", str(global_max_concurrent_scans))
     set_conf("GLOBAL_MAX_NETWORK_MBPS", str(global_max_network_mbps))
+
+    # TLS/SSL Settings
+    set_conf("HTTPS_ONLY", "true" if https_only else "false")
+    set_conf("VERIFY_SSL", "true" if verify_ssl else "false")
+
+    if custom_ca_cert_path is not None:
+        custom_ca_cert_path = custom_ca_cert_path.strip()
+        set_conf("CUSTOM_CA_CERT_PATH", custom_ca_cert_path)
+
+    if client_cert_path is not None:
+        client_cert_path = client_cert_path.strip()
+        set_conf("CLIENT_CERT_PATH", client_cert_path)
+
+    if client_key_path is not None:
+        client_key_path = client_key_path.strip()
+        set_conf("CLIENT_KEY_PATH", client_key_path)
+
+    # Prometheus Metrics Settings
+    set_conf("METRICS_ENABLED", "true" if metrics_enabled else "false")
+    set_conf("METRICS_AUTH_MODE", metrics_auth_mode)
+    set_conf("METRICS_INCLUDE_TENANT_LABELS", "true" if metrics_include_tenant_labels else "false")
+
+    if metrics_token is not None:
+        metrics_token = metrics_token.strip()
+        if metrics_token:  # Only save if non-empty
+            set_conf("METRICS_TOKEN", metrics_token)
 
     session.commit()
     
@@ -3944,7 +4222,30 @@ async def get_network_graph(
                                     risk_score += 5
                                     if not is_compromised: reasons.append("High Vulnerability")
                           except: pass
-                      
+
+            elif res.module_name == 'deception_detector':
+                 if res.data:
+                     summary = res.data.get("summary", {})
+                     overall_risk = summary.get("overall_risk", "none")
+                     total_detections = summary.get("total_detections", 0)
+
+                     if total_detections > 0:
+                          # Deception indicates potential hostile or monitored infrastructure
+                          if overall_risk == "critical":
+                               risk_score += 15
+                               is_compromised = True
+                               reasons.append("Deception Infrastructure (Critical)")
+                          elif overall_risk == "high":
+                               risk_score += 10
+                               is_compromised = True
+                               reasons.append("Deception Infrastructure (High)")
+                          elif overall_risk == "medium":
+                               risk_score += 5
+                               reasons.append("Deception Indicators (Medium)")
+                          else:
+                               risk_score += 2
+                               reasons.append("Deception Indicators (Low)")
+
             if risk_score > 0:
                  if domain_node_id not in risk_map:
                       risk_map[domain_node_id] = {"is_compromised": False, "risk_score": 0, "reasons": []}
@@ -3975,7 +4276,7 @@ async def get_network_graph(
         if not target_ids: break # Safety
         
         # Modules to fetch
-        modules = ['dns_scanner', 'subdomain_scanner', 'infrastructure_scanner', 'web_analyzer']
+        modules = ['dns_scanner', 'subdomain_scanner', 'infrastructure_scanner', 'web_analyzer', 'deception_detector']
         if include_web_links:
             modules.append('crawler')
 
@@ -4144,6 +4445,95 @@ async def get_network_graph(
                         })
                         
                         prev_node = hop_node
+
+            # Deception Detector (Honeypots, Sinkholes, Tarpits)
+            elif mod == 'deception_detector':
+                summary = res.data.get("summary", {})
+                total_detections = summary.get("total_detections", 0)
+
+                if total_detections > 0:
+                    # Add honeypot nodes
+                    for hp in res.data.get("honeypots", []):
+                        hp_name = hp.get("name", "Unknown")
+                        hp_type = hp.get("type", "generic")
+                        hp_conf = hp.get("confidence", 0)
+                        hp_port = hp.get("port", 0)
+                        hp_id = f"honeypot_{source}_{hp_port}"
+
+                        if hp_id not in nodes:
+                            nodes[hp_id] = {
+                                "data": {
+                                    "id": hp_id,
+                                    "label": f"Honeypot: {hp_name}",
+                                    "type": "honeypot",
+                                    "risk_score": hp_conf,
+                                    "compromised": hp_conf >= 70,
+                                    "risk_reasons": hp.get("indicator", "")
+                                }
+                            }
+                        edges.append({
+                            "data": {
+                                "source": source,
+                                "target": hp_id,
+                                "label": f"honeypot:{hp_port}",
+                                "is_risk": True
+                            }
+                        })
+
+                    # Add sinkhole nodes
+                    for sh in res.data.get("sinkholes", []):
+                        sh_operator = sh.get("sinkhole_operator", "Unknown")
+                        sh_ip = sh.get("sinkhole_ip", "")
+                        sh_conf = sh.get("confidence", 0)
+                        sh_id = f"sinkhole_{source}_{sh_ip}" if sh_ip else f"sinkhole_{source}_{sh_operator}"
+
+                        if sh_id not in nodes:
+                            nodes[sh_id] = {
+                                "data": {
+                                    "id": sh_id,
+                                    "label": f"Sinkhole: {sh_operator}",
+                                    "type": "sinkhole",
+                                    "risk_score": sh_conf,
+                                    "compromised": True,
+                                    "risk_reasons": sh.get("indicator", "")
+                                }
+                            }
+                        edges.append({
+                            "data": {
+                                "source": source,
+                                "target": sh_id,
+                                "label": "sinkholed",
+                                "is_risk": True
+                            }
+                        })
+
+                    # Add tarpit nodes
+                    for tp in res.data.get("tarpits", []):
+                        tp_type = tp.get("type", "generic")
+                        tp_port = tp.get("port", 0)
+                        tp_delay = tp.get("response_delay_ms", 0)
+                        tp_conf = tp.get("confidence", 0)
+                        tp_id = f"tarpit_{source}_{tp_port}"
+
+                        if tp_id not in nodes:
+                            nodes[tp_id] = {
+                                "data": {
+                                    "id": tp_id,
+                                    "label": f"Tarpit ({tp_delay}ms)",
+                                    "type": "tarpit",
+                                    "risk_score": tp_conf,
+                                    "compromised": tp_conf >= 60,
+                                    "risk_reasons": tp.get("indicator", "")
+                                }
+                            }
+                        edges.append({
+                            "data": {
+                                "source": source,
+                                "target": tp_id,
+                                "label": f"tarpit:{tp_port}",
+                                "is_risk": tp_conf >= 50
+                            }
+                        })
 
     # Filter Empty
     if filter_empty:

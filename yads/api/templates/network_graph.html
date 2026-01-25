@@ -140,6 +140,11 @@
                 <div class="flex items-center gap-2"><span class="w-3 h-3 rotate-45 block" style="background-color: #d946ef"></span> Web Landing</div>
                 <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full block" style="background-color: #8b5cf6"></span> Redirect Hop</div>
                 <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full block" style="background-color: #ef4444"></span> High Risk</div>
+                <hr class="border-slate-700 my-2">
+                <div class="text-[10px] text-amber-400 font-semibold uppercase mb-1">Deception Detection</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rotate-45 block" style="background-color: #f97316"></span> Honeypot</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 block" style="background-color: #ef4444; clip-path: polygon(50% 0%, 0% 100%, 100% 100%)"></span> Sinkhole</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-3 rounded block" style="background-color: #eab308"></span> Tarpit</div>
              </div>
         </div>
         
@@ -337,7 +342,12 @@
                         { selector: 'node[type="landing"]', style: { 'background-color': '#d946ef', 'shape': 'diamond', 'width': 25, 'height': 25 } },
                         { selector: 'node[type="redirector"]', style: { 'background-color': '#8b5cf6', 'width': 12, 'height': 12 } },
                         { selector: 'node[type="external"]', style: { 'background-color': '#64748b', 'shape': 'hexagon', 'width': 15, 'height': 15 } },
-    
+
+                        // Deception Detection Types
+                        { selector: 'node[type="honeypot"]', style: { 'background-color': '#f97316', 'shape': 'diamond', 'width': 25, 'height': 25, 'border-width': 3, 'border-color': '#ea580c' } },
+                        { selector: 'node[type="sinkhole"]', style: { 'background-color': '#ef4444', 'shape': 'triangle', 'width': 28, 'height': 28, 'border-width': 3, 'border-color': '#dc2626' } },
+                        { selector: 'node[type="tarpit"]', style: { 'background-color': '#eab308', 'shape': 'rectangle', 'width': 20, 'height': 20, 'border-width': 2, 'border-color': '#ca8a04' } },
+
                         // Base Edge
                         {
                             selector: 'edge',

@@ -605,6 +605,53 @@ def migrate():
         except Exception as e:
             print(f"   Error creating resourcequota table: {e}")
 
+        # 30. Update Tenant Table: New OSINT API Keys (v1.15.0)
+        print(">> Checking Tenant table: New OSINT API Keys (hunter, github, twitter)...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS hunter_api_key VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS github_token VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS twitter_bearer_token VARCHAR;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # 31. Create SecurityAuditLog Table (MITRE ATT&CK aligned security logging)
+        print(">> Creating securityauditlog table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS securityauditlog (
+                    id SERIAL PRIMARY KEY,
+                    event_type VARCHAR NOT NULL,
+                    timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    username VARCHAR,
+                    user_id INTEGER,
+                    source_ip VARCHAR,
+                    user_agent VARCHAR,
+                    tenant_id INTEGER REFERENCES tenant(id),
+                    target_user VARCHAR,
+                    target_user_id INTEGER,
+                    success BOOLEAN DEFAULT TRUE,
+                    details JSONB DEFAULT '{}'::jsonb,
+                    mitre_tactic_id VARCHAR,
+                    mitre_technique_id VARCHAR
+                );
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_event_type ON securityauditlog (event_type);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_timestamp ON securityauditlog (timestamp);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_username ON securityauditlog (username);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_user_id ON securityauditlog (user_id);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_source_ip ON securityauditlog (source_ip);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_tenant_id ON securityauditlog (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_target_user ON securityauditlog (target_user);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_success ON securityauditlog (success);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_mitre_tactic_id ON securityauditlog (mitre_tactic_id);
+                CREATE INDEX IF NOT EXISTS ix_securityauditlog_mitre_technique_id ON securityauditlog (mitre_technique_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating securityauditlog table: {e}")
+
         print("\nMigration Complete!")
 
 

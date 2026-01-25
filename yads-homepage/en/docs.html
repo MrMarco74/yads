@@ -31,6 +31,7 @@
                 <a href="support.html">Setup</a>
                 <a href="docs.html" class="active">Documentation</a>
                 <a href="changes.html">Changes</a>
+                <a href="bom.html">BOM</a>
                 <a href="roadmap.html">Roadmap</a>
                 <a href="story.html">Origin Story</a>
                 <a href="contact.html">Contact</a>
@@ -67,6 +68,9 @@
 <li><a href="#12-system-settings--queue">12. System Settings & Queue</a>
     <ul>
         <li><a href="#distributed-workers">Distributed Workers</a></li>
+        <li><a href="#one-click-updates">One-Click Updates</a></li>
+        <li><a href="#security-audit-logging">Security Audit Logging</a></li>
+        <li><a href="#prometheus-metrics">Prometheus Metrics</a></li>
     </ul>
 </li>
 <li><a href="#13-best-practices">13. Best Practices</a>
@@ -81,8 +85,8 @@
         </aside>
         <main class="docs-content">
             <h1>YADS - Comprehensive User Guide</h1>
-<p><strong>Version:</strong> 1.13.1
-<strong>Last Updated:</strong> 2026-01-21</p>
+<p><strong>Version:</strong> 1.16.0
+<strong>Last Updated:</strong> 2026-01-25</p>
 <p>Welcome to the <strong>YADS (Yet Another Domain Scanner)</strong> manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.</p>
 <hr />
 <h2>Table of Contents</h2>
@@ -221,7 +225,7 @@
 *   <strong>Wayback Machine</strong>: Looks for historical files and endpoints.
 *   <strong>FULL SCAN</strong>: Runs all available modules.</p>
 <h3>Scheduled Scans</h3>
-<p>** (New in v1.14.3)<strong>
+<p>** (New in v1.16.0)<strong>
 You can automate your reconnaissance by setting up recurring schedules.
 1.  Navigate to the </strong>Schedules<strong> page via the sidebar.
 2.  Click </strong>"Create Schedule"<strong>.
@@ -259,28 +263,28 @@ You can automate your reconnaissance by setting up recurring schedules.
 </li>
 </ul>
 <h3>Vulnerability Scanning (Active)</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
 *   <strong>Capabilities</strong>: Scans for 5000+ known vulnerabilities (CVEs), misconfigurations, and exposed panels.
 *   <strong>Severity</strong>: Findings are categorized as Critical, High, Medium, Low, or Info.
 *   <strong>Usage</strong>: Select "Nuclei Vulnerability Scan" in the <em>New Scan</em> modal.</p>
 <h3>Stealth Port Scanning</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 *   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
 *   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.</p>
 <h3>JavaScript SAST</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 *   <strong>Static Analysis</strong>: Automatically downloads and analyzes client-side JavaScript files.
 *   <strong>Sink Detection</strong>: Identifies potential DOM XSS sinks (e.g. <code>innerHTML</code>, <code>document.write</code>).
 *   <strong>Route Discovery</strong>: Extracts hidden API routes from JS code.</p>
 <h3>API Discovery</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 Part of the Web Analyzer, this module automatically detects:
 *   <strong>Documentation</strong>: Finds <code>swagger.json</code>, <code>openapi.yaml</code>, and WSDL files.
 *   <strong>Endpoints</strong>: Identifies GraphQL endpoints (<code>/graphql</code>) and versioned REST paths (<code>/api/v1/</code>).
 *   <strong>Results</strong>: displayed in the <strong>Web Analysis</strong> card on the Target Details page.</p>
 <h3>SOC2 Compliance Engine</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Score</strong>: Calculated dynamically (0-100%) based on active scan results.
 *   <strong>Penalties</strong>:
@@ -291,7 +295,7 @@ Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Insights</strong>: Hover over the score widget on the Dashboard to see specific failings.</p>
 <hr />
 <h2>7. OSINT Brand Monitoring</h2>
-<p><strong>(New in v1.14.3)</strong></p>
+<p><strong>(New in v1.16.0)</strong></p>
 <p>The OSINT module helps you discover unmonitored assets by finding where your brand assets (logos) appear on the web.</p>
 <h3>Google Cloud Setup (Prerequisite)</h3>
 <p>To use this feature, your Tenant Admin must configure the <strong>Google Cloud Vision API</strong>:
@@ -326,7 +330,7 @@ Real-time scoring of your infrastructure's compliance readiness.
 *   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
 *   <strong>Clusters</strong>: See which domains share the same hosting infrastructure.
 *   <strong>Zoom/Pan</strong>: Navigate large infrastructures easily.
-*   <strong>Attack Path Visualization</strong> (New in v1.14.3):
+*   <strong>Attack Path Visualization</strong> (New in v1.16.0):
     *   <strong>Toggle</strong>: Switch on "Attack Paths" to highlight risky edges and compromised nodes.
     *   <strong>Insights</strong>: Visualizes potential lateral movement paths based on vulnerability and network data.</p>
 <h3>Analytics Dashboard</h3>
@@ -335,7 +339,7 @@ Real-time scoring of your infrastructure's compliance readiness.
     *   <strong>Tech Distribution</strong>: charts showing most common technologies (e.g., "80% Nginx").
     *   <strong>Risk Overview</strong>: Summary of critical vulnerabilities across the portfolio.</p>
 <h3>Compliance &amp; Grading</h3>
-<p><strong>(Updated in v1.14.3)</strong>
+<p><strong>(Updated in v1.16.0)</strong>
 Found at the top of every <strong>Target Detail</strong> page:
 *   <strong>Security Grade (A-F)</strong>: A composite score based on SSL, Headers, Vulnerabilities, and Open Ports.
 *   <strong>Risk Factors</strong>: Explicitly lists the reasons for score deductions (e.g. "Missing HSTS -10").
@@ -355,14 +359,14 @@ Found at the top of every <strong>Target Detail</strong> page:
     - <strong>Type</strong>: Indicates if the link was found via a webpage link (<code>link</code>), Mail Exchange record (<code>MX</code>), Nameserver (<code>NS</code>), etc.
     - <strong>Export</strong>: Click "Export PDF" from the <strong>Reports</strong> page.</p>
 <h3>Dead Links Analysis</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 Identify health issues within your own inventory.
 - <strong>Access</strong>: Go to <code>Analytics &gt; Dead Links</code>.
 - <strong>Unreachable Targets</strong>: Lists targets that failed recent scans (Offline or Server Error).
 - <strong>Orphaned Targets</strong>: Lists targets in your inventory that are <strong>not linked to</strong> by any other target in your scope. Useful for finding forgotten assets.</p>
 <hr />
 <h2>9. Data Management &amp; Reports</h2>
-<p><strong>(Centralized in v1.14.3)</strong></p>
+<p><strong>(Centralized in v1.16.0)</strong></p>
 <p>YADS provides dedicated reports to help you analyze specific data sets and risks.</p>
 <h3>Sensitive Data</h3>
 <p><strong>Path:</strong> <code>/secrets</code>
@@ -447,7 +451,7 @@ A visual breakdown of the technology stack usage across your portfolio.
 *   <strong>Management</strong>: Admins can rename tenants and manage memberships via the <strong>Tenants</strong> page.
 *   <strong>Platform Admin</strong>: An Admin without a specific tenant sees <em>everything</em> and can manage the tenants themselves.</p>
 <h3>Webhook Notifications</h3>
-<p><strong>(New in v1.14.3)</strong>
+<p><strong>(New in v1.16.0)</strong>
 Tenants can configure real-time webhooks to integrate with external systems (Slack, Discord, Tines, etc.).
 1.  Go to <strong>Tenant Settings</strong>.
 2.  Scroll to the <strong>Webhook Notifications</strong> card.
@@ -493,6 +497,94 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <blockquote>
 <p><strong>Note</strong>: For detailed setup instructions, see the <a href="support.html#distributed-workers">Distributed Workers Setup Guide</a>.</p>
 </blockquote>
+<h3 id="one-click-updates">One-Click Updates</h3>
+<p><strong>(New in v1.16.0)</strong></p>
+<p>YADS includes an in-app update mechanism that performs graceful updates without manual intervention.</p>
+<ul>
+<li><strong>Check for Updates</strong>: Navigate to <strong>Settings</strong> and find the "System Updates" card. Click "Check for Updates" to see if a new version is available.</li>
+<li><strong>Update Process</strong>: When an update is available, click "Start Update" to begin the process:
+    <ol>
+        <li>The scan queue is automatically paused</li>
+        <li>Active tasks are allowed to complete (up to 5 minutes)</li>
+        <li>The new Docker image is downloaded</li>
+        <li>Services are gracefully restarted</li>
+    </ol>
+</li>
+<li><strong>Progress Monitoring</strong>: A real-time progress bar shows the current update stage</li>
+<li><strong>Changelog Preview</strong>: View what's new before updating</li>
+<li><strong>Cancel</strong>: Updates can be cancelled during the preparation or download phases</li>
+</ul>
+<blockquote>
+<p><strong>⚠️ Important</strong>: Updates cannot be cancelled once the restart phase begins. Ensure you have recent backups before updating.</p>
+</blockquote>
+<h3 id="security-audit-logging">Security Audit Logging (MITRE ATT&CK)</h3>
+<p><strong>(New in v1.16.0)</strong></p>
+<p>YADS includes comprehensive security audit logging aligned with the MITRE ATT&CK framework. All authentication and user management events are logged with full context for SIEM integration and compliance.</p>
+<h4>Logged Events</h4>
+<table>
+<tr><th>Event Type</th><th>MITRE Technique</th><th>Description</th></tr>
+<tr><td>Login Success</td><td>T1078 (Valid Accounts)</td><td>Successful authentication</td></tr>
+<tr><td>Login Failure</td><td>T1110 (Brute Force)</td><td>Failed login attempts (invalid user/password/MFA)</td></tr>
+<tr><td>Logout</td><td>T1070 (Indicator Removal)</td><td>Session termination</td></tr>
+<tr><td>Password Change</td><td>T1098 (Account Manipulation)</td><td>Password modified by user or admin</td></tr>
+<tr><td>MFA Enabled/Disabled</td><td>T1556 (Modify Auth Process)</td><td>MFA configuration changes</td></tr>
+<tr><td>User Created</td><td>T1136 (Create Account)</td><td>New user account creation</td></tr>
+<tr><td>User Deleted</td><td>T1531 (Account Access Removal)</td><td>User account deletion</td></tr>
+<tr><td>Role Changed</td><td>T1078.003 (Local Accounts)</td><td>User role/privilege modification</td></tr>
+<tr><td>Tenant Switch</td><td>T1087 (Account Discovery)</td><td>User switched tenant context</td></tr>
+</table>
+<h4>Data Captured</h4>
+<ul>
+<li><strong>Timestamp</strong>: Event time (indexed for fast queries)</li>
+<li><strong>Username/User ID</strong>: Acting user</li>
+<li><strong>Source IP</strong>: Client IP address</li>
+<li><strong>User Agent</strong>: Browser/client identification</li>
+<li><strong>Tenant ID</strong>: Tenant context</li>
+<li><strong>Target User</strong>: For admin actions on other users</li>
+<li><strong>MITRE Mapping</strong>: Tactic and Technique IDs</li>
+</ul>
+<h4>SIEM Integration</h4>
+<p>Events are automatically forwarded to Splunk when configured via environment variables:</p>
+<ul>
+<li><code>SPLUNK_HEC_URL</code>: Splunk HTTP Event Collector URL</li>
+<li><code>SPLUNK_HEC_TOKEN</code>: Authentication token</li>
+</ul>
+<blockquote>
+<p><strong>💡 Tip</strong>: Use the MITRE technique IDs to correlate YADS events with other security tools in your SOC.</p>
+</blockquote>
+<h3 id="prometheus-metrics">Prometheus Metrics Export</h3>
+<p><strong>(New in v1.16.0)</strong></p>
+<p>YADS provides native Prometheus metrics for infrastructure monitoring, alerting, and performance dashboards.</p>
+<h4>Enabling Metrics</h4>
+<p>Set the following environment variables to enable the <code>/metrics</code> endpoint:</p>
+<ul>
+<li><code>METRICS_ENABLED=true</code>: Master toggle to enable metrics</li>
+<li><code>METRICS_AUTH_MODE</code>: Authentication mode (<code>none</code>, <code>token</code>, or <code>user</code>)</li>
+<li><code>METRICS_TOKEN</code>: Bearer token for authentication (when using <code>token</code> mode)</li>
+<li><code>METRICS_INCLUDE_TENANT_LABELS</code>: Include tenant_id labels (default: <code>false</code>)</li>
+<li><code>METRICS_POLL_INTERVAL</code>: Database polling interval in seconds (default: <code>30</code>)</li>
+</ul>
+<h4>Available Metrics</h4>
+<table>
+<tr><th>Metric</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>yads_scans_total</code></td><td>Counter</td><td>Total scans by module and status</td></tr>
+<tr><td><code>yads_scan_duration_seconds</code></td><td>Histogram</td><td>Scan duration by module</td></tr>
+<tr><td><code>yads_http_requests_total</code></td><td>Counter</td><td>HTTP requests by method, path, status</td></tr>
+<tr><td><code>yads_http_request_duration_seconds</code></td><td>Histogram</td><td>HTTP request latency</td></tr>
+<tr><td><code>yads_security_events_total</code></td><td>Counter</td><td>Security audit events by type</td></tr>
+<tr><td><code>yads_active_scans</code></td><td>Gauge</td><td>Currently running scans</td></tr>
+<tr><td><code>yads_queue_depth</code></td><td>Gauge</td><td>Pending tasks in queue</td></tr>
+<tr><td><code>yads_workers_total</code></td><td>Gauge</td><td>Workers by status</td></tr>
+<tr><td><code>yads_license_valid</code></td><td>Gauge</td><td>License validity (1=valid, 0=invalid)</td></tr>
+</table>
+<h4>Monitoring Stack Deployment</h4>
+<p>Deploy the full monitoring stack with Prometheus and Grafana:</p>
+<pre><code>docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d</code></pre>
+<ul>
+<li><strong>Prometheus</strong>: Access at <code>http://localhost:9090</code></li>
+<li><strong>Grafana</strong>: Access at <code>http://localhost:3000</code> (admin/admin)</li>
+</ul>
+<p>A pre-built YADS dashboard is automatically provisioned in Grafana.</p>
 <hr />
 <h2>13. Best Practices</h2>
 <p>To get the most out of YADS, consider these tips:</p>
@@ -590,7 +682,7 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <h2>15. Support</h2>
 <p>For technical support or to report bugs: support@yads-security.com</p>
 <hr />
-<p><em>Verified for YADS v1.14.3</em></p>
+<p><em>Verified for YADS v1.16.0</em></p>
         </main>
     </div>
     
