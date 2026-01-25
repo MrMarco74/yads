@@ -1,5 +1,3 @@
-
-
 services:
   # --- Backend Services ---
   yads-api:
@@ -29,10 +27,6 @@ services:
       - redis
     networks:
       - yads-net
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
 
   yads-worker:
     build:
@@ -58,12 +52,6 @@ services:
       - redis
     networks:
       - yads-net
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-
-
 
   # --- Infrastructure ---
   db:
@@ -95,4 +83,3 @@ volumes:
 networks:
   yads-net:
     driver: bridge
-

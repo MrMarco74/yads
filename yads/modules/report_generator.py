@@ -323,26 +323,47 @@ def generate_external_links_report(scope_count: int, external_links: List[Dict[s
     # Table Header
     pdf.set_font('helvetica', 'B', 10)
     pdf.set_fill_color(240, 240, 240)
-    # Col widths: Domain(80), Type(30), Sources(50), Count(20)
-    pdf.cell(80, 8, "Domain", border=1, fill=True)
-    pdf.cell(30, 8, "Type", border=1, fill=True)
-    pdf.cell(50, 8, "Sources (First 3)", border=1, fill=True)
-    pdf.cell(20, 8, "Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+    # Col widths: Domain(70), Type(25), Sources(80), Count(15)
+    pdf.cell(70, 8, "Domain", border=1, fill=True)
+    pdf.cell(25, 8, "Type", border=1, fill=True)
+    pdf.cell(80, 8, "Sources (All)", border=1, fill=True)
+    pdf.cell(15, 8, "Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
     
     pdf.set_font('courier', '', 9)
     
     for item in external_links:
-        domain = item.get("domain", "")[:45] # Truncate if too long
+        domain = item.get("domain", "")
         types = ", ".join(item.get("types", []))
         sources = item.get("sources", [])
-        source_str = ", ".join(sources[:2]) # Just show first 2 to fit
-        if len(sources) > 2: source_str += "..."
+        source_str = ", ".join(sources) 
         count = str(item.get("count", 0))
         
-        pdf.cell(80, 8, domain, border=1)
-        pdf.cell(30, 8, types, border=1)
-        pdf.cell(50, 8, source_str, border=1)
-        pdf.cell(20, 8, count, border=1, new_x="LMARGIN", new_y="NEXT")
+        # Calculate Row Height using multi_cell logic
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        
+        # Domain
+        pdf.multi_cell(70, 7, domain, border=1, new_x="RIGHT", new_y="TOP")
+        h1 = pdf.get_y() - y_start
+        
+        # Type
+        pdf.set_y(y_start)
+        pdf.multi_cell(25, 7, types, border=1, new_x="RIGHT", new_y="TOP")
+        h2 = pdf.get_y() - y_start
+        
+        # Sources
+        pdf.set_y(y_start)
+        pdf.multi_cell(80, 7, source_str, border=1, new_x="RIGHT", new_y="TOP")
+        h3 = pdf.get_y() - y_start
+        
+        # Count
+        pdf.set_y(y_start)
+        pdf.multi_cell(15, 7, count, border=1, new_x="RIGHT", new_y="TOP")
+        h4 = pdf.get_y() - y_start
+        
+        # Move to next row
+        max_h = max(h1, h2, h3, h4)
+        pdf.set_xy(x_start, y_start + max_h)
         
     return pdf.output()
 
@@ -438,120 +459,21 @@ def generate_infrastructure_report(data: Dict[str, Any], tenant_name: str = "Glo
             elif sev.lower() == "high": pdf.set_text_color(200, 100, 0)
             else: pdf.set_text_color(0, 0, 0)
             
-            pdf.cell(25, 7, sev, border=1)
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(25, 7, item.get("type", ""), border=1)
+            # Severity & Type
+            x_start = pdf.get_x()
+            y_start = pdf.get_y()
             
-            # Truncate desc
+            pdf.multi_cell(25, 7, sev, border=1, new_x="RIGHT", new_y="TOP")
+            pdf.set_text_color(0, 0, 0)
+            pdf.multi_cell(25, 7, item.get("type", ""), border=1, new_x="RIGHT", new_y="TOP")
+            
+            # Issue / Description
             desc = f"{item.get('title')} - {item.get('desc')}"
-            if len(desc) > 80: desc = desc[:77] + "..."
-            pdf.cell(130, 7, desc, border=1, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(130, 7, desc, border=1, new_x="RIGHT", new_y="TOP")
+            
+            # Move to next row
+            max_y = pdf.get_y()
+            pdf.set_xy(x_start, max_y)
     
     return pdf.output()
 
-
-
-
-
-
-def generate_infrastructure_report(data: Dict[str, Any], tenant_name: str = "Global") -> bytes:
-    """
-    Generates a PDF Executive Summary of the Infrastructure.
-    """
-    pdf = PDFReport(f"Infrastructure Executive Summary ({tenant_name})")
-    
-    # 1. Overview / High Level Stats
-    pdf.chapter_title("Executive Overview")
-    pdf.set_font('helvetica', '', 11)
-    
-    vuln_stats = data.get("vuln_stats", {})
-    total_vulns = sum(vuln_stats.values())
-    
-    # Simple KPI Grid
-    pdf.set_font('courier', 'B', 12)
-    pdf.cell(90, 8, f"Cloud Providers: {len(data.get('cloud_providers', {}))}", border=1)
-    pdf.cell(90, 8, f"Countries: {len(data.get('countries', {}))}", border=1, new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(90, 8, f"Total Vulnerabilities: {total_vulns}", border=1)
-    pdf.cell(90, 8, f"Critical Risks: {vuln_stats.get('critical', 0)}", border=1, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
-
-    # 2. Cloud Distribution
-    cloud_prov = data.get("cloud_providers", {})
-    if cloud_prov:
-        pdf.chapter_title("Cloud Provider Distribution")
-        pdf.set_font('helvetica', 'B', 10)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(100, 8, "Provider", border=1, fill=True)
-        pdf.cell(40, 8, "Target Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
-        
-        pdf.set_font('courier', '', 10)
-        # Sort desc
-        sorted_cloud = sorted(cloud_prov.items(), key=lambda x: x[1], reverse=True)
-        for prov, count in sorted_cloud:
-            pdf.cell(100, 7, prov, border=1)
-            pdf.cell(40, 7, str(count), border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-        
-    # 3. Geo Distribution (Top 10)
-    countries = data.get("countries", {})
-    if countries:
-        pdf.chapter_title("Geographic Distribution (Top 10)")
-        pdf.set_font('helvetica', 'B', 10)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(100, 8, "Country", border=1, fill=True)
-        pdf.cell(40, 8, "Target Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
-        
-        pdf.set_font('courier', '', 10)
-        sorted_geo = sorted(countries.items(), key=lambda x: x[1], reverse=True)[:10]
-        for country, count in sorted_geo:
-            pdf.cell(100, 7, country, border=1)
-            pdf.cell(40, 7, str(count), border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-
-    # 4. Tech Stack (Top 15)
-    techs = data.get("tech_stack", {})
-    if techs:
-        pdf.chapter_title("Technology Stack (Top 15)")
-        
-        pdf.set_font('helvetica', 'B', 10)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(100, 8, "Technology", border=1, fill=True)
-        pdf.cell(40, 8, "Instance Count", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
-
-        pdf.set_font('courier', '', 10)
-        sorted_tech = sorted(techs.items(), key=lambda x: x[1], reverse=True)[:15]
-        for tech, count in sorted_tech:
-            pdf.cell(100, 7, tech, border=1)
-            pdf.cell(40, 7, str(count), border=1, new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-        
-    # 5. Critical Risks Feed
-    risks = data.get("risk_feed", [])
-    if risks:
-        pdf.chapter_title("Critical Risk Feed (Top Items)")
-        
-        pdf.set_font('helvetica', 'B', 10)
-        pdf.set_fill_color(255, 230, 230) # Light red
-        # Cols: Severity(25), Type(25), Issue(90)
-        pdf.cell(25, 8, "Severity", border=1, fill=True)
-        pdf.cell(25, 8, "Type", border=1, fill=True)
-        pdf.cell(130, 8, "Issue / Description", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
-        
-        pdf.set_font('courier', '', 9)
-        for item in risks:
-            sev = item.get("severity", "Unknown")
-            # Color code text?
-            if sev.lower() == "critical": pdf.set_text_color(200, 0, 0)
-            elif sev.lower() == "high": pdf.set_text_color(200, 100, 0)
-            else: pdf.set_text_color(0, 0, 0)
-            
-            pdf.cell(25, 7, sev, border=1)
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(25, 7, item.get("type", ""), border=1)
-            
-            # Truncate desc
-            desc = f"{item.get('title')} - {item.get('desc')}"
-            if len(desc) > 80: desc = desc[:77] + "..."
-            pdf.cell(130, 7, desc, border=1, new_x="LMARGIN", new_y="NEXT")
-    
-    return pdf.output()

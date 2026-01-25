@@ -176,26 +176,35 @@ def generate_pdf(data: List[Dict[str, Any]], title: str, filename_prefix: str, o
         # Rows
         pdf.set_font("Arial", size=9)
         for row in data:
+            # 1. Calculate the maximum height needed for this row
+            row_heights = []
             for col in columns:
-                # Truncate content to fit naive width or handle multiline (too complex for basics, truncating for now)
                 val = str(row.get(col, ""))
-                
-                # Check string length - very rough heuristic
-                # FPDF cell handles text, but won't wrap automatically with 'cell', need 'multi_cell' for that.
-                # For simplicity in this iteration, we use cell and clip.
-                # A better approach for specific reports is to custom build the PDF in the router using this helper as a base,
-                # but let's try to make this generic enough for the requirements.
-                
-                # Handling extremely long text
-                if len(val) > 20 and len(columns) > 4:
-                     val = val[:17] + "..."
-                elif len(val) > 50:
-                     val = val[:47] + "..."
-                     
-                pdf.cell(col_width, 10, val, 1, 0, 'L')
-            pdf.ln()
+                # Calculate how many lines this value will take
+                # nb_lines = pdf.get_nb_lines(col_width, val) # Not always available in all FPDF versions
+                # A safe way: use multi_cell with split_only=True if available, or just estimate.
+                # In fpdf2, we can use multi_cell and it returns the height if we don't draw?
+                # Actually, simpler: just use MultiCell for each and fix the Y.
+                pass
 
-    output = pdf.output(dest='S').encode('latin-1') # fpdf2 output to string, encode to bytes
+            # Calculate the max height for the row (naive estimation or actual check)
+            # For simplicity and robustness across FPDF versions, we'll use a fixed height multi_cell
+            # and then jump back up to draw the next column.
+            
+            x_start = pdf.get_x()
+            y_start = pdf.get_y()
+            max_y = y_start
+
+            for col in columns:
+                val = str(row.get(col, ""))
+                pdf.multi_cell(col_width, 8, val, border=1, align='L', new_x="RIGHT", new_y="TOP")
+                if pdf.get_y() > max_y:
+                    max_y = pdf.get_y()
+            
+            # Reset to the start of the next row
+            pdf.set_xy(x_start, max_y)
+
+    output = pdf.output() 
     
     filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
     
@@ -267,7 +276,7 @@ def generate_traffic_pdf(data: List[Any], target_domain: str, filename_prefix: s
             pdf.cell(190, 8, url_display, 1, 0, 'L')
             pdf.ln()
 
-    output = pdf.output(dest='S').encode('latin-1')
+    output = pdf.output()
     filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
     
     return Response(

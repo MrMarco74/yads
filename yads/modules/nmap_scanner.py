@@ -43,10 +43,18 @@ class NmapScanner(BaseScannerModule):
             results["raw_output"] = nmap_results["raw"]
             results["method"] = "nmap_stealth"
             
-            # Detect Resolution Failure
-            if "Failed to resolve" in nmap_results["raw"]:
+            # Detect Resolution Failure or "No targets specified"
+            raw_out = nmap_results.get("raw", "")
+            if "Failed to resolve" in raw_out:
                 results["error"] = "DNS Resolution Failed"
                 self.logger.error(f"Nmap failed to resolve target: {target}")
+            elif "WARNING: No targets were specified" in raw_out:
+                results["error"] = "No targets specified (Check DNS/Connectivity)"
+                self.logger.error(f"Nmap reported no targets for: {target}")
+            elif not nmap_results.get("ports") and "Nmap done: 0 IP addresses" in raw_out:
+                 # If no ports found but nmap finished, it's technically success, 
+                 # but we want to be sure it wasn't a silent network failure.
+                 results["is_active"] = False
             elif nmap_results["ports"]:
                 results["is_active"] = True
                 
@@ -167,13 +175,20 @@ class NmapScanner(BaseScannerModule):
                                     "product": full_product
                                 })
             except ET.ParseError as e:
-                self.logger.error(f"Failed to parse Nmap XML: {e}")
-                # Log raw xml excerpt if possible?
-                pass
+                self.logger.error(f"Failed to parse Nmap XML for {target}: {e}")
+                # If XML is empty or invalid, it might be due to a crash or early exit
+                if not raw_output_lines:
+                     raw_output_lines.append(f"Error: XML Parse Error ({e}) - No stdout captured")
             except Exception as e:
-                 self.logger.error(f"Error reading nmap results: {e}")
+                 self.logger.error(f"Error reading nmap results for {target}: {e}")
+                 raw_output_lines.append(f"Error: {str(e)}")
             
-            return {"ports": ports, "raw": "\\n".join(raw_output_lines) + "\\n\\n--- XML REPORT ---\\n" + raw_xml}
+            # Combine output safely
+            final_raw = "\n".join(raw_output_lines)
+            if raw_xml:
+                 final_raw += "\n\n--- XML REPORT ---\n" + raw_xml
+
+            return {"ports": ports, "raw": final_raw}
             
         finally:
             # Cleanup
