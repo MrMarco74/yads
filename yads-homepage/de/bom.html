@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stücklisten - YADS</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
+    <style>
+        .bom-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .bom-card h3 {
+            color: #fff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .bom-card p {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .download-btn-primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+        .download-btn-primary:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+        .download-btn-secondary {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .download-btn-secondary:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-sbom { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .icon-cbom { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+        .info-box {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 0.5rem;
+            padding: 1rem 1.25rem;
+            margin-top: 1.5rem;
+        }
+        .info-box p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        .format-badge {
+            display: inline-block;
+            background: rgba(0,0,0,0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-left: 0.5rem;
+        }
+        .version-info {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html" class="logo">
+                <img src="https://yads-security.com/images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <span class="text-gradient">YADS</span> Security
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Startseite</a>
+                <a href="product.html">Funktionen</a>
+                <a href="support.html">Installation</a>
+                <a href="docs.html">Dokumentation</a>
+                <a href="changes.html">Änderungen</a>
+                <a href="bom.html" class="active">BOM</a>
+                <a href="roadmap.html">Roadmap</a>
+                <a href="contact.html">Kontakt</a>
+                <a href="https://yads-security.com/bom.html" class="lang-switch" style="opacity: 0.7;">EN</a>
+            </div>
+            <a href="contact.html" class="btn-primary">Demo anfordern</a>
+        </div>
+    </nav>
+
+    <header class="hero hero-small">
+        <div class="container hero-content">
+            <h1>Software-<span class="text-gradient">Stücklisten</span></h1>
+            <p>Transparenz durch Software- und Kryptografie-Stücklisten im CycloneDX-Format.</p>
+        </div>
+    </header>
+
+    <div class="container" style="margin-top: 4rem; margin-bottom: 4rem;">
+
+        <!-- Einführung -->
+        <div class="glass-card" style="padding: 2rem; margin-bottom: 3rem; border-left: 4px solid var(--accent-primary);">
+            <h2 style="margin-top: 0; color: #fff;">Lieferketten-Transparenz</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                YADS bietet umfassende Stücklisten-Dokumentation (Bill of Materials) zur Unterstützung Ihrer Software-Lieferketten-Sicherheitsanforderungen.
+                Alle BOMs werden im <strong>CycloneDX</strong>-Format generiert, einem OWASP-Standard für Software-Kompositionsanalyse.
+            </p>
+            <p style="color: var(--text-secondary); margin: 0;">
+                Diese Dokumente sind essentiell für die Einhaltung von Vorschriften wie <strong>NIS2</strong>, <strong>DORA</strong> und <strong>Executive Order 14028</strong>.
+            </p>
+        </div>
+
+        <!-- SBOM Karte -->
+        <div class="bom-card">
+            <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                <div class="icon-box icon-sbom">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div style="flex: 1;">
+                    <h3>
+                        Software Bill of Materials (SBOM)
+                        <span class="format-badge">CycloneDX JSON</span>
+                    </h3>
+                    <p>
+                        Vollständiges Inventar aller Softwarekomponenten, Bibliotheken und Abhängigkeiten in YADS.
+                        Enthält Versionsinformationen, Lizenzdaten und Package URLs (purl) für Schwachstellen-Tracking.
+                    </p>
+
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                        <a href="https://yads-security.com/releases/sbom.json" class="download-btn download-btn-primary">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            SBOM herunterladen (JSON)
+                        </a>
+                        <a href="https://yads-security.com/releases/sbom.xml" class="download-btn download-btn-secondary">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            SBOM herunterladen (XML)
+                        </a>
+                    </div>
+                    <p class="version-info">Aktualisiert mit jedem Release | Generiert mit Syft</p>
+
+                    <div class="info-box">
+                        <p><strong>Inhalt:</strong> Python-Pakete, Systembibliotheken, Container-Basis-Image-Komponenten und transitive Abhängigkeiten.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CBOM Karte -->
+        <div id="cbom" class="bom-card">
+            <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                <div class="icon-box icon-cbom">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                <div style="flex: 1;">
+                    <h3>
+                        Cryptography Bill of Materials (CBOM)
+                        <span class="format-badge">CycloneDX JSON</span>
+                    </h3>
+                    <p>
+                        Umfassendes Inventar aller kryptografischen Algorithmen, Protokolle und Implementierungen in YADS.
+                        Essentiell für Post-Quantum-Kryptografie-Migrationsplanung und kryptografische Agilität-Bewertungen.
+                    </p>
+
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                        <a href="https://yads-security.com/releases/cbom.json" class="download-btn download-btn-primary">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            CBOM herunterladen (JSON)
+                        </a>
+                        <a href="https://yads-security.com/releases/cbom.xml" class="download-btn download-btn-secondary">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            CBOM herunterladen (XML)
+                        </a>
+                    </div>
+                    <p class="version-info">Aktualisiert mit jedem Release | Custom CBOM Generator</p>
+
+                    <div class="info-box">
+                        <p><strong>Inhalt:</strong> TLS-Konfigurationen, Hash-Algorithmen, Verschlüsselungs-Chiffren, Schlüsselaustausch-Protokolle, digitale Signaturen und Zertifikatsverarbeitung.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nutzungs-Sektion -->
+        <div class="glass-card" style="padding: 2rem;">
+            <h2 style="margin-top: 0; color: #fff;">Verwendung der BOMs</h2>
+
+            <h4 style="color: #fff; margin-top: 1.5rem;">Schwachstellen-Scanning</h4>
+            <p style="color: var(--text-secondary);">
+                Importieren Sie die SBOM in Schwachstellen-Scanner wie <strong>Grype</strong>, <strong>Trivy</strong> oder <strong>OWASP Dependency-Track</strong>:
+            </p>
+            <div style="background: #1e293b; padding: 1rem; border-radius: 0.5rem; font-family: monospace; color: #e2e8f0; margin: 1rem 0;">
+grype sbom:sbom.json
+            </div>
+
+            <h4 style="color: #fff; margin-top: 1.5rem;">Lizenz-Compliance</h4>
+            <p style="color: var(--text-secondary);">
+                Die SBOM enthält Lizenzinformationen für alle Komponenten und ermöglicht automatisierte Lizenz-Compliance-Prüfungen.
+            </p>
+
+            <h4 style="color: #fff; margin-top: 1.5rem;">Kryptografie-Inventar</h4>
+            <p style="color: var(--text-secondary);">
+                Nutzen Sie die CBOM, um Ihre kryptografische Position zu bewerten und die Migration zu Post-Quantum-Kryptografie zu planen.
+            </p>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 YADS Security. Alle Rechte vorbehalten.</p>
+            <div style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="impressum.html">Impressum</a> |
+                <a href="datenschutz.html">Datenschutz</a> |
+                <a href="haftungsausschluss.html">Haftungsausschluss</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

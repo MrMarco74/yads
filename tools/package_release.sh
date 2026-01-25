@@ -29,6 +29,14 @@ fi
 VERSION=$(grep 'VERSION: str =' yads/config.py | cut -d '"' -f 2)
 echo -e "Detected Version: ${GREEN}${VERSION}${NC}"
 
+# 2.1. Get Release Channel (from environment, default to 'stable')
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-stable}"
+if [ "$RELEASE_CHANNEL" = "beta" ]; then
+    echo -e "Release Channel: ${BLUE}🔷 BETA${NC}"
+else
+    echo -e "Release Channel: ${GREEN}🟢 STABLE${NC}"
+fi
+
 RELEASE_NAME="${PROJECT_NAME}_v${VERSION}_customer_pkg"
 mkdir -p "$OUTPUT_DIR/$RELEASE_NAME"
 
@@ -102,6 +110,26 @@ fi
 
 echo -e "${GREEN}>> All Security Checks Passed!${NC}"
 
+# 2.6. Generate Bill of Materials (SBOM & CBOM)
+# IMPORTANT: This must happen BEFORE Docker build/compilation
+# because after Nuitka compilation we lose the source code information
+echo -e "${BLUE}>> Generating Bill of Materials (SBOM & CBOM)...${NC}"
+python3 scripts/generate_bom.py --output-dir releases/ || {
+    echo -e "${RED}Warning: BOM generation failed. Continuing without BOM files.${NC}"
+}
+
+# Copy BOM files to release directory and uploads
+if [ -f "releases/sbom.json" ]; then
+    echo -e "  ${GREEN}✓${NC} SBOM generated successfully"
+    mkdir -p "$OUTPUT_DIR/$RELEASE_NAME"
+    cp releases/sbom.json releases/sbom.xml "$OUTPUT_DIR/$RELEASE_NAME/" 2>/dev/null || true
+fi
+if [ -f "releases/cbom.json" ]; then
+    echo -e "  ${GREEN}✓${NC} CBOM generated successfully"
+    mkdir -p "$OUTPUT_DIR/$RELEASE_NAME"
+    cp releases/cbom.json releases/cbom.xml "$OUTPUT_DIR/$RELEASE_NAME/" 2>/dev/null || true
+fi
+
 # 3. Build Docker Images
 echo -e "${BLUE}>> Building Docker Images (Nuitka Compiled)...${NC}"
 # We build both services tagged as latest. We use the 'release' stage for compiled code.
@@ -160,22 +188,40 @@ echo -e "Hash: ${GREEN}${SHA256}${NC}"
 # 8. Update Homepage
 echo -e "${BLUE}>> Updating Homepage (DE & EN)...${NC}"
 
-# Update DE
-sed -i "s/yads_v[0-9.]*_customer_pkg.zip/${RELEASE_NAME}.zip/g" yads-homepage/de/support.html
-sed -i "s/Download v[0-9.]* (.zip)/Download v${VERSION} (.zip)/g" yads-homepage/de/support.html
-sed -i "s/SHA256:<\/strong> [a-f0-9]*/SHA256:<\/strong> ${SHA256}/g" yads-homepage/de/support.html
+if [ "$RELEASE_CHANNEL" = "beta" ]; then
+    # BETA RELEASE: Only update the beta section, keep stable section unchanged
+    echo -e "  Updating BETA download section..."
 
-# Update EN
-sed -i "s/yads_v[0-9.]*_customer_pkg.zip/${RELEASE_NAME}.zip/g" yads-homepage/en/support.html
-sed -i "s/Download v[0-9.]* (.zip)/Download v${VERSION} (.zip)/g" yads-homepage/en/support.html
-sed -i "s/SHA256:<\/strong> [a-f0-9]*/SHA256:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
+    # Update DE (beta section)
+    sed -i "s/id=\"download-beta\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-beta\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/de/support.html
+    sed -i "s/Download v[0-9.]* Beta (.zip)/Download v${VERSION} Beta (.zip)/g" yads-homepage/de/support.html
+    sed -i "s/SHA256 Beta:<\/strong> [a-f0-9]*/SHA256 Beta:<\/strong> ${SHA256}/g" yads-homepage/de/support.html
+
+    # Update EN (beta section)
+    sed -i "s/id=\"download-beta\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-beta\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/en/support.html
+    sed -i "s/Download v[0-9.]* Beta (.zip)/Download v${VERSION} Beta (.zip)/g" yads-homepage/en/support.html
+    sed -i "s/SHA256 Beta:<\/strong> [a-f0-9]*/SHA256 Beta:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
+else
+    # STABLE RELEASE: Update the stable section
+    echo -e "  Updating STABLE download section..."
+
+    # Update DE (stable section)
+    sed -i "s/id=\"download-stable\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-stable\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/de/support.html
+    sed -i "s/Download v[0-9.]* Stable (.zip)/Download v${VERSION} Stable (.zip)/g" yads-homepage/de/support.html
+    sed -i "s/SHA256 Stable:<\/strong> [a-f0-9]*/SHA256 Stable:<\/strong> ${SHA256}/g" yads-homepage/de/support.html
+
+    # Update EN (stable section)
+    sed -i "s/id=\"download-stable\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-stable\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/en/support.html
+    sed -i "s/Download v[0-9.]* Stable (.zip)/Download v${VERSION} Stable (.zip)/g" yads-homepage/en/support.html
+    sed -i "s/SHA256 Stable:<\/strong> [a-f0-9]*/SHA256 Stable:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
+fi
 
 # Update placehoders in Changelog & Seeding
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads/core/seeding.py
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/de/changes.html
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/en/changes.html
 
-echo -e "Homepage and changelogs updated with version ${VERSION} and current hash."
+echo -e "Homepage and changelogs updated with version ${VERSION} (${RELEASE_CHANNEL}) and current hash."
 
 # 9. Generate version.json for Update Checker
 echo -e "${BLUE}>> Generating version.json for Update Checker...${NC}"
@@ -210,15 +256,25 @@ except Exception as e:
     print(f'New features in v{version}!')
 ")
 
-cat <<EOF > "$OUTPUT_DIR/version.json"
+# Generate channel-specific version file
+# stable -> version.json (backwards compatible with existing update checker)
+# beta -> version-beta.json
+if [ "$RELEASE_CHANNEL" = "beta" ]; then
+    VERSION_FILE="version-beta.json"
+else
+    VERSION_FILE="version.json"
+fi
+
+cat <<EOF > "$OUTPUT_DIR/$VERSION_FILE"
 {
   "version": "$VERSION",
+  "channel": "$RELEASE_CHANNEL",
   "text": "$CHANGELOG_TEXT",
   "url": "https://yads-security.com/releases/${RELEASE_NAME}.zip"
 }
 EOF
 
-echo -e "Generated ${BLUE}${OUTPUT_DIR}/version.json${NC}"
+echo -e "Generated ${BLUE}${OUTPUT_DIR}/${VERSION_FILE}${NC} (channel: ${RELEASE_CHANNEL})"
 
 echo -e "${GREEN}=== Success! ===${NC}"
 echo -e "Release Package: ${BLUE}${OUTPUT_DIR}/${RELEASE_NAME}.zip${NC}"

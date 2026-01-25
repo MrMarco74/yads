@@ -28,6 +28,7 @@
                 <a href="support.html">Setup</a>
                 <a href="docs.html" class="active">Documentation</a>
                 <a href="changes.html">Changes</a>
+                <a href="bom.html">BOM</a>
                 <a href="roadmap.html">Roadmap</a>
                 <a href="story.html">Origin Story</a>
                 <a href="contact.html">Contact</a>
@@ -50,18 +51,61 @@
         <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
             <h2 style="margin-top: 0; color: #fff;">1. Release Download</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
-                Download the latest release package. It contains all Docker images, configuration templates, and documentation for offline installation.
+                Download the release package. It contains all Docker images, configuration templates, and documentation for offline installation.
             </p>
-            
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
-                <a href="https://yads-security.com/releases/yads_v1.14.3_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    Download v1.14.3 (.zip)
-                </a>
+
+            <!-- Release Channels Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+
+                <!-- STABLE CHANNEL -->
+                <div style="background: rgba(16, 185, 129, 0.1); border: 2px solid rgba(16, 185, 129, 0.4); border-radius: 1rem; padding: 1.5rem; position: relative;">
+                    <div style="position: absolute; top: -12px; left: 20px; background: #10b981; color: #fff; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                        Recommended
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; margin-top: 0.5rem;">
+                        <span style="font-size: 1.5rem;">🟢</span>
+                        <h3 style="margin: 0; color: #10b981; font-size: 1.25rem;">Stable Release</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Production-ready version. Thoroughly tested and recommended for most users.
+                    </p>
+                    <a id="download-stable" href="https://yads-security.com/releases/yads_v1.14.3_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #10b981;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Download v1.14.3 Stable (.zip)
+                    </a>
+                    <div style="margin-top: 1rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all;">
+                        <strong style="color: #10b981;">SHA256 Stable:</strong> 14a82ff0475eea5853dc78b01d0e8ba776d85c911b784cbe3897a8f3f1b94624
+                    </div>
+                </div>
+
+                <!-- BETA CHANNEL -->
+                <div style="background: rgba(99, 102, 241, 0.1); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 1rem; padding: 1.5rem; position: relative;">
+                    <div style="position: absolute; top: -12px; left: 20px; background: #6366f1; color: #fff; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                        Preview
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; margin-top: 0.5rem;">
+                        <span style="font-size: 1.5rem;">🔷</span>
+                        <h3 style="margin: 0; color: #6366f1; font-size: 1.25rem;">Beta Release</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Latest features and improvements. May contain bugs. For testing and early adopters.
+                    </p>
+                    <a id="download-beta" href="https://yads-security.com/releases/yads_v1.14.3_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #6366f1;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Download v1.14.3 Beta (.zip)
+                    </a>
+                    <div style="margin-top: 1rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all;">
+                        <strong style="color: #6366f1;">SHA256 Beta:</strong> 14a82ff0475eea5853dc78b01d0e8ba776d85c911b784cbe3897a8f3f1b94624
+                    </div>
+                </div>
+
             </div>
 
-            <div style="margin-top: 1.5rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #94a3b8; word-break: break-all;">
-                <strong style="color: #6366f1;">SHA256:</strong> 14a82ff0475eea5853dc78b01d0e8ba776d85c911b784cbe3897a8f3f1b94624
+            <div style="margin-top: 1.5rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1rem; border-radius: 0.5rem;">
+                <strong style="color: #fbbf24;">💡 Which version should I choose?</strong>
+                <p style="color: #94a3b8; margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                    <strong>Stable</strong> is recommended for production environments. <strong>Beta</strong> contains the latest features but may have undiscovered issues. We recommend testing Beta in a staging environment before deploying to production.
+                </p>
             </div>
         </div>
 
@@ -192,6 +236,103 @@ docker stack deploy -c docker-compose.swarm.yml yads
                 <li><strong>Resume</strong>: Accept new tasks again</li>
                 <li><strong>Drain</strong>: Gracefully shut down after completing all tasks</li>
             </ul>
+        </div>
+
+        <!-- ONE-CLICK UPDATES -->
+        <div class="glass-card support-section" id="updates" style="border-left: 4px solid #10b981;">
+            <h2 class="support-header">5. One-Click Updates</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                YADS includes an in-app update mechanism that pulls the latest Docker image and performs a graceful restart without manual intervention.
+            </p>
+
+            <h3>How It Works</h3>
+            <ol style="color: #94a3b8;">
+                <li><strong>Check for Updates</strong>: Go to <strong>Settings</strong> and click "Check for Updates"</li>
+                <li><strong>Review Changes</strong>: View the changelog to see what's new</li>
+                <li><strong>Start Update</strong>: Click "Start Update" to begin the process</li>
+            </ol>
+
+            <h3 style="margin-top: 2rem;">Update Process</h3>
+            <p>The update process is fully automated:</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">1️⃣</div>
+                    <strong style="color: #fff;">Pause Queue</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">Scan queue is paused</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">2️⃣</div>
+                    <strong style="color: #fff;">Drain Tasks</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">Active scans complete</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">3️⃣</div>
+                    <strong style="color: #fff;">Pull Image</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">Download new version</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">4️⃣</div>
+                    <strong style="color: #fff;">Restart</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">Graceful restart</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1rem; border-radius: 0.5rem;">
+                <strong style="color: #fbbf24;">⚠️ Important:</strong>
+                <span style="color: #94a3b8;"> Create a backup before updating. Updates can be cancelled during preparation/download phases, but not once restart begins.</span>
+            </div>
+
+            <h3 style="margin-top: 2rem;">Manual Update (Alternative)</h3>
+            <p>If you prefer to update manually or the in-app update fails:</p>
+            <div class="code-block">
+# Pull the latest image
+docker pull yads/yads:latest
+
+# Restart services
+docker compose up -d --force-recreate
+            </div>
+        </div>
+
+        <!-- SIEM INTEGRATION -->
+        <div class="glass-card support-section" id="siem" style="border-left: 4px solid #6366f1;">
+            <h2 class="support-header">6. SIEM Integration (Splunk)</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                YADS supports real-time forwarding of security audit events to Splunk for centralized monitoring and SIEM correlation. Events are aligned with the MITRE ATT&CK framework.
+            </p>
+
+            <h3>Configuration</h3>
+            <p>Add the following environment variables to your <code>docker-compose.yml</code>:</p>
+            <div class="code-block">
+environment:
+  - SPLUNK_HEC_URL=https://splunk.example.com:8088/services/collector
+  - SPLUNK_HEC_TOKEN=your-hec-token-here
+            </div>
+
+            <h3 style="margin-top: 2rem;">Event Types</h3>
+            <p>The following security events are forwarded to Splunk with MITRE ATT&CK technique IDs:</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <strong style="color: #10b981;">Login Events</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0; color: #94a3b8;">Success, Failure (T1078, T1110)</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <strong style="color: #f59e0b;">Password Changes</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0; color: #94a3b8;">User & Admin reset (T1098)</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <strong style="color: #ec4899;">MFA Events</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0; color: #94a3b8;">Enable, Disable, Reset (T1556)</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
+                    <strong style="color: #6366f1;">User Management</strong>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0; color: #94a3b8;">Create, Delete, Role Change (T1136)</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 1rem; border-radius: 0.5rem;">
+                <strong style="color: #818cf8;">💡 Tip:</strong>
+                <span style="color: #94a3b8;"> Create a Splunk dashboard using MITRE technique IDs to correlate YADS events with other security tools. Example search: <code>index=yads mitre_technique_id=T1110*</code></span>
+            </div>
         </div>
 
         <!-- USER GUIDE LINK -->

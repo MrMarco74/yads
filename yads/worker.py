@@ -15,6 +15,7 @@ from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
 from yads.core.base import sanitize_null_bytes
 from yads.core.worker_client import get_worker_client, initialize_worker_client, WorkerMode
+from yads.core.metrics import get_metrics
 
 # Configure Logging
 logger = configure_logging("yads-worker")
@@ -489,6 +490,14 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     },
                     tenant_id=parent_tenant_id
                 )
+
+                # Prometheus Metrics: Scan Start
+                prom_metrics = get_metrics()
+                prom_metrics.record_scan_started(
+                    tenant_id=parent_tenant_id,
+                    scan_types=scan_types
+                )
+                scan_start_time = datetime.utcnow()
             except Exception as e:
                 logger.error(f"[Worker] Failed to update start status: {e}")
                 session.rollback()
@@ -509,6 +518,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             # 1. Run Subdomain Scanner (Heavy)
             # Replaces old "dns_scanner" logic for full enumeration
             if "subdomain_scanner" in scan_types:
+                module_start = datetime.utcnow()
                 try:
                     t = session.get(Target, target_id)
                     if t:
@@ -521,12 +531,12 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     use_ct = "ssl_scanner" in scan_types
                     sub_scan = SubdomainScanner(db_session=session, use_ct_logs=use_ct)
                     logger.info(f"[Worker] Running {sub_scan.module_name} (CRT.sh: {use_ct})...")
-                    
+
                     with LogCapture() as logs:
                         logger.info(f"Starting {sub_scan.module_name} for {domain}")
                         result = sub_scan.process(target_id, domain)
                         captured_logs = logs.get_logs()
-                    
+
                     if result:
                         print(f"[Worker] {sub_scan.module_name} found changes/new data.")
                         if isinstance(result, object) and hasattr(result, 'log_content'):
@@ -535,12 +545,28 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                              session.commit()
                     else:
                          print(f"[Worker] {sub_scan.module_name} no change.")
+
+                    # Prometheus Metrics: Module Completed
+                    module_duration = (datetime.utcnow() - module_start).total_seconds()
+                    get_metrics().record_scan_completed(
+                        tenant_id=parent_tenant_id,
+                        module_name="subdomain_scanner",
+                        duration_seconds=module_duration,
+                        status="success"
+                    )
                 except Exception as e:
                     logger.error(f"[Worker] Error in Subdomain Scanner: {e}")
                     session.rollback()
+                    # Prometheus Metrics: Module Error
+                    get_metrics().record_scan_error(
+                        tenant_id=parent_tenant_id if 'parent_tenant_id' in locals() else None,
+                        module_name="subdomain_scanner",
+                        error_type=type(e).__name__
+                    )
 
             # 1b. Run DNS Record Scanner (Light)
             if "dns_scanner" in scan_types:
+                module_start = datetime.utcnow()
                 try:
                     t = session.get(Target, target_id)
                     if t:
@@ -551,19 +577,33 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     from yads.modules.dns_scanner import DNSRecordScanner
                     dns_scan = DNSRecordScanner(db_session=session)
                     logger.info(f"[Worker] Running {dns_scan.module_name}...")
-                    
+
                     with LogCapture() as logs:
                         logger.info(f"Starting {dns_scan.module_name} for {domain}")
                         result = dns_scan.process(target_id, domain)
                         captured_logs = logs.get_logs()
-                    
+
                     if result and hasattr(result, 'log_content'):
                          result.log_content = sanitize_null_bytes(captured_logs)
                          session.add(result)
                          session.commit()
+
+                    # Prometheus Metrics: Module Completed
+                    module_duration = (datetime.utcnow() - module_start).total_seconds()
+                    get_metrics().record_scan_completed(
+                        tenant_id=parent_tenant_id,
+                        module_name="dns_scanner",
+                        duration_seconds=module_duration,
+                        status="success"
+                    )
                 except Exception as e:
                     logger.error(f"[Worker] Error in DNS Record Scanner: {e}")
                     session.rollback()
+                    get_metrics().record_scan_error(
+                        tenant_id=parent_tenant_id if 'parent_tenant_id' in locals() else None,
+                        module_name="dns_scanner",
+                        error_type=type(e).__name__
+                    )
 
             # 1c. Run DNS Cleanup Scanner (Archive dead targets)
             if "dns_cleanup" in scan_types:
@@ -602,6 +642,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 if not (has_http or has_https):
                     logger.info("[Worker] Skipping Web Analyzer: Port 80/443 closed (Optimization).")
                 else:
+                    module_start = datetime.utcnow()
                     try:
                         t = session.get(Target, target_id)
                         if t:
@@ -616,7 +657,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             logger.info(f"Starting {web.module_name} for {domain}")
                             result = web.process(target_id, domain)
                             captured_logs = logs.get_logs()
-                        
+
                         if result and hasattr(result, 'log_content'):
                             result.log_content = sanitize_null_bytes(captured_logs)
                             session.add(result)
@@ -624,9 +665,23 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             print(f"[Worker] {web.module_name} found changes/new data.")
                         else:
                             print(f"[Worker] {web.module_name} no change.")
+
+                        # Prometheus Metrics: Module Completed
+                        module_duration = (datetime.utcnow() - module_start).total_seconds()
+                        get_metrics().record_scan_completed(
+                            tenant_id=parent_tenant_id,
+                            module_name="web_analyzer",
+                            duration_seconds=module_duration,
+                            status="success"
+                        )
                     except Exception as e:
                         logger.error(f"[Worker] Error in Web Analyzer: {e}")
                         session.rollback()
+                        get_metrics().record_scan_error(
+                            tenant_id=parent_tenant_id if 'parent_tenant_id' in locals() else None,
+                            module_name="web_analyzer",
+                            error_type=type(e).__name__
+                        )
 
             # 2b. Run Nuclei Vulnerability Scanner (Active)
             # (New in v1.5.0)
@@ -1115,6 +1170,156 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Form Discovery Scanner: {e}")
                     session.rollback()
 
+            # 14. Run Brand Intelligence Scanner (OSINT)
+            if "brand_intelligence" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Brand Intelligence..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.brand_intelligence import BrandIntelligenceScanner
+                    bi_scan = BrandIntelligenceScanner(db_session=session)
+                    logger.info(f"[Worker] Step 14: Running {bi_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {bi_scan.module_name} for {domain}")
+                        result = bi_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {bi_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {bi_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Brand Intelligence Scanner: {e}")
+                    session.rollback()
+
+            # 15. Run Email Intelligence Scanner (OSINT)
+            if "email_intelligence" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Email Intelligence..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.email_intelligence import EmailIntelligenceScanner
+                    ei_scan = EmailIntelligenceScanner(db_session=session)
+                    logger.info(f"[Worker] Step 15: Running {ei_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ei_scan.module_name} for {domain}")
+                        result = ei_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {ei_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {ei_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Email Intelligence Scanner: {e}")
+                    session.rollback()
+
+            # 16. Run Social Media Scanner (OSINT)
+            if "social_media_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Social Media Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.social_media_scanner import SocialMediaScanner
+                    sm_scan = SocialMediaScanner(db_session=session)
+                    logger.info(f"[Worker] Step 16: Running {sm_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {sm_scan.module_name} for {domain}")
+                        result = sm_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {sm_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {sm_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Social Media Scanner: {e}")
+                    session.rollback()
+
+            # 17. Run Deception Technology Detector
+            if "deception_detector" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Deception Detector..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.deception_detector import DeceptionDetector
+                    dd_scan = DeceptionDetector(timeout=30)
+                    logger.info(f"[Worker] Step 17: Running {dd_scan.module_name}...")
+
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {dd_scan.module_name} for {domain}")
+
+                        # Get open ports from port_scanner if available for better coverage
+                        ports_to_check = [22, 23, 21, 25, 80, 443, 8080]
+                        try:
+                            port_result = session.exec(select(ScanResult).where(
+                                ScanResult.target_id == target_id,
+                                ScanResult.module_name == "port_scanner"
+                            ).order_by(ScanResult.scanned_at.desc())).first()
+
+                            if port_result and port_result.data and "open_ports" in port_result.data:
+                                ports_to_check = [p["port"] for p in port_result.data["open_ports"]]
+                                logger.info(f"Using discovered open ports: {ports_to_check}")
+                        except Exception:
+                            pass
+
+                        scan_data = dd_scan.run_scan(domain, ports=ports_to_check)
+                        captured_logs = logs.get_logs()
+
+                    # Save result using standard pattern
+                    if scan_data:
+                        import hashlib
+                        import json
+
+                        scan_data = sanitize_null_bytes(scan_data)
+                        data_hash = hashlib.sha256(json.dumps(scan_data, sort_keys=True).encode()).hexdigest()
+
+                        result = ScanResult(
+                            target_id=target_id,
+                            module_name=dd_scan.module_name,
+                            data=scan_data,
+                            data_hash=data_hash,
+                            log_content=sanitize_null_bytes(captured_logs)
+                        )
+                        session.add(result)
+                        session.commit()
+
+                        # Log summary
+                        summary = scan_data.get("summary", {})
+                        logger.info(f"[Worker] {dd_scan.module_name} finished: "
+                                   f"{summary.get('total_detections', 0)} detections, "
+                                   f"risk: {summary.get('overall_risk', 'none')}")
+                    else:
+                        print(f"[Worker] {dd_scan.module_name} finished (no data).")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Deception Detector: {e}")
+                    session.rollback()
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             
@@ -1129,8 +1334,6 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
             try:
                  # Check for Subdomain Scanner results first
-                 from yads.models import ScanResult
-                 
                  # Prioritize 'subdomain_scanner' if present
                  sub_res = session.exec(select(ScanResult).where(
                      ScanResult.target_id == target_id,
@@ -1280,6 +1483,13 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 "status": "completed",
                 "modules": scan_types
             })
+
+            # Prometheus Metrics: Scan Finished
+            try:
+                prom_metrics = get_metrics()
+                prom_metrics.record_scan_finished(tenant_id=parent_tenant_id)
+            except Exception as e:
+                logger.debug(f"[Worker] Failed to record scan_finished metric: {e}")
 
         logger.info(f"[Worker] Finished scan for {domain}")
 
