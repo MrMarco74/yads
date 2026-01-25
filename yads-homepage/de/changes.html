@@ -60,7 +60,28 @@
             margin-bottom: 0.5rem;
             border: 1px solid rgba(99, 102, 241, 0.2);
         }
-        
+
+        .channel-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            text-transform: uppercase;
+            vertical-align: middle;
+        }
+        .channel-badge.stable {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .channel-badge.beta {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.4);
+        }
+
         .change-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -111,6 +132,7 @@
                 <a href="support.html">Installation</a>
                 <a href="docs.html">Dokumentation</a>
                 <a href="changes.html" class="active">Änderungen</a>
+                <a href="bom.html">BOM</a>
                 <a href="roadmap.html">Roadmap</a>
                 <a href="story.html">Entstehung</a>
                 <a href="contact.html">Kontakt</a>
@@ -130,6 +152,75 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.16.0 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.16.0</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Prometheus/Grafana Metriken-Export</h2>
+
+                <h3>📊 Native Prometheus-Metriken</h3>
+                <ul>
+                    <li>Neuer <code>/metrics</code>-Endpunkt für Prometheus-Scraping</li>
+                    <li>Scan-Metriken: Gesamtzahl der Scans, Dauer-Histogramme, Fehlerraten nach Modul</li>
+                    <li>HTTP-Metriken: Anfragenzähler und Latenz-Histogramme</li>
+                    <li>Sicherheitsereignis-Metriken: Authentifizierungs- und Audit-Ereignisse</li>
+                    <li>System-Metriken: Aktive Scans, Queue-Tiefe, Worker-Status, Lizenzstatus</li>
+                </ul>
+
+                <h3>🎛️ Flexible Konfiguration</h3>
+                <ul>
+                    <li><strong>Authentifizierungsmodi:</strong> Keine (intern), Token (Bearer) oder Benutzer (Sitzungsbasiert)</li>
+                    <li><strong>Mandanten-Labels:</strong> Optionale Multi-Tenant-Metrik-Labels</li>
+                    <li><strong>Polling-Intervall:</strong> Konfigurierbares Datenbank-Metrik-Sammeln</li>
+                </ul>
+
+                <h3>📈 Vorgefertigtes Grafana-Dashboard</h3>
+                <ul>
+                    <li>Fertiges Dashboard mit Worker-Auslastung, Scan-Raten, HTTP-Latenz</li>
+                    <li>Sicherheitsereignis-Monitoring und Fehlerverfolgungs-Panels</li>
+                    <li>Target- und Worker-Status-Übersicht</li>
+                </ul>
+
+                <h3>🐳 Docker Monitoring Stack</h3>
+                <ul>
+                    <li>Neues <code>docker-compose.monitoring.yml</code> Overlay</li>
+                    <li>Enthält Prometheus und Grafana mit automatisch provisionierten Datenquellen</li>
+                    <li>Ein-Befehl-Deployment: <code>docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d</code></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Version 1.15.0 -->
+        <div class="change-entry">
+            <span class="version-badge">v1.15.0</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Release 1.15.0</h2>
+
+                <h3>🔒 Sicherheits-Audit-Logging (MITRE ATT&CK)</h3>
+                <ul>
+                    <li>Umfassendes Sicherheits-Event-Logging nach MITRE ATT&CK Framework</li>
+                    <li>Erfasst Login/Logout-Ereignisse, Passwortänderungen, MFA-Events, Benutzerverwaltung</li>
+                    <li>Protokolliert Quell-IP, User-Agent, Mandantenkontext für alle Ereignisse</li>
+                    <li>MITRE Taktik- und Technik-IDs für jeden Ereignistyp</li>
+                    <li>Datenbankpersistenz mit indizierten Feldern für schnelle Abfragen</li>
+                </ul>
+
+                <h3>🔌 SIEM-Integration</h3>
+                <ul>
+                    <li>Echtzeit-Weiterleitung an Splunk via HTTP Event Collector (HEC)</li>
+                    <li>Konfigurierbar über SPLUNK_HEC_URL und SPLUNK_HEC_TOKEN Umgebungsvariablen</li>
+                    <li>Ereignisse mit MITRE-Technik-IDs für SOC-Korrelation angereichert</li>
+                </ul>
+
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Neues SecurityAuditLog Datenbankmodell mit optimierten Indizes</li>
+                    <li>Sicherheits-Audit-Modul mit Hilfsfunktionen für häufige Ereignisse</li>
+                    <li>Dual-Logging in Datenbank und Splunk für Redundanz</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.14.3 -->
         <div class="change-entry">
             <span class="version-badge">v1.14.3</span>

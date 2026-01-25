@@ -152,7 +152,8 @@ class ReleaseOrchestrator:
         skip_commit: bool = False,
         use_editor: bool = False,
         interactive: bool = True,
-        target_version: str = None
+        target_version: str = None,
+        channel: str = 'stable'
     ) -> bool:
         """
         Execute full release process.
@@ -164,6 +165,7 @@ class ReleaseOrchestrator:
             skip_commit: If True, skip git commit
             use_editor: If True, use editor for changelog
             target_version: If provided, use this version instead of bumping
+            channel: Release channel ('stable' or 'beta')
 
         Returns:
             True if successful
@@ -186,18 +188,22 @@ class ReleaseOrchestrator:
             config_file = self.project_root / "yads" / "config.py"
             current_version = extract_version_from_file(str(config_file))
 
+            # Display channel prominently
+            channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
+            print(f"\nRelease Channel: {channel_display}")
+
             if target_version:
                 # Use manually specified version
                 new_version_str = target_version
                 new_version = SemanticVersion(new_version_str)
-                print(f"\nCurrent version: {current_version}")
+                print(f"Current version: {current_version}")
                 print(f"New version:     {new_version}")
                 print(f"Mode:            MANUAL OVERRIDE\n")
             else:
                 # Auto-bump version
                 new_version_str = current_version.bump(bump_type)
                 new_version = SemanticVersion(new_version_str)
-                print(f"\nCurrent version: {current_version}")
+                print(f"Current version: {current_version}")
                 print(f"New version:     {new_version}")
                 print(f"Bump type:       {bump_type.upper()}\n")
 
@@ -266,10 +272,10 @@ class ReleaseOrchestrator:
             # We use a placeholder for SHA256 if we don't know it yet
             checksum_placeholder = "[SHA256_HASH_TBD]"
             
-            python_code_en = self.changelog_manager.generate_python_code(changelog_en, 'en', checksum=checksum_placeholder)
+            python_code_en = self.changelog_manager.generate_python_code(changelog_en, 'en', checksum=checksum_placeholder, channel=channel)
             notification_code = self.changelog_manager.generate_notification_code(changelog_en, 'en')
-            html_en = self.changelog_manager.generate_html(changelog_en, checksum=checksum_placeholder)
-            html_de = self.changelog_manager.generate_html(changelog_de, checksum=checksum_placeholder)
+            html_en = self.changelog_manager.generate_html(changelog_en, checksum=checksum_placeholder, channel=channel)
+            html_de = self.changelog_manager.generate_html(changelog_de, checksum=checksum_placeholder, channel=channel)
 
             if dry_run:
                 print("--- Python Code (seeding.py) ---")
@@ -305,14 +311,19 @@ class ReleaseOrchestrator:
             print("="*60 + "\n")
 
             package_script = self.project_root / "tools" / "package_release.sh"
-            print(f"Executing: {package_script}\n")
+            print(f"Executing: {package_script} (channel: {channel})\n")
+
+            # Pass channel as environment variable to packaging script
+            env = os.environ.copy()
+            env['RELEASE_CHANNEL'] = channel
 
             result = subprocess.run(
                 [str(package_script)],
                 cwd=self.project_root,
                 check=False,
                 capture_output=True,
-                text=True
+                text=True,
+                env=env
             )
 
             # Re-emit output to our log redirector
@@ -350,7 +361,7 @@ class ReleaseOrchestrator:
                 print("="*60)
 
                 try:
-                    success = self.uploader.upload_release(new_version_str, dry_run=False)
+                    success = self.uploader.upload_release(new_version_str, channel=channel, dry_run=False)
                     if not success:
                         print("\n❌ Upload failed!")
                         self.file_updater.rollback()
@@ -370,7 +381,7 @@ class ReleaseOrchestrator:
                 print("  STEP 8: Git Commit & Tag")
                 print("="*60 + "\n")
 
-                if not self._git_commit_and_tag(new_version_str, changelog_en['title'], interactive=interactive):
+                if not self._git_commit_and_tag(new_version_str, changelog_en['title'], channel=channel, interactive=interactive):
                     print("\n❌ Git operations failed!")
                     return False
             else:
@@ -400,41 +411,45 @@ class ReleaseOrchestrator:
                 self.file_updater.rollback()
             raise
 
-    def retry_upload(self, version: str, dry_run: bool = False) -> bool:
+    def retry_upload(self, version: str, channel: str = 'stable', dry_run: bool = False) -> bool:
         """
         Retry upload for an existing release.
 
         Args:
             version: Version string to upload
+            channel: Release channel ('stable' or 'beta')
             dry_run: If True, only show what would be uploaded
 
         Returns:
             True if successful
         """
+        channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
         if dry_run:
-            print(f"\n🔍 DRY RUN: Showing upload plan for version {version}...\n")
+            print(f"\n🔍 DRY RUN: Showing upload plan for version {version} ({channel_display})...\n")
         else:
-            print(f"\n📤 Retrying upload for version {version}...\n")
+            print(f"\n📤 Retrying upload for version {version} ({channel_display})...\n")
 
         # Only load config if not already loaded (preserves GUI overrides)
         if not hasattr(self, 'config') or self.config is None:
             self.load_config()
 
         try:
-            return self.uploader.upload_release(version, dry_run=dry_run)
+            return self.uploader.upload_release(version, channel=channel, dry_run=dry_run)
         except Exception as e:
             print(f"\n❌ Upload failed: {e}\n")
             return False
 
-    def _git_commit_and_tag(self, version: str, title: str, interactive: bool = True) -> bool:
+    def _git_commit_and_tag(self, version: str, title: str, channel: str = 'stable', interactive: bool = True) -> bool:
         """
         Create git commit and tag.
 
         Args:
             version: Version string
             title: Release title
+            channel: Release channel ('stable' or 'beta')
         """
-        commit_message = f"Release v{version}: {title}"
+        channel_suffix = " (Beta)" if channel == 'beta' else ""
+        commit_message = f"Release v{version}{channel_suffix}: {title}"
 
         # Subprocess calls
         try:
@@ -454,10 +469,11 @@ class ReleaseOrchestrator:
 
             print(f"  ✅ Committed: {commit_message}")
 
-            # Create tag
-            tag_name = f"v{version}"
+            # Create tag (add -beta suffix for beta releases)
+            tag_name = f"v{version}-beta" if channel == 'beta' else f"v{version}"
+            tag_message = f"Release {version} (Beta)" if channel == 'beta' else f"Release {version}"
             subprocess.run(
-                ['git', 'tag', '-a', tag_name, '-m', f"Release {version}"],
+                ['git', 'tag', '-a', tag_name, '-m', tag_message],
                 cwd=self.project_root,
                 check=True
             )
@@ -502,8 +518,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Full release with patch bump
+  # Full stable release with patch bump
   ./tools/release.py release --bump patch
+
+  # Beta release with minor bump
+  ./tools/release.py release --bump minor --channel beta
 
   # Preview major version release
   ./tools/release.py release --bump major --dry-run
@@ -511,8 +530,11 @@ Examples:
   # Release without upload
   ./tools/release.py release --bump minor --no-upload
 
-  # Retry upload for existing release
+  # Retry upload for existing stable release
   ./tools/release.py upload --version 1.13.4
+
+  # Retry upload for beta release
+  ./tools/release.py upload --version 1.14.0 --channel beta
 
   # Initialize configuration
   ./tools/release.py init-config
@@ -550,6 +572,12 @@ Examples:
         help='Use editor for changelog (instead of interactive)'
     )
     release_parser.add_argument(
+        '--channel',
+        choices=['stable', 'beta'],
+        default='stable',
+        help='Release channel: stable (default) or beta'
+    )
+    release_parser.add_argument(
         '--config',
         help='Path to config file (default: ~/.yads/release.yaml)'
     )
@@ -560,6 +588,12 @@ Examples:
         '--version',
         required=True,
         help='Version to upload (e.g., 1.13.4)'
+    )
+    upload_parser.add_argument(
+        '--channel',
+        choices=['stable', 'beta'],
+        default='stable',
+        help='Release channel: stable (default) or beta'
     )
     upload_parser.add_argument(
         '--config',
@@ -623,7 +657,8 @@ Examples:
             skip_upload=args.no_upload,
             skip_commit=args.no_commit,
             use_editor=args.editor,
-            interactive=True
+            interactive=True,
+            channel=args.channel
         )
 
         sys.exit(0 if success else 1)
@@ -640,7 +675,7 @@ Examples:
             print(f"\n❌ Configuration error: {e}")
             sys.exit(1)
 
-        success = orchestrator.retry_upload(args.version)
+        success = orchestrator.retry_upload(args.version, channel=args.channel)
         sys.exit(0 if success else 1)
 
 

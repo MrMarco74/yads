@@ -41,12 +41,13 @@ class ReleaseUploader:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    def upload_release(self, version: str, dry_run: bool = False) -> bool:
+    def upload_release(self, version: str, channel: str = 'stable', dry_run: bool = False) -> bool:
         """
         Upload release files with fallback.
 
         Args:
             version: Version string (e.g., "1.13.4")
+            channel: Release channel ('stable' or 'beta')
             dry_run: If True, only show what would be uploaded
 
         Returns:
@@ -55,7 +56,11 @@ class ReleaseUploader:
         Raises:
             Exception: If all upload methods fail
         """
-        files_to_upload = self._get_upload_files(version)
+        files_to_upload = self._get_upload_files(version, channel)
+
+        # Display channel info
+        channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
+        print(f"\n📦 Release Channel: {channel_display}\n")
 
         # Verify all files exist
         missing_files = []
@@ -154,17 +159,23 @@ class ReleaseUploader:
             else:
                 raise
 
-    def _get_upload_files(self, version: str) -> List[Tuple[str, str]]:
+    def _get_upload_files(self, version: str, channel: str = 'stable') -> List[Tuple[str, str]]:
         """
         Get list of files to upload.
 
         Args:
             version: Version string
+            channel: Release channel ('stable' or 'beta')
 
         Returns:
             List of (local_path, remote_path) tuples
         """
         paths = self.config.get('upload', {}).get('paths', {})
+
+        # Determine version metadata file based on channel
+        # stable -> version.json (backwards compatible)
+        # beta -> version-beta.json
+        version_json_file = 'releases/version-beta.json' if channel == 'beta' else 'releases/version.json'
 
         files = [
             # Release package
@@ -172,9 +183,27 @@ class ReleaseUploader:
                 f'releases/yads_v{version}_customer_pkg.zip',
                 paths.get('releases', '/en/releases/')
             ),
-            # Version metadata
+            # Version metadata (channel-specific)
             (
-                'releases/version.json',
+                version_json_file,
+                paths.get('releases', '/en/releases/')
+            ),
+            # Software Bill of Materials (SBOM)
+            (
+                'releases/sbom.json',
+                paths.get('releases', '/en/releases/')
+            ),
+            (
+                'releases/sbom.xml',
+                paths.get('releases', '/en/releases/')
+            ),
+            # Cryptography Bill of Materials (CBOM)
+            (
+                'releases/cbom.json',
+                paths.get('releases', '/en/releases/')
+            ),
+            (
+                'releases/cbom.xml',
                 paths.get('releases', '/en/releases/')
             ),
 
@@ -191,6 +220,10 @@ class ReleaseUploader:
                 'yads-homepage/en/docs.html',
                 paths.get('homepage_en', '/en/')
             ),
+            (
+                'yads-homepage/en/bom.html',
+                paths.get('homepage_en', '/en/')
+            ),
 
             # Homepage files (DE)
             (
@@ -203,6 +236,10 @@ class ReleaseUploader:
             ),
             (
                 'yads-homepage/de/docs.html',
+                paths.get('homepage_de', '/de/')
+            ),
+            (
+                'yads-homepage/de/bom.html',
                 paths.get('homepage_de', '/de/')
             ),
         ]

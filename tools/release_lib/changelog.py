@@ -490,7 +490,7 @@ sections:
 
         return self.changelog_data
 
-    def generate_python_code(self, changelog_data: Dict, language: str = 'en', checksum: Optional[str] = None) -> str:
+    def generate_python_code(self, changelog_data: Dict, language: str = 'en', checksum: Optional[str] = None, channel: str = 'stable') -> str:
         """
         Generate Python code for seeding.py ChangelogEntry.
 
@@ -498,6 +498,7 @@ sections:
             changelog_data: Changelog data dictionary
             language: 'en' or 'de'
             checksum: Optional SHA256 checksum
+            channel: Release channel ('stable' or 'beta')
 
         Returns:
             Python code string
@@ -506,8 +507,17 @@ sections:
         version_var = version.replace('.', '')  # 1.13.4 -> 1134
         title = changelog_data['title']
 
-        # Generate HTML content
+        # Add channel indicator to title
+        channel_suffix = " (Beta)" if channel == 'beta' else ""
+        title_with_channel = f"{title}{channel_suffix}"
+
+        # Generate HTML content with channel badge
         html_parts = []
+        if channel == 'beta':
+            html_parts.append('        <span style=\\\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\\\">Beta Release</span>')
+        else:
+            html_parts.append('        <span style=\\\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\\\">Stable Release</span>')
+
         for section in changelog_data['sections']:
             section_name = section['name']
             items = section['items']
@@ -525,8 +535,8 @@ sections:
 
         html_content = '\n'.join(html_parts)
 
-        # Escape title for Python string
-        title_escaped = title.replace('"', '\\"')
+        # Escape title for Python string (include channel suffix)
+        title_escaped = title_with_channel.replace('"', '\\"')
 
         code = f'''if not session.query(ChangelogEntry).where(ChangelogEntry.version == "{version}").first():
     entry_{version_var} = ChangelogEntry(
@@ -588,13 +598,14 @@ sections:
 
         return code
 
-    def generate_html(self, changelog_data: Dict, checksum: Optional[str] = None) -> str:
+    def generate_html(self, changelog_data: Dict, checksum: Optional[str] = None, channel: str = 'stable') -> str:
         """
         Generate HTML for changes.html.
 
         Args:
             changelog_data: Changelog data dictionary
             checksum: Optional SHA256 checksum
+            channel: Release channel ('stable' or 'beta')
 
         Returns:
             HTML string
@@ -602,10 +613,16 @@ sections:
         version = changelog_data['version']
         title = changelog_data['title']
 
+        # Generate channel badge with appropriate styling
+        if channel == 'beta':
+            channel_badge = '<span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>'
+        else:
+            channel_badge = '<span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>'
+
         html_parts = [
-            f'        <!-- Version {version} -->',
+            f'        <!-- Version {version} ({channel}) -->',
             '        <div class="change-entry">',
-            f'            <span class="version-badge">v{version}</span>',
+            f'            <span class="version-badge">v{version}</span>{channel_badge}',
             '            <div class="change-card">',
             f'                <h2 style="margin-bottom: 1rem; color: #fff;">{title}</h2>',
             ''

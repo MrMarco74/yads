@@ -174,6 +174,7 @@
                 <a href="support.html">Setup</a>
                 <a href="docs.html">Documentation</a>
                 <a href="changes.html">Changes</a>
+                <a href="bom.html">BOM</a>
                 <a href="roadmap.html" class="active">Roadmap</a>
                 <a href="story.html">Origin Story</a>
                 <a href="contact.html">Contact</a>
@@ -209,16 +210,16 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Enhanced OSINT & Brand Intelligence</td>
-                                <td>Improved brand monitoring with deeper web searches, lookalike detection, and reputation tracking across multiple data sources.</td>
+                                <td>Enhanced OSINT & Brand Intelligence <span class="status-badge available">Available</span></td>
+                                <td>Improved brand monitoring with deeper web searches, lookalike domain detection (homoglyphs, bitsquatting, combosquatting), PhishTank/URLhaus integration, and reputation scoring across multiple data sources.</td>
                             </tr>
                             <tr>
-                                <td>Email Intelligence Gatherer</td>
-                                <td>Discover email addresses associated with target domains through breach databases, public sources, and pattern analysis.</td>
+                                <td>Email Intelligence Gatherer <span class="status-badge available">Available</span></td>
+                                <td>Discover email addresses via Hunter.io API, GitHub commit extraction, website scraping, and pattern analysis. Includes HIBP breach checking and email pattern detection.</td>
                             </tr>
                             <tr>
-                                <td>Social Media Reconnaissance</td>
-                                <td>Automated discovery of corporate social media accounts, employee profiles, and brand mentions across major platforms.</td>
+                                <td>Social Media Reconnaissance <span class="status-badge available">Available</span></td>
+                                <td>GitHub organization/repo discovery with secrets detection, Twitter/X API integration, YouTube channel discovery, and URL existence checking for LinkedIn/Facebook/Instagram.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -229,11 +230,11 @@
             <div class="roadmap-section">
                 <div class="section-header">
                     <span class="section-icon">🛡️</span>
-                    <h2 class="section-title">Deception Technology Detection</h2>
+                    <h2 class="section-title">Deception Technology Detection <span class="status-badge available">Available</span></h2>
                 </div>
                 <div class="roadmap-card">
                     <p class="section-intro">
-                        A new detection module that identifies defensive deception infrastructure with confidence scoring. Each detection includes a <strong>confidence score</strong> and <strong>risk rating</strong> to help assess the target environment.
+                        A new detection module that identifies defensive deception infrastructure with confidence scoring (0-100) and risk ratings (low/medium/high/critical). Helps assess whether a target environment includes honeypots, sinkholes, or other deception technologies.
                     </p>
                     <table class="feature-table">
                         <thead>
@@ -244,16 +245,16 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Honeypot Detection</td>
-                                <td>Identify web and service-level honeypots through behavioral analysis and fingerprinting techniques.</td>
+                                <td>Honeypot Detection <span class="status-badge available">Available</span></td>
+                                <td>Identify web honeypots (Glastopf, SNARE, Cowrie), SSH honeypots (Cowrie, Kippo), and service honeypots (Dionaea, Mailoney) through behavioral analysis, banner fingerprinting, and response pattern matching.</td>
                             </tr>
                             <tr>
-                                <td>DNS Sinkhole Identification</td>
-                                <td>Detect domains redirected to sinkhole infrastructure, commonly used by security teams and ISPs.</td>
+                                <td>DNS Sinkhole Identification <span class="status-badge available">Available</span></td>
+                                <td>Detect domains redirected to sinkhole infrastructure using a database of known sinkhole IPs (Spamhaus, Microsoft DCU, Shadowserver), ASN matching, and landing page analysis.</td>
                             </tr>
                             <tr>
-                                <td>Tarpit Recognition</td>
-                                <td>Identify network tarpits designed to slow down attackers and automated scanning tools.</td>
+                                <td>Tarpit Recognition <span class="status-badge available">Available</span></td>
+                                <td>Identify HTTP, SMTP, and TCP tarpits through timing analysis, detecting slow responses, trickling data, and deliberate connection delays designed to slow down scanners.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -280,32 +281,40 @@
                                 <td>Configure HTTP/HTTPS proxy settings for all scanner modules (except Nmap). Essential for enterprise environments using security gateways like Zscaler, Netskope, or corporate proxies.</td>
                             </tr>
                             <tr>
-                                <td>Custom TLS Certificates</td>
-                                <td>Support for custom CA certificates and client certificates for scanning internal infrastructure behind corporate PKI.</td>
+                                <td>Custom TLS Certificates <span class="status-badge available">Available</span></td>
+                                <td>Support for custom CA certificates and client certificates (mTLS) for scanning internal infrastructure behind corporate PKI. Includes HTTPS-only mode with environment variable override for emergency fallback.</td>
                             </tr>
                             <tr>
-                                <td>One-Click Updates</td>
-                                <td>In-app update mechanism that pulls the latest Docker image and performs a graceful restart without manual intervention.</td>
+                                <td>One-Click Updates <span class="status-badge available">Available</span></td>
+                                <td>In-app update mechanism that pulls the latest Docker image and performs a graceful restart without manual intervention. Includes automatic queue pause, task drain, and zero-downtime updates.</td>
                             </tr>
                             <tr>
-                                <td>Enhanced Logging & SIEM</td>
-                                <td>Structured logging with MITRE ATT&CK event tagging, improved Splunk integration, and syslog forwarding for comprehensive audit trails.</td>
+                                <td>Enhanced Logging & SIEM <span class="status-badge available">Available</span></td>
+                                <td>Structured logging with Splunk integration, unified log viewer with tenant filtering, real-time log streaming, and comprehensive audit trails for all scan activities.</td>
                             </tr>
                             <tr>
-                                <td>Tenant-Aware Workers</td>
-                                <td>Assign dedicated worker nodes to specific tenants or configure them as shared resources for flexible multi-tenant deployments.</td>
+                                <td>Security Audit Logging (MITRE ATT&CK) <span class="status-badge available">Available</span></td>
+                                <td>Comprehensive security event logging aligned with MITRE ATT&CK framework. Tracks login/logout events, password changes, MFA events, user management, role changes, and tenant switches. Includes IP address, user agent, and MITRE technique IDs for SIEM correlation.</td>
                             </tr>
                             <tr>
-                                <td>System Administration Dashboard</td>
-                                <td>Central view of all workers, active tasks, queue depth, and real-time resource metrics (CPU, RAM, Network).</td>
+                                <td>Tenant-Aware Workers <span class="status-badge available">Available</span></td>
+                                <td>Assign dedicated worker nodes to specific tenants with per-tenant resource quotas (concurrent scans, daily limits, network throughput). Full worker registration, heartbeat monitoring, and suspend/drain operations.</td>
                             </tr>
                             <tr>
-                                <td>Storage Analytics</td>
-                                <td>Monitor disk usage across screenshot folders and scan artifacts with cleanup recommendations.</td>
+                                <td>System Administration Dashboard <span class="status-badge available">Available</span></td>
+                                <td>Central view of all workers with real-time status, cluster statistics (active workers, capacity, utilization), task queue depth, and worker management (suspend, resume, drain, remove).</td>
                             </tr>
                             <tr>
-                                <td>Prometheus/Grafana Export</td>
+                                <td>Storage Analytics <span class="status-badge available">Available</span></td>
+                                <td>Monitor disk usage across screenshot folders, logs, backups, and scan artifacts. Includes cleanup recommendations and one-click actions to delete old files, compress logs, and prune backups.</td>
+                            </tr>
+                            <tr>
+                                <td>Prometheus/Grafana Export <span class="status-badge available">Available</span></td>
                                 <td>Native metrics endpoint for infrastructure monitoring, alerting integration, and performance dashboards.</td>
+                            </tr>
+                            <tr>
+                                <td>Software & Crypto BOM <span class="status-badge available">Available</span></td>
+                                <td>CycloneDX-format Software Bill of Materials (SBOM) and Cryptography Bill of Materials (CBOM) for supply chain security, NIS2/DORA compliance, and post-quantum readiness assessment.</td>
                             </tr>
                         </tbody>
                     </table>

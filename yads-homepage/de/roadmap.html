@@ -174,6 +174,7 @@
                 <a href="support.html">Installation</a>
                 <a href="docs.html">Dokumentation</a>
                 <a href="changes.html">Änderungen</a>
+                <a href="bom.html">BOM</a>
                 <a href="roadmap.html" class="active">Roadmap</a>
                 <a href="story.html">Entstehung</a>
                 <a href="contact.html">Kontakt</a>
@@ -209,16 +210,16 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Erweiterte OSINT & Brand Intelligence</td>
-                                <td>Verbessertes Markenmonitoring mit tiefgreifenden Web-Suchen, Lookalike-Erkennung und Reputations-Tracking über mehrere Datenquellen.</td>
+                                <td>Erweiterte OSINT & Brand Intelligence <span class="status-badge available">Verfügbar</span></td>
+                                <td>Verbessertes Markenmonitoring mit tiefgreifenden Web-Suchen, Lookalike-Domain-Erkennung (Homoglyphen, Bitsquatting, Combosquatting), PhishTank/URLhaus-Integration und Reputations-Scoring über mehrere Datenquellen.</td>
                             </tr>
                             <tr>
-                                <td>E-Mail Intelligence Gatherer</td>
-                                <td>Ermittlung von E-Mail-Adressen zu Zieldomains durch Breach-Datenbanken, öffentliche Quellen und Musteranalyse.</td>
+                                <td>E-Mail Intelligence Gatherer <span class="status-badge available">Verfügbar</span></td>
+                                <td>Ermittlung von E-Mail-Adressen über Hunter.io API, GitHub-Commit-Extraktion, Website-Scraping und Musteranalyse. Inklusive HIBP-Breach-Prüfung und E-Mail-Pattern-Erkennung.</td>
                             </tr>
                             <tr>
-                                <td>Social Media Reconnaissance</td>
-                                <td>Automatisierte Erkennung von Firmen-Accounts, Mitarbeiterprofilen und Markenerwähnungen auf allen großen Plattformen.</td>
+                                <td>Social Media Reconnaissance <span class="status-badge available">Verfügbar</span></td>
+                                <td>GitHub-Organisation/Repo-Erkennung mit Secrets-Detection, Twitter/X API-Integration, YouTube-Kanal-Erkennung und URL-Existenzprüfung für LinkedIn/Facebook/Instagram.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -229,11 +230,11 @@
             <div class="roadmap-section">
                 <div class="section-header">
                     <span class="section-icon">🛡️</span>
-                    <h2 class="section-title">Deception-Technologie-Erkennung</h2>
+                    <h2 class="section-title">Deception-Technologie-Erkennung <span class="status-badge available">Verfügbar</span></h2>
                 </div>
                 <div class="roadmap-card">
                     <p class="section-intro">
-                        Ein neues Erkennungsmodul zur Identifikation defensiver Täuschungsinfrastruktur mit Konfidenz-Bewertung. Jede Erkennung enthält einen <strong>Konfidenzwert</strong> und eine <strong>Risikobewertung</strong> zur Einschätzung der Zielumgebung.
+                        Ein neues Erkennungsmodul zur Identifikation defensiver Täuschungsinfrastruktur mit Konfidenz-Bewertung (0-100) und Risikostufen (niedrig/mittel/hoch/kritisch). Hilft bei der Einschätzung, ob eine Zielumgebung Honeypots, Sinkholes oder andere Täuschungstechnologien enthält.
                     </p>
                     <table class="feature-table">
                         <thead>
@@ -244,16 +245,16 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Honeypot-Erkennung</td>
-                                <td>Identifikation von Web- und Service-Honeypots durch Verhaltensanalyse und Fingerprinting-Techniken.</td>
+                                <td>Honeypot-Erkennung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Identifikation von Web-Honeypots (Glastopf, SNARE, Cowrie), SSH-Honeypots (Cowrie, Kippo) und Service-Honeypots (Dionaea, Mailoney) durch Verhaltensanalyse, Banner-Fingerprinting und Response-Pattern-Matching.</td>
                             </tr>
                             <tr>
-                                <td>DNS-Sinkhole-Erkennung</td>
-                                <td>Erkennung von Domains, die auf Sinkhole-Infrastruktur umgeleitet wurden, häufig genutzt von Security-Teams und ISPs.</td>
+                                <td>DNS-Sinkhole-Erkennung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Erkennung von Domains auf Sinkhole-Infrastruktur mittels Datenbank bekannter Sinkhole-IPs (Spamhaus, Microsoft DCU, Shadowserver), ASN-Matching und Landing-Page-Analyse.</td>
                             </tr>
                             <tr>
-                                <td>Tarpit-Erkennung</td>
-                                <td>Identifikation von Netzwerk-Tarpits, die darauf ausgelegt sind, Angreifer und automatisierte Scanning-Tools zu verlangsamen.</td>
+                                <td>Tarpit-Erkennung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Identifikation von HTTP-, SMTP- und TCP-Tarpits durch Timing-Analyse, Erkennung von langsamen Antworten, tröpfelnden Daten und absichtlichen Verbindungsverzögerungen.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -280,32 +281,40 @@
                                 <td>Konfigurierbare HTTP/HTTPS-Proxy-Einstellungen für alle Scanner-Module (außer Nmap). Unverzichtbar für Enterprise-Umgebungen mit Security-Gateways wie Zscaler, Netskope oder Firmen-Proxies.</td>
                             </tr>
                             <tr>
-                                <td>Eigene TLS-Zertifikate</td>
-                                <td>Unterstützung für eigene CA-Zertifikate und Client-Zertifikate zum Scannen interner Infrastruktur hinter der Firmen-PKI.</td>
+                                <td>Eigene TLS-Zertifikate <span class="status-badge available">Verfügbar</span></td>
+                                <td>Unterstützung für eigene CA-Zertifikate und Client-Zertifikate (mTLS) zum Scannen interner Infrastruktur hinter der Firmen-PKI. Inklusive HTTPS-Only-Modus mit Umgebungsvariablen-Override als Notfall-Fallback.</td>
                             </tr>
                             <tr>
-                                <td>One-Click Updates</td>
-                                <td>In-App Update-Mechanismus, der das neueste Docker-Image lädt und einen kontrollierten Neustart ohne manuellen Eingriff durchführt.</td>
+                                <td>One-Click Updates <span class="status-badge available">Verfügbar</span></td>
+                                <td>In-App Update-Mechanismus, der das neueste Docker-Image lädt und einen kontrollierten Neustart ohne manuellen Eingriff durchführt. Beinhaltet automatische Queue-Pause, Task-Drain und Zero-Downtime Updates.</td>
                             </tr>
                             <tr>
-                                <td>Erweitertes Logging & SIEM</td>
-                                <td>Strukturiertes Logging mit MITRE ATT&CK Event-Tagging, verbesserte Splunk-Integration und Syslog-Weiterleitung für umfassende Audit-Trails.</td>
+                                <td>Erweitertes Logging & SIEM <span class="status-badge available">Verfügbar</span></td>
+                                <td>Strukturiertes Logging mit Splunk-Integration, vereinheitlichter Log-Viewer mit Mandantenfilterung, Echtzeit-Log-Streaming und umfassende Audit-Trails für alle Scan-Aktivitäten.</td>
                             </tr>
                             <tr>
-                                <td>Mandanten-spezifische Worker</td>
-                                <td>Dedizierte Worker-Nodes für bestimmte Mandanten oder als gemeinsam genutzte Ressourcen für flexible Multi-Tenant-Deployments konfigurierbar.</td>
+                                <td>Sicherheits-Audit-Logging (MITRE ATT&CK) <span class="status-badge available">Verfügbar</span></td>
+                                <td>Umfassendes Sicherheits-Event-Logging nach MITRE ATT&CK Framework. Erfasst Login/Logout-Ereignisse, Passwortänderungen, MFA-Events, Benutzerverwaltung, Rollenänderungen und Mandantenwechsel. Inklusive IP-Adresse, User-Agent und MITRE-Technik-IDs für SIEM-Korrelation.</td>
                             </tr>
                             <tr>
-                                <td>System-Administrations-Dashboard</td>
-                                <td>Zentrale Übersicht aller Worker, aktiver Tasks, Queue-Tiefe und Echtzeit-Ressourcenmetriken (CPU, RAM, Netzwerk).</td>
+                                <td>Mandanten-spezifische Worker <span class="status-badge available">Verfügbar</span></td>
+                                <td>Dedizierte Worker-Nodes für bestimmte Mandanten mit mandantenspezifischen Ressourcen-Quotas (parallele Scans, Tageslimits, Netzwerk-Durchsatz). Vollständige Worker-Registrierung, Heartbeat-Monitoring und Suspend/Drain-Operationen.</td>
                             </tr>
                             <tr>
-                                <td>Speicher-Analyse</td>
-                                <td>Überwachung der Festplattennutzung für Screenshot-Ordner und Scan-Artefakte mit Bereinigungsempfehlungen.</td>
+                                <td>System-Administrations-Dashboard <span class="status-badge available">Verfügbar</span></td>
+                                <td>Zentrale Übersicht aller Worker mit Echtzeit-Status, Cluster-Statistiken (aktive Worker, Kapazität, Auslastung), Task-Queue-Tiefe und Worker-Management (Suspend, Resume, Drain, Remove).</td>
                             </tr>
                             <tr>
-                                <td>Prometheus/Grafana Export</td>
+                                <td>Speicher-Analyse <span class="status-badge available">Verfügbar</span></td>
+                                <td>Überwachung der Festplattennutzung für Screenshots, Logs, Backups und Scan-Artefakte. Inklusive Bereinigungsempfehlungen und One-Click-Aktionen zum Löschen alter Dateien, Komprimieren von Logs und Bereinigen von Backups.</td>
+                            </tr>
+                            <tr>
+                                <td>Prometheus/Grafana Export <span class="status-badge available">Verfügbar</span></td>
                                 <td>Nativer Metrics-Endpoint für Infrastruktur-Monitoring, Alerting-Integration und Performance-Dashboards.</td>
+                            </tr>
+                            <tr>
+                                <td>Software- & Krypto-BOM <span class="status-badge available">Verfügbar</span></td>
+                                <td>Software Bill of Materials (SBOM) und Cryptography Bill of Materials (CBOM) im CycloneDX-Format für Lieferketten-Sicherheit, NIS2/DORA-Compliance und Post-Quantum-Bereitschaftsbewertung.</td>
                             </tr>
                         </tbody>
                     </table>
