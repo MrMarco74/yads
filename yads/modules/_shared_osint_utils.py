@@ -94,8 +94,7 @@ class SecretPatterns:
         # NPM
         ("NPM Token", r"npm_[A-Za-z0-9]{36}", "high"),
 
-        # Heroku
-        ("Heroku API Key", r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "medium"),
+
     ]
 
     _compiled_patterns: List[tuple] = None
@@ -130,6 +129,14 @@ class SecretPatterns:
                 for match in pattern.finditer(line):
                     # Redact the actual secret value for storage
                     matched = match.group(0)
+                    
+                    # Context-based filtering for Heroku
+                    if name == "Heroku API Key":
+                        # Check text preceding the match in the line
+                        pre_context = line[max(0, match.start() - 30):match.start()]
+                        if re.search(r'(?i)(id|uuid|tag_id|vtp_instanceDestinationId|key)["\'\s]?\s*[:=]\s*["\'\s]?$', pre_context):
+                             continue
+
                     redacted = cls._redact_secret(matched)
 
                     findings.append(SecretMatch(
