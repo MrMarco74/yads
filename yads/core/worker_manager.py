@@ -693,6 +693,56 @@ class WorkerManager:
                 "utilization_percent": (total_running / total_capacity * 100) if total_capacity > 0 else 0
             }
 
+    def get_metrics_snapshot(self) -> Dict[str, Any]:
+        """
+        Get a snapshot of metrics for Prometheus collection.
+
+        Returns a dict optimized for metrics collection, including:
+        - Worker counts by status
+        - Queue depth
+        - Capacity and utilization
+        - Active scan count
+        """
+        with self._get_session() as session:
+            workers = session.exec(select(WorkerNode)).all()
+            tasks = session.exec(
+                select(WorkerTask).where(
+                    WorkerTask.status.in_(["queued", "assigned", "running"])
+                )
+            ).all()
+
+            # Count workers by status
+            workers_by_status = {
+                "online": 0,
+                "offline": 0,
+                "suspended": 0,
+                "draining": 0
+            }
+            for w in workers:
+                if w.is_active and w.status == "active":
+                    workers_by_status["online"] += 1
+                elif w.status == "offline":
+                    workers_by_status["offline"] += 1
+                elif w.status == "suspended":
+                    workers_by_status["suspended"] += 1
+                elif w.status == "draining":
+                    workers_by_status["draining"] += 1
+
+            active_workers = [w for w in workers if w.is_active and w.status == "active"]
+            total_capacity = sum(w.max_concurrent_tasks for w in active_workers)
+            total_running = sum(w.current_tasks or 0 for w in active_workers)
+
+            return {
+                "workers_by_status": workers_by_status,
+                "total_workers": len(workers),
+                "active_workers": len(active_workers),
+                "total_capacity": total_capacity,
+                "total_running_tasks": total_running,
+                "queued_tasks": len([t for t in tasks if t.status == "queued"]),
+                "running_tasks": len([t for t in tasks if t.status == "running"]),
+                "utilization_percent": (total_running / total_capacity * 100) if total_capacity > 0 else 0
+            }
+
     def get_worker_list(self) -> List[Dict[str, Any]]:
         """Get list of all workers with details."""
         with self._get_session() as session:

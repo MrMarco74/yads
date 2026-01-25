@@ -75,22 +75,30 @@ async def update_tenant_settings(
     google_cse_cx: Optional[str] = Form(None),
     nuclei_api_key: Optional[str] = Form(None),
     hibp_api_key: Optional[str] = Form(None),
+    hunter_api_key: Optional[str] = Form(None),
+    github_token: Optional[str] = Form(None),
+    twitter_bearer_token: Optional[str] = Form(None),
     session_timeout_minutes: Optional[int] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
 ):
     if not user.tenant_id:
         return RedirectResponse("/tenant-settings", status_code=303)
-        
+
     tenant = session.get(Tenant, user.tenant_id)
     if not tenant:
         return RedirectResponse("/", status_code=303)
-        
+
     # Update fields
     tenant.google_api_key = google_api_key if google_api_key and google_api_key.strip() else None
     tenant.google_cse_cx = google_cse_cx if google_cse_cx and google_cse_cx.strip() else None
     tenant.nuclei_api_key = nuclei_api_key if nuclei_api_key and nuclei_api_key.strip() else None
     tenant.hibp_api_key = hibp_api_key if hibp_api_key and hibp_api_key.strip() else None
+
+    # New OSINT API Keys (v1.15.0)
+    tenant.hunter_api_key = hunter_api_key if hunter_api_key and hunter_api_key.strip() else None
+    tenant.github_token = github_token if github_token and github_token.strip() else None
+    tenant.twitter_bearer_token = twitter_bearer_token if twitter_bearer_token and twitter_bearer_token.strip() else None
     
     # Session Timeout Validation
     if session_timeout_minutes is not None:

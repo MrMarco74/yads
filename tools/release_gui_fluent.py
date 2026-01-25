@@ -178,13 +178,15 @@ class ReleaseWorker(QThread):
     def _execute_release(self):
         try:
             bump = self.params.get('bump_type', 'patch')
+            channel = self.params.get('channel', 'stable')
             dry_run = self.params.get('dry_run', True)
             manual_version = self.params.get('manual_version', '')
 
+            channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
             if manual_version:
-                self._log(f"Starting Release (Version: {manual_version}, Dry Run: {dry_run})", "info")
+                self._log(f"Starting Release (Version: {manual_version}, Channel: {channel_display}, Dry Run: {dry_run})", "info")
             else:
-                self._log(f"Starting Release (Bump: {bump}, Dry Run: {dry_run})", "info")
+                self._log(f"Starting Release (Bump: {bump}, Channel: {channel_display}, Dry Run: {dry_run})", "info")
 
             # Set environment variables
             os.environ['YADS_FTP_PASSWORD'] = self.params.get('ftp_pass', '')
@@ -214,7 +216,8 @@ class ReleaseWorker(QThread):
                 dry_run=dry_run,
                 use_editor=False,
                 interactive=False,
-                target_version=manual_version if manual_version else None
+                target_version=manual_version if manual_version else None,
+                channel=channel
             )
 
             if success:
@@ -230,15 +233,17 @@ class ReleaseWorker(QThread):
         try:
             version = self.params.get('version', '')
             dry_run = self.params.get('dry_run', True)
+            channel = self.params.get('upload_channel', 'stable')
 
             if not version:
                 self.signals.operation_finished.emit(False, "No version selected")
                 return
 
+            channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
             if dry_run:
-                self._log(f"DRY RUN: Upload Preview for v{version}", "info")
+                self._log(f"DRY RUN: Upload Preview for v{version} ({channel_display})", "info")
             else:
-                self._log(f"Retrying Upload for v{version}", "info")
+                self._log(f"Retrying Upload for v{version} ({channel_display})", "info")
 
             os.environ['YADS_FTP_PASSWORD'] = self.params.get('ftp_pass', '')
 
@@ -258,7 +263,7 @@ class ReleaseWorker(QThread):
             orchestrator.uploader = ReleaseUploader(orchestrator.config.config, str(self.project_root))
             self.current_uploader = orchestrator.uploader
 
-            success = orchestrator.retry_upload(version, dry_run=dry_run)
+            success = orchestrator.retry_upload(version, channel=channel, dry_run=dry_run)
 
             if dry_run:
                 self.signals.operation_finished.emit(True, "Dry run complete - no files uploaded")
@@ -427,7 +432,7 @@ class ReleasePage(QWidget):
         options_layout.setContentsMargins(20, 20, 20, 20)
         options_layout.setSpacing(16)
 
-        # Row 1: Bump type and version
+        # Row 1: Bump type, channel, and version
         row1 = QHBoxLayout()
         row1.setSpacing(20)
 
@@ -439,6 +444,23 @@ class ReleasePage(QWidget):
         self.bump_combo.setCurrentIndex(0)
         self.bump_combo.setFixedWidth(120)
         row1.addWidget(self.bump_combo)
+
+        row1.addSpacing(20)
+
+        channel_label = BodyLabel("Channel:", self)
+        row1.addWidget(channel_label)
+
+        self.channel_combo = ComboBox(self)
+        self.channel_combo.addItems(["stable", "beta"])
+        self.channel_combo.setCurrentIndex(0)
+        self.channel_combo.setFixedWidth(100)
+        self.channel_combo.currentTextChanged.connect(self._on_channel_changed)
+        row1.addWidget(self.channel_combo)
+
+        # Channel indicator badge
+        self.channel_badge = BodyLabel("", self)
+        self._update_channel_badge()
+        row1.addWidget(self.channel_badge)
 
         row1.addSpacing(20)
 
@@ -481,6 +503,12 @@ class ReleasePage(QWidget):
         self.refresh_btn = ToolButton(FIF.SYNC, self)
         self.refresh_btn.clicked.connect(self._refresh_versions)
         row2.addWidget(self.refresh_btn)
+
+        # Upload channel selector
+        self.upload_channel_combo = ComboBox(self)
+        self.upload_channel_combo.addItems(["stable", "beta"])
+        self.upload_channel_combo.setFixedWidth(80)
+        row2.addWidget(self.upload_channel_combo)
 
         self.upload_dry_run = CheckBox("Dry Run", self)
         self.upload_dry_run.setChecked(True)
@@ -534,6 +562,20 @@ class ReleasePage(QWidget):
         # Load versions
         self._refresh_versions()
 
+    def _on_channel_changed(self, channel: str):
+        """Handle channel selection change"""
+        self._update_channel_badge()
+
+    def _update_channel_badge(self):
+        """Update the channel indicator badge"""
+        channel = self.channel_combo.currentText()
+        if channel == "beta":
+            self.channel_badge.setText("🔷 BETA")
+            self.channel_badge.setStyleSheet("color: #818cf8; font-weight: bold;")
+        else:
+            self.channel_badge.setText("🟢 STABLE")
+            self.channel_badge.setStyleSheet("color: #10b981; font-weight: bold;")
+
     def _refresh_versions(self):
         """Scan releases folder for available versions"""
         self.version_combo.clear()
@@ -560,6 +602,7 @@ class ReleasePage(QWidget):
         settings = self.parent_window.settings_page
         return {
             'bump_type': self.bump_combo.currentText(),
+            'channel': self.channel_combo.currentText(),
             'dry_run': self.dry_run_check.isChecked(),
             'manual_version': self.version_edit.text().strip(),
             'ssh_host': settings.ssh_host.text(),
@@ -616,6 +659,7 @@ class ReleasePage(QWidget):
         params = self._get_params()
         params['version'] = version
         params['dry_run'] = self.upload_dry_run.isChecked()
+        params['upload_channel'] = self.upload_channel_combo.currentText()
 
         self._start_worker("retry_upload", params)
 

@@ -6,7 +6,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.14.3"
+    VERSION: str = "1.16.0"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:changeme@db:5432/yads")
@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
     STATIC_DIR: str = os.path.join(BASE_DIR, "api", "static")
 
+    # TLS/SSL Certificate Settings
+    # Environment variable override to disable HTTPS_ONLY setting (emergency fallback)
+    DISABLE_HTTPS_ONLY: bool = os.getenv("DISABLE_HTTPS_ONLY", "false").lower() == "true"
+
+    # Custom CA certificate bundle path (for internal PKI)
+    CUSTOM_CA_CERT_PATH: Optional[str] = os.getenv("CUSTOM_CA_CERT_PATH", None)
+
+    # Client certificate for mTLS authentication
+    CLIENT_CERT_PATH: Optional[str] = os.getenv("CLIENT_CERT_PATH", None)
+    CLIENT_KEY_PATH: Optional[str] = os.getenv("CLIENT_KEY_PATH", None)
+
     # Licensing
     LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQTFJZ2pBSUx6elI2cHNsSFpidHJER1BHUlcxclNhSDVhLyszM2dEdWVNdVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
     LICENSE_KEY: Optional[str] = None
@@ -41,6 +52,13 @@ class Settings(BaseSettings):
     # Setup Wizard
     SETUP_COMPLETE: bool = False
     CONFIG_PATH: str = os.getenv("CONFIG_PATH", "/app/data/config.env")
+
+    # Prometheus Metrics
+    METRICS_ENABLED: bool = os.getenv("METRICS_ENABLED", "false").lower() == "true"
+    METRICS_AUTH_MODE: str = os.getenv("METRICS_AUTH_MODE", "token")  # none, token, user
+    METRICS_TOKEN: Optional[str] = os.getenv("METRICS_TOKEN", None)
+    METRICS_INCLUDE_TENANT_LABELS: bool = os.getenv("METRICS_INCLUDE_TENANT_LABELS", "false").lower() == "true"
+    METRICS_POLL_INTERVAL: int = int(os.getenv("METRICS_POLL_INTERVAL", "30"))
 
     class Config:
         env_file = os.getenv("CONFIG_PATH", "/app/data/config.env")

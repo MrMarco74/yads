@@ -8,6 +8,11 @@ from yads.auth.security import get_password_hash
 from yads.models import User, SystemConfig, Tenant, UserTenantLink
 from yads.auth.deps import get_db_session, get_current_user, RoleChecker
 from yads.config import settings
+from yads.core.security_audit import (
+    log_user_created, log_user_deleted, log_user_modified,
+    log_password_change, log_mfa_event, log_role_change,
+    log_session_timeout_change, log_permission_denied
+)
 
 router = APIRouter(prefix="/users")
 templates = Jinja2Templates(directory="yads/api/templates")
@@ -63,9 +68,11 @@ async def list_users(request: Request, session: Session = Depends(get_db_session
 
 @router.post("/set_session", dependencies=[Depends(admin_only)])
 async def set_session_timeout(
+    request: Request,
     duration: int = Form(...),
     unit: str = Form(...),
-    session: Session = Depends(get_db_session)
+    session: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
 ):
     # Convert to minutes
     minutes = duration
@@ -73,24 +80,30 @@ async def set_session_timeout(
         minutes = duration * 60
     elif unit == "days":
         minutes = duration * 60 * 24
-        
+
+    # Get old value for logging
     conf = session.get(SystemConfig, "ACCESS_TOKEN_EXPIRE_MINUTES")
+    old_timeout = int(conf.value) if conf else 60
+
     if not conf:
         conf = SystemConfig(key="ACCESS_TOKEN_EXPIRE_MINUTES", value=str(minutes))
         session.add(conf)
     else:
         conf.value = str(minutes)
         session.add(conf)
-        
+
+    # Log session timeout change
+    log_session_timeout_change(request, current_user, old_timeout, minutes, session)
     session.commit()
     return RedirectResponse(url="/users/?msg=Session+timeout+updated", status_code=303)
 
 @router.post("/create", dependencies=[Depends(admin_only)])
 async def create_user(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form("auditor"),
-    target_tenant_id: Optional[int] = Form(None), # From Dropdown
+    target_tenant_id: Optional[int] = Form(None),  # From Dropdown
     force_change: bool = Form(False),
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
@@ -138,12 +151,20 @@ async def create_user(
     if final_tenant_id:
         link = UserTenantLink(user_id=new_user.id, tenant_id=final_tenant_id)
         session.add(link)
-        session.commit()
-    
+
+    # Log user creation event
+    log_user_created(request, new_user, current_user, session)
+    session.commit()
+
     return RedirectResponse(url="/users/?msg=User+created", status_code=303)
 
 @router.post("/delete", dependencies=[Depends(admin_only)])
-async def delete_user(user_id: int = Form(...), session: Session = Depends(get_db_session), current_user: User = Depends(get_current_user)):
+async def delete_user(
+    request: Request,
+    user_id: int = Form(...),
+    session: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
+):
     # Fetch User
     user = session.get(User, user_id)
     if not user:
@@ -160,16 +181,20 @@ async def delete_user(user_id: int = Form(...), session: Session = Depends(get_d
               return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
     
     # Platform Admin can delete anyone (except maybe self or super admin logic? existing check was specific)
-    if user.username == "admin": 
-         return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
-         
+    if user.username == "admin":
+        return RedirectResponse(url="/users/?error=Cannot+delete+admin", status_code=303)
+
+    # Log user deletion event (before deletion to capture user info)
+    log_user_deleted(request, user, current_user, session)
+
     session.delete(user)
     session.commit()
     return RedirectResponse(url="/users/?msg=User+deleted", status_code=303)
 
 @router.post("/reset_password", dependencies=[Depends(admin_only)])
 async def reset_password(
-    user_id: int = Form(...), 
+    request: Request,
+    user_id: int = Form(...),
     new_password: str = Form(...),
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
@@ -178,29 +203,46 @@ async def reset_password(
     if user:
         # Permission Check
         if current_user.tenant_id is not None:
-             if user.tenant_id != current_user.tenant_id:
-                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
-             # Optional: Prevent resetting Admin password by Tenant Admin?
-             if user.role == 'admin':
-                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+            if user.tenant_id != current_user.tenant_id:
+                log_permission_denied(request, current_user, "reset_password", f"user:{user_id}", session)
+                session.commit()
+                return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+            # Optional: Prevent resetting Admin password by Tenant Admin?
+            if user.role == 'admin':
+                log_permission_denied(request, current_user, "reset_password", f"admin_user:{user_id}", session)
+                session.commit()
+                return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
 
         user.password_hash = get_password_hash(new_password)
         session.add(user)
+
+        # Log password reset by admin
+        log_password_change(request, user, changed_by_admin=True, admin_user=current_user, session=session)
         session.commit()
     return RedirectResponse(url="/users/?msg=Password+reset", status_code=303)
 
 @router.post("/reset_mfa", dependencies=[Depends(admin_only)])
-async def reset_mfa(user_id: int = Form(...), session: Session = Depends(get_db_session), current_user: User = Depends(get_current_user)):
+async def reset_mfa(
+    request: Request,
+    user_id: int = Form(...),
+    session: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
+):
     user = session.get(User, user_id)
     if user:
         # Permission Check
         if current_user.tenant_id is not None:
-             if user.tenant_id != current_user.tenant_id:
-                  return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
-        
+            if user.tenant_id != current_user.tenant_id:
+                log_permission_denied(request, current_user, "reset_mfa", f"user:{user_id}", session)
+                session.commit()
+                return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+
         user.mfa_enabled = False
         user.mfa_secret = None
         session.add(user)
+
+        # Log MFA reset by admin
+        log_mfa_event(request, user, "reset_by_admin", by_admin=True, admin_user=current_user, session=session)
         session.commit()
     return RedirectResponse(url="/users/?msg=MFA+reset", status_code=303)
 
@@ -233,6 +275,7 @@ async def edit_user_form(
 
 @router.post("/{user_id}/edit", dependencies=[Depends(admin_only)])
 async def edit_user(
+    request: Request,
     user_id: int,
     role: str = Form(...),
     active_tenant_id: Optional[int] = Form(None),
@@ -259,20 +302,29 @@ async def edit_user(
              return RedirectResponse(url="/users/?error=Permission+denied:+Cannot+assign+Admin+role", status_code=303)
 
         # Prevent changing tenant things
+        old_role = user.role
         user.role = role
         session.add(user)
+
+        # Log role change if it changed
+        if old_role != role:
+            log_role_change(request, user, old_role, role, current_user, session)
+        else:
+            log_user_modified(request, user, current_user, {"role": role}, session)
         session.commit()
         return RedirectResponse(url="/users/?msg=User+updated", status_code=303)
         
     # Platform Admin Logic
-    
+
     # SAFETY CHECK: Prevent Platform Admin from locking themselves out
     is_self_edit = (user.id == current_user.id)
     if is_self_edit and current_user.tenant_id is None and active_tenant_id is not None:
-         return RedirectResponse(url=f"/users/{user_id}/edit?error=Cannot+assign+tenant+to+Platform+Admin+(Self)", status_code=303)
+        return RedirectResponse(url=f"/users/{user_id}/edit?error=Cannot+assign+tenant+to+Platform+Admin+(Self)", status_code=303)
 
+    old_role = user.role
+    old_tenant_id = user.tenant_id
     user.role = role
-    user.tenant_id = active_tenant_id # Change context
+    user.tenant_id = active_tenant_id  # Change context
     
     # Update Allowed Tenants (Link Table)
     # delete existing
@@ -291,9 +343,22 @@ async def edit_user(
         session.add(link)
         
     session.add(user)
+
+    # Log role change if it changed
+    if old_role != role:
+        log_role_change(request, user, old_role, role, current_user, session)
+
+    # Log user modification with changes
+    changes = {}
+    if old_role != role:
+        changes["role"] = {"old": old_role, "new": role}
+    if old_tenant_id != active_tenant_id:
+        changes["tenant_id"] = {"old": old_tenant_id, "new": active_tenant_id}
+    if changes:
+        log_user_modified(request, user, current_user, changes, session)
+
     session.commit()
-    
-    
+
     return RedirectResponse(url="/users/?msg=User+updated", status_code=303)
 
 @router.post("/tenants/update", dependencies=[Depends(admin_only)])

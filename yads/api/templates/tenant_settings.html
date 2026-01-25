@@ -147,12 +147,68 @@
                  <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">HIBP API Key</label>
-                        <input type="password" name="hibp_api_key" 
+                        <input type="password" name="hibp_api_key"
                                value="{{ tenant.hibp_api_key or '' }}"
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500 font-mono placeholder-gray-600"
                                placeholder="hibp_..."
                                autocomplete="off">
                         <p class="text-[10px] text-gray-500 mt-1">Required to check for email leaks/breaches via 'Have I Been Pwned' API.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Intelligence (Hunter.io) -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    Email Intelligence (Hunter.io)
+                </h3>
+                <p class="text-sm text-gray-400 mb-6">
+                    Enable enhanced email discovery for the Email Intelligence scanner. Optional - scanner works with free sources if not configured.
+                </p>
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Hunter.io API Key</label>
+                        <input type="password" name="hunter_api_key"
+                               value="{{ tenant.hunter_api_key or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
+                               placeholder="hunter_..."
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">Optional. Get your key from <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:underline">hunter.io/api-keys</a>. Free tier: 25 searches/month.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Social Media Scanner (GitHub & Twitter) -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    Social Media Scanner (GitHub & Twitter)
+                </h3>
+                <p class="text-sm text-gray-400 mb-6">
+                    Configure API access for enhanced social media reconnaissance. Both are optional - basic URL checking works without keys.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- GitHub Token -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">GitHub Personal Access Token</label>
+                        <input type="password" name="github_token"
+                               value="{{ tenant.github_token or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
+                               placeholder="ghp_..."
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">For GitHub org/repo discovery & secrets detection. Get from <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:underline">GitHub Settings</a>.</p>
+                    </div>
+
+                    <!-- Twitter Bearer Token -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Twitter/X Bearer Token</label>
+                        <input type="password" name="twitter_bearer_token"
+                               value="{{ tenant.twitter_bearer_token or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
+                               placeholder="AAAA..."
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">For Twitter/X account verification & mentions. Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:underline">Twitter Developer Portal</a>.</p>
                     </div>
                 </div>
             </div>

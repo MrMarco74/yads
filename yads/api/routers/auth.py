@@ -9,6 +9,10 @@ from yads.auth.security import verify_password, create_access_token, get_passwor
 from yads.models import User, SystemConfig
 from yads.auth.deps import get_db_session, get_current_user
 from yads.config import settings
+from yads.core.security_audit import (
+    log_login_success, log_login_failure, log_logout,
+    log_password_change, log_mfa_event, log_tenant_switch
+)
 
 import pyotp
 
@@ -42,15 +46,30 @@ async def login(
     session: Session = Depends(get_db_session)
 ):
     user = session.exec(select(User).where(User.username == username)).first()
-    if not user or not verify_password(password, user.password_hash):
+    if not user:
+        # Log failed login - invalid user
+        log_login_failure(request, username, "invalid_user", session)
+        session.commit()
         return templates.TemplateResponse("login.html", {
-            "request": request, 
+            "request": request,
             "error": "Invalid username or password"
         })
-        
+
+    if not verify_password(password, user.password_hash):
+        # Log failed login - invalid password
+        log_login_failure(request, username, "invalid_password", session)
+        session.commit()
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Invalid username or password"
+        })
+
     if not user.is_active:
-         return templates.TemplateResponse("login.html", {
-            "request": request, 
+        # Log failed login - inactive user
+        log_login_failure(request, username, "inactive", session)
+        session.commit()
+        return templates.TemplateResponse("login.html", {
+            "request": request,
             "error": "User is inactive"
         })
 
@@ -66,24 +85,27 @@ async def login(
                  pass
                  
         if not otp_code:
+            # Log MFA required (not a failure, just a step)
+            log_login_failure(request, username, "mfa_required", session)
+            session.commit()
             return templates.TemplateResponse("login.html", {
-                "request": request, 
-                "mfa_required": True, 
-                "username": username, 
-                "password": password # In prod, don't echo password back, but here we need it for resubmission or store in temp session
-                # Better: Don't echo password, make user re-enter or use a signed temp token. 
-                # For this MVP, we will ask user to enter Code + Password again or just Code if we handle it differently (HTMX).
-                # The current template expects user to submit everything again.
+                "request": request,
+                "mfa_required": True,
+                "username": username,
+                "password": password  # In prod, don't echo password back
             })
         else:
-             totp = pyotp.TOTP(user.mfa_secret)
-             if not totp.verify(otp_code, valid_window=window):
-                 return templates.TemplateResponse("login.html", {
-                     "request": request,
-                     "error": "Invalid MFA Code",
-                     "mfa_required": True,
-                     "username": username
-                 })
+            totp = pyotp.TOTP(user.mfa_secret)
+            if not totp.verify(otp_code, valid_window=window):
+                # Log failed MFA verification
+                log_login_failure(request, username, "mfa_invalid", session)
+                session.commit()
+                return templates.TemplateResponse("login.html", {
+                    "request": request,
+                    "error": "Invalid MFA Code",
+                    "mfa_required": True,
+                    "username": username
+                })
 
     # Success    # Create Token
     token_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -129,6 +151,9 @@ async def login(
     # Update Last Login
     user.last_login = datetime.utcnow()
     session.add(user)
+
+    # Log successful login
+    log_login_success(request, user, session)
     session.commit()
 
     response = RedirectResponse(url=redirect_url, status_code=303)
@@ -143,7 +168,15 @@ async def login(
     return response
 
 @router.get("/logout")
-async def logout():
+async def logout(
+    request: Request,
+    session: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user)
+):
+    # Log logout event
+    log_logout(request, current_user, session)
+    session.commit()
+
     resp = RedirectResponse(url="/login", status_code=303)
     resp.delete_cookie("access_token")
     return resp
@@ -194,6 +227,9 @@ async def mfa_verify(
         db_user.mfa_secret = secret
         db_user.mfa_enabled = True
         session.add(db_user)
+
+        # Log MFA enabled event
+        log_mfa_event(request, db_user, "enabled", by_admin=False, session=session)
         session.commit()
         return RedirectResponse(url="/?msg=MFA+Enabled", status_code=303)
     else:
@@ -223,15 +259,19 @@ async def change_password_action(
         })
         
     db_user = session.get(User, user.id)
+    was_forced = db_user.force_password_change
     db_user.password_hash = get_password_hash(new_password)
     db_user.force_password_change = False
     session.add(db_user)
+
+    # Log password change event
+    log_password_change(request, db_user, changed_by_admin=False, session=session)
     session.commit()
-    
+
     # Check if MFA needs setup next
     if not db_user.mfa_enabled:
         return RedirectResponse(url="/mfa/setup", status_code=303)
-        
+
     return RedirectResponse(url="/?msg=Password+Updated", status_code=303)
 
 @router.post("/auth/switch-tenant")
@@ -257,20 +297,15 @@ async def switch_tenant(
     
     # Case: Platform Admin switching back to "Platform View" (No Tenant)
     if tenant_id == "":
-        if current_user.role == 'admin': # Only admin role can be platform admin
-             # Check if they are truly platform admin?
-             # If they were assigned a tenant temporarily, they are still admin role.
-             # We should allow them to clear tenant_id if they are intended to be platform admins?
-             # Or only if they have no allowed_tenants? 
-             # Let's assume anyone with role 'admin' can try to go to Platform Mode, 
-             # but we might restrict later. For now, if passed "", set to None.
-             current_user.tenant_id = None
-             session.add(current_user)
-             session.commit()
-             current_user.tenant_id = None
-             session.add(current_user)
-             session.commit()
-             return RedirectResponse(url=redirect_target, status_code=303)
+        if current_user.role == 'admin':  # Only admin role can be platform admin
+            old_tenant_id = current_user.tenant_id
+            current_user.tenant_id = None
+            session.add(current_user)
+
+            # Log tenant switch event
+            log_tenant_switch(request, current_user, old_tenant_id, None, session)
+            session.commit()
+            return RedirectResponse(url=redirect_target, status_code=303)
         else:
              return RedirectResponse(url=redirect_target + "?error=Not+authorized", status_code=303)
 
@@ -308,8 +343,12 @@ async def switch_tenant(
     is_platform_admin = (current_user.role == 'admin')
     
     if link or is_platform_admin:
+        old_tenant_id = current_user.tenant_id
         current_user.tenant_id = tid
         session.add(current_user)
+
+        # Log tenant switch event
+        log_tenant_switch(request, current_user, old_tenant_id, tid, session)
         session.commit()
         return RedirectResponse(url=redirect_target, status_code=303)
         

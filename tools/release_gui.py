@@ -97,6 +97,16 @@ class ReleaseGUI:
         self.bump_type.set("patch")
         self.bump_type.pack(side=tk.LEFT, padx=5)
 
+        ttk.Label(input_row, text="Channel:").pack(side=tk.LEFT, padx=(15, 5))
+        self.channel_type = ttk.Combobox(input_row, values=["stable", "beta"], width=10)
+        self.channel_type.set("stable")
+        self.channel_type.pack(side=tk.LEFT, padx=5)
+        self.channel_type.bind("<<ComboboxSelected>>", self._on_channel_changed)
+
+        # Channel badge label
+        self.channel_badge = ttk.Label(input_row, text="🟢 STABLE", foreground="#10b981", font=("Helvetica", 10, "bold"))
+        self.channel_badge.pack(side=tk.LEFT, padx=5)
+
         ttk.Label(input_row, text="or Version:").pack(side=tk.LEFT, padx=(15, 5))
         self.manual_version = ttk.Entry(input_row, width=12)
         self.manual_version.pack(side=tk.LEFT, padx=5)
@@ -122,6 +132,11 @@ class ReleaseGUI:
         self.refresh_versions_btn = ttk.Button(btn_row, text="↻", width=2, command=self._refresh_versions)
         self.refresh_versions_btn.pack(side=tk.LEFT, padx=2)
         self._refresh_versions()
+
+        # Upload channel selector
+        self.upload_channel = ttk.Combobox(btn_row, values=["stable", "beta"], width=8)
+        self.upload_channel.set("stable")
+        self.upload_channel.pack(side=tk.LEFT, padx=5)
 
         self.upload_dry_run_var = tk.BooleanVar(value=True)
         self.upload_dry_run_check = ttk.Checkbutton(btn_row, text="Dry Run", variable=self.upload_dry_run_var)
@@ -404,6 +419,14 @@ class ReleaseGUI:
         else:
             messagebox.showwarning("No Files", "No release files found to download.\nRun the release process first.")
 
+    def _on_channel_changed(self, event=None):
+        """Update channel badge when selection changes"""
+        channel = self.channel_type.get()
+        if channel == "beta":
+            self.channel_badge.config(text="🔷 BETA", foreground="#818cf8")
+        else:
+            self.channel_badge.config(text="🟢 STABLE", foreground="#10b981")
+
     def _refresh_versions(self):
         """Scan releases folder for available versions"""
         import re
@@ -459,6 +482,7 @@ class ReleaseGUI:
         sys.stdout = LogRedirector(self.log_queue)
 
         dry_run = self.upload_dry_run_var.get()
+        channel = self.upload_channel.get()
 
         try:
             # Get selected version from dropdown
@@ -467,10 +491,11 @@ class ReleaseGUI:
                 print("❌ No version selected. Please select a version from the dropdown.")
                 return
 
+            channel_display = "🔷 BETA" if channel == "beta" else "🟢 STABLE"
             if dry_run:
-                print(f"--- DRY RUN: Upload Preview for v{version} ---\n")
+                print(f"--- DRY RUN: Upload Preview for v{version} ({channel_display}) ---\n")
             else:
-                print(f"--- Retrying Upload for v{version} ---\n")
+                print(f"--- Retrying Upload for v{version} ({channel_display}) ---\n")
 
             # Set environment variables
             os.environ['YADS_FTP_PASSWORD'] = self.ftp_pass.get()
@@ -548,7 +573,7 @@ class ReleaseGUI:
             self.current_uploader = orchestrator.uploader  # For cancellation
 
             # Retry upload
-            success = orchestrator.retry_upload(version, dry_run=dry_run)
+            success = orchestrator.retry_upload(version, channel=channel, dry_run=dry_run)
 
             if dry_run:
                 print("\n✅ Dry run complete - no files were uploaded")
@@ -595,6 +620,7 @@ class ReleaseGUI:
 
     def _execute_release(self):
         bump = self.bump_type.get()
+        channel = self.channel_type.get()
         dry_run = self.dry_run_var.get()
         manual_version = self.manual_version.get().strip()
 
@@ -602,11 +628,12 @@ class ReleaseGUI:
         old_stdout = sys.stdout
         sys.stdout = LogRedirector(self.log_queue)
 
+        channel_display = "🔷 BETA" if channel == "beta" else "🟢 STABLE"
         try:
             if manual_version:
-                print(f"--- Starting Release (Version: {manual_version}, Dry Run: {dry_run}) ---\n")
+                print(f"--- Starting Release (Version: {manual_version}, Channel: {channel_display}, Dry Run: {dry_run}) ---\n")
             else:
-                print(f"--- Starting Release (Bump: {bump}, Dry Run: {dry_run}) ---\n")
+                print(f"--- Starting Release (Bump: {bump}, Channel: {channel_display}, Dry Run: {dry_run}) ---\n")
             
             # Patch environment EARLY so that expansion in load_config can pick it up
             # if the variables are defined in the YAML file.
@@ -726,7 +753,8 @@ class ReleaseGUI:
                 dry_run=dry_run,
                 use_editor=False,
                 interactive=False,
-                target_version=manual_version if manual_version else None
+                target_version=manual_version if manual_version else None,
+                channel=channel
             )
             
             if success:

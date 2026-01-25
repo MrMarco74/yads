@@ -25,6 +25,11 @@ class Tenant(SQLModel, table=True):
     google_cse_cx: Optional[str] = Field(default=None)
     nuclei_api_key: Optional[str] = Field(default=None)
     hibp_api_key: Optional[str] = Field(default=None)
+
+    # New OSINT API Keys (v1.15.0)
+    hunter_api_key: Optional[str] = Field(default=None)  # Hunter.io email discovery
+    github_token: Optional[str] = Field(default=None)     # GitHub API for social/code scanning
+    twitter_bearer_token: Optional[str] = Field(default=None)  # Twitter/X API v2
     
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
@@ -347,4 +352,43 @@ class ResourceQuota(SQLModel, table=True):
 
     # Priority (higher = more priority in queue)
     priority: int = Field(default=5)  # 1-10 scale
+
+
+# ============================================================================
+# Security Audit Models
+# ============================================================================
+
+class SecurityAuditLog(SQLModel, table=True):
+    """
+    Stores security audit events for compliance and forensics.
+    Aligned with MITRE ATT&CK framework.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # Event identification
+    event_type: str = Field(index=True)  # e.g., "login_success", "password_change"
+    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    # Actor information (who performed the action)
+    username: Optional[str] = Field(default=None, index=True)
+    user_id: Optional[int] = Field(default=None, index=True)
+    source_ip: Optional[str] = Field(default=None, index=True)
+    user_agent: Optional[str] = Field(default=None)
+
+    # Tenant context
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+
+    # Target information (for admin actions on other users)
+    target_user: Optional[str] = Field(default=None, index=True)
+    target_user_id: Optional[int] = Field(default=None, index=True)
+
+    # Event outcome
+    success: bool = Field(default=True, index=True)
+
+    # Additional details (flexible JSON storage)
+    details: dict = Field(default={}, sa_column=Column(JSONB))
+
+    # MITRE ATT&CK mapping
+    mitre_tactic_id: Optional[str] = Field(default=None, index=True)  # e.g., "TA0001"
+    mitre_technique_id: Optional[str] = Field(default=None, index=True)  # e.g., "T1078"
 
