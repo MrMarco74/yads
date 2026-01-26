@@ -937,6 +937,25 @@ class SettingsPage(SmoothScrollArea):
         ])
         ai_card.addRow("AI Model:", self.ai_model)
 
+        # Check Translation Button
+        check_row = QHBoxLayout()
+        check_row.setSpacing(12)
+
+        check_label = BodyLabel("Test:", self)
+        check_label.setFixedWidth(120)
+        check_row.addWidget(check_label)
+
+        self.check_translation_btn = PushButton(FIF.ACCEPT, "Check AI Translation", self)
+        self.check_translation_btn.setFixedWidth(200)
+        self.check_translation_btn.clicked.connect(self._check_ai_translation)
+        check_row.addWidget(self.check_translation_btn)
+
+        self.translation_status = BodyLabel("", self)
+        check_row.addWidget(self.translation_status)
+
+        check_row.addStretch()
+        ai_card.vBoxLayout.addLayout(check_row)
+
         layout.addWidget(ai_card)
 
         # Save Button
@@ -1034,6 +1053,116 @@ class SettingsPage(SmoothScrollArea):
                 parent=self,
                 position=InfoBarPosition.TOP
             )
+
+    def _check_ai_translation(self):
+        """Test AI translation service with a sample text"""
+        self.check_translation_btn.setEnabled(False)
+        self.translation_status.setText("Testing...")
+        self.translation_status.setStyleSheet("color: gray;")
+
+        # Run in separate thread to not block UI
+        def run_check():
+            try:
+                service = self.ai_service.currentText()
+                model = self.ai_model.currentText()
+
+                if service == "manual":
+                    return (False, "Manual mode - no AI service configured")
+
+                # Test text (English changelog entry)
+                test_text = "### Added\n- New feature: Custom Report Builder with 200+ template variables"
+
+                if service == "gemini":
+                    api_key = self.gemini_key.text().strip()
+                    if not api_key:
+                        return (False, "Gemini API key not configured")
+
+                    import google.generativeai as genai
+                    genai.configure(api_key=api_key)
+                    model_instance = genai.GenerativeModel(model)
+
+                    prompt = f"""Translate the following English changelog entry to German.
+Keep the markdown formatting intact. Only return the translated text, no explanations.
+
+{test_text}"""
+
+                    response = model_instance.generate_content(prompt)
+                    translated = response.text.strip()
+
+                    if translated and "###" in translated:
+                        return (True, f"✓ Translation OK\n\nOriginal:\n{test_text}\n\nTranslated:\n{translated}")
+                    else:
+                        return (False, f"Unexpected response: {translated[:100]}...")
+
+                elif service == "vertexai":
+                    project = self.gcp_project.text().strip()
+                    location = self.gcp_location.text().strip() or "us-central1"
+
+                    if not project:
+                        return (False, "GCP Project ID not configured")
+
+                    import vertexai
+                    from vertexai.generative_models import GenerativeModel
+
+                    vertexai.init(project=project, location=location)
+                    model_instance = GenerativeModel(model)
+
+                    prompt = f"""Translate the following English changelog entry to German.
+Keep the markdown formatting intact. Only return the translated text, no explanations.
+
+{test_text}"""
+
+                    response = model_instance.generate_content(prompt)
+                    translated = response.text.strip()
+
+                    if translated and "###" in translated:
+                        return (True, f"✓ Translation OK\n\nOriginal:\n{test_text}\n\nTranslated:\n{translated}")
+                    else:
+                        return (False, f"Unexpected response: {translated[:100]}...")
+
+                return (False, f"Unknown service: {service}")
+
+            except ImportError as e:
+                return (False, f"Missing library: {e}")
+            except Exception as e:
+                return (False, f"Error: {str(e)}")
+
+        import threading
+
+        def on_complete(result):
+            success, message = result
+            self.check_translation_btn.setEnabled(True)
+
+            if success:
+                self.translation_status.setText("✓ OK")
+                self.translation_status.setStyleSheet("color: #10b981; font-weight: bold;")
+                # Show full result in dialog
+                box = MessageBox(
+                    "AI Translation Check - Success",
+                    message,
+                    self
+                )
+                box.yesButton.setText("OK")
+                box.cancelButton.hide()
+                box.exec()
+            else:
+                self.translation_status.setText("✗ Failed")
+                self.translation_status.setStyleSheet("color: #ef4444; font-weight: bold;")
+                InfoBar.error(
+                    "Translation Check Failed",
+                    message[:100] + ("..." if len(message) > 100 else ""),
+                    parent=self,
+                    position=InfoBarPosition.TOP,
+                    duration=8000
+                )
+
+        def thread_func():
+            result = run_check()
+            # Use QTimer to update UI from main thread
+            QTimer.singleShot(0, lambda: on_complete(result))
+
+        thread = threading.Thread(target=thread_func, daemon=True)
+        thread.start()
 
 
 class ThemeToggleWidget(NavigationWidget):
