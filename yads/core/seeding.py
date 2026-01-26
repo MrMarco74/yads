@@ -1,6 +1,6 @@
 from sqlmodel import Session
 from yads.database import engine
-from yads.models import ChangelogEntry, Notification
+from yads.models import ChangelogEntry, Notification, ReportTemplate
 
 def seed_changelog():
     with Session(engine) as session:
@@ -2047,6 +2047,74 @@ def seed_notifications():
             session.commit()
             print("System notifications seeded successfully.")
 
+def seed_default_report_templates():
+    """Seed default system report templates."""
+    from yads.core.markdown_report_generator import (
+        get_executive_summary_template,
+        get_technical_report_template,
+        get_compliance_report_template
+    )
+
+    with Session(engine) as session:
+        # Executive Summary Template
+        if not session.query(ReportTemplate).where(
+            ReportTemplate.name == "Executive Summary",
+            ReportTemplate.tenant_id == None
+        ).first():
+            exec_template = ReportTemplate(
+                tenant_id=None,  # System template
+                name="Executive Summary",
+                description="High-level overview with security score and key findings. Ideal for management reports.",
+                category="executive",
+                markdown_content=get_executive_summary_template(),
+                is_default=True,
+                is_public=True,
+                available_sections=["summary", "dns", "ssl", "vulnerabilities", "compliance"]
+            )
+            session.add(exec_template)
+            print("Created Executive Summary template")
+
+        # Technical Report Template
+        if not session.query(ReportTemplate).where(
+            ReportTemplate.name == "Technical Assessment",
+            ReportTemplate.tenant_id == None
+        ).first():
+            tech_template = ReportTemplate(
+                tenant_id=None,
+                name="Technical Assessment",
+                description="Detailed technical report with DNS, SSL, web analysis, and vulnerability findings.",
+                category="technical",
+                markdown_content=get_technical_report_template(),
+                is_default=True,
+                is_public=True,
+                available_sections=["summary", "dns", "ssl", "web", "vulnerabilities", "nuclei", "infrastructure", "ports"]
+            )
+            session.add(tech_template)
+            print("Created Technical Assessment template")
+
+        # Compliance Report Template
+        if not session.query(ReportTemplate).where(
+            ReportTemplate.name == "Compliance Assessment",
+            ReportTemplate.tenant_id == None
+        ).first():
+            compliance_template = ReportTemplate(
+                tenant_id=None,
+                name="Compliance Assessment",
+                description="Compliance-focused report mapping findings to SOC2, GDPR, and PCI-DSS controls.",
+                category="compliance",
+                markdown_content=get_compliance_report_template(),
+                is_default=True,
+                is_public=True,
+                available_sections=["summary", "compliance", "vulnerabilities", "ssl"]
+            )
+            session.add(compliance_template)
+            print("Created Compliance Assessment template")
+
+        session.commit()
+        print("Default report templates seeded successfully.")
+
+
 if __name__ == "__main__":
     seed_changelog()
     seed_notifications()
+    seed_default_report_templates()

@@ -401,7 +401,7 @@ class WorkerManager:
             if not workers:
                 return None
 
-            # Filter by capacity and capability
+            # Filter by capacity, capability, and tenant assignment
             eligible = []
             for worker in workers:
                 # Check task capacity
@@ -411,6 +411,11 @@ class WorkerManager:
                 # Check capabilities (empty = all, or specific types)
                 if worker.capabilities and "all" not in worker.capabilities:
                     if not all(st in worker.capabilities for st in scan_types):
+                        continue
+
+                # Check tenant assignment (empty = all tenants, otherwise must match)
+                if worker.assigned_tenant_ids and len(worker.assigned_tenant_ids) > 0:
+                    if tenant_id not in worker.assigned_tenant_ids:
                         continue
 
                 eligible.append(worker)
@@ -752,6 +757,7 @@ class WorkerManager:
 
             return [
                 {
+                    "id": w.id,
                     "node_id": w.node_id,
                     "hostname": w.hostname,
                     "ip_address": w.ip_address,
@@ -759,11 +765,15 @@ class WorkerManager:
                     "status": w.status,
                     "current_tasks": w.current_tasks,
                     "max_concurrent_tasks": w.max_concurrent_tasks,
+                    "max_network_mbps": w.max_network_mbps,
+                    "max_daily_scans": w.max_daily_scans,
                     "current_load": round(w.current_load * 100, 1),
                     "last_heartbeat": w.last_heartbeat.isoformat() if w.last_heartbeat else None,
                     "registered_at": w.registered_at.isoformat() if w.registered_at else None,
                     "version": w.version,
-                    "capabilities": w.capabilities
+                    "capabilities": w.capabilities,
+                    "assigned_tenant_ids": w.assigned_tenant_ids or [],
+                    "description": w.description
                 }
                 for w in workers
             ]

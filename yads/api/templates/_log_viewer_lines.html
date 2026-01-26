@@ -1,5 +1,5 @@
 {% for log in logs %}
-<li class="flex gap-3 group hover:bg-white/5 p-0.5 rounded transition-colors">
+<li class="flex gap-3 group hover:bg-white/5 p-0.5 rounded transition-colors" {% if log.external_ip %}title="Source IP: {{ log.external_ip }}"{% endif %}>
     <span class="text-gray-500 select-none shrink-0 w-20 text-right">{{ log.ts.split('T')[1][:8] if log.ts else '' }}</span>
     <span class="
         {% if log.level == 'INFO' %}text-blue-400
@@ -8,7 +8,10 @@
         {% else %}text-gray-300{% endif %}
         shrink-0 w-16 uppercase text-[10px] tracking-wider pt-0.5
     ">{{ log.level }}</span>
-    <span class="text-gray-300 break-all">{{ log.msg }}</span>
+    <span class="text-gray-300 break-all flex-1">{{ log.msg }}</span>
+    {% if log.external_ip and loop.first %}
+    <span class="text-gray-600 text-[10px] shrink-0 hidden group-hover:inline" title="Scan source IP">{{ log.external_ip }}</span>
+    {% endif %}
 </li>
 {% endfor %}
 {% if not logs %}

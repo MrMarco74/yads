@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, Request, Response, HTTPException
+from fastapi import APIRouter, Depends, Request, Response, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
+from typing import Optional
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, get_current_active_user, RoleChecker
 from yads.models import User, Target
@@ -12,23 +13,17 @@ from yads.utils.export import generate_excel, generate_pdf, generate_api_excel, 
 from yads.models import User, Target, ScanResult, HTTPTraffic
 from yads.modules.report_generator import generate_report
 from yads.utils.license_deps import require_feature
+from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_feature("reports"))])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
+# from fastapi.templating import Jinja2Templates
 
-# Inject Globals
+# Inject Globals (Handled in templating.py now)
 from yads.config import settings
-templates.env.globals['settings'] = settings
 from datetime import datetime
-templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-
-# Helper for sidebar (duplicate from main.py unfortunately, unless we put it in dependencies)
-def get_all_tenants():
-    from yads.database import engine
-    from yads.models import Tenant
-    with Session(engine) as session:
-        return session.exec(select(Tenant).order_by(Tenant.name)).all()
-templates.env.globals['get_available_tenants'] = get_all_tenants
+# templates.env.globals['settings'] = settings
+# templates.env.globals['now_utc'] = ...
 
 def _get_targets_data(session: Session, user: User, for_export: bool = False):
     query = select(Target)
@@ -184,46 +179,91 @@ async def export_form_excel(target_id: int, session: Session = Depends(get_sessi
     return generate_form_excel(data, f"form_discovery_{target.domain}")
 
 @router.get("/traffic", response_class=HTMLResponse)
-async def view_traffic_history(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
+async def view_traffic_history(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Web view for HTTP Traffic History.
     """
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
     query = select(HTTPTraffic).join(Target)
     if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
     elif user.role != "admin":
         query = query.where(Target.tenant_id == None)
-        
+
+    # Apply date filtering on timestamp field
+    if from_dt:
+        query = query.where(HTTPTraffic.timestamp >= from_dt)
+    if to_dt:
+        query = query.where(HTTPTraffic.timestamp <= to_dt)
+
     # Fetch latest 500 entries for performance
     traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc()).limit(500)).all()
-    
+
     return templates.TemplateResponse("reports_traffic.html", {
         "request": request,
         "user": user,
-        "traffic": traffic
+        "traffic": traffic,
+        "date_range_display": date_range_display
     })
 
 @router.get("/traffic/excel")
-async def export_traffic_excel(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_traffic_excel(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports ALL HTTP traffic for the current tenant to Excel.
     """
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+
     query = select(HTTPTraffic).join(Target)
     if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
-        
+
+    # Apply date filtering
+    if from_dt:
+        query = query.where(HTTPTraffic.timestamp >= from_dt)
+    if to_dt:
+        query = query.where(HTTPTraffic.timestamp <= to_dt)
+
     traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc())).all()
     return generate_traffic_excel(traffic, "tenant_http_traffic")
 
 @router.get("/traffic/pdf")
-async def export_traffic_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_traffic_pdf(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports ALL HTTP traffic for the current tenant to PDF.
     """
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+
     query = select(HTTPTraffic).join(Target)
     if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
-        
+
+    # Apply date filtering
+    if from_dt:
+        query = query.where(HTTPTraffic.timestamp >= from_dt)
+    if to_dt:
+        query = query.where(HTTPTraffic.timestamp <= to_dt)
+
     traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc())).all()
     return generate_traffic_pdf(traffic, "Tenant Infrastructure", "tenant_http_traffic")
 

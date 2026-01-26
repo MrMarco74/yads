@@ -18,6 +18,7 @@ from yads.modules.compliance_frameworks import (
     get_framework_scorer, get_all_frameworks, FRAMEWORKS
 )
 from fastapi.templating import Jinja2Templates
+from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/compliance", tags=["compliance"])
 templates = Jinja2Templates(directory="yads/api/templates")
@@ -621,9 +622,15 @@ async def compliance_dashboard(
     request: Request,
     framework: str = Query(default="soc2"),
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user_html)
+    user: User = Depends(get_current_user_html),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
 ):
     """Enhanced compliance dashboard with multi-framework support."""
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
     # Validate framework
     if framework not in FRAMEWORKS:
         framework = "soc2"
@@ -714,5 +721,6 @@ async def compliance_dashboard(
         "targets": target_scores,
         "total_targets": len(all_targets),
         "remediation_tasks": remediation_tasks,
-        "controls": scorer.controls
+        "controls": scorer.controls,
+        "date_range_display": date_range_display
     })

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="reportEditor()">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <a href="/reports/{{ report.id }}" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </a>
+                <h1 class="text-3xl font-bold text-white">Edit Report</h1>
+            </div>
+            <p class="text-slate-400 text-sm">{{ report.title }}</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <a href="/reports/{{ report.id }}"
+               class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg transition-all text-sm font-medium border border-slate-700">
+                Cancel
+            </a>
+            <button @click="saveReport()"
+                    :disabled="saving"
+                    class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                <svg x-show="!saving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <svg x-show="saving" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span x-text="saving ? 'Saving...' : 'Save Changes'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Edit Form -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings -->
+        <div class="space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4">Report Settings</h3>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Title</label>
+                        <input type="text" x-model="title"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                        <textarea x-model="description" rows="3"
+                                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none"
+                                  placeholder="Optional description..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4">Report Info</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Created</span>
+                        <span class="text-white">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Last Updated</span>
+                        <span class="text-white">{{ report.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Targets</span>
+                        <span class="text-white">{{ report.target_ids|length }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Status</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+                            {% if report.status == 'completed' %}bg-emerald-900/30 text-emerald-400
+                            {% else %}bg-slate-800 text-slate-400{% endif %}">
+                            {{ report.status|upper }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="lg:col-span-2">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden h-full flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/50">
+                    <h3 class="text-white font-semibold">Markdown Content</h3>
+                </div>
+
+                <div class="flex-1">
+                    <textarea x-model="markdownContent"
+                              class="w-full h-full bg-slate-950 text-slate-300 font-mono text-sm p-4 resize-none focus:outline-none"
+                              style="min-height: 500px;"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden form for submission -->
+    <form id="reportForm" action="/reports/{{ report.id }}/update" method="POST" class="hidden">
+        <input type="hidden" name="title" :value="title">
+        <input type="hidden" name="description" :value="description">
+        <input type="hidden" name="markdown_content" :value="markdownContent">
+    </form>
+</div>
+
+<script>
+function reportEditor() {
+    return {
+        title: {{ report.title|tojson|safe }},
+        description: {{ (report.description or '')|tojson|safe }},
+        markdownContent: {{ report.markdown_content|tojson|safe }},
+        saving: false,
+
+        async saveReport() {
+            this.saving = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('title', this.title);
+                formData.append('description', this.description);
+                formData.append('markdown_content', this.markdownContent);
+
+                const response = await fetch('/reports/{{ report.id }}/update', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.location.href = '/reports/{{ report.id }}';
+                } else {
+                    alert('Error saving report');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Error saving report');
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

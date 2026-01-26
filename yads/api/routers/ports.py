@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from typing import List, Dict, Any, Optional
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, text
@@ -8,6 +8,8 @@ from yads.models import User, Target, ScanResult
 from fastapi.templating import Jinja2Templates
 from collections import Counter
 from yads.utils.export import generate_excel, generate_pdf
+from yads.api.utils.date_filter import parse_date_range, apply_date_filter_to_results, get_date_range_display
+from datetime import datetime as dt_datetime
 
 router = APIRouter(prefix="/ports", tags=["ports"])
 templates = Jinja2Templates(directory="yads/api/templates")
@@ -25,9 +27,13 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_ports_data(session: Session, user: User, for_export: bool = False, q: str = None, port: str = None, exposed_only: bool = False):
+def _get_ports_data(session: Session, user: User, for_export: bool = False, q: str = None, port: str = None, exposed_only: bool = False, date_from: dt_datetime = None, date_to: dt_datetime = None):
     """
     Shared logic to fetch and process port data with filtering support.
+
+    Args:
+        date_from: Start datetime for filtering scan results
+        date_to: End datetime for filtering scan results
     """
     # Convert port to int if possible
     port_int = None
@@ -51,13 +57,21 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False, q: s
 
     # 2. Fetch Port Scan Results
     target_ids = tuple(t.id for t in targets)
-    
+
     # Robust approach: Get all 'port_scanner' and 'nmap_scanner' results for these targets, ordered by date desc.
     statement = select(ScanResult).where(
         ScanResult.module_name.in_(["port_scanner", "nmap_scanner"]),
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())
-    
+    )
+
+    # Apply date filtering
+    if date_from:
+        statement = statement.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        statement = statement.where(ScanResult.scanned_at <= date_to)
+
+    statement = statement.order_by(ScanResult.scanned_at.desc())
+
     results = session.exec(statement).all()
     
     # Dedup: Keep only the first result (latest) per target_id
@@ -153,40 +167,54 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False, q: s
 
 @router.get("/", response_class=HTMLResponse)
 async def list_open_ports(
-    request: Request, 
-    session: Session = Depends(get_session), 
+    request: Request,
+    session: Session = Depends(get_session),
     user: User = Depends(get_current_user_html),
     q: Optional[str] = None,
     port: Optional[str] = None,
-    exposed_only: Optional[str] = None
+    exposed_only: Optional[str] = None,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
 ):
     # Normalize exposed_only to bool
     is_exposed_only = False
     if exposed_only and exposed_only.lower() == "true":
         is_exposed_only = True
 
-    rows, stats = _get_ports_data(session, user, q=q, port=port, exposed_only=is_exposed_only)
+    # Parse date range
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    rows, stats = _get_ports_data(session, user, q=q, port=port, exposed_only=is_exposed_only, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("ports.html", {
-        "request": request, 
-        "user": user, 
+        "request": request,
+        "user": user,
         "rows": rows,
-        "stats": stats
+        "stats": stats,
+        "date_range_display": date_range_display
     })
 
 @router.get("/export/excel")
 async def export_ports_excel(
-    session: Session = Depends(get_session), 
+    session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user),
     q: Optional[str] = None,
     port: Optional[str] = None,
-    exposed_only: Optional[str] = None
+    exposed_only: Optional[str] = None,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
 ):
     # Normalize exposed_only to bool
     is_exposed_only = False
     if exposed_only and exposed_only.lower() == "true":
         is_exposed_only = True
 
-    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only)
+    # Parse date range
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+
+    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only, date_from=from_dt, date_to=to_dt)
     # Prepare flat data for export
     export_data = []
     for r in rows:
@@ -200,18 +228,24 @@ async def export_ports_excel(
 
 @router.get("/export/pdf")
 async def export_ports_pdf(
-    session: Session = Depends(get_session), 
+    session: Session = Depends(get_session),
     user: User = Depends(get_current_active_user),
     q: Optional[str] = None,
     port: Optional[str] = None,
-    exposed_only: Optional[str] = None
+    exposed_only: Optional[str] = None,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
 ):
     # Normalize exposed_only to bool
     is_exposed_only = False
     if exposed_only and exposed_only.lower() == "true":
         is_exposed_only = True
 
-    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only)
+    # Parse date range
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+
+    rows, _ = _get_ports_data(session, user, for_export=True, q=q, port=port, exposed_only=is_exposed_only, date_from=from_dt, date_to=to_dt)
     # Prepare flat data for export
     export_data = []
     for r in rows:

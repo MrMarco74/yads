@@ -21,7 +21,8 @@ from yads.core.worker_manager import (
     HEARTBEAT_INTERVAL_SECONDS
 )
 from yads.core.redis_logger import (
-    get_unified_logs, get_tenant_logs, get_worker_logs
+    get_unified_logs, get_tenant_logs, get_worker_logs,
+    get_all_workers_network_info, get_worker_network_info
 )
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
@@ -101,6 +102,16 @@ class ResourceQuotaUpdate(BaseModel):
     max_concurrent_scans: Optional[int] = None
     max_daily_scans: Optional[int] = None
     max_network_throughput_mbps: Optional[float] = None
+
+
+class WorkerConfigUpdate(BaseModel):
+    """Request body for updating worker configuration."""
+    max_concurrent_tasks: Optional[int] = None
+    max_network_mbps: Optional[float] = None
+    max_daily_scans: Optional[int] = None
+    capabilities: Optional[List[str]] = None
+    assigned_tenant_ids: Optional[List[int]] = None
+    description: Optional[str] = None
 
 
 # =============================================================================
@@ -258,10 +269,20 @@ async def list_workers(
 
             primary_badge = '<span class="ml-1 px-1 py-0.5 text-[8px] bg-indigo-600 text-white rounded">PRIMARY</span>' if w["is_primary"] else ""
 
-            actions = ""
+            # Configure button (always shown)
+            config_btn = f'''
+                <button hx-get="/api/workers/{w["node_id"]}/config"
+                        hx-target="#worker-config-modal-content"
+                        hx-swap="innerHTML"
+                        onclick="document.getElementById('worker-config-modal').classList.remove('hidden')"
+                        class="text-[9px] text-blue-400 hover:text-blue-300">Configure</button>
+            '''
+
+            actions = config_btn
             if not w["is_primary"]:
                 if w["status"] == "active":
-                    actions = f'''
+                    actions += f'''
+                        <span class="text-gray-600">|</span>
                         <button hx-post="/api/workers/{w["node_id"]}/suspend" hx-swap="none" hx-confirm="Suspend worker {w["hostname"]}?"
                                 class="text-[9px] text-yellow-400 hover:text-yellow-300">Suspend</button>
                         <span class="text-gray-600">|</span>
@@ -269,15 +290,25 @@ async def list_workers(
                                 class="text-[9px] text-amber-400 hover:text-amber-300">Drain</button>
                     '''
                 elif w["status"] == "suspended":
-                    actions = f'''
+                    actions += f'''
+                        <span class="text-gray-600">|</span>
                         <button hx-post="/api/workers/{w["node_id"]}/resume" hx-swap="none"
                                 class="text-[9px] text-green-400 hover:text-green-300">Resume</button>
                     '''
                 elif w["status"] in ["offline", "draining"]:
-                    actions = f'''
+                    actions += f'''
+                        <span class="text-gray-600">|</span>
                         <button hx-delete="/api/workers/{w["node_id"]}" hx-swap="none" hx-confirm="Remove worker {w["hostname"]}?"
                                 class="text-[9px] text-red-400 hover:text-red-300">Remove</button>
                     '''
+
+            # Tenant assignment display
+            tenant_info = ""
+            assigned_tenants = w.get("assigned_tenant_ids", [])
+            if assigned_tenants and len(assigned_tenants) > 0:
+                tenant_info = f'<span class="text-[9px] text-cyan-400">{len(assigned_tenants)} tenant(s)</span>'
+            else:
+                tenant_info = '<span class="text-[9px] text-gray-600">all tenants</span>'
 
             html_parts.append(f'''
                 <div class="flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-gray-600 transition-colors">
@@ -294,6 +325,8 @@ async def list_workers(
                                 <span>{w["current_tasks"]}/{w["max_concurrent_tasks"]} tasks</span>
                                 <span>•</span>
                                 <span>{w["current_load"]}% load</span>
+                                <span>•</span>
+                                {tenant_info}
                             </div>
                         </div>
                     </div>
@@ -409,6 +442,116 @@ async def remove_worker(
     if not success:
         raise HTTPException(status_code=404, detail="Worker not found")
     return {"status": "removed", "node_id": node_id}
+
+
+@router.get("/{node_id}/config")
+async def get_worker_config(
+    node_id: str,
+    request: Request,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Get detailed configuration for a worker."""
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import WorkerNode, Tenant
+
+    with Session(engine) as session:
+        worker = session.exec(
+            select(WorkerNode).where(WorkerNode.node_id == node_id)
+        ).first()
+
+        if not worker:
+            raise HTTPException(status_code=404, detail="Worker not found")
+
+        # Get tenant names for assigned tenants
+        assigned_tenants = []
+        if worker.assigned_tenant_ids:
+            for tid in worker.assigned_tenant_ids:
+                tenant = session.get(Tenant, tid)
+                if tenant:
+                    assigned_tenants.append({"id": tid, "name": tenant.name})
+
+        # Get all tenants for selection
+        all_tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
+
+        config = {
+            "id": worker.id,
+            "node_id": worker.node_id,
+            "hostname": worker.hostname,
+            "ip_address": worker.ip_address,
+            "is_primary": worker.is_primary,
+            "status": worker.status,
+            "max_concurrent_tasks": worker.max_concurrent_tasks,
+            "max_network_mbps": worker.max_network_mbps,
+            "max_daily_scans": worker.max_daily_scans,
+            "capabilities": worker.capabilities or [],
+            "assigned_tenant_ids": worker.assigned_tenant_ids or [],
+            "assigned_tenants": assigned_tenants,
+            "description": worker.description,
+            "version": worker.version,
+            "cpu_count": worker.cpu_count,
+            "memory_mb": worker.memory_mb,
+            "registered_at": worker.registered_at.isoformat() if worker.registered_at else None,
+            "last_heartbeat": worker.last_heartbeat.isoformat() if worker.last_heartbeat else None,
+            "current_tasks": worker.current_tasks,
+            "current_load": worker.current_load
+        }
+
+        # Check if HTMX request for modal content
+        if request.headers.get("HX-Request"):
+            return templates.TemplateResponse("components/worker_config_modal.html", {
+                "request": request,
+                "worker": config,
+                "tenants": all_tenants,
+                "user": user
+            })
+
+        config["all_tenants"] = [{"id": t.id, "name": t.name} for t in all_tenants]
+        return config
+
+
+@router.put("/{node_id}/config")
+async def update_worker_config(
+    node_id: str,
+    config: WorkerConfigUpdate,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Update worker configuration."""
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import WorkerNode
+
+    with Session(engine) as session:
+        worker = session.exec(
+            select(WorkerNode).where(WorkerNode.node_id == node_id)
+        ).first()
+
+        if not worker:
+            raise HTTPException(status_code=404, detail="Worker not found")
+
+        # Update fields if provided
+        if config.max_concurrent_tasks is not None:
+            worker.max_concurrent_tasks = config.max_concurrent_tasks
+        if config.max_network_mbps is not None:
+            worker.max_network_mbps = config.max_network_mbps
+        if config.max_daily_scans is not None:
+            worker.max_daily_scans = config.max_daily_scans if config.max_daily_scans > 0 else None
+        if config.capabilities is not None:
+            worker.capabilities = config.capabilities
+        if config.assigned_tenant_ids is not None:
+            worker.assigned_tenant_ids = config.assigned_tenant_ids
+        if config.description is not None:
+            worker.description = config.description if config.description.strip() else None
+
+        session.add(worker)
+        session.commit()
+        session.refresh(worker)
+
+        return {
+            "status": "ok",
+            "message": f"Worker {node_id} configuration updated",
+            "node_id": node_id
+        }
 
 
 # =============================================================================
@@ -527,6 +670,35 @@ async def get_worker_logs_api(
     """Get logs for a specific worker (admin only)."""
     logs = get_worker_logs(worker_id, limit=limit)
     return {"logs": logs, "count": len(logs)}
+
+
+# =============================================================================
+# Worker Network Info (Admin only)
+# =============================================================================
+
+@router.get("/network-info")
+async def get_all_workers_network_info_api(
+    user: User = Depends(PlatformAdminChecker())
+):
+    """
+    Get network information (external IP, hostname) for all workers.
+
+    This information is updated each time a worker processes a scan.
+    """
+    workers = get_all_workers_network_info()
+    return {"workers": workers, "count": len(workers)}
+
+
+@router.get("/network-info/{worker_id}")
+async def get_worker_network_info_api(
+    worker_id: str,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Get network information for a specific worker."""
+    info = get_worker_network_info(worker_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="Worker network info not found")
+    return {"worker_id": worker_id, "network_info": info}
 
 
 # =============================================================================

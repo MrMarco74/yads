@@ -18,7 +18,8 @@ router = APIRouter(
     tags=["queue"]
 )
 
-templates = Jinja2Templates(directory="yads/api/templates")
+# from fastapi.templating import Jinja2Templates
+from yads.api.templating import templates
 
 def get_all_tenants():
     from sqlmodel import Session, select
@@ -27,17 +28,17 @@ def get_all_tenants():
     with Session(engine) as session:
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 
-templates.env.globals['get_available_tenants'] = get_all_tenants
-
 # Helper: Timestamp to Time Filter
-def timestamp_to_time(ts):
-    try:
-        if not ts: return "-"
-        return datetime.fromtimestamp(ts).strftime('%H:%M:%S')
-    except:
-        return str(ts)
+# (Moved to templating.py)
 
-templates.env.filters["timestamp_to_time"] = timestamp_to_time
+# Helper: Prettify Task Name
+def prettify_task_name(name):
+    if not name: return "Unknown"
+    if name == "yads.worker.run_all_scans":
+        return "Standard Scan"
+    return name.split('.')[-1]
+
+templates.env.filters["prettify_task"] = prettify_task_name
 
 
 def extract_tenant_from_task(task: dict) -> int | None:
@@ -100,14 +101,19 @@ async def view_queue(
         for worker, tasks in active_raw.items():
             for t in tasks:
                 t['hostname'] = worker
+                t['name'] = prettify_task_name(t.get('name', ''))
                 active_tasks.append(t)
                 
         reserved_tasks = []
         for worker, tasks in reserved_raw.items():
+            for t in tasks:
+                 t['name'] = prettify_task_name(t.get('name', ''))
             reserved_tasks.extend(tasks)
             
         scheduled_tasks = []
         for worker, tasks in scheduled_raw.items():
+            for t in tasks:
+                 t['name'] = prettify_task_name(t.get('name', ''))
             scheduled_tasks.extend(tasks)
 
         # Filter by tenant (unless platform admin with no tenant)
@@ -175,7 +181,7 @@ async def view_queue(
                 tenant_queue_len += 1
                 queued_tasks.append({
                     "id": item_data.get('headers', {}).get('id', '?'),
-                    "name": item_data.get('headers', {}).get('task', 'Unknown Task'),
+                    "name": prettify_task_name(item_data.get('headers', {}).get('task', 'Unknown Task')),
                     "args": f"{domain} {scan_types}",
                     "domain": domain, 
                     "scan_types": scan_types,
@@ -187,14 +193,43 @@ async def view_queue(
     except Exception as e:
         print(f"Redis Inspection Error: {e}")
 
+    # --- Database Fallback/Sync ---
+    # Fetch tasks that are marked as 'queued' in DB.
+    # This covers items that might be queued but not yet in Redis (e.g. if worker is paused/down)
+    # or if Redis inspection failed.
+    from yads.models import Target
+    db_queued = []
+    try:
+        stmt = select(Target).where(Target.tenant_id == user.tenant_id, Target.scan_status == "queued").limit(100)
+        results = session.exec(stmt).all()
+        for t in results:
+             # Check if this target is already in Redis list to avoid duplicates (by domain)
+             # Basic dedup based on domain name
+             if not any(q['domain'] == t.domain for q in queued_tasks):
+                 db_queued.append({
+                     "id": f"db-{t.id}", # Pseudo ID
+                     "name": "Standard Scan", # Use pretty name directly
+                     "args": f"{t.domain}",
+                     "domain": t.domain,
+                     "scan_types": [], # We don't store types easily in target table for display yet without joining
+                     "tenant_id": t.tenant_id,
+                     "source": "database"
+                 })
+    except Exception as e:
+        print(f"DB Queue Fetch Error: {e}")
+
+    # Merge or Append?
+    # Let's append them to queued_tasks, distinct by source
+    all_queued = queued_tasks + db_queued
+
     return templates.TemplateResponse("queue.html", {
         "request": request,
         "user": user,
         "active_tasks": active_tasks,
         "reserved_tasks": reserved_tasks,
         "scheduled_tasks": scheduled_tasks,
-        "queued_tasks": queued_tasks,
-        "queue_length": tenant_queue_len,  # Show tenant-filtered count
+        "queued_tasks": all_queued,
+        "queue_length": tenant_queue_len + len(db_queued),  # Show combined count
         "queue_active": queue_active,
         "settings": settings
     })
@@ -256,6 +291,157 @@ async def control_queue(
 
     return RedirectResponse(url="/queue", status_code=303)
 
+
+
+@router.post("/tasks/{task_id}/cancel", dependencies=[Depends(scanner_only)])
+async def cancel_single_task(
+    task_id: str,
+    request: Request,
+    user: User = Depends(get_current_user_html),
+    session: Session = Depends(get_session)
+):
+    """
+    Cancel a single queued/active/reserved task.
+    Verifies tenant ownership before cancellation.
+    """
+    import json
+    import base64
+    from yads.models import Target
+
+    try:
+        celery_app = Celery("yads_cancel", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        r = redis_client
+
+        task_found = False
+        task_tenant_id = None
+        target_id = None
+        task_state = None  # 'queued', 'reserved', 'active'
+
+        # 1. Check if task is in Redis queue (queued but not picked up)
+        queue_items = r.lrange("celery", 0, -1)
+        item_to_remove = None
+
+        for raw in queue_items:
+            try:
+                item_data = json.loads(raw)
+                item_task_id = item_data.get('headers', {}).get('id')
+
+                if item_task_id == task_id:
+                    task_found = True
+                    task_state = 'queued'
+                    item_to_remove = raw
+
+                    # Extract tenant_id and target_id for verification
+                    body_b64 = item_data.get('body')
+                    if body_b64:
+                        try:
+                            body_str = base64.b64decode(body_b64).decode('utf-8')
+                            body_json = json.loads(body_str)
+                            if isinstance(body_json, list) and len(body_json) > 0:
+                                args = body_json[0]
+                                if len(args) > 0: target_id = args[0]
+                                if len(args) > 3: task_tenant_id = args[3]
+                        except:
+                            pass
+                    break
+            except:
+                continue
+
+        # 2. Check if task is reserved or active (via Celery inspect)
+        if not task_found:
+            i = celery_app.control.inspect()
+            if i:
+                # Check reserved tasks
+                reserved = i.reserved() or {}
+                for worker, tasks in reserved.items():
+                    for task in tasks:
+                        if task.get('id') == task_id:
+                            task_found = True
+                            task_state = 'reserved'
+                            task_tenant_id = extract_tenant_from_task(task)
+                            args = task.get('args', [])
+                            if len(args) > 0: target_id = args[0]
+                            break
+                    if task_found: break
+
+                # Check active tasks
+                if not task_found:
+                    active = i.active() or {}
+                    for worker, tasks in active.items():
+                        for task in tasks:
+                            if task.get('id') == task_id:
+                                task_found = True
+                                task_state = 'active'
+                                task_tenant_id = extract_tenant_from_task(task)
+                                args = task.get('args', [])
+                                if len(args) > 0: target_id = args[0]
+                                break
+                        if task_found: break
+
+        if not task_found:
+            scan_logger.warning(f"Task {task_id} not found in queue")
+            if request.headers.get("HX-Request"):
+                return HTMLResponse(
+                    '<span class="text-yellow-400 text-xs">Not found</span>',
+                    status_code=200
+                )
+            return {"status": "not_found", "message": "Task not found in queue"}
+
+        # 3. Verify tenant ownership (unless platform admin)
+        if user.role != "admin" and task_tenant_id != user.tenant_id:
+            scan_logger.warning(f"User {user.id} attempted to cancel task {task_id} from tenant {task_tenant_id}")
+            if request.headers.get("HX-Request"):
+                return HTMLResponse(
+                    '<span class="text-red-400 text-xs">Access denied</span>',
+                    status_code=200
+                )
+            return {"status": "forbidden", "message": "Not authorized to cancel this task"}
+
+        # 4. Perform cancellation based on state
+        if task_state == 'queued' and item_to_remove:
+            # Remove from Redis queue
+            r.lrem("celery", 1, item_to_remove)
+            scan_logger.info(f"Removed task {task_id} from Redis queue")
+
+        # Always send revoke signal (works for reserved/active, harmless for already-removed)
+        celery_app.control.revoke(task_id, terminate=True)
+        scan_logger.info(f"Revoked task {task_id} (state: {task_state})")
+
+        # 5. Reset target status if we have target_id
+        if target_id:
+            try:
+                target = session.get(Target, target_id)
+                if target and target.scan_status in ("queued", "running"):
+                    target.scan_status = "idle"
+                    target.scan_progress = "Cancelled by user"
+                    session.add(target)
+                    session.commit()
+                    scan_logger.info(f"Reset target {target_id} status to idle")
+            except Exception as e:
+                scan_logger.error(f"Failed to reset target status: {e}")
+
+        # 6. Return response
+        if request.headers.get("HX-Request"):
+            return HTMLResponse(
+                '<span class="text-emerald-400 text-xs">Cancelled</span>',
+                status_code=200
+            )
+
+        return {
+            "status": "cancelled",
+            "task_id": task_id,
+            "task_state": task_state,
+            "target_id": target_id
+        }
+
+    except Exception as e:
+        scan_logger.error(f"Failed to cancel task {task_id}: {e}")
+        if request.headers.get("HX-Request"):
+            return HTMLResponse(
+                f'<span class="text-red-400 text-xs">Error</span>',
+                status_code=200
+            )
+        return {"status": "error", "message": str(e)}
 
 
 @router.post("/purge", dependencies=[Depends(scanner_only)])

@@ -67,20 +67,32 @@
                         <th class="px-6 py-3">Target / Args</th>
                         <th class="px-6 py-3">Worker</th>
                         <th class="px-6 py-3">Started</th>
+                        <th class="px-6 py-3 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800">
                     {% for task in active_tasks %}
                     <tr class="hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?') }}</td>
-                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?')[:12] }}...</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown') }}</td>
                         <td class="px-6 py-3 font-mono text-xs">{{ task.get('args', '') }}</td>
                         <td class="px-6 py-3 text-slate-500">{{ task.get('hostname', '-') }}</td>
                         <td class="px-6 py-3 text-emerald-400">{{ task.get('time_start')|timestamp_to_time }}</td>
+                        <td class="px-6 py-3 text-right">
+                            <button
+                                hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
+                                hx-swap="outerHTML"
+                                hx-confirm="Cancel this running task? The scan will be terminated."
+                                class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
+                                title="Cancel task {{ task.get('id', '') }}"
+                            >
+                                Cancel
+                            </button>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-600 italic">
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-600 italic">
                             No tasks currently executing.
                         </td>
                     </tr>
@@ -109,23 +121,41 @@
                         <th class="px-6 py-3">Type</th>
                         <th class="px-6 py-3">Args (Domain / Types)</th>
                         <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3 text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800">
                      {% for task in queued_tasks %}
                     <tr class="hover:bg-slate-800/50">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?') }}</td>
-                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?')[:12] if task.get('id', '?') != '?' else '?' }}...</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown') }}</td>
                         <td class="px-6 py-3 font-mono text-xs">{{ task.get('args', '') }}</td>
                         <td class="px-6 py-3">
+                            {% if task.source == 'database' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-900/30 text-amber-400 border border-amber-800/50">
+                                Pending (DB)
+                            </span>
+                            {% else %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-cyan-900/30 text-cyan-400 border border-cyan-800/50">
                                 Queued
                             </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3 text-right">
+                            <button
+                                hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
+                                hx-swap="outerHTML"
+                                hx-confirm="Remove this task from the queue?"
+                                class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
+                                title="Cancel task"
+                            >
+                                Cancel
+                            </button>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="px-6 py-8 text-center text-slate-600 italic">Queue is empty.</td>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-600 italic">Queue is empty.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -150,17 +180,28 @@
                         <tr>
                             <th class="px-4 py-2">Task</th>
                             <th class="px-4 py-2">Args</th>
+                            <th class="px-4 py-2 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800">
                          {% for task in reserved_tasks %}
                         <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown') }}</td>
                             <td class="px-4 py-2 font-mono text-xs">{{ task.get('args', '') }}</td>
+                            <td class="px-4 py-2 text-right">
+                                <button
+                                    hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
+                                    hx-swap="outerHTML"
+                                    hx-confirm="Cancel this reserved task?"
+                                    class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
+                                >
+                                    Cancel
+                                </button>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="2" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
+                            <td colspan="3" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -183,17 +224,28 @@
                         <tr>
                             <th class="px-4 py-2">Task</th>
                             <th class="px-4 py-2">ETA</th>
+                            <th class="px-4 py-2 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800">
                          {% for task in scheduled_tasks %}
                         <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown').split('.')[-1] }}</td>
+                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown') }}</td>
                             <td class="px-4 py-2 font-mono text-xs text-purple-400">{{ task.get('eta', '-') }}</td>
+                            <td class="px-4 py-2 text-right">
+                                <button
+                                    hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
+                                    hx-swap="outerHTML"
+                                    hx-confirm="Cancel this scheduled task?"
+                                    class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
+                                >
+                                    Cancel
+                                </button>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="2" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
+                            <td colspan="3" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
                         </tr>
                         {% endfor %}
                     </tbody>

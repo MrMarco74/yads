@@ -125,15 +125,38 @@
                     <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
                     Vulnerability Scanning (Nuclei)
                 </h3>
-                 <div class="grid grid-cols-1 gap-6">
+                <p class="text-sm text-gray-400 mb-4">
+                    Nuclei is an open-source vulnerability scanner. The API key enables Pro features like cloud-based scanning and team collaboration.
+                </p>
+
+                <!-- Help Accordion -->
+                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-orange-400 transition-colors flex items-center gap-2 select-none">
+                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <span>How to get a Nuclei Pro API Key</span>
+                    </summary>
+                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                        <ol class="list-decimal list-outside space-y-2 ml-3">
+                            <li>Go to <a href="https://cloud.projectdiscovery.io/" target="_blank" class="text-orange-400 hover:text-orange-300 underline">ProjectDiscovery Cloud Platform (PDCP)</a></li>
+                            <li>Sign up for a free account or log in</li>
+                            <li>Navigate to <strong>Settings &rarr; API Keys</strong></li>
+                            <li>Generate a new API key and copy it</li>
+                        </ol>
+                        <div class="mt-3 p-2 bg-orange-900/20 border border-orange-700/30 rounded text-orange-300">
+                            <strong>Free Tier:</strong> Includes basic scanning capabilities. Pro subscription unlocks advanced features, more templates, and higher rate limits.
+                        </div>
+                    </div>
+                </details>
+
+                <div class="grid grid-cols-1 gap-6">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Nuclei Pro API Key</label>
-                        <input type="password" name="nuclei_api_key" 
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Nuclei Pro API Key (PDCP)</label>
+                        <input type="password" name="nuclei_api_key"
                                value="{{ tenant.nuclei_api_key or '' }}"
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500 font-mono placeholder-gray-600"
                                placeholder="pdcp_..."
                                autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Unlock Nuclei Pro features by providing your PDCP API Key.</p>
+                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://cloud.projectdiscovery.io/settings" target="_blank" class="text-orange-400 hover:underline">cloud.projectdiscovery.io</a></p>
                     </div>
                 </div>
             </div>
@@ -144,7 +167,29 @@
                     <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
                     Credential Monitoring (Have I Been Pwned)
                 </h3>
-                 <div class="grid grid-cols-1 gap-6">
+                <p class="text-sm text-gray-400 mb-4">
+                    Check if email addresses associated with your domains have appeared in data breaches.
+                </p>
+
+                <!-- Help Accordion -->
+                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-red-400 transition-colors flex items-center gap-2 select-none">
+                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <span>How to get an HIBP API Key</span>
+                    </summary>
+                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                        <ol class="list-decimal list-outside space-y-2 ml-3">
+                            <li>Go to <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:text-red-300 underline">haveibeenpwned.com/API/Key</a></li>
+                            <li>Purchase an API key subscription (required for breach lookups)</li>
+                            <li>Copy the API key from your account dashboard</li>
+                        </ol>
+                        <div class="mt-3 p-2 bg-red-900/20 border border-red-700/30 rounded text-red-300">
+                            <strong>Pricing:</strong> HIBP API keys are paid (~$3.50/month). This funds the service and ensures responsible usage. Password hash lookups (k-anonymity) are free and don't require a key.
+                        </div>
+                    </div>
+                </details>
+
+                <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">HIBP API Key</label>
                         <input type="password" name="hibp_api_key"
@@ -152,7 +197,7 @@
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500 font-mono placeholder-gray-600"
                                placeholder="hibp_..."
                                autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Required to check for email leaks/breaches via 'Have I Been Pwned' API.</p>
+                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:underline">haveibeenpwned.com/API/Key</a></p>
                     </div>
                 </div>
             </div>
@@ -163,9 +208,28 @@
                     <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                     Email Intelligence (Hunter.io)
                 </h3>
-                <p class="text-sm text-gray-400 mb-6">
-                    Enable enhanced email discovery for the Email Intelligence scanner. Optional - scanner works with free sources if not configured.
+                <p class="text-sm text-gray-400 mb-4">
+                    Discover email addresses associated with domains. Used by the Email Intelligence scanner.
                 </p>
+
+                <!-- Help Accordion -->
+                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-cyan-400 transition-colors flex items-center gap-2 select-none">
+                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <span>How to get a Hunter.io API Key</span>
+                    </summary>
+                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                        <ol class="list-decimal list-outside space-y-2 ml-3">
+                            <li>Go to <a href="https://hunter.io/users/sign_up" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">hunter.io</a> and create a free account</li>
+                            <li>Navigate to <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">API Keys</a> in your dashboard</li>
+                            <li>Copy your API key</li>
+                        </ol>
+                        <div class="mt-3 p-2 bg-cyan-900/20 border border-cyan-700/30 rounded text-cyan-300">
+                            <strong>Free Tier:</strong> 25 searches/month. Paid plans start at $49/month for 500 searches.
+                        </div>
+                    </div>
+                </details>
+
                 <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Hunter.io API Key</label>
@@ -174,7 +238,7 @@
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
                                placeholder="hunter_..."
                                autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Optional. Get your key from <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:underline">hunter.io/api-keys</a>. Free tier: 25 searches/month.</p>
+                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:underline">hunter.io/api-keys</a></p>
                     </div>
                 </div>
             </div>
@@ -185,9 +249,46 @@
                     <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     Social Media Scanner (GitHub & Twitter)
                 </h3>
-                <p class="text-sm text-gray-400 mb-6">
-                    Configure API access for enhanced social media reconnaissance. Both are optional - basic URL checking works without keys.
+                <p class="text-sm text-gray-400 mb-4">
+                    Enhanced reconnaissance for GitHub repositories and Twitter/X mentions.
                 </p>
+
+                <!-- Help Accordion -->
+                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-purple-400 transition-colors flex items-center gap-2 select-none">
+                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <span>How to get API Keys</span>
+                    </summary>
+                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
+                        <!-- GitHub -->
+                        <div>
+                            <h5 class="font-bold text-white mb-2">GitHub Personal Access Token</h5>
+                            <ol class="list-decimal list-outside space-y-1 ml-3">
+                                <li>Go to <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:text-purple-300 underline">GitHub Settings &rarr; Developer settings &rarr; Personal access tokens</a></li>
+                                <li>Click <strong>"Generate new token (classic)"</strong></li>
+                                <li>Select scopes: <code class="bg-gray-800 px-1 rounded">public_repo</code>, <code class="bg-gray-800 px-1 rounded">read:org</code>, <code class="bg-gray-800 px-1 rounded">read:user</code></li>
+                                <li>Generate and copy the token (starts with <code class="bg-gray-800 px-1 rounded">ghp_</code>)</li>
+                            </ol>
+                            <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
+                                <strong>Free:</strong> 5,000 requests/hour with token (vs 60/hour without)
+                            </div>
+                        </div>
+                        <!-- Twitter -->
+                        <div>
+                            <h5 class="font-bold text-white mb-2">Twitter/X Bearer Token</h5>
+                            <ol class="list-decimal list-outside space-y-1 ml-3">
+                                <li>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:text-purple-300 underline">Twitter Developer Portal</a></li>
+                                <li>Create a new Project and App</li>
+                                <li>Navigate to <strong>"Keys and tokens"</strong></li>
+                                <li>Generate and copy the <strong>Bearer Token</strong></li>
+                            </ol>
+                            <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
+                                <strong>Free Tier:</strong> 500,000 tweets/month read access. Requires phone number verification.
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- GitHub Token -->
                     <div>
@@ -197,7 +298,7 @@
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
                                placeholder="ghp_..."
                                autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">For GitHub org/repo discovery & secrets detection. Get from <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:underline">GitHub Settings</a>.</p>
+                        <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:underline">github.com/settings/tokens</a></p>
                     </div>
 
                     <!-- Twitter Bearer Token -->
@@ -208,8 +309,212 @@
                                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
                                placeholder="AAAA..."
                                autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">For Twitter/X account verification & mentions. Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:underline">Twitter Developer Portal</a>.</p>
+                        <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:underline">developer.twitter.com</a></p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Advanced OSINT API Keys -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    Advanced OSINT Pivots
+                    <span class="ml-2 text-[9px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold">BETA</span>
+                </h3>
+                <p class="text-sm text-gray-400 mb-4">
+                    External threat intelligence APIs for enhanced reconnaissance. These are optional and used for cross-referencing findings.
+                </p>
+
+                <!-- Help Accordion -->
+                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-amber-400 transition-colors flex items-center gap-2 select-none">
+                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <span>How to get API Keys</span>
+                    </summary>
+                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
+                        <!-- Shodan -->
+                        <div>
+                            <h5 class="font-bold text-white mb-2">Shodan API Key</h5>
+                            <ol class="list-decimal list-outside space-y-1 ml-3">
+                                <li>Create an account at <a href="https://account.shodan.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">shodan.io</a></li>
+                                <li>Go to <a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account Settings</a></li>
+                                <li>Copy your API key from the Overview page</li>
+                            </ol>
+                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                <strong>Free:</strong> Limited search credits. Paid membership ($49 one-time) unlocks full access.
+                            </div>
+                        </div>
+                        <!-- Censys -->
+                        <div>
+                            <h5 class="font-bold text-white mb-2">Censys API Key</h5>
+                            <ol class="list-decimal list-outside space-y-1 ml-3">
+                                <li>Create a free account at <a href="https://censys.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">censys.io</a></li>
+                                <li>Go to <a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account &rarr; API</a></li>
+                                <li>Copy both the <strong>API ID</strong> and <strong>Secret</strong> (format: <code class="bg-gray-800 px-1 rounded">API_ID:SECRET</code>)</li>
+                            </ol>
+                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                <strong>Free:</strong> 250 queries/month for researchers. Enterprise plans available.
+                            </div>
+                        </div>
+                        <!-- VirusTotal -->
+                        <div>
+                            <h5 class="font-bold text-white mb-2">VirusTotal API Key</h5>
+                            <ol class="list-decimal list-outside space-y-1 ml-3">
+                                <li>Create an account at <a href="https://www.virustotal.com/gui/join-us" target="_blank" class="text-amber-400 hover:text-amber-300 underline">virustotal.com</a></li>
+                                <li>Go to your <a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Profile &rarr; API Key</a></li>
+                                <li>Copy your API key</li>
+                            </ol>
+                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                <strong>Free:</strong> 500 lookups/day, 4 requests/minute. Premium plans remove limits.
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Shodan API Key -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Shodan API Key</label>
+                        <input type="password" name="shodan_api_key"
+                               value="{{ tenant.shodan_api_key or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                               placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:underline">shodan.io</a> - Internet-wide scanning</p>
+                    </div>
+
+                    <!-- Censys API Key -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Censys API Key</label>
+                        <input type="password" name="censys_api_key"
+                               value="{{ tenant.censys_api_key or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                               placeholder="api_id:api_secret"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:underline">censys.io</a> - Certificate & host search</p>
+                    </div>
+
+                    <!-- VirusTotal API Key -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">VirusTotal API Key</label>
+                        <input type="password" name="virustotal_api_key"
+                               value="{{ tenant.virustotal_api_key or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                               placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:underline">virustotal.com</a> - Malware analysis</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Branding Settings -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Report Branding
+                    <span class="ml-2 text-[9px] bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
+                </h3>
+                <p class="text-sm text-gray-400 mb-6">
+                    Customize the appearance of generated security reports. These settings apply to all reports created via the Report Builder.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Logo URL -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Logo URL</label>
+                        <input type="text" name="report_logo_url"
+                               value="{{ tenant.report_logo_url or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
+                               placeholder="https://example.com/logo.png"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">URL to your company logo. Supports PNG, JPG, or SVG. Recommended height: 40-60px.</p>
+                    </div>
+
+                    <!-- Company Name -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Company Name</label>
+                        <input type="text" name="report_company_name"
+                               value="{{ tenant.report_company_name or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                               placeholder="{{ tenant.name }}"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">Displayed in report headers. Defaults to tenant name if empty.</p>
+                    </div>
+
+                    <!-- Primary Color -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Primary Color</label>
+                        <div class="flex items-center gap-2">
+                            <input type="color" name="report_primary_color"
+                                   value="{{ tenant.report_primary_color or '#3b82f6' }}"
+                                   class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
+                            <input type="text"
+                                   value="{{ tenant.report_primary_color or '#3b82f6' }}"
+                                   class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
+                                   placeholder="#3b82f6"
+                                   readonly>
+                        </div>
+                        <p class="text-[10px] text-gray-500 mt-1">Used for headers, titles, and accent elements.</p>
+                    </div>
+
+                    <!-- Secondary Color -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Secondary Color</label>
+                        <div class="flex items-center gap-2">
+                            <input type="color" name="report_secondary_color"
+                                   value="{{ tenant.report_secondary_color or '#64748b' }}"
+                                   class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
+                            <input type="text"
+                                   value="{{ tenant.report_secondary_color or '#64748b' }}"
+                                   class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
+                                   placeholder="#64748b"
+                                   readonly>
+                        </div>
+                        <p class="text-[10px] text-gray-500 mt-1">Used for subtitles, borders, and secondary elements.</p>
+                    </div>
+
+                    <!-- Header Text -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Header Text</label>
+                        <input type="text" name="report_header_text"
+                               value="{{ tenant.report_header_text or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                               placeholder="Security Assessment Report"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">Optional tagline or subtitle displayed below company name.</p>
+                    </div>
+
+                    <!-- Footer Text -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Footer Text</label>
+                        <input type="text" name="report_footer_text"
+                               value="{{ tenant.report_footer_text or '' }}"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                               placeholder="Confidential - Internal Use Only"
+                               autocomplete="off">
+                        <p class="text-[10px] text-gray-500 mt-1">Displayed at the bottom of each report page.</p>
+                    </div>
+                </div>
+
+                <!-- Preview Card -->
+                <div class="mt-6 p-4 bg-white rounded-lg">
+                    <div class="flex items-center gap-3 pb-3 border-b" style="border-color: {{ tenant.report_primary_color or '#3b82f6' }}20;">
+                        {% if tenant.report_logo_url %}
+                        <img src="{{ tenant.report_logo_url }}" alt="Logo" class="h-8 object-contain" onerror="this.style.display='none'">
+                        {% endif %}
+                        <div>
+                            <h4 class="font-bold text-sm" style="color: {{ tenant.report_primary_color or '#3b82f6' }}">{{ tenant.report_company_name or tenant.name }}</h4>
+                            {% if tenant.report_header_text %}
+                            <p class="text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">{{ tenant.report_header_text }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-600 py-2">Preview of report header styling...</div>
+                    {% if tenant.report_footer_text %}
+                    <div class="pt-2 border-t text-center text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">
+                        {{ tenant.report_footer_text }}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 

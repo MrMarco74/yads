@@ -8,6 +8,9 @@ import requests
 from playwright.sync_api import sync_playwright
 from PIL import Image
 import imagehash
+import mmh3
+import base64
+import codecs
 
 from yads.core.base import BaseScannerModule
 from yads.config import settings
@@ -49,7 +52,9 @@ class VisualOSINT(BaseScannerModule):
             "screenshot_path": filename if captured else None,
             "baseline_path": None,
             "diff_score": 0,
+            "diff_score": 0,
             "is_defaced": False,
+            "favicon_hash": None,
             "status": "success" if captured else "failed"
         }
 
@@ -85,6 +90,12 @@ class VisualOSINT(BaseScannerModule):
         # We can keep the old lightweight logic or disable it. 
         # Let's run it quickly as it adds value (Favicons).
         results["logos"] = self._fetch_logos(target)
+        
+        # 4. Calculate Favicon Hash (MurmurHash for Shodan)
+        # We try HTTP/HTTPS root favicon first
+        results["favicon_hash"] = self._calculate_favicon_hash(f"https://{target}")
+        if not results["favicon_hash"]:
+             results["favicon_hash"] = self._calculate_favicon_hash(f"http://{target}")
         
         return results
 
@@ -184,3 +195,34 @@ class VisualOSINT(BaseScannerModule):
                     logos.append(s)
             except: pass
         return logos
+
+    def _calculate_favicon_hash(self, base_url: str) -> Optional[int]:
+        """
+        Calculates the MurmurHash3 of the favicon for Shodan pivots.
+        Method: 
+        1. GET /favicon.ico
+        2. Base64 Encode content
+        3. Insert newlines every 76 chars (standard MIME/PEM format)
+        4. Calculate mmh3 hash
+        """
+        favicon_url = f"{base_url.rstrip('/')}/favicon.ico"
+        try:
+            r = requests.get(favicon_url, timeout=5, verify=False)
+            if r.status_code == 200 and len(r.content) > 0:
+                # Shodan Hashing Algorithm:
+                # 1. Base64
+                b64 = base64.encodebytes(r.content) # encodebytes adds newlines
+                # but mmh3 expects string or bytes.
+                # Shodan uses: mmh3.hash(codecs.encode(response.content, 'base64'))
+                # which adds newlines automatically.
+                
+                # Using the standard shodan approach:
+                encoded = codecs.encode(r.content, "base64") 
+                # This returns the b64 with newlines
+                
+                favicon_hash = mmh3.hash(encoded)
+                self.logger.info(f"Favicon Hash for {base_url}: {favicon_hash}")
+                return favicon_hash
+        except Exception as e:
+            pass
+        return None

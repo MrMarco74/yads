@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <a href="/reports" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </a>
+                <h1 class="text-3xl font-bold text-white">{{ report.title }}</h1>
+            </div>
+            {% if report.description %}
+            <p class="text-slate-400 text-sm">{{ report.description }}</p>
+            {% endif %}
+            <div class="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Generated: {{ report.generated_at.strftime('%Y-%m-%d %H:%M') if report.generated_at else report.created_at.strftime('%Y-%m-%d %H:%M') }}
+                </span>
+                <span class="flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    {{ report.target_ids|length }} target(s)
+                </span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+                    {% if report.status == 'completed' %}bg-emerald-900/30 text-emerald-400 border border-emerald-800/50
+                    {% elif report.status == 'draft' %}bg-yellow-900/30 text-yellow-400 border border-yellow-800/50
+                    {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                    {{ report.status|upper }}
+                </span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <a href="/reports/{{ report.id }}/edit"
+               class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg transition-all text-sm font-medium border border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Edit
+            </a>
+            <a href="/reports/{{ report.id }}/export/pdf"
+               class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Report Content -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <!-- Branding Header -->
+        {% if report.branding_snapshot %}
+        <div class="px-8 py-6 border-b" style="background: linear-gradient(135deg, {{ report.branding_snapshot.primary_color or '#3b82f6' }}15, {{ report.branding_snapshot.secondary_color or '#64748b' }}10);">
+            <div class="flex items-center justify-between">
+                <div>
+                    {% if report.branding_snapshot.logo_url %}
+                    <img src="{{ report.branding_snapshot.logo_url }}" alt="Logo" class="h-10 mb-2">
+                    {% endif %}
+                    <h2 class="text-xl font-bold text-slate-800">{{ report.branding_snapshot.company_name or 'YADS Security' }}</h2>
+                    {% if report.branding_snapshot.header_text %}
+                    <p class="text-sm text-slate-600">{{ report.branding_snapshot.header_text }}</p>
+                    {% endif %}
+                </div>
+                <div class="text-right text-sm text-slate-500">
+                    <p>{{ report.generated_at.strftime('%B %d, %Y') if report.generated_at else report.created_at.strftime('%B %d, %Y') }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Report Body -->
+        <div class="p-8">
+            <div class="prose prose-slate max-w-none">
+                {{ report.html_content|safe }}
+            </div>
+        </div>
+
+        <!-- Footer -->
+        {% if report.branding_snapshot and report.branding_snapshot.footer_text %}
+        <div class="px-8 py-4 border-t bg-slate-50 text-center">
+            <p class="text-xs text-slate-500">{{ report.branding_snapshot.footer_text }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Raw Markdown (Collapsible) -->
+    <details class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <summary class="px-6 py-4 cursor-pointer hover:bg-slate-800 transition-colors">
+            <span class="text-white font-medium">View Raw Markdown</span>
+        </summary>
+        <div class="px-6 pb-6">
+            <pre class="bg-slate-950 text-slate-300 p-4 rounded-lg text-sm overflow-x-auto font-mono whitespace-pre-wrap">{{ report.markdown_content }}</pre>
+        </div>
+    </details>
+</div>
+
+<style>
+/* Print-friendly prose styles */
+.prose h1 { font-size: 1.75rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #1e293b; }
+.prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+.prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #475569; }
+.prose h4 { font-size: 1.1rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; color: #64748b; }
+.prose p { margin-bottom: 0.75rem; color: #334155; line-height: 1.7; }
+.prose ul, .prose ol { margin-left: 1.5rem; margin-bottom: 0.75rem; color: #334155; }
+.prose li { margin-bottom: 0.25rem; }
+.prose table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.prose th, .prose td { border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; }
+.prose th { background-color: #f8fafc; font-weight: 600; color: #1e293b; }
+.prose tr:nth-child(even) { background-color: #f8fafc; }
+.prose code { background-color: #f1f5f9; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.875rem; color: #be185d; }
+.prose pre { background-color: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+.prose pre code { background-color: transparent; padding: 0; color: inherit; }
+.prose hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5rem 0; }
+.prose strong { font-weight: 600; color: #1e293b; }
+.prose a { color: #2563eb; text-decoration: underline; }
+.prose blockquote { border-left: 4px solid #3b82f6; padding-left: 1rem; margin: 1rem 0; color: #64748b; font-style: italic; }
+</style>
+{% endblock %}

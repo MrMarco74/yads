@@ -79,6 +79,17 @@ def on_worker_process_init(**kwargs):
     except Exception as e:
         logger.warning(f"[Worker] Failed to initialize worker client: {e}")
 
+    # Store worker network info in Redis for system-wide access
+    try:
+        from yads.core.redis_logger import get_external_ip, get_worker_hostname, store_worker_network_info
+        external_ip = get_external_ip()
+        hostname = get_worker_hostname()
+        worker_id = _worker_client.node_id if _worker_client and _worker_client.is_distributed else f"standalone-{hostname}"
+        store_worker_network_info(worker_id, external_ip, hostname, ttl=7200)  # 2 hour TTL
+        logger.info(f"[Worker] Network info registered: {external_ip} ({hostname})")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to register network info: {e}")
+
 
 def _patch_requests_with_throttling():
     """
@@ -399,20 +410,33 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             return False
 
     # Setup Redis Logging (with distributed support)
-    from yads.core.redis_logger import DistributedRedisLogHandler, RedisLogHandler
+    from yads.core.redis_logger import (
+        DistributedRedisLogHandler, RedisLogHandler,
+        get_external_ip, get_worker_hostname, resolve_target_ips,
+        store_worker_network_info
+    )
 
     # Use distributed handler if worker client is available
     global _worker_client
     worker_node_id = _worker_client.node_id if _worker_client and _worker_client.is_distributed else None
 
+    # Get external IP for logging (cached, won't delay scans)
+    external_ip = get_external_ip()
+    worker_hostname = get_worker_hostname()
+
+    # Store worker network info in Redis for system-wide access
+    effective_worker_id = worker_node_id or f"standalone-{worker_hostname}"
+    store_worker_network_info(effective_worker_id, external_ip, worker_hostname)
+
     if worker_node_id:
         redis_handler = DistributedRedisLogHandler(
             target_id=target_id,
             tenant_id=tenant_id,
-            worker_node_id=worker_node_id
+            worker_node_id=worker_node_id,
+            external_ip=external_ip
         )
     else:
-        redis_handler = RedisLogHandler(target_id)
+        redis_handler = RedisLogHandler(target_id, external_ip=external_ip)
 
     # Be more specific with logger format for UI
     redis_handler.setFormatter(logging.Formatter("%(message)s"))
@@ -421,6 +445,14 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
     # We use a try/finally block around the entire scan logic to ensure removal
     root_logger = logging.getLogger()
     root_logger.addHandler(redis_handler)
+
+    # Log network information at scan start (for debugging and audit)
+    target_ips = resolve_target_ips(domain)
+    logger.info(f"[Network] Scan initiated from {external_ip or 'unknown'} ({worker_hostname})")
+    if target_ips:
+        logger.info(f"[Network] Target {domain} resolves to: {', '.join(target_ips)}")
+    else:
+        logger.info(f"[Network] Target {domain} - DNS resolution pending")
 
     # Report task started to worker manager
     celery_task_id = self.request.id if hasattr(self, 'request') and self.request else None
@@ -765,6 +797,36 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                          print(f"[Worker] {inf.module_name} no change.")
                 except Exception as e:
                     logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
+                    session.rollback()
+
+            # 5. Run Analytics Correlator
+            if "analytics_correlator" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Analytics Correlator..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.analytics_correlator import AnalyticsCorrelator
+                    ac = AnalyticsCorrelator(db_session=session)
+                    logger.info(f"[Worker] Step 5: Running {ac.module_name}...")
+                    
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ac.module_name} for {domain}")
+                        result = ac.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    
+                    if result and hasattr(result, 'log_content'):
+                         result.log_content = sanitize_null_bytes(captured_logs)
+                         session.add(result)
+                         session.commit()
+                         print(f"[Worker] {ac.module_name} found changes/new data.")
+                    else:
+                         print(f"[Worker] {ac.module_name} no change.")
+                         
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Analytics Correlator: {e}")
                     session.rollback()
 
             # 4b. Run Port Scanner (Lightweight Web Probe)
@@ -1318,6 +1380,64 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
                 except Exception as e:
                     logger.error(f"[Worker] Error in Deception Detector: {e}")
+                    session.rollback()
+
+            # 18. Run Seed Files Scanner (robots.txt & sitemap.xml)
+            if "seed_files_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Analyzing robots.txt & sitemap.xml..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.seed_files_scanner import SeedFilesScanner
+                    seed_scan = SeedFilesScanner(db_session=session)
+                    logger.info(f"[Worker] Step 18: Running {seed_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {seed_scan.module_name} for {domain}")
+                        result = seed_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {seed_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {seed_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Seed Files Scanner: {e}")
+                    session.rollback()
+
+            # 19. Run CSP Scanner (Content-Security-Policy Analysis)
+            if "csp_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Analyzing Content-Security-Policy..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.csp_scanner import CSPScanner
+                    csp_scan = CSPScanner(db_session=session)
+                    logger.info(f"[Worker] Step 19: Running {csp_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {csp_scan.module_name} for {domain}")
+                        result = csp_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {csp_scan.module_name} finished.")
+                    else:
+                        print(f"[Worker] {csp_scan.module_name} finished.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in CSP Scanner: {e}")
                     session.rollback()
 
             # Subdomain Discovery & Auto-Queue Logic

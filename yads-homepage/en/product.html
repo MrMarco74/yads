@@ -125,6 +125,33 @@
             </div>
         </section>
 
+        <!-- Custom Report Builder -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">New Feature</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Custom Report Builder</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    Create fully customized security reports with your own branding, content, and structure. The powerful template engine gives you complete control over your reports.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">📝 Markdown templates with live preview</li>
+                    <li style="margin-bottom: 0.5rem;">🔧 200+ dynamic variables for all scan data</li>
+                    <li style="margin-bottom: 0.5rem;">🎯 Multi-target reports in single documents</li>
+                    <li style="margin-bottom: 0.5rem;">📚 Built-in help with variable reference</li>
+                    <li style="margin-bottom: 0.5rem;">🔒 Automatic tenant data isolation</li>
+                </ul>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+                    <p style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                        <span style="color: var(--accent-primary);">{{ tenant.report_company_name }}</span><br>
+                        <span style="color: #888;">Critical Issues:</span> <span style="color: var(--accent-secondary);">{{ summary.critical_count }}</span>
+                    </p>
+                </div>
+            </div>
+            <div class="feature-image">
+                <img src="./images/report-builder.png" alt="Custom Report Builder">
+            </div>
+        </section>
+
         <!-- Target Management -->
         <section class="feature-section">
             <div class="feature-text">

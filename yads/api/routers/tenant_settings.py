@@ -78,7 +78,18 @@ async def update_tenant_settings(
     hunter_api_key: Optional[str] = Form(None),
     github_token: Optional[str] = Form(None),
     twitter_bearer_token: Optional[str] = Form(None),
+    # Advanced OSINT API Keys (v1.16.0)
+    shodan_api_key: Optional[str] = Form(None),
+    censys_api_key: Optional[str] = Form(None),
+    virustotal_api_key: Optional[str] = Form(None),
     session_timeout_minutes: Optional[int] = Form(None),
+    # Report Branding Fields
+    report_logo_url: Optional[str] = Form(None),
+    report_company_name: Optional[str] = Form(None),
+    report_primary_color: Optional[str] = Form(None),
+    report_secondary_color: Optional[str] = Form(None),
+    report_header_text: Optional[str] = Form(None),
+    report_footer_text: Optional[str] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
 ):
@@ -99,7 +110,12 @@ async def update_tenant_settings(
     tenant.hunter_api_key = hunter_api_key if hunter_api_key and hunter_api_key.strip() else None
     tenant.github_token = github_token if github_token and github_token.strip() else None
     tenant.twitter_bearer_token = twitter_bearer_token if twitter_bearer_token and twitter_bearer_token.strip() else None
-    
+
+    # Advanced OSINT API Keys (v1.16.0)
+    tenant.shodan_api_key = shodan_api_key if shodan_api_key and shodan_api_key.strip() else None
+    tenant.censys_api_key = censys_api_key if censys_api_key and censys_api_key.strip() else None
+    tenant.virustotal_api_key = virustotal_api_key if virustotal_api_key and virustotal_api_key.strip() else None
+
     # Session Timeout Validation
     if session_timeout_minutes is not None:
         if session_timeout_minutes < 5:
@@ -114,7 +130,14 @@ async def update_tenant_settings(
             })
         tenant.session_timeout_minutes = session_timeout_minutes
 
-    
+    # Report Branding Settings
+    tenant.report_logo_url = report_logo_url if report_logo_url and report_logo_url.strip() else None
+    tenant.report_company_name = report_company_name if report_company_name and report_company_name.strip() else None
+    tenant.report_primary_color = report_primary_color if report_primary_color and report_primary_color.strip() else "#3b82f6"
+    tenant.report_secondary_color = report_secondary_color if report_secondary_color and report_secondary_color.strip() else "#64748b"
+    tenant.report_header_text = report_header_text if report_header_text and report_header_text.strip() else None
+    tenant.report_footer_text = report_footer_text if report_footer_text and report_footer_text.strip() else None
+
     session.add(tenant)
     session.commit()
     session.refresh(tenant)
