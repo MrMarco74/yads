@@ -260,6 +260,14 @@
                                 <input type="checkbox" name="scan_types" value="deception_detector" class="form-checkbox text-amber-500 rounded bg-gray-900 border-amber-600">
                                 <span class="text-sm font-medium text-amber-400">Deception Detector (Honeypot/Sinkhole)</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-cyan-900/20 rounded border border-cyan-900/50 hover:bg-cyan-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="seed_files_scanner" checked class="form-checkbox text-cyan-500 rounded bg-gray-900 border-cyan-600">
+                                <span class="text-sm font-medium text-cyan-400">Seed Files (robots.txt & sitemap.xml)</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 bg-emerald-900/20 rounded border border-emerald-900/50 hover:bg-emerald-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="csp_scanner" checked class="form-checkbox text-emerald-500 rounded bg-gray-900 border-emerald-600">
+                                <span class="text-sm font-medium text-emerald-400">CSP Scanner (External Domain Discovery)</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -2020,6 +2028,269 @@
                         {% endif %}
                 {% else %}
                     <p class="text-gray-500 italic">No Infrastructure data available.</p>
+                {% endif %}
+            </div>
+
+            <!-- SEED FILES ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-cyan-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Seed Files (robots.txt & sitemap.xml)</h2>
+                </div>
+
+                {% if seed_files_result and seed_files_result.data %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- robots.txt Section -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">robots.txt</h3>
+                            {% if seed_files_result.data.robots_txt and seed_files_result.data.robots_txt.found %}
+                                <div class="space-y-3">
+                                    <div class="bg-green-900/20 border border-green-500/30 rounded p-3">
+                                        <span class="text-green-400 text-xs font-bold">Found</span>
+                                        <p class="text-[10px] text-gray-400 mt-1">{{ seed_files_result.data.robots_txt.url }}</p>
+                                    </div>
+
+                                    {% if seed_files_result.data.robots_txt.disallow_rules %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-2">Disallowed Paths ({{ seed_files_result.data.robots_txt.disallow_rules|length }})</p>
+                                        <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                                            {% for rule in seed_files_result.data.robots_txt.disallow_rules[:20] %}
+                                                <span class="text-[10px] bg-red-900/30 text-red-300 px-1.5 py-0.5 rounded border border-red-700/30 font-mono">{{ rule.path }}</span>
+                                            {% endfor %}
+                                            {% if seed_files_result.data.robots_txt.disallow_rules|length > 20 %}
+                                                <span class="text-[10px] text-gray-500">+{{ seed_files_result.data.robots_txt.disallow_rules|length - 20 }} more</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if seed_files_result.data.robots_txt.sitemaps %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-2">Referenced Sitemaps</p>
+                                        <div class="space-y-1">
+                                            {% for sitemap in seed_files_result.data.robots_txt.sitemaps[:5] %}
+                                                <p class="text-[10px] font-mono text-cyan-300 truncate" title="{{ sitemap }}">{{ sitemap }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded p-3">
+                                    <span class="text-yellow-400 text-xs font-bold">Not Found</span>
+                                    <p class="text-[10px] text-gray-400 mt-1">{{ seed_files_result.data.robots_txt.error if seed_files_result.data.robots_txt else 'No robots.txt detected' }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Sitemaps Section -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Sitemaps</h3>
+                            {% if seed_files_result.data.sitemaps %}
+                                <div class="space-y-3">
+                                    {% for sitemap in seed_files_result.data.sitemaps[:3] %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="text-xs text-cyan-400 font-mono truncate" title="{{ sitemap.url }}">{{ sitemap.url|truncate(40) }}</span>
+                                            <span class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{{ sitemap.type }}</span>
+                                        </div>
+                                        <p class="text-[10px] text-gray-400">{{ sitemap.url_count }} URLs found</p>
+                                    </div>
+                                    {% endfor %}
+                                    {% if seed_files_result.data.sitemaps|length > 3 %}
+                                        <p class="text-[10px] text-gray-500 text-center">+{{ seed_files_result.data.sitemaps|length - 3 }} more sitemaps</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                    <span class="text-gray-500 text-xs">No sitemaps found</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Sensitive Paths Section -->
+                    {% if seed_files_result.data.sensitive_paths %}
+                    <div class="mt-6 border-t border-gray-700/50 pt-4">
+                        <h3 class="text-sm font-medium text-red-400 mb-3 uppercase tracking-wider">Potentially Sensitive Paths ({{ seed_files_result.data.sensitive_paths|length }})</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {% for path in seed_files_result.data.sensitive_paths[:10] %}
+                            <div class="flex items-center justify-between bg-red-900/10 border border-red-500/20 rounded p-2">
+                                <span class="text-xs font-mono text-red-300">{{ path.path }}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded {{ 'bg-red-600 text-white' if path.risk_indicator == 'high' else 'bg-yellow-600 text-white' }}">
+                                    {{ path.risk_indicator|upper }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Statistics -->
+                    <div class="mt-6 pt-4 border-t border-gray-700/50 grid grid-cols-4 gap-4 text-center">
+                        <div>
+                            <p class="text-lg font-bold text-white">{{ seed_files_result.data.statistics.total_paths or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Total Paths</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-white">{{ seed_files_result.data.statistics.total_sitemap_urls or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sitemap URLs</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-red-400">{{ seed_files_result.data.statistics.sensitive_paths_count or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sensitive</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-cyan-400">{{ seed_files_result.data.statistics.sitemaps_analyzed or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sitemaps</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-gray-500 italic">No Seed Files data available. Run the "Seed Files" scanner to analyze robots.txt and sitemap.xml.</p>
+                {% endif %}
+            </div>
+
+            <!-- CSP SCANNER CARD -->
+            <div class="bg-gray-800/50 border border-emerald-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">CSP Analysis (External Domain Discovery)</h2>
+                </div>
+
+                {% if csp_result and csp_result.data %}
+                    {% if csp_result.data.error %}
+                        <div class="bg-red-900/20 border border-red-900/50 rounded p-4 text-center">
+                            <p class="text-red-400 text-sm font-bold">Error</p>
+                            <p class="text-red-300 text-xs mt-1">{{ csp_result.data.error }}</p>
+                        </div>
+                    {% else %}
+                        <!-- CSP Header Status -->
+                        <div class="mb-6">
+                            {% if csp_result.data.csp_header %}
+                                <div class="bg-green-900/20 border border-green-500/30 rounded p-3 mb-3">
+                                    <span class="text-green-400 text-xs font-bold">Content-Security-Policy Header Found</span>
+                                </div>
+                            {% elif csp_result.data.csp_report_only %}
+                                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded p-3 mb-3">
+                                    <span class="text-yellow-400 text-xs font-bold">CSP Report-Only Mode (Not Enforcing)</span>
+                                </div>
+                            {% else %}
+                                <div class="bg-red-900/20 border border-red-500/30 rounded p-3 mb-3">
+                                    <span class="text-red-400 text-xs font-bold">No CSP Header Detected</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Potential Company Assets -->
+                            <div>
+                                <h3 class="text-sm font-medium text-emerald-400 mb-3 uppercase tracking-wider">Potential Company Assets</h3>
+                                {% if csp_result.data.potential_assets %}
+                                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                                        {% for asset in csp_result.data.potential_assets %}
+                                        <div class="bg-emerald-900/20 border border-emerald-500/30 rounded p-2">
+                                            <p class="text-xs font-mono text-emerald-300">{{ asset.domain }}</p>
+                                            <p class="text-[10px] text-gray-400">{{ asset.reason }}</p>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                        <span class="text-gray-500 text-xs">No potential company assets identified</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Third-Party Services -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Third-Party Services</h3>
+                                {% if csp_result.data.third_party_services %}
+                                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                                        {% for category, domains in csp_result.data.third_party_services.items() %}
+                                        <div class="bg-gray-900/50 rounded p-2">
+                                            <p class="text-xs font-bold text-gray-300 mb-1 capitalize">{{ category }}</p>
+                                            <div class="flex flex-wrap gap-1">
+                                                {% for domain in domains[:5] %}
+                                                    <span class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{{ domain }}</span>
+                                                {% endfor %}
+                                                {% if domains|length > 5 %}
+                                                    <span class="text-[10px] text-gray-500">+{{ domains|length - 5 }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                        <span class="text-gray-500 text-xs">No third-party services detected</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Security Findings -->
+                        {% if csp_result.data.security_findings %}
+                        <div class="mt-6 border-t border-gray-700/50 pt-4">
+                            <h3 class="text-sm font-medium text-amber-400 mb-3 uppercase tracking-wider">Security Findings</h3>
+                            <div class="space-y-2">
+                                {% for finding in csp_result.data.security_findings %}
+                                <div class="flex items-start gap-3 p-2 rounded {{ 'bg-red-900/20 border border-red-500/30' if finding.severity == 'high' else ('bg-yellow-900/20 border border-yellow-500/30' if finding.severity == 'medium' else 'bg-gray-900/50 border border-gray-700') }}">
+                                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ 'bg-red-600 text-white' if finding.severity == 'high' else ('bg-yellow-600 text-white' if finding.severity == 'medium' else 'bg-gray-600 text-gray-200') }}">
+                                        {{ finding.severity|upper }}
+                                    </span>
+                                    <div>
+                                        <p class="text-xs font-medium text-white">{{ finding.finding }}</p>
+                                        <p class="text-[10px] text-gray-400">{{ finding.description }}</p>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- All External Domains -->
+                        {% if csp_result.data.external_domains %}
+                        <details class="mt-6 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                All External Domains ({{ csp_result.data.external_domains|length }})
+                            </summary>
+                            <div class="p-4 bg-gray-950">
+                                <div class="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
+                                    {% for domain in csp_result.data.external_domains %}
+                                        <span class="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-mono border border-gray-700">{{ domain }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </details>
+                        {% endif %}
+
+                        <!-- Statistics -->
+                        <div class="mt-6 pt-4 border-t border-gray-700/50 grid grid-cols-4 gap-4 text-center">
+                            <div>
+                                <p class="text-lg font-bold text-white">{{ csp_result.data.statistics.total_external_domains or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">External Domains</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-emerald-400">{{ csp_result.data.statistics.potential_company_assets or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Potential Assets</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-gray-400">{{ csp_result.data.statistics.third_party_domains or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Third-Party</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-amber-400">{{ csp_result.data.statistics.security_issues or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Security Issues</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No CSP data available. Run the "CSP Scanner" to analyze Content-Security-Policy headers and discover external domains.</p>
                 {% endif %}
             </div>
 

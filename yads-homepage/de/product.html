@@ -125,6 +125,34 @@
             </div>
         </section>
 
+        <!-- Custom Report Builder -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">Neue Funktion</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Custom Report Builder</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    Erstellen Sie vollständig angepasste Sicherheitsberichte mit eigenem Branding, Inhalt und Struktur. Die leistungsstarke Template-Engine gibt Ihnen volle Kontrolle über Ihre Berichte.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">📝 Markdown-Vorlagen mit Live-Vorschau</li>
+                    <li style="margin-bottom: 0.5rem;">🔧 200+ dynamische Variablen für alle Scan-Daten</li>
+                    <li style="margin-bottom: 0.5rem;">🎯 Multi-Target-Berichte in einzelnen Dokumenten</li>
+                    <li style="margin-bottom: 0.5rem;">📚 Eingebaute Hilfe mit Variablen-Referenz</li>
+                    <li style="margin-bottom: 0.5rem;">🔒 Automatische Mandanten-Datenisolation</li>
+                </ul>
+                <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+                    <p style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                        <span style="color: var(--accent-primary);">{{ tenant.report_company_name }}</span><br>
+                        <span style="color: #888;">Kritische Probleme:</span> <span style="color: var(--accent-secondary);">{{ summary.critical_count }}</span>
+                    </p>
+                </div>
+            </div>
+            <div class="feature-image">
+                <img src="https://yads-security.com/images/report-builder.png" alt="Benutzerdefinierter Report Builder">
+                <!-- Local dev: ./images/report-builder.png -->
+            </div>
+        </section>
+
         <!-- Target Management -->
         <section class="feature-section">
             <div class="feature-text">

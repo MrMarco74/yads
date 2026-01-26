@@ -62,7 +62,11 @@
 <li><a href="#6-analysis-modules">6. Analyse-Module</a></li>
 <li><a href="#7-osint-brand-monitoring">7. OSINT Markenüberwachung</a></li>
 <li><a href="#8-visualizations">8. Visualisierungen</a></li>
-<li><a href="#9-data-management--reports">9. Datenverwaltung & Berichte</a></li>
+<li><a href="#9-data-management--reports">9. Datenverwaltung & Berichte</a>
+    <ul>
+        <li><a href="#custom-report-builder">Custom Report Builder</a></li>
+    </ul>
+</li>
 <li><a href="#10-user-management--security">10. Benutzerverwaltung & Sicherheit</a></li>
 <li><a href="#11-multi-tenancy">11. Mandantenfähigkeit</a></li>
 <li><a href="#12-system-settings--queue">12. Systemeinstellungen & Queue</a>
@@ -411,6 +415,43 @@ Eine visuelle Aufschlüsselung der Technologie-Stack-Nutzung in Ihrem Portfolio.
 <li><strong>Compliance-Bericht</strong>: Eine interaktive detaillierte Aufschlüsselung Ihres SOC2-Bereitschaftsscores mit einer umsetzbaren "Verbesserungsplan"-Checkliste.</li>
 <li><strong>Externe Links Bericht</strong>: PDF-Export von Drittanbieter-Domains, die mit Ihrer Infrastruktur verlinkt sind.</li>
 </ul>
+<h3 id="custom-report-builder">Custom Report Builder</h3>
+<p><strong>(Neue Funktion)</strong></p>
+<p>Erstellen Sie vollständig angepasste Sicherheitsberichte mit eigenem Branding, Struktur und Inhalt mithilfe von Markdown-Vorlagen.</p>
+<h4>Hauptfunktionen</h4>
+<ul>
+<li><strong>Markdown-Vorlagen</strong>: Schreiben Sie Berichte in vertrauter Markdown-Syntax mit einem Live-Vorschau-Panel.</li>
+<li><strong>200+ Dynamische Variablen</strong>: Greifen Sie auf alle Scan-Daten mit Jinja2-Template-Variablen zu (z.B. <code>{{ dns.subdomains|count }}</code>).</li>
+<li><strong>Multi-Target-Berichte</strong>: Kombinieren Sie Daten aus mehreren Domains in einem umfassenden Bericht.</li>
+<li><strong>Eingebaute Hilfe</strong>: Klicken Sie auf "Template-Hilfe" für eine In-App-Variablenreferenz und Beispiele.</li>
+<li><strong>Mandanten-Datenisolation</strong>: Variablen sind automatisch auf die Daten Ihres Mandanten beschränkt.</li>
+</ul>
+<h4>Schnellstart</h4>
+<ol>
+<li>Navigieren Sie zu <strong>Berichte → Report Builder</strong>.</li>
+<li>Wählen Sie ein oder mehrere Targets aus dem linken Panel.</li>
+<li>Schreiben Sie Ihre Markdown-Vorlage mit Variablen wie <code>{{ tenant.report_company_name }}</code>.</li>
+<li>Verwenden Sie die Live-Vorschau, um zu überprüfen, ob Ihre Vorlage korrekt gerendert wird.</li>
+<li>Klicken Sie auf <strong>Bericht generieren</strong>, um Ihr PDF zu erstellen.</li>
+</ol>
+<h4>Beispielvorlage</h4>
+<pre><code># Sicherheitsbericht für {{ tenant.report_company_name }}
+**Erstellt:** {{ now|datetime }}
+
+## Zusammenfassung
+| Metrik | Anzahl |
+|--------|--------|
+| Kritisch | {{ summary.critical_count }} |
+| Hoch | {{ summary.high_count }} |
+
+## Befunde
+{% for t in targets %}
+### {{ t.domain }}
+Sicherheitsscore: {{ t.security_score }}
+{% endfor %}</code></pre>
+<blockquote>
+<p><strong>💡 Tipp</strong>: Verwenden Sie den "Template-Hilfe"-Button, um alle verfügbaren Variablen nach Scanner-Modul organisiert zu sehen.</p>
+</blockquote>
 <h3>Datenexporte</h3>
 <ul>
 <li><strong>Target CSV</strong>: Laden Sie Ihr gesamtes Roh-Target-Inventar (Domain, Status, Letzter Scan) als CSV-Datei herunter.</li>

@@ -10,45 +10,64 @@
         Targets that have been archived due to dead DNS or manual action.
       </p>
     </div>
-    <div class="flex gap-3">
-      <button
-        hx-post="/reports/archived/cleanup-scan"
-        hx-target="body"
-        class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2"
-      >
-        <svg
-          class="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+    <div class="flex items-center gap-4">
+      {% if date_range_display %}
+      <span class="text-sm text-slate-400">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          {{ date_range_display }}
+      </span>
+      {% endif %}
+      <div class="flex gap-3">
+        <button
+          hx-post="/reports/archived/cleanup-scan"
+          hx-target="body"
+          class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          ></path>
-        </svg>
-        Run Cleanup Scan
-      </button>
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            ></path>
+          </svg>
+          Run Cleanup Scan
+        </button>
 
-      <button
-        hx-post="/reports/archived/bulk-delete-dead"
-        hx-target="body"
-        hx-confirm="Are you sure you want to permanently DELETE all targets with dead DNS? This action cannot be undone."
-        class="px-4 py-2 bg-slate-800 hover:bg-red-950 text-red-300 rounded-lg text-sm font-medium transition-colors border border-slate-700 hover:border-red-900 flex items-center gap-2"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          ></path>
-        </svg>
-        Purge All Dead DNS
-      </button>
+        <button
+          hx-post="/reports/archived/bulk-delete-dead"
+          hx-target="body"
+          hx-confirm="Are you sure you want to permanently DELETE all targets with dead DNS? This action cannot be undone."
+          class="px-4 py-2 bg-slate-800 hover:bg-red-950 text-red-300 rounded-lg text-sm font-medium transition-colors border border-slate-700 hover:border-red-900 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            ></path>
+          </svg>
+          Purge All Dead DNS
+        </button>
+      </div>
     </div>
+  </div>
+
+  <!-- Date Filter -->
+  <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+      <form method="GET" class="space-y-4">
+          {% include 'components/_date_range_picker.html' %}
+          <div class="flex gap-2">
+              <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">Apply Filter</button>
+              <a href="/reports/archived" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition-all border border-slate-700">Reset</a>
+          </div>
+      </form>
   </div>
 
   <!-- Messages -->

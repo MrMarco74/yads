@@ -30,7 +30,9 @@ class InfrastructureScanner(BaseScannerModule):
             "asn": {},
             "cloud_provider": None,
             "reputation": [],
-            "buckets": []
+            "reputation": [],
+            "buckets": [],
+            "spf_dmarc": {}
         }
 
         # 1. Resolve IP
@@ -174,6 +176,9 @@ class InfrastructureScanner(BaseScannerModule):
         if results["ip"]:
             results["reputation"] = self._check_reputation(results["ip"])
 
+        # 4. SPF/DMARC Pivot
+        results["spf_dmarc"] = self._check_spf_dmarc(domain)
+
         # 4. Storage Bucket Check (AWS S3)
         # Check standard public bucket patterns
         import requests
@@ -302,3 +307,53 @@ class InfrastructureScanner(BaseScannerModule):
                 pass
                 
         return findings
+
+    def _check_spf_dmarc(self, domain: str) -> Dict[str, Any]:
+        """
+        Extracts domains from SPF and DMARC records for pivoting.
+        """
+        results = {
+            "spf_includes": [],
+            "dmarc_emails": []
+        }
+        
+        # 1. SPF Check
+        try:
+            answers = dns.resolver.resolve(domain, 'TXT')
+            for rdata in answers:
+                txt = rdata.to_text().strip('"')
+                if txt.startswith("v=spf1"):
+                    # Parse includes and redirects
+                    parts = txt.split()
+                    for part in parts:
+                        if part.startswith("include:"):
+                            val = part.split(":", 1)[1]
+                            results["spf_includes"].append(val)
+                        elif part.startswith("redirect="):
+                            val = part.split("=", 1)[1]
+                            results["spf_includes"].append(val)
+        except Exception:
+            pass
+            
+        # 2. DMARC Check
+        try:
+            answers = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
+            for rdata in answers:
+                txt = rdata.to_text().strip('"')
+                if txt.startswith("v=DMARC1"):
+                    # Parse RUA/RUF
+                    # Example: v=DMARC1; p=reject; rua=mailto:dmarc@example.com
+                    parts = txt.split(";")
+                    for part in parts:
+                        part = part.strip()
+                        if part.startswith("rua=") or part.startswith("ruf="):
+                            if "mailto:" in part:
+                                email = part.split("mailto:", 1)[1]
+                                if "@" in email:
+                                    d_domain = email.split("@")[1]
+                                    if d_domain not in results["dmarc_emails"]:
+                                        results["dmarc_emails"].append(d_domain)
+        except Exception:
+            pass
+            
+        return results

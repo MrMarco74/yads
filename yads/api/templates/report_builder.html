@@ -1,0 +1,873 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="reportBuilder()" @keydown.escape.window="showHelp = false">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Report Builder</h1>
+            <p class="text-slate-400 text-sm">Create custom security reports with markdown templates and live preview.</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button @click="showHelp = !showHelp"
+                    class="flex items-center gap-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 px-4 py-2 rounded-lg transition-all text-sm font-medium border border-amber-600/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span x-text="showHelp ? 'Hide Help' : 'Template Help'"></span>
+            </button>
+            <a href="/reports"
+               class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg transition-all text-sm font-medium border border-slate-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Cancel
+            </a>
+            <button @click="generateReport()"
+                    :disabled="generating"
+                    class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                <svg x-show="!generating" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <svg x-show="generating" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span x-text="generating ? 'Generating...' : 'Generate Report'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Layout: 3 Column Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left Panel: Settings -->
+        <div class="lg:col-span-3 space-y-4">
+            <!-- Report Settings -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Report Settings
+                </h3>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Title</label>
+                        <input type="text" x-model="reportTitle"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                               placeholder="Security Assessment Report">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                        <textarea x-model="reportDescription" rows="2"
+                                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none"
+                                  placeholder="Optional description..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Template</label>
+                        <select x-model="selectedTemplate" @change="loadTemplate()"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500">
+                            <option value="">-- Custom --</option>
+                            {% for t in templates %}
+                            <option value="{{ t.id }}" {% if selected_template and selected_template.id == t.id %}selected{% endif %}>
+                                {{ t.name }} ({{ t.category }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Selection -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    Include Targets
+                </h3>
+
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    {% for target in targets %}
+                    <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors">
+                        <input type="checkbox"
+                               :checked="selectedTargets.includes({{ target.id }})"
+                               @change="toggleTarget({{ target.id }})"
+                               class="rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0">
+                        <span class="text-sm text-white truncate">{{ target.domain }}</span>
+                    </label>
+                    {% else %}
+                    <p class="text-slate-500 text-sm italic">No targets available</p>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <span class="text-xs text-slate-500"><span x-text="selectedTargets.length"></span> selected</span>
+                    <div class="flex gap-2">
+                        <button @click="selectAllTargets()" class="text-xs text-cyan-400 hover:text-cyan-300">All</button>
+                        <button @click="selectedTargets = []" class="text-xs text-slate-400 hover:text-white">None</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Variable Reference -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                    Variables
+                </h3>
+
+                <div class="space-y-3 text-xs max-h-48 overflow-y-auto">
+                    <div>
+                        <p class="text-slate-400 font-medium mb-1">Tenant</p>
+                        <code class="text-cyan-400 block">{{ "{{" }} tenant.name {{ "}}" }}</code>
+                        <code class="text-cyan-400 block">{{ "{{" }} tenant.report_company_name {{ "}}" }}</code>
+                    </div>
+                    <div>
+                        <p class="text-slate-400 font-medium mb-1">Report</p>
+                        <code class="text-cyan-400 block">{{ "{{" }} now|datetime {{ "}}" }}</code>
+                        <code class="text-cyan-400 block">{{ "{{" }} report.target_count {{ "}}" }}</code>
+                    </div>
+                    <div>
+                        <p class="text-slate-400 font-medium mb-1">Target (single)</p>
+                        <code class="text-cyan-400 block">{{ "{{" }} target.domain {{ "}}" }}</code>
+                        <code class="text-cyan-400 block">{{ "{{" }} dns.subdomains|count {{ "}}" }}</code>
+                    </div>
+                    <div>
+                        <p class="text-slate-400 font-medium mb-1">Loop (multi)</p>
+                        <code class="text-cyan-400 block">{{ "{%" }} for t in targets {{ "%}" }}</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Editor -->
+        <div class="lg:col-span-5">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden h-full flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+                    <h3 class="text-white font-semibold flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Markdown Editor
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <button @click="insertSnippet('heading')" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="Heading">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"></path></svg>
+                        </button>
+                        <button @click="insertSnippet('table')" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="Table">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                        <button @click="insertSnippet('list')" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="List">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                        </button>
+                        <button @click="insertSnippet('loop')" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="For Loop">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-h-0">
+                    <textarea x-ref="editor" x-model="markdownContent" @input="debouncePreview()"
+                              class="w-full h-full bg-slate-950 text-slate-300 font-mono text-sm p-4 resize-none focus:outline-none"
+                              placeholder="# Report Title
+
+Write your markdown report here...
+
+## Executive Summary
+{{ "{{" }} tenant.report_company_name {{ "}}" }}
+
+## Findings
+{{ "{%" }} for t in targets {{ "%}" }}
+### {{ "{{" }} t.domain {{ "}}" }}
+{{ "{%" }} endfor {{ "%}" }}"
+                              style="min-height: 500px;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Preview -->
+        <div class="lg:col-span-4 relative group">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col transition-all duration-300"
+                 :class="{'fixed inset-4 z-[100] shadow-2xl ring-1 ring-slate-700 h-[calc(100%-2rem)] w-[calc(100%-2rem)]': isFullscreen, 'h-full': !isFullscreen}">
+                <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+                    <h3 class="text-white font-semibold flex items-center gap-2">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        Preview
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <button type="button" 
+                                @click="popout()"
+                                class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors flex items-center justify-center w-8 h-8 focus:outline-none focus:ring-2 focus:ring-slate-600"
+                                title="Open in New Window">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </button>
+                        <button type="button" 
+                                @click="isFullscreen = !isFullscreen"
+                                class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors flex items-center justify-center w-8 h-8 focus:outline-none focus:ring-2 focus:ring-slate-600"
+                                :title="isFullscreen ? 'Minimize' : 'Maximize'">
+                            <!-- Maximize Icon -->
+                            <svg class="w-4 h-4" :class="{'hidden': isFullscreen}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                            <!-- Minimize Icon -->
+                            <svg class="w-4 h-4" :class="{'hidden': !isFullscreen}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                        <button @click="refreshPreview()"
+                                :disabled="loadingPreview"
+                                class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors disabled:opacity-50"
+                                title="Refresh Preview">
+                            <svg class="w-4 h-4" :class="{'animate-spin': loadingPreview}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-4 bg-white text-slate-900" style="min-height: 500px;">
+                    <div x-html="previewHtml" class="prose prose-sm max-w-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Panel Overlay -->
+    <div x-show="showHelp"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="showHelp = false"
+         class="fixed inset-0 bg-black/50 z-40"
+         style="display: none;"></div>
+
+    <!-- Help Panel Slide-out -->
+    <div x-show="showHelp"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="fixed right-0 top-0 h-full w-full max-w-2xl bg-slate-900 border-l border-slate-700 z-50 overflow-hidden flex flex-col shadow-2xl"
+         style="display: none;">
+
+        <!-- Help Header -->
+        <div class="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between shrink-0">
+            <div>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    Template Reference
+                </h2>
+                <p class="text-slate-400 text-sm mt-1">Complete guide to variables, filters, and examples</p>
+            </div>
+            <button @click="showHelp = false" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Help Content -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+            <!-- Quick Start -->
+            <div class="bg-gradient-to-r from-cyan-600/20 to-blue-600/20 border border-cyan-500/30 rounded-xl p-4">
+                <h3 class="text-cyan-400 font-semibold mb-2 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Quick Start
+                </h3>
+                <p class="text-slate-300 text-sm mb-3">Use Jinja2 template syntax to create dynamic reports:</p>
+                <div class="bg-slate-950 rounded-lg p-3 font-mono text-xs text-slate-300 space-y-1">
+                    <p><span class="text-amber-400">{{ "{{" }} variable {{ "}}" }}</span> → Output a value</p>
+                    <p><span class="text-emerald-400">{{ "{%" }} for item in list {{ "%}" }}</span> → Loop through items</p>
+                    <p><span class="text-purple-400">{{ "{%" }} if condition {{ "%}" }}</span> → Conditional content</p>
+                </div>
+            </div>
+
+            <!-- Variable Categories Accordion -->
+            <div class="space-y-2" x-data="{ openSection: 'tenant' }">
+
+                <!-- Section: Tenant & Branding -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'tenant' ? '' : 'tenant'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            Tenant & Branding
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'tenant'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'tenant'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} tenant.name {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Organization name</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} tenant.report_company_name {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Company name in reports</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} tenant.report_contact_email {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Contact email</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} tenant.report_website {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Company website</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} tenant.report_footer_text {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Footer text</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} now|datetime {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Current date/time</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} report.target_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Number of targets</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: Summary Statistics -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'summary' ? '' : 'summary'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            Summary Statistics
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'summary'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'summary'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.total_targets {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Total targets scanned</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.critical_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Critical vulnerabilities</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.high_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">High vulnerabilities</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.medium_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Medium vulnerabilities</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.low_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Low vulnerabilities</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.info_count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Informational findings</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.total_subdomains {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Total subdomains</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} summary.expiring_certificates {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Certs expiring in 30 days</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: Target Data -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'target' ? '' : 'target'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                            Target Data (Single Target)
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'target'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'target'" x-collapse class="px-4 pb-4">
+                        <p class="text-slate-500 text-xs mb-2 italic">Available when single target is selected:</p>
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} target.domain {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Domain name</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} target.status {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Scan status</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} target.last_scan|datetime {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Last scan time</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} target.security_score {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Security score (0-100)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: DNS Scanner -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'dns' ? '' : 'dns'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                            DNS Scanner
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'dns'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'dns'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.subdomains {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Subdomain list</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.subdomains|count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Subdomain count</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.A {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">A records (IPv4)</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.AAAA {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">AAAA records (IPv6)</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.MX {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">MX records (mail)</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.TXT {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">TXT records</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.NS {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">NS records</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.records.CNAME {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">CNAME records</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.spf_record {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">SPF record</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} dns.dmarc_record {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">DMARC record</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: SSL Scanner -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'ssl' ? '' : 'ssl'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                            SSL/TLS Scanner
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'ssl'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'ssl'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.issuer {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Certificate issuer</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.subject {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Certificate subject</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.valid_from|date {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Valid from date</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.valid_until|date {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Expiration date</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.days_until_expiry {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Days until expiry</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.is_expired {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Is expired (bool)</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.san {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Subject Alt Names</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.protocol {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">TLS protocol version</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} ssl.cipher_suite {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Cipher suite</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: Nuclei Scanner -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'nuclei' ? '' : 'nuclei'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                            Nuclei Vulnerabilities
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'nuclei'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'nuclei'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.findings {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">All findings list</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.findings|count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Total findings count</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.critical {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Critical findings</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.high {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">High findings</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.medium {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Medium findings</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.low {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Low findings</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nuclei.info {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Info findings</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="text-slate-500 text-xs mt-2">Each finding has: name, severity, description, matched_at, cve_id</p>
+                    </div>
+                </div>
+
+                <!-- Section: Web Analyzer -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'web' ? '' : 'web'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                            Web Analyzer
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'web'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'web'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.technologies {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Detected technologies</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.server {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Web server</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.framework {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Framework</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.cms {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">CMS platform</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.security_headers {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Security headers</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} web.cookies {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Cookie analysis</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section: Nmap Scanner -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'nmap' ? '' : 'nmap'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-pink-400"></span>
+                            Port Scanner (Nmap)
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'nmap'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'nmap'" x-collapse class="px-4 pb-4">
+                        <table class="w-full text-xs">
+                            <tbody class="divide-y divide-slate-700">
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nmap.ports {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Open ports list</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nmap.ports|count {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Open port count</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nmap.services {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">Service versions</td></tr>
+                                <tr><td class="py-1.5 text-cyan-400 font-mono">{{ "{{" }} nmap.os_detection {{ "}}" }}</td><td class="py-1.5 text-slate-400 pl-3">OS detection</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="text-slate-500 text-xs mt-2">Each port has: port, protocol, state, service, version</p>
+                    </div>
+                </div>
+
+                <!-- Section: More Scanners -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+                    <button @click="openSection = openSection === 'more' ? '' : 'more'"
+                            class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-800 transition-colors">
+                        <span class="text-white font-medium flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                            Additional Scanners
+                        </span>
+                        <svg class="w-4 h-4 text-slate-400 transition-transform" :class="{'rotate-180': openSection === 'more'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div x-show="openSection === 'more'" x-collapse class="px-4 pb-4 space-y-3">
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Cloud Scanner</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} cloud.buckets {{ "}}" }}, {{ "{{" }} cloud.exposed_buckets {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Crawler</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} crawler.pages {{ "}}" }}, {{ "{{" }} crawler.forms {{ "}}" }}, {{ "{{" }} crawler.links {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Wayback</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} wayback.snapshots {{ "}}" }}, {{ "{{" }} wayback.oldest {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Typosquat</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} typosquat.domains {{ "}}" }}, {{ "{{" }} typosquat.registered {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Seed Files</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} seed_files.robots {{ "}}" }}, {{ "{{" }} seed_files.sitemaps {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">CSP Scanner</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} csp.has_csp {{ "}}" }}, {{ "{{" }} csp.directives {{ "}}" }}, {{ "{{" }} csp.issues {{ "}}" }}</code>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-xs font-medium mb-1">Visual OSINT</p>
+                            <code class="text-cyan-400 text-xs block">{{ "{{" }} osint.emails {{ "}}" }}, {{ "{{" }} osint.phone_numbers {{ "}}" }}</code>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Filters Section -->
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                    Available Filters
+                </h3>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|date</code>
+                        <p class="text-slate-500 mt-0.5">Format as date</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|datetime</code>
+                        <p class="text-slate-500 mt-0.5">Format with time</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|count</code>
+                        <p class="text-slate-500 mt-0.5">Count items in list</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|join(", ")</code>
+                        <p class="text-slate-500 mt-0.5">Join list items</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|truncate(50)</code>
+                        <p class="text-slate-500 mt-0.5">Truncate text</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|default("N/A")</code>
+                        <p class="text-slate-500 mt-0.5">Default value</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|upper / |lower</code>
+                        <p class="text-slate-500 mt-0.5">Change case</p>
+                    </div>
+                    <div class="bg-slate-900 rounded p-2">
+                        <code class="text-purple-400">|severity_badge</code>
+                        <p class="text-slate-500 mt-0.5">Severity styling</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loops & Conditionals -->
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Loops & Conditionals
+                </h3>
+                <div class="space-y-3">
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <p class="text-slate-400 text-xs mb-1">Loop through targets:</p>
+                        <pre class="text-emerald-400 font-mono text-xs whitespace-pre-wrap">{{ "{%" }} for t in targets {{ "%}" }}
+### {{ "{{" }} t.domain {{ "}}" }}
+Score: {{ "{{" }} t.security_score {{ "}}" }}
+{{ "{%" }} endfor {{ "%}" }}</pre>
+                    </div>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <p class="text-slate-400 text-xs mb-1">Conditional content:</p>
+                        <pre class="text-emerald-400 font-mono text-xs whitespace-pre-wrap">{{ "{%" }} if nuclei.critical|count > 0 {{ "%}" }}
+⚠️ Critical issues found!
+{{ "{%" }} endif {{ "%}" }}</pre>
+                    </div>
+                    <div class="bg-slate-900 rounded-lg p-3">
+                        <p class="text-slate-400 text-xs mb-1">Loop through findings:</p>
+                        <pre class="text-emerald-400 font-mono text-xs whitespace-pre-wrap">{{ "{%" }} for f in nuclei.findings {{ "%}" }}
+- {{ "{{" }} f.name {{ "}}" }} ({{ "{{" }} f.severity {{ "}}" }})
+{{ "{%" }} endfor {{ "%}" }}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Example Template -->
+            <div class="bg-gradient-to-r from-emerald-600/20 to-cyan-600/20 border border-emerald-500/30 rounded-xl p-4">
+                <h3 class="text-emerald-400 font-semibold mb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Example Template
+                </h3>
+                <div class="bg-slate-950 rounded-lg p-3 font-mono text-xs text-slate-300 overflow-x-auto">
+                    <pre class="whitespace-pre-wrap"># Security Report for {{ "{{" }} tenant.report_company_name {{ "}}" }}
+
+**Generated:** {{ "{{" }} now|datetime {{ "}}" }}
+
+## Executive Summary
+
+| Metric | Count |
+|--------|-------|
+| Critical | {{ "{{" }} summary.critical_count {{ "}}" }} |
+| High | {{ "{{" }} summary.high_count {{ "}}" }} |
+| Total Targets | {{ "{{" }} summary.total_targets {{ "}}" }} |
+
+## Findings by Target
+
+{{ "{%" }} for t in targets {{ "%}" }}
+### {{ "{{" }} t.domain {{ "}}" }}
+{{ "{%" }} if t.nuclei and t.nuclei.findings {{ "%}" }}
+{{ "{%" }} for f in t.nuclei.findings {{ "%}" }}
+- **{{ "{{" }} f.name {{ "}}" }}** ({{ "{{" }} f.severity {{ "}}" }})
+{{ "{%" }} endfor {{ "%}" }}
+{{ "{%" }} else {{ "%}" }}
+No vulnerabilities found.
+{{ "{%" }} endif {{ "%}" }}
+{{ "{%" }} endfor {{ "%}" }}</pre>
+                </div>
+            </div>
+
+            <!-- Documentation Link -->
+            <div class="text-center py-4">
+                <p class="text-slate-500 text-sm">
+                    Full documentation: <a href="/docs/REPORT_BUILDER.md" class="text-cyan-400 hover:text-cyan-300">docs/REPORT_BUILDER.md</a>
+                </p>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Template Data Storage -->
+<script>
+const templateData = {
+    {% for t in templates %}
+    {{ t.id }}: {{ t.markdown_content|tojson|safe }},
+    {% endfor %}
+};
+
+const allTargetIds = [{% for target in targets %}{{ target.id }},{% endfor %}];
+</script>
+
+<script>
+function reportBuilder() {
+    return {
+        reportTitle: 'Security Assessment Report',
+        reportDescription: '',
+        selectedTemplate: '{{ selected_template.id if selected_template else "" }}',
+        selectedTargets: [],
+        markdownContent: {{ (selected_template.markdown_content|tojson if selected_template else '""')|safe }},
+        previewHtml: '<p class="text-gray-400 italic">Preview will appear here...</p>',
+        loadingPreview: false,
+        isFullscreen: false,
+        generating: false,
+        previewTimeout: null,
+        showHelp: false,
+
+        init() {
+            if (this.markdownContent) {
+                this.refreshPreview();
+            }
+        },
+
+        toggleTarget(id) {
+            const idx = this.selectedTargets.indexOf(id);
+            if (idx > -1) {
+                this.selectedTargets.splice(idx, 1);
+            } else {
+                this.selectedTargets.push(id);
+            }
+            this.debouncePreview();
+        },
+
+        selectAllTargets() {
+            this.selectedTargets = [...allTargetIds];
+            this.debouncePreview();
+        },
+
+        loadTemplate() {
+            if (this.selectedTemplate && templateData[this.selectedTemplate]) {
+                this.markdownContent = templateData[this.selectedTemplate];
+                this.refreshPreview();
+            }
+        },
+
+        insertSnippet(type) {
+            const snippets = {
+                heading: '## Section Title\n\n',
+                table: '| Column 1 | Column 2 | Column 3 |\n|----------|----------|----------|\n| Data 1   | Data 2   | Data 3   |\n\n',
+                list: '- Item 1\n- Item 2\n- Item 3\n\n',
+                loop: '{% for t in targets %}\n### {{ t.domain }}\n{% endfor %}\n'
+            };
+
+            const editor = this.$refs.editor;
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const text = this.markdownContent;
+
+            this.markdownContent = text.substring(0, start) + snippets[type] + text.substring(end);
+
+            this.$nextTick(() => {
+                editor.focus();
+                editor.setSelectionRange(start + snippets[type].length, start + snippets[type].length);
+            });
+        },
+
+        debouncePreview() {
+            clearTimeout(this.previewTimeout);
+            this.previewTimeout = setTimeout(() => this.refreshPreview(), 500);
+        },
+
+        async refreshPreview() {
+            if (!this.markdownContent.trim()) {
+                this.previewHtml = '<p class="text-gray-400 italic">Enter markdown content to see preview...</p>';
+                return;
+            }
+
+            this.loadingPreview = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('markdown_content', this.markdownContent);
+                formData.append('target_ids', JSON.stringify(this.selectedTargets));
+
+                const response = await fetch('/reports/builder/preview', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    this.previewHtml = await response.text();
+                } else {
+                    this.previewHtml = '<p class="text-red-500">Error generating preview</p>';
+                }
+            } catch (error) {
+                console.error('Preview error:', error);
+                this.previewHtml = '<p class="text-red-500">Error generating preview</p>';
+            } finally {
+                this.loadingPreview = false;
+            }
+        },
+
+        popout() {
+            const win = window.open('', '_blank', 'width=800,height=800');
+            if (win) {
+                win.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Report Preview</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <script src="https://cdn.tailwindcss.com"><\/script>
+                        <script>
+                            tailwind.config = {
+                                theme: {
+                                    extend: {
+                                        colors: {
+                                            slate: {
+                                                50: '#f8fafc',
+                                                100: '#f1f5f9',
+                                                200: '#e2e8f0',
+                                                300: '#cbd5e1',
+                                                400: '#94a3b8',
+                                                500: '#64748b',
+                                                600: '#475569',
+                                                700: '#334155',
+                                                800: '#1e293b',
+                                                900: '#0f172a',
+                                                950: '#020617',
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        <\/script>
+                        <style>
+                            .prose { max-width: 65ch; margin: 0 auto; }
+                            .prose h1 { font-size: 1.5rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+                            .prose h2 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
+                            .prose h3 { font-size: 1.1rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; }
+                            .prose p { margin-bottom: 0.5rem; }
+                            .prose ul, .prose ol { margin-left: 1.5rem; margin-bottom: 0.5rem; }
+                            .prose li { margin-bottom: 0.25rem; }
+                            .prose table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.875rem; }
+                            .prose th, .prose td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; }
+                            .prose th { background-color: #f3f4f6; font-weight: 600; }
+                            .prose code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+                            .prose hr { border-top: 1px solid #e5e7eb; margin: 1rem 0; }
+                            .prose strong { font-weight: 600; }
+                        </style>
+                    </head>
+                    <body class="bg-white p-8">
+                        <div class="prose prose-sm max-w-none">
+                            ${this.previewHtml}
+                        </div>
+                    </body>
+                    </html>
+                `);
+                win.document.close();
+            }
+        },
+
+        async generateReport() {
+            if (!this.reportTitle.trim()) {
+                alert('Please enter a report title');
+                return;
+            }
+
+            if (!this.markdownContent.trim()) {
+                alert('Please enter report content');
+                return;
+            }
+
+            this.generating = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('title', this.reportTitle);
+                formData.append('description', this.reportDescription);
+                formData.append('template_id', this.selectedTemplate);
+                formData.append('markdown_content', this.markdownContent);
+                formData.append('target_ids', JSON.stringify(this.selectedTargets));
+
+                const response = await fetch('/reports/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Check for HX-Redirect header
+                    const redirectUrl = response.headers.get('HX-Redirect');
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        window.location.href = '/reports';
+                    }
+                } else {
+                    alert('Error generating report');
+                }
+            } catch (error) {
+                console.error('Generate error:', error);
+                alert('Error generating report');
+            } finally {
+                this.generating = false;
+            }
+        }
+    };
+}
+</script>
+
+<style>
+/* Prose styles for preview */
+.prose h1 { font-size: 1.5rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+.prose h2 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
+.prose h3 { font-size: 1.1rem; font-weight: 600; margin-top: 0.75rem; margin-bottom: 0.25rem; }
+.prose p { margin-bottom: 0.5rem; }
+.prose ul, .prose ol { margin-left: 1.5rem; margin-bottom: 0.5rem; }
+.prose li { margin-bottom: 0.25rem; }
+.prose table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.875rem; }
+.prose th, .prose td { border: 1px solid #d1d5db; padding: 0.5rem; text-align: left; }
+.prose th { background-color: #f3f4f6; font-weight: 600; }
+.prose code { background-color: #f3f4f6; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875rem; }
+.prose hr { border-top: 1px solid #e5e7eb; margin: 1rem 0; }
+.prose strong { font-weight: 600; }
+</style>
+{% endblock %}

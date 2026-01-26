@@ -2,13 +2,15 @@
 Router for Archived Targets report and management.
 """
 
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select, func
+from typing import Optional
 from yads.database import get_session
 from yads.models import Target, User
 from yads.auth.deps import get_current_user_html
 from yads.api.main import templates
+from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 import logging
 
 router = APIRouter(prefix="/reports/archived", tags=["Reports"])
@@ -18,25 +20,38 @@ logger = logging.getLogger(__name__)
 async def view_archived_targets(
     request: Request,
     session: Session = Depends(get_session),
-    user: User = Depends(get_current_user_html)
+    user: User = Depends(get_current_user_html),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
 ):
     """View all archived targets for the current tenant"""
-    targets = session.exec(
-        select(Target).where(
-            Target.tenant_id == user.tenant_id,
-            Target.is_archived == True
-        ).order_by(Target.archived_at.desc())
-    ).all()
-    
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    query = select(Target).where(
+        Target.tenant_id == user.tenant_id,
+        Target.is_archived == True
+    )
+
+    # Apply date filtering on archived_at field
+    if from_dt:
+        query = query.where(Target.archived_at >= from_dt)
+    if to_dt:
+        query = query.where(Target.archived_at <= to_dt)
+
+    targets = session.exec(query.order_by(Target.archived_at.desc())).all()
+
     dns_dead_count = sum(1 for t in targets if t.archived_reason == "dns_dead")
     manual_count = sum(1 for t in targets if t.archived_reason == "manual")
-    
+
     return templates.TemplateResponse("archived_targets.html", {
         "request": request,
         "targets": targets,
         "dns_dead_count": dns_dead_count,
         "manual_count": manual_count,
-        "user": user
+        "user": user,
+        "date_range_display": date_range_display
     })
 
 @router.post("/{target_id}/restore", response_class=HTMLResponse)

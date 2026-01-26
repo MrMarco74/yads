@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, func, text
@@ -11,6 +11,7 @@ from yads.auth.deps import get_current_active_user
 from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
 from yads.utils.license_deps import require_feature
+from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 ui_router = APIRouter(prefix="/analytics")
@@ -19,10 +20,14 @@ def get_session():
     with Session(engine) as session:
         yield session
 
-def _get_infrastructure_data(session: Session, user: User) -> Dict[str, Any]:
+def _get_infrastructure_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None) -> Dict[str, Any]:
     """
     Helper to fetch and aggregate infrastructure data for a user context.
     Reuse this for the API endpoint and the PDF export.
+
+    Args:
+        date_from: Optional start datetime for filtering scan results
+        date_to: Optional end datetime for filtering scan results
     """
     tenant_clause = ""
     params = {}
@@ -60,10 +65,18 @@ def _get_infrastructure_data(session: Session, user: User) -> Dict[str, Any]:
         }
 
     # 2. Results
-    results = session.exec(select(ScanResult).where(
+    results_query = select(ScanResult).where(
         ScanResult.module_name.in_(['infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner', 'dns_scanner', 'subdomain_scanner', 'port_scanner']),
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())).all()
+    )
+
+    # Apply date filtering
+    if date_from:
+        results_query = results_query.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        results_query = results_query.where(ScanResult.scanned_at <= date_to)
+
+    results = session.exec(results_query.order_by(ScanResult.scanned_at.desc())).all()
     
     # Pre-fetch Targets for name lookup
     target_statement = select(Target)
@@ -281,7 +294,13 @@ def _get_infrastructure_data(session: Session, user: User) -> Dict[str, Any]:
 
 
 @router.get("/infrastructure")
-async def get_infrastructure_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def get_infrastructure_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Aggregates infrastructure data for the Analytics Dashboard.
     Includes:
@@ -292,7 +311,8 @@ async def get_infrastructure_stats(session: Session = Depends(get_session), user
     - Vulnerability Stats (Bar)
     - Critical Risk Feed (Table)
     """
-    return _get_infrastructure_data(session, user)
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    return _get_infrastructure_data(session, user, date_from=from_dt, date_to=to_dt)
 
 @router.get("/trend/security")
 async def get_security_trend(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
@@ -487,10 +507,14 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         "vulnerabilities": vulnerabilities
     }
 
-def _get_hijacking_data(session: Session, user: User) -> List[Dict[str, Any]]:
+def _get_hijacking_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None) -> List[Dict[str, Any]]:
     """
     Fetches targets with broken external links (potential hijacking).
     Rewritten for stability and robust error handling.
+
+    Args:
+        date_from: Optional start datetime for filtering scan results
+        date_to: Optional end datetime for filtering scan results
     """
     # 1. Scope Resolution
     stmt = select(Target)
@@ -508,10 +532,18 @@ def _get_hijacking_data(session: Session, user: User) -> List[Dict[str, Any]]:
 
     # 2. Fetch Results (Web Analyzer only)
     # Using specific query to minimize data transfer
-    results = session.exec(select(ScanResult).where(
+    results_query = select(ScanResult).where(
         ScanResult.module_name == 'web_analyzer',
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())).all()
+    )
+
+    # Apply date filtering
+    if date_from:
+        results_query = results_query.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        results_query = results_query.where(ScanResult.scanned_at <= date_to)
+
+    results = session.exec(results_query.order_by(ScanResult.scanned_at.desc())).all()
     
     hijacking_candidates = []
     seen_targets = set()
@@ -559,10 +591,14 @@ def _get_hijacking_data(session: Session, user: User) -> List[Dict[str, Any]]:
                 
     return hijacking_candidates
 
-def _get_tech_radar_data(session: Session, user: User) -> Dict[str, Any]:
+def _get_tech_radar_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None) -> Dict[str, Any]:
     """
     Aggregates technology stacks for the radar charts.
     Rewritten to be standalone and decoupled from infrastructure logic.
+
+    Args:
+        date_from: Optional start datetime for filtering scan results
+        date_to: Optional end datetime for filtering scan results
     """
     # 1. Scope Resolution
     stmt = select(Target)
@@ -584,10 +620,18 @@ def _get_tech_radar_data(session: Session, user: User) -> Dict[str, Any]:
     target_ids = [t.id for t in targets]
 
     # 2. Fetch Results (Web Analyzer only)
-    results = session.exec(select(ScanResult).where(
+    results_query = select(ScanResult).where(
         ScanResult.module_name == 'web_analyzer',
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())).all()
+    )
+
+    # Apply date filtering
+    if date_from:
+        results_query = results_query.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        results_query = results_query.where(ScanResult.scanned_at <= date_to)
+
+    results = session.exec(results_query.order_by(ScanResult.scanned_at.desc())).all()
     
     # 3. Aggregation Containers
     tech_stack: Dict[str, int] = {}
@@ -679,12 +723,26 @@ def _get_tech_radar_data(session: Session, user: User) -> Dict[str, Any]:
     }
 
 @router.get("/hijacking")
-async def get_hijacking_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    return _get_hijacking_data(session, user)
+async def get_hijacking_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    return _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt)
 
 @router.get("/tech-radar")
-async def get_tech_radar_stats(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    return _get_tech_radar_data(session, user)
+async def get_tech_radar_stats(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    return _get_tech_radar_data(session, user, date_from=from_dt, date_to=to_dt)
 
 
 
@@ -808,30 +866,56 @@ templates.env.globals['settings'] = settings
 
 
 @ui_router.get("/hijacking", response_class=HTMLResponse)
-async def view_hijacking(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    items = _get_hijacking_data(session, user)
+async def view_hijacking(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    items = _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("analytics_hijacking.html", {
-        "request": request, 
+        "request": request,
         "user": user,
         "items": items,
-        "settings": settings
+        "settings": settings,
+        "date_range_display": date_range_display
     })
 
 @ui_router.get("/tech-radar", response_class=HTMLResponse)
-async def view_tech_radar(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    stats = _get_tech_radar_data(session, user)
+async def view_tech_radar(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    stats = _get_tech_radar_data(session, user, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("analytics_tech_radar.html", {
         "request": request,
         "user": user,
         "stats": stats,
-        "settings": settings
+        "settings": settings,
+        "date_range_display": date_range_display
     })
 
 
-def _get_external_links_data(session: Session, user: User):
+def _get_external_links_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None):
     """
     Helper to fetch and process external links data for given user context.
     Returns: (scope_count, final_list, tenant_name)
+
+    Args:
+        date_from: Optional start datetime for filtering scan results
+        date_to: Optional end datetime for filtering scan results
     """
     # 1. Define Scope (Tenant Targets)
     target_query = select(Target)
@@ -867,6 +951,13 @@ def _get_external_links_data(session: Session, user: User):
         ScanResult.module_name.in_(['crawler', 'dns_scanner']),
         ScanResult.target_id.in_([t.id for t in targets])
     )
+
+    # Apply date filtering
+    if date_from:
+        statement = statement.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        statement = statement.where(ScanResult.scanned_at <= date_to)
+
     results = session.exec(statement).all()
     print(f"[DEBUG_EXT_LINKS] Fetched {len(results)} scan results. Starting processing...")
         
@@ -968,27 +1059,46 @@ def _get_external_links_data(session: Session, user: User):
     return len(scope_domains), final_list, tenant_name
 
 @ui_router.get("/external-links", response_class=HTMLResponse)
-async def view_external_links(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def view_external_links(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Renders the shell page for External Links. Data is loaded via HTMX.
     """
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
     # Just render the shell. Counters will be updated via OOB.
     return templates.TemplateResponse("analytics_external_links.html", {
         "request": request,
         "external_links": [], # Empty initially
         "user": user,
         "scope_count": "-", # Placeholder
-        "settings": settings
+        "settings": settings,
+        "date_range_display": date_range_display
     })
 
 @ui_router.get("/external-links/rows", response_class=HTMLResponse)
-async def get_external_links_rows(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def get_external_links_rows(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     HTMX endpoint calculates heavy data and returns table rows + OOB counters.
     """
     try:
-        scope_count, final_list, _ = _get_external_links_data(session, user)
-        
+        from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+        scope_count, final_list, _ = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
+
         return templates.TemplateResponse("_external_links_rows.html", {
             "request": request,
             "external_links": final_list,
@@ -1009,25 +1119,36 @@ async def get_external_links_rows(request: Request, session: Session = Depends(g
         """)
 
 @ui_router.get("/external-links/export")
-async def export_external_links(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_external_links(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports the External Links report to PDF.
     """
     from fastapi.responses import Response
     from yads.modules.report_generator import generate_external_links_report
-    
-    scope_count, final_list, tenant_name = _get_external_links_data(session, user)
-    
+
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
+
     pdf_bytes = generate_external_links_report(scope_count, final_list, tenant_name)
-    
+
     return Response(content=bytes(pdf_bytes), media_type="application/pdf", headers={
         "Content-Disposition": 'attachment; filename="external_links_report.pdf"'
     })
 
 
-def _get_dead_links_data(session: Session, user: User):
+def _get_dead_links_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None):
     """
     Helper to identify Dead (Unreachable) and Unlinked (Orphan) targets.
+
+    Args:
+        date_from: Optional start datetime for filtering scan results
+        date_to: Optional end datetime for filtering scan results
     """
     # 1. Tenant Scope
     target_query = select(Target)
@@ -1050,8 +1171,16 @@ def _get_dead_links_data(session: Session, user: User):
     scan_stmt = select(ScanResult).where(
         ScanResult.target_id.in_(target_ids),
         ScanResult.module_name == 'web_analyzer'
-    ).order_by(ScanResult.scanned_at.desc())
-    
+    )
+
+    # Apply date filtering
+    if date_from:
+        scan_stmt = scan_stmt.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        scan_stmt = scan_stmt.where(ScanResult.scanned_at <= date_to)
+
+    scan_stmt = scan_stmt.order_by(ScanResult.scanned_at.desc())
+
     # Efficient: Group by target in python or DISTINCT ON in SQL
     # DISTINCT ON is Postgres specific but supported by YADS stack
     from sqlalchemy import text
@@ -1100,10 +1229,18 @@ def _get_dead_links_data(session: Session, user: User):
     # 1. Build set of ALL referenced domains from 'crawler' results of in-scope targets
     referenced_domains = set()
     
-    crawler_results = session.exec(select(ScanResult).where(
+    crawler_stmt = select(ScanResult).where(
         ScanResult.target_id.in_(target_ids),
         ScanResult.module_name == 'crawler'
-    )).all()
+    )
+
+    # Apply date filtering to crawler results as well
+    if date_from:
+        crawler_stmt = crawler_stmt.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        crawler_stmt = crawler_stmt.where(ScanResult.scanned_at <= date_to)
+
+    crawler_results = session.exec(crawler_stmt).all()
     
     from urllib.parse import urlparse
     
@@ -1151,23 +1288,42 @@ def _get_dead_links_data(session: Session, user: User):
 
 
 @ui_router.get("/dead-links", response_class=HTMLResponse)
-async def view_dead_links(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def view_dead_links(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Renders the shell for Dead Links Analysis.
     """
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
     return templates.TemplateResponse("analytics_dead_links.html", {
         "request": request,
         "user": user,
         "settings": settings,
+        "date_range_display": date_range_display
     })
 
 @ui_router.get("/dead-links/rows", response_class=HTMLResponse)
-async def get_dead_links_rows(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def get_dead_links_rows(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     HTMX endpoint for table rows.
     """
-    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user)
-    
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user, date_from=from_dt, date_to=to_dt)
+
     return templates.TemplateResponse("_dead_links_rows.html", {
         "request": request,
         "dead_links": dead_links,
@@ -1178,7 +1334,13 @@ async def get_dead_links_rows(request: Request, session: Session = Depends(get_s
 
 
 @ui_router.get("/external-links/export-csv")
-async def export_external_links_csv(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_external_links_csv(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports the External Links report to CSV.
     """
@@ -1186,7 +1348,8 @@ async def export_external_links_csv(session: Session = Depends(get_session), use
     import csv
     import io
 
-    scope_count, final_list, tenant_name = _get_external_links_data(session, user)
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
     
     # Generate CSV
     output = io.StringIO()
@@ -1218,7 +1381,13 @@ async def export_external_links_csv(session: Session = Depends(get_session), use
     )
 
 @ui_router.get("/dead-links/export-csv")
-async def export_dead_links_csv(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_dead_links_csv(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports the Dead Links report to CSV.
     """
@@ -1226,7 +1395,8 @@ async def export_dead_links_csv(session: Session = Depends(get_session), user: U
     import csv
     import io
 
-    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user)
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    scope_count, unreachable_count, orphan_count, dead_links = _get_dead_links_data(session, user, date_from=from_dt, date_to=to_dt)
     
     # Generate CSV
     output = io.StringIO()
@@ -1257,15 +1427,22 @@ async def export_dead_links_csv(session: Session = Depends(get_session), user: U
     )
 
 @ui_router.get("/export-pdf")
-async def export_infrastructure_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+async def export_infrastructure_pdf(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
     """
     Exports the Analytics Infrastructure report to PDF.
     """
     from fastapi.responses import Response
     from yads.modules.report_generator import generate_infrastructure_report
     from yads.models import Tenant
-    
-    data = _get_infrastructure_data(session, user)
+
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    data = _get_infrastructure_data(session, user, date_from=from_dt, date_to=to_dt)
     
     tenant_name = "Global"
     if user.tenant_id:

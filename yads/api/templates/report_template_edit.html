@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="templateEditor()">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <a href="/reports/templates" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </a>
+                <h1 class="text-3xl font-bold text-white">{% if is_new %}New Template{% else %}Edit Template{% endif %}</h1>
+            </div>
+            {% if template %}
+            <p class="text-slate-400 text-sm">{{ template.name }}</p>
+            {% endif %}
+        </div>
+
+        <div class="flex items-center gap-3">
+            <a href="/reports/templates"
+               class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg transition-all text-sm font-medium border border-slate-700">
+                Cancel
+            </a>
+            {% if not is_new and can_edit %}
+            <button @click="saveTemplate()"
+                    :disabled="saving"
+                    class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                <svg x-show="!saving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <svg x-show="saving" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span x-text="saving ? 'Saving...' : 'Save Template'"></span>
+            </button>
+            {% elif is_new %}
+            <button @click="createTemplate()"
+                    :disabled="saving"
+                    class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                <svg x-show="!saving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <svg x-show="saving" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span x-text="saving ? 'Creating...' : 'Create Template'"></span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Edit Form -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings -->
+        <div class="space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4">Template Settings</h3>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Name *</label>
+                        <input type="text" x-model="name" {% if not is_new and not can_edit %}readonly{% endif %}
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 {% if not is_new and not can_edit %}opacity-60{% endif %}"
+                               placeholder="Executive Summary Template">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                        <textarea x-model="description" rows="2" {% if not is_new and not can_edit %}readonly{% endif %}
+                                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none {% if not is_new and not can_edit %}opacity-60{% endif %}"
+                                  placeholder="Brief description of the template..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Category</label>
+                        <select x-model="category" {% if not is_new and not can_edit %}disabled{% endif %}
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 {% if not is_new and not can_edit %}opacity-60{% endif %}">
+                            <option value="executive">Executive</option>
+                            <option value="technical">Technical</option>
+                            <option value="compliance">Compliance</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Available Sections -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4">Data Sections</h3>
+                <p class="text-slate-500 text-xs mb-3">Select which data sections this template uses:</p>
+
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    {% for section in available_sections %}
+                    <label class="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors">
+                        <input type="checkbox"
+                               :checked="selectedSections.includes('{{ section.id }}')"
+                               @change="toggleSection('{{ section.id }}')"
+                               {% if not is_new and not can_edit %}disabled{% endif %}
+                               class="mt-0.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0">
+                        <div>
+                            <span class="text-sm text-white">{{ section.name }}</span>
+                            <p class="text-xs text-slate-500">{{ section.description }}</p>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if not is_new %}
+            <!-- Template Info -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h3 class="text-white font-semibold mb-4">Template Info</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Created</span>
+                        <span class="text-white">{{ template.created_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Updated</span>
+                        <span class="text-white">{{ template.updated_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Type</span>
+                        <span class="text-white">{% if template.is_public %}System{% else %}Custom{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Editor -->
+        <div class="lg:col-span-2">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden h-full flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/50 flex items-center justify-between">
+                    <h3 class="text-white font-semibold">Markdown Template</h3>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="text-slate-500">Use</span>
+                        <code class="text-cyan-400 bg-slate-800 px-1.5 py-0.5 rounded">{{ "{{" }} variable {{ "}}" }}</code>
+                        <span class="text-slate-500">for data</span>
+                    </div>
+                </div>
+
+                <div class="flex-1">
+                    <textarea x-model="markdownContent" {% if not is_new and not can_edit %}readonly{% endif %}
+                              class="w-full h-full bg-slate-950 text-slate-300 font-mono text-sm p-4 resize-none focus:outline-none {% if not is_new and not can_edit %}opacity-60{% endif %}"
+                              style="min-height: 500px;"
+                              placeholder="# Report Title
+
+## Executive Summary
+
+{{ "{{" }} tenant.report_company_name {{ "}}" }}
+
+## Findings
+
+{{ "{%" }} for t in targets {{ "%}" }}
+### {{ "{{" }} t.domain {{ "}}" }}
+{{ "{%" }} endfor {{ "%}" }}"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not can_edit and not is_new %}
+    <div class="bg-amber-900/20 border border-amber-700/50 rounded-xl p-4">
+        <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div>
+                <p class="text-amber-200 font-medium">Read-Only Template</p>
+                <p class="text-amber-400/80 text-sm">This is a system template and cannot be edited. You can use it as a starting point by copying its content to a new custom template.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function templateEditor() {
+    return {
+        name: {{ (template.name if template else '')|tojson|safe }},
+        description: {{ (template.description if template and template.description else '')|tojson|safe }},
+        category: {{ (template.category if template else 'custom')|tojson|safe }},
+        markdownContent: {{ (template.markdown_content if template else '')|tojson|safe }},
+        selectedSections: {{ (template.available_sections if template else [])|tojson|safe }},
+        saving: false,
+
+        toggleSection(sectionId) {
+            const idx = this.selectedSections.indexOf(sectionId);
+            if (idx > -1) {
+                this.selectedSections.splice(idx, 1);
+            } else {
+                this.selectedSections.push(sectionId);
+            }
+        },
+
+        async createTemplate() {
+            if (!this.name.trim()) {
+                alert('Please enter a template name');
+                return;
+            }
+
+            this.saving = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('name', this.name);
+                formData.append('description', this.description);
+                formData.append('category', this.category);
+                formData.append('markdown_content', this.markdownContent);
+                formData.append('available_sections', JSON.stringify(this.selectedSections));
+
+                const response = await fetch('/reports/templates', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const redirectUrl = response.headers.get('HX-Redirect');
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        window.location.href = '/reports/templates';
+                    }
+                } else {
+                    alert('Error creating template');
+                }
+            } catch (error) {
+                console.error('Create error:', error);
+                alert('Error creating template');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async saveTemplate() {
+            if (!this.name.trim()) {
+                alert('Please enter a template name');
+                return;
+            }
+
+            this.saving = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('name', this.name);
+                formData.append('description', this.description);
+                formData.append('category', this.category);
+                formData.append('markdown_content', this.markdownContent);
+                formData.append('available_sections', JSON.stringify(this.selectedSections));
+
+                const response = await fetch('/reports/templates/{{ template.id if template else "" }}/update', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.location.href = '/reports/templates/{{ template.id if template else "" }}';
+                } else {
+                    alert('Error saving template');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Error saving template');
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,156 @@
+<!-- Worker Configuration Modal Content -->
+<div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+    <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+        <div>
+            <h3 class="text-xl font-bold text-white">Worker Configuration</h3>
+            <p class="text-sm text-slate-400 mt-1">{{ worker.hostname }}{% if worker.is_primary %} <span class="ml-1 px-1.5 py-0.5 text-[10px] bg-indigo-600 text-white rounded">PRIMARY</span>{% endif %}</p>
+        </div>
+        <button onclick="document.getElementById('worker-config-modal').classList.add('hidden')" class="text-slate-400 hover:text-white transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+
+    <form hx-put="/api/workers/{{ worker.node_id }}/config"
+          hx-headers='{"Content-Type": "application/json"}'
+          hx-ext="json-enc"
+          hx-swap="none"
+          hx-on::after-request="if(event.detail.successful) { document.getElementById('worker-config-modal').classList.add('hidden'); htmx.trigger('#worker-list', 'refresh'); }"
+          class="p-6 space-y-6">
+
+        <!-- Worker Info (Read-only) -->
+        <div class="grid grid-cols-2 gap-4 p-4 bg-slate-800/50 rounded-lg">
+            <div>
+                <span class="text-xs text-slate-500">Node ID</span>
+                <p class="text-sm text-slate-300 font-mono">{{ worker.node_id }}</p>
+            </div>
+            <div>
+                <span class="text-xs text-slate-500">IP Address</span>
+                <p class="text-sm text-slate-300">{{ worker.ip_address }}</p>
+            </div>
+            <div>
+                <span class="text-xs text-slate-500">Status</span>
+                <p class="text-sm">
+                    <span class="px-2 py-0.5 rounded text-xs {% if worker.status == 'active' %}bg-green-600/20 text-green-400{% elif worker.status == 'offline' %}bg-red-600/20 text-red-400{% elif worker.status == 'suspended' %}bg-yellow-600/20 text-yellow-400{% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                        {{ worker.status }}
+                    </span>
+                </p>
+            </div>
+            <div>
+                <span class="text-xs text-slate-500">Current Load</span>
+                <p class="text-sm text-slate-300">{{ worker.current_tasks }} tasks / {{ (worker.current_load * 100)|round(1) }}% CPU</p>
+            </div>
+            {% if worker.version %}
+            <div>
+                <span class="text-xs text-slate-500">Version</span>
+                <p class="text-sm text-slate-300">{{ worker.version }}</p>
+            </div>
+            {% endif %}
+            {% if worker.cpu_count and worker.memory_mb %}
+            <div>
+                <span class="text-xs text-slate-500">Resources</span>
+                <p class="text-sm text-slate-300">{{ worker.cpu_count }} CPU, {{ (worker.memory_mb / 1024)|round(1) }} GB RAM</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">Description</label>
+            <input type="text" name="description"
+                   value="{{ worker.description or '' }}"
+                   class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                   placeholder="e.g. Production scanner for EU region">
+        </div>
+
+        <!-- Limits Section -->
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Max Concurrent Tasks</label>
+                <input type="number" name="max_concurrent_tasks"
+                       value="{{ worker.max_concurrent_tasks }}"
+                       min="1" max="50"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                <p class="text-xs text-slate-500 mt-1">Simultaneous scans</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Max Network (Mbps)</label>
+                <input type="number" name="max_network_mbps"
+                       value="{{ worker.max_network_mbps }}"
+                       min="1" max="10000" step="0.1"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                <p class="text-xs text-slate-500 mt-1">Bandwidth limit</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Max Daily Scans</label>
+                <input type="number" name="max_daily_scans"
+                       value="{{ worker.max_daily_scans or '' }}"
+                       min="0" max="100000"
+                       placeholder="Unlimited"
+                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                <p class="text-xs text-slate-500 mt-1">0 = unlimited</p>
+            </div>
+        </div>
+
+        <!-- Capabilities Section -->
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">Capabilities</label>
+            <p class="text-xs text-slate-500 mb-3">Select scan types this worker can handle. "All" means all scan types.</p>
+            <div class="grid grid-cols-3 gap-2" x-data="{ capabilities: {{ worker.capabilities|tojson }} }">
+                {% set all_capabilities = ['all', 'dns_scanner', 'ssl_scanner', 'web_analyzer', 'nuclei_scanner', 'crawler', 'visual_osint', 'nmap_scanner', 'cloud_scanner', 'typosquat_scanner', 'seed_files_scanner', 'csp_scanner'] %}
+                {% for cap in all_capabilities %}
+                <label class="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors">
+                    <input type="checkbox" name="capabilities" value="{{ cap }}"
+                           {% if cap in worker.capabilities %}checked{% endif %}
+                           class="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500">
+                    <span class="text-sm text-slate-300">{{ cap.replace('_', ' ').title() }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tenant Assignment Section -->
+        <div>
+            <label class="block text-sm font-medium text-slate-300 mb-2">Tenant Assignment</label>
+            <p class="text-xs text-slate-500 mb-3">Assign this worker to specific tenants. If none selected, worker serves all tenants.</p>
+            <div class="max-h-48 overflow-y-auto border border-slate-700 rounded-lg p-2 space-y-1">
+                {% if tenants %}
+                    {% for tenant in tenants %}
+                    <label class="flex items-center gap-2 p-2 bg-slate-800/50 rounded hover:bg-slate-800 cursor-pointer transition-colors">
+                        <input type="checkbox" name="assigned_tenant_ids" value="{{ tenant.id }}"
+                               {% if tenant.id in worker.assigned_tenant_ids %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500">
+                        <span class="text-sm text-slate-300">{{ tenant.name }}</span>
+                    </label>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-sm text-slate-500 p-2">No tenants available</p>
+                {% endif %}
+            </div>
+            <p class="text-xs text-slate-500 mt-2">
+                {% if worker.assigned_tenant_ids and worker.assigned_tenant_ids|length > 0 %}
+                    Currently assigned to {{ worker.assigned_tenant_ids|length }} tenant(s)
+                {% else %}
+                    Currently serving all tenants
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-between items-center pt-4 border-t border-slate-700">
+            <div class="text-xs text-slate-500">
+                Registered: {{ worker.registered_at[:10] if worker.registered_at else 'Unknown' }}
+            </div>
+            <div class="flex gap-3">
+                <button type="button"
+                        onclick="document.getElementById('worker-config-modal').classList.add('hidden')"
+                        class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg shadow-blue-500/20 transition-all">
+                    Save Configuration
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

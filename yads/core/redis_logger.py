@@ -1,12 +1,149 @@
 import logging
 import redis
 import json
+import socket
+import time
+import threading
 from datetime import datetime
 import os
 from typing import Optional
+from urllib.request import urlopen
 
 from yads.config import settings
 from yads.database import redis_client
+
+
+# --- External IP Utility ---
+# Cached external IP with thread-safe access
+_external_ip_cache = {
+    "ip": None,
+    "timestamp": 0,
+    "lock": threading.Lock()
+}
+
+# Cache TTL: 5 minutes (external IP shouldn't change frequently)
+EXTERNAL_IP_CACHE_TTL = 300
+
+
+def get_external_ip(force_refresh: bool = False) -> Optional[str]:
+    """
+    Get the external/public IP address of this worker.
+
+    Uses multiple fallback methods and caches the result.
+
+    Args:
+        force_refresh: If True, bypass cache and fetch fresh IP
+
+    Returns:
+        External IP address as string, or None if unavailable
+    """
+    global _external_ip_cache
+
+    current_time = time.time()
+
+    with _external_ip_cache["lock"]:
+        # Return cached value if still valid
+        if not force_refresh and _external_ip_cache["ip"]:
+            if current_time - _external_ip_cache["timestamp"] < EXTERNAL_IP_CACHE_TTL:
+                return _external_ip_cache["ip"]
+
+        # Try multiple methods to get external IP
+        ip = None
+
+        # Method 1: Use external service (most reliable for getting public IP)
+        services = [
+            "https://api.ipify.org",
+            "https://ifconfig.me/ip",
+            "https://icanhazip.com",
+            "https://checkip.amazonaws.com",
+        ]
+
+        for service in services:
+            try:
+                with urlopen(service, timeout=3) as response:
+                    ip = response.read().decode('utf-8').strip()
+                    if ip and _is_valid_ip(ip):
+                        break
+            except Exception:
+                continue
+
+        # Method 2: Fallback - get local IP via socket connection
+        if not ip:
+            try:
+                # Connect to a public DNS to get our outbound IP
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.settimeout(2)
+                s.connect(("8.8.8.8", 80))
+                ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
+
+        # Method 3: Final fallback - get hostname IP
+        if not ip:
+            try:
+                ip = socket.gethostbyname(socket.gethostname())
+            except Exception:
+                pass
+
+        # Update cache
+        _external_ip_cache["ip"] = ip
+        _external_ip_cache["timestamp"] = current_time
+
+        return ip
+
+
+def _is_valid_ip(ip: str) -> bool:
+    """Check if string is a valid IPv4 or IPv6 address."""
+    try:
+        socket.inet_pton(socket.AF_INET, ip)
+        return True
+    except socket.error:
+        try:
+            socket.inet_pton(socket.AF_INET6, ip)
+            return True
+        except socket.error:
+            return False
+
+
+def get_worker_hostname() -> str:
+    """Get the hostname of this worker."""
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "unknown"
+
+
+def resolve_target_ips(domain: str) -> list:
+    """
+    Resolve a domain to its IP addresses.
+
+    Args:
+        domain: Domain name to resolve
+
+    Returns:
+        List of IP addresses (may be empty)
+    """
+    ips = []
+    try:
+        # Get IPv4 addresses
+        for info in socket.getaddrinfo(domain, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+    except socket.gaierror:
+        pass
+
+    try:
+        # Get IPv6 addresses
+        for info in socket.getaddrinfo(domain, None, socket.AF_INET6):
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+    except socket.gaierror:
+        pass
+
+    return ips
 
 
 class RedisLogHandler(logging.Handler):
@@ -14,11 +151,12 @@ class RedisLogHandler(logging.Handler):
     Logging Handler that publishes logs to a Redis list.
     Also updates a 'status' key with the latest message for quick access.
     """
-    def __init__(self, target_id: int, ttl: int = 3600):
+    def __init__(self, target_id: int, ttl: int = 3600, external_ip: str = None):
         super().__init__()
         self.target_id = target_id
         self.ttl = ttl
         self.redis = redis_client
+        self.external_ip = external_ip
 
         self.list_key = f"scan:logs:{target_id}"
         self.status_key = f"scan:status:{target_id}"
@@ -44,6 +182,10 @@ class RedisLogHandler(logging.Handler):
                 "level": record.levelname,
                 "msg": msg
             }
+
+            # Include external IP if available
+            if self.external_ip:
+                entry["external_ip"] = self.external_ip
 
             # Push to List
             self.redis.rpush(self.list_key, json.dumps(entry))
@@ -83,13 +225,15 @@ class DistributedRedisLogHandler(logging.Handler):
     """
 
     def __init__(self, target_id: int, tenant_id: Optional[int] = None,
-                 worker_node_id: Optional[str] = None, ttl: int = 3600):
+                 worker_node_id: Optional[str] = None, ttl: int = 3600,
+                 external_ip: str = None):
         super().__init__()
         self.target_id = target_id
         self.tenant_id = tenant_id
         self.worker_node_id = worker_node_id
         self.ttl = ttl
         self.redis = redis_client
+        self.external_ip = external_ip
 
         # Key definitions
         self.list_key = f"scan:logs:{target_id}"
@@ -126,7 +270,8 @@ class DistributedRedisLogHandler(logging.Handler):
                 "target_id": self.target_id,
                 "tenant_id": self.tenant_id,
                 "worker_node_id": self.worker_node_id,
-                "module": record.name.split('.')[-1] if record.name else None
+                "module": record.name.split('.')[-1] if record.name else None,
+                "external_ip": self.external_ip
             }
             entry_json = json.dumps(entry)
 
@@ -339,3 +484,114 @@ def clear_target_logs(target_id: int):
         redis_client.delete(f"scan:status:{target_id}")
     except Exception:
         pass
+
+
+# --- Worker Network Info Storage ---
+
+def store_worker_network_info(worker_node_id: str, external_ip: str,
+                               hostname: str, ttl: int = 3600) -> bool:
+    """
+    Store worker network information in Redis.
+
+    Args:
+        worker_node_id: Unique identifier for the worker
+        external_ip: Worker's external/public IP
+        hostname: Worker's hostname
+        ttl: Time-to-live in seconds (default 1 hour)
+
+    Returns:
+        True if stored successfully
+    """
+    if not redis_client:
+        return False
+
+    try:
+        key = f"worker:network:{worker_node_id}"
+        data = json.dumps({
+            "external_ip": external_ip,
+            "hostname": hostname,
+            "updated_at": datetime.utcnow().isoformat()
+        })
+        redis_client.set(key, data, ex=ttl)
+        return True
+    except Exception:
+        return False
+
+
+def get_worker_network_info(worker_node_id: str) -> Optional[dict]:
+    """
+    Retrieve worker network information from Redis.
+
+    Args:
+        worker_node_id: Worker identifier
+
+    Returns:
+        Dictionary with external_ip, hostname, updated_at or None
+    """
+    if not redis_client:
+        return None
+
+    try:
+        key = f"worker:network:{worker_node_id}"
+        data = redis_client.get(key)
+        if data:
+            return json.loads(data)
+        return None
+    except Exception:
+        return None
+
+
+def get_all_workers_network_info() -> list:
+    """
+    Retrieve network information for all registered workers.
+
+    Returns:
+        List of dictionaries with worker_id and network info
+    """
+    if not redis_client:
+        return []
+
+    try:
+        # Scan for all worker:network:* keys
+        workers = []
+        cursor = 0
+        while True:
+            cursor, keys = redis_client.scan(cursor, match="worker:network:*", count=100)
+            for key in keys:
+                try:
+                    data = redis_client.get(key)
+                    if data:
+                        info = json.loads(data)
+                        # Extract worker_id from key
+                        worker_id = key.split(":")[-1] if isinstance(key, str) else key.decode().split(":")[-1]
+                        info["worker_id"] = worker_id
+                        workers.append(info)
+                except Exception:
+                    pass
+            if cursor == 0:
+                break
+        return workers
+    except Exception:
+        return []
+
+
+def get_scan_network_context(target_id: int) -> Optional[dict]:
+    """
+    Get network context from the first log entry of a scan.
+
+    This retrieves the external_ip used for a specific scan from its logs.
+
+    Args:
+        target_id: Target ID to get network context for
+
+    Returns:
+        Dictionary with external_ip or None
+    """
+    logs = get_target_logs(target_id, limit=10)
+    for log in logs:
+        if log.get("external_ip"):
+            return {
+                "external_ip": log.get("external_ip"),
+                "timestamp": log.get("ts")
+            }
+    return None

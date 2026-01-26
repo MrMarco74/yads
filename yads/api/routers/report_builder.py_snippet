@@ -1,0 +1,64 @@
+
+def gather_scan_data(session: Session, target_ids: List[int], tenant_id: Optional[int]) -> dict:
+    """
+    Collect all scan data for the requested targets.
+    Returns a dictionary structure compatible with report generator.
+    """
+    scan_data = {
+        "targets": [],
+        "summary": {
+            "total_vulnerabilities": 0,
+            "critical_count": 0,
+            "high_count": 0,
+            "medium_count": 0,
+            "low_count": 0
+        }
+    }
+
+    if not target_ids:
+        return scan_data
+
+    # Fetch targets
+    query = select(Target).where(Target.id.in_(target_ids))
+    if tenant_id:
+        query = query.where(Target.tenant_id == tenant_id)
+    
+    targets = session.exec(query).all()
+
+    for target in targets:
+        # Get latest results for each module
+        results = session.exec(
+            select(ScanResult)
+            .where(ScanResult.target_id == target.id)
+            .order_by(ScanResult.scanned_at.desc())
+        ).all()
+
+        modules_data = {}
+        seen_modules = set()
+        
+        for res in results:
+            if res.module_name not in seen_modules:
+                modules_data[res.module_name] = res.data
+                seen_modules.add(res.module_name)
+        
+        # Calculate stats from Nuclei results
+        if "nuclei_scanner" in modules_data:
+            vulns = modules_data["nuclei_scanner"].get("vulnerabilities", [])
+            scan_data["summary"]["total_vulnerabilities"] += len(vulns)
+            for v in vulns:
+                sev = v.get("severity", "low").lower()
+                if sev == "critical": scan_data["summary"]["critical_count"] += 1
+                elif sev == "high": scan_data["summary"]["high_count"] += 1
+                elif sev == "medium": scan_data["summary"]["medium_count"] += 1
+                elif sev == "low": scan_data["summary"]["low_count"] += 1
+
+        target_info = {
+            "id": target.id,
+            "domain": target.domain,
+            "created_at": target.created_at,
+            "tags": target.tags,
+            "modules": modules_data
+        }
+        scan_data["targets"].append(target_info)
+
+    return scan_data

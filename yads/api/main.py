@@ -17,7 +17,7 @@ from yads.modules.report_generator import generate_report
 from yads.modules.visual_osint import VisualOSINT
 from yads.modules.report_generator import generate_report
 from yads.modules.brand_monitor import BrandMonitor
-from yads.core.seeding import seed_changelog
+from yads.core.seeding import seed_changelog, seed_default_report_templates
 from yads.modules.compliance import ComplianceScorer
 
 from yads.config import settings
@@ -86,12 +86,106 @@ async def lifespan(app: FastAPI):
                     session.commit()
                     
                 # Check if Target table has tenant_id column
+                # Check if target table has tenant_id column
                 try:
                     session.exec(text("SELECT tenant_id FROM target LIMIT 1"))
                 except Exception:
                     logger.info("Migrating schema: Adding tenant_id to target table")
                     session.rollback()
                     session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                    session.commit()
+
+                # Migration for OSINT API Keys (v1.16.0)
+                # Use inspector for robust checking
+                from sqlalchemy import inspect
+                inspector = inspect(engine)
+                
+                # Check Tenant Columns
+                if inspector.has_table("tenant"):
+                    columns = [c["name"] for c in inspector.get_columns("tenant")]
+                    
+                    if "shodan_api_key" not in columns:
+                        logger.info("Migrating schema: Adding shodan_api_key to tenant table")
+                        session.exec(text("ALTER TABLE tenant ADD COLUMN shodan_api_key VARCHAR"))
+                        
+                    if "censys_api_key" not in columns:
+                         logger.info("Migrating schema: Adding censys_api_key to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN censys_api_key VARCHAR"))
+                         
+                    if "virustotal_api_key" not in columns:
+                         logger.info("Migrating schema: Adding virustotal_api_key to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN virustotal_api_key VARCHAR"))
+
+                    # v1.15.0 Keys
+                    if "hunter_api_key" not in columns:
+                         logger.info("Migrating schema: Adding hunter_api_key to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN hunter_api_key VARCHAR"))
+                    if "github_token" not in columns:
+                         logger.info("Migrating schema: Adding github_token to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN github_token VARCHAR"))
+                    if "twitter_bearer_token" not in columns:
+                         logger.info("Migrating schema: Adding twitter_bearer_token to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN twitter_bearer_token VARCHAR"))
+                    
+                    # Session & Branding
+                    if "session_timeout_minutes" not in columns:
+                         logger.info("Migrating schema: Adding session_timeout_minutes to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN session_timeout_minutes INTEGER DEFAULT 60"))
+
+                    if "report_logo_url" not in columns:
+                         logger.info("Migrating schema: Adding report_logo_url to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_logo_url VARCHAR"))
+
+                    if "report_company_name" not in columns:
+                         logger.info("Migrating schema: Adding report_company_name to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_company_name VARCHAR"))
+
+                    if "report_primary_color" not in columns:
+                         logger.info("Migrating schema: Adding report_primary_color to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_primary_color VARCHAR DEFAULT '#3b82f6'"))
+
+                    if "report_secondary_color" not in columns:
+                         logger.info("Migrating schema: Adding report_secondary_color to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_secondary_color VARCHAR DEFAULT '#64748b'"))
+                         
+                    if "report_header_text" not in columns:
+                         logger.info("Migrating schema: Adding report_header_text to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_header_text VARCHAR"))
+
+                    if "report_footer_text" not in columns:
+                         logger.info("Migrating schema: Adding report_footer_text to tenant table")
+                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_footer_text VARCHAR"))
+
+                    session.commit()
+
+                # Check WorkerNode Columns
+                if inspector.has_table("workernode"):
+                    columns = [c["name"] for c in inspector.get_columns("workernode")]
+                    if "assigned_tenant_ids" not in columns:
+                        logger.info("Migrating schema: Adding assigned_tenant_ids to workernode table")
+                        # JSONB column
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN assigned_tenant_ids JSONB DEFAULT '[]'"))
+
+                    if "max_daily_scans" not in columns:
+                        logger.info("Migrating schema: Adding max_daily_scans to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN max_daily_scans INTEGER"))
+
+                    if "description" not in columns:
+                        logger.info("Migrating schema: Adding description to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN description VARCHAR"))
+
+                    if "version" not in columns:
+                        logger.info("Migrating schema: Adding version to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN version VARCHAR"))
+
+                    if "cpu_count" not in columns:
+                        logger.info("Migrating schema: Adding cpu_count to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN cpu_count INTEGER"))
+
+                    if "memory_mb" not in columns:
+                        logger.info("Migrating schema: Adding memory_mb to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN memory_mb INTEGER"))
+
                     session.commit()
 
                 # Ensure Default Tenant "a customer" -> REMOVED PER USER REQ
@@ -165,6 +259,9 @@ async def lifespan(app: FastAPI):
             # --- Seed Changelog ---
             seed_changelog()
 
+            # --- Seed Default Report Templates ---
+            seed_default_report_templates()
+
             # --- Load License Key to Settings ---
             with Session(engine) as session:
                 from yads.models import SystemConfig
@@ -174,13 +271,22 @@ async def lifespan(app: FastAPI):
                     logger.info("License key loaded from database into runtime settings.")
                 else:
                     logger.warning("No license key found in database.")
-                
+
+            # --- Register Default Worker ---
+            try:
+                from yads.core.worker_manager import worker_manager
+                node_id = worker_manager.register_primary_worker()
+                if node_id:
+                    logger.info(f"Default worker registered: {node_id}")
+            except Exception as e:
+                logger.warning(f"Could not register default worker: {e}")
+
             break
-        except Exception:
+        except Exception as e:
             if i == max_retries - 1:
-                logger.error("Could not connect to database after retries.")
+                logger.error(f"Could not connect to database after retries. Error: {e}")
                 raise
-            logger.warning(f"Database not ready... retrying ({i+1}/{max_retries})")
+            logger.warning(f"Database/Startup not ready... retrying ({i+1}/{max_retries}). Error: {e}")
             time.sleep(2)
             
     yield
@@ -189,8 +295,7 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 # -- Static & Templates --
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
-templates = Jinja2Templates(directory="yads/api/templates")
-templates.env.add_extension('jinja2.ext.do')
+from yads.api.templating import templates
 
 # Inject Globals
 templates.env.globals['settings'] = settings
@@ -299,7 +404,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -319,6 +424,7 @@ app.include_router(osint.router)
 app.include_router(tenant_settings.router)
 app.include_router(compliance.router)
 app.include_router(reports.router)
+app.include_router(report_builder.router)
 app.include_router(ports.router)
 app.include_router(email_security.router)
 app.include_router(secrets.router)
@@ -1326,6 +1432,25 @@ async def get_scan_logs(target_id: int, session: Session = Depends(get_session),
             parsed_logs.append({"msg": l})
             
     return {"logs": parsed_logs}
+
+@app.get("/api/scans/{target_id}/network-context")
+async def get_scan_network_context(target_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
+    """
+    Returns the network context (external IP, resolved IPs) for a scan.
+    """
+    from yads.core.redis_logger import get_scan_network_context as get_network_ctx
+
+    # Security Check
+    target = session.get(Target, target_id)
+    if not target:
+        return {"network_context": None}
+
+    if user.role != "admin" and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this data")
+
+    context = get_network_ctx(target_id)
+    return {"network_context": context, "target_domain": target.domain}
+
 
 @app.get("/components/log_viewer/{target_id}", response_class=HTMLResponse)
 async def component_log_viewer(request: Request, target_id: int):
@@ -2878,8 +3003,10 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         latest_port = next((r for r in history_entries if r.module_name == 'port_scanner'), None)
         latest_nmap = next((r for r in history_entries if r.module_name == 'nmap_scanner'), None)
         latest_nuclei = next((r for r in history_entries if r.module_name == 'nuclei_scanner'), None)
-        
-        current_results = [r for r in [latest_subdomain, latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld, latest_port, latest_nmap, latest_nuclei] if r]
+        latest_seed_files = next((r for r in history_entries if r.module_name == 'seed_files_scanner'), None)
+        latest_csp = next((r for r in history_entries if r.module_name == 'csp_scanner'), None)
+
+        current_results = [r for r in [latest_subdomain, latest_dns, latest_web, latest_typosquat, latest_infra, latest_visual, latest_ssl, latest_wayback, latest_crawler, latest_cd, latest_tld, latest_port, latest_nmap, latest_nuclei, latest_seed_files, latest_csp] if r]
 
     
     # Extract specific results for template
@@ -2901,6 +3028,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     port_result = next((r for r in current_results if r.module_name == 'port_scanner'), None)
     nmap_result = next((r for r in current_results if r.module_name == 'nmap_scanner'), None)
     nuclei_result = next((r for r in current_results if r.module_name == 'nuclei_scanner'), None)
+    seed_files_result = next((r for r in current_results if r.module_name == 'seed_files_scanner'), None)
+    csp_result = next((r for r in current_results if r.module_name == 'csp_scanner'), None)
 
     # -- Compliance & Grading --
     comp_input = {
@@ -2958,6 +3087,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "port_result": port_result,
         "nmap_result": nmap_result,
         "nuclei_result": nuclei_result,
+        "seed_files_result": seed_files_result,
+        "csp_result": csp_result,
         "security_grade": security_grade,
         "compliance_report": compliance_report,
         "history_entries": history_entries, # Pass full history

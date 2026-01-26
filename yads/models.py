@@ -31,9 +31,22 @@ class Tenant(SQLModel, table=True):
     github_token: Optional[str] = Field(default=None)     # GitHub API for social/code scanning
     twitter_bearer_token: Optional[str] = Field(default=None)  # Twitter/X API v2
     
+    # Advanced OSINT Pivots (v1.16.0)
+    shodan_api_key: Optional[str] = Field(default=None)
+    censys_api_key: Optional[str] = Field(default=None)
+    virustotal_api_key: Optional[str] = Field(default=None)
+    
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
-    
+
+    # Report Branding Settings
+    report_logo_url: Optional[str] = Field(default=None)  # URL or base64 data URI
+    report_company_name: Optional[str] = Field(default=None)
+    report_primary_color: str = Field(default="#3b82f6")  # Blue-500
+    report_secondary_color: str = Field(default="#64748b")  # Slate-500
+    report_header_text: Optional[str] = Field(default=None)  # Custom header text
+    report_footer_text: Optional[str] = Field(default=None)  # Custom footer text
+
     # Relationships
     users: List["User"] = Relationship(back_populates="tenant")
     targets: List["Target"] = Relationship(back_populates="tenant")
@@ -41,6 +54,14 @@ class Tenant(SQLModel, table=True):
     # Authorized Users (M:N)
     allowed_users: List["User"] = Relationship(back_populates="allowed_tenants", link_model=UserTenantLink)
     webhooks: List["Webhook"] = Relationship(back_populates="tenant")
+
+    # Report Builder
+    report_templates: List["ReportTemplate"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[ReportTemplate.tenant_id]"}
+    )
+    generated_reports: List["GeneratedReport"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[GeneratedReport.tenant_id]"}
+    )
 
 class Target(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -294,6 +315,13 @@ class WorkerNode(SQLModel, table=True):
     # Capabilities (scan types this worker can handle)
     capabilities: List[str] = Field(default=[], sa_column=Column(JSONB))
 
+    # Tenant Assignment (empty = all tenants, list = specific tenants only)
+    assigned_tenant_ids: List[int] = Field(default=[], sa_column=Column(JSONB))
+
+    # Worker-specific limits (can override defaults)
+    max_daily_scans: Optional[int] = Field(default=None)  # NULL = no limit
+    description: Optional[str] = Field(default=None)  # Human-readable description
+
     # Metadata
     version: Optional[str] = None  # YADS version running on worker
     cpu_count: Optional[int] = None
@@ -391,4 +419,78 @@ class SecurityAuditLog(SQLModel, table=True):
     # MITRE ATT&CK mapping
     mitre_tactic_id: Optional[str] = Field(default=None, index=True)  # e.g., "TA0001"
     mitre_technique_id: Optional[str] = Field(default=None, index=True)  # e.g., "T1078"
+
+
+# ============================================================================
+# Report Builder Models
+# ============================================================================
+
+class ReportTemplate(SQLModel, table=True):
+    """
+    Stores reusable report templates with markdown content and variable placeholders.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)  # NULL = system template
+
+    name: str = Field(index=True)
+    description: Optional[str] = None
+
+    # Template content in Markdown with Jinja2-style placeholders
+    # e.g., {{ target.domain }}, {{ scan_results.dns }}, {{ tenant.report_company_name }}
+    markdown_content: str = Field(sa_column=Column(Text))
+
+    # Template metadata
+    category: str = Field(default="custom")  # executive, technical, compliance, custom
+    is_default: bool = Field(default=False)  # System default template
+    is_public: bool = Field(default=False)  # Visible to all tenants (system templates)
+
+    # Available data sections that can be included
+    # e.g., ["summary", "dns", "ssl", "vulnerabilities", "compliance", "screenshots"]
+    available_sections: List[str] = Field(default=[], sa_column=Column(JSONB))
+
+    # Custom CSS for PDF styling (optional)
+    custom_css: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class GeneratedReport(SQLModel, table=True):
+    """
+    Stores generated reports (both preview and final exports).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    template_id: Optional[int] = Field(default=None, foreign_key="reporttemplate.id")
+
+    # Report metadata
+    title: str
+    description: Optional[str] = None
+
+    # Target scope - can be single target or multiple
+    target_ids: List[int] = Field(default=[], sa_column=Column(JSONB))
+
+    # Content storage
+    markdown_content: str = Field(sa_column=Column(Text))  # Rendered markdown (with data filled in)
+    html_content: Optional[str] = Field(default=None, sa_column=Column(Text))  # Rendered HTML
+
+    # PDF storage (base64 or file path)
+    pdf_data: Optional[str] = Field(default=None, sa_column=Column(Text))  # Base64 encoded PDF
+    pdf_file_path: Optional[str] = Field(default=None)  # Alternative: file system path
+
+    # Status tracking
+    status: str = Field(default="draft")  # draft, generating, completed, failed, archived
+    error_message: Optional[str] = None
+
+    # Report configuration snapshot (branding at time of generation)
+    branding_snapshot: dict = Field(default={}, sa_column=Column(JSONB))
+
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: Optional[datetime] = None
+
+    # Creator
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")
 

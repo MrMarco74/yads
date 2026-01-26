@@ -62,7 +62,11 @@
 <li><a href="#6-analysis-modules">6. Analysis Modules</a></li>
 <li><a href="#7-osint-brand-monitoring">7. OSINT Brand Monitoring</a></li>
 <li><a href="#8-visualizations">8. Visualizations</a></li>
-<li><a href="#9-data-management--reports">9. Data Management & Reports</a></li>
+<li><a href="#9-data-management--reports">9. Data Management & Reports</a>
+    <ul>
+        <li><a href="#custom-report-builder">Custom Report Builder</a></li>
+    </ul>
+</li>
 <li><a href="#10-user-management--security">10. User Management & Security</a></li>
 <li><a href="#11-multi-tenancy">11. Multi-Tenancy</a></li>
 <li><a href="#12-system-settings--queue">12. System Settings & Queue</a>
@@ -413,6 +417,43 @@ A visual breakdown of the technology stack usage across your portfolio.
 <li><strong>Compliance Report</strong>: An interactive detailed breakdown of your SOC2 readiness score with an actionable "Improvement Plan" checklist.</li>
 <li><strong>External Links Report</strong>: PDF export of third-party domains linked to your infrastructure.</li>
 </ul>
+<h3 id="custom-report-builder">Custom Report Builder</h3>
+<p><strong>(New Feature)</strong></p>
+<p>Create fully customized security reports with your own branding, structure, and content using Markdown templates.</p>
+<h4>Key Features</h4>
+<ul>
+<li><strong>Markdown Templates</strong>: Write reports in familiar Markdown syntax with a live preview panel.</li>
+<li><strong>200+ Dynamic Variables</strong>: Access all scan data using Jinja2 template variables (e.g., <code>{{ dns.subdomains|count }}</code>).</li>
+<li><strong>Multi-Target Reports</strong>: Combine data from multiple domains into a single comprehensive report.</li>
+<li><strong>Built-in Help</strong>: Click "Template Help" for an in-app variable reference and examples.</li>
+<li><strong>Tenant Data Isolation</strong>: Variables are automatically scoped to your tenant's data only.</li>
+</ul>
+<h4>Quick Start</h4>
+<ol>
+<li>Navigate to <strong>Reports → Report Builder</strong>.</li>
+<li>Select one or more targets from the left panel.</li>
+<li>Write your Markdown template using variables like <code>{{ tenant.report_company_name }}</code>.</li>
+<li>Use the live preview to verify your template renders correctly.</li>
+<li>Click <strong>Generate Report</strong> to create your PDF.</li>
+</ol>
+<h4>Example Template</h4>
+<pre><code># Security Report for {{ tenant.report_company_name }}
+**Generated:** {{ now|datetime }}
+
+## Summary
+| Metric | Count |
+|--------|-------|
+| Critical | {{ summary.critical_count }} |
+| High | {{ summary.high_count }} |
+
+## Findings
+{% for t in targets %}
+### {{ t.domain }}
+Security Score: {{ t.security_score }}
+{% endfor %}</code></pre>
+<blockquote>
+<p><strong>💡 Tip</strong>: Use the "Template Help" button to see all available variables organized by scanner module.</p>
+</blockquote>
 <h3>Data Exports</h3>
 <ul>
 <li><strong>Target CSV</strong>: Download your entire raw target inventory (Domain, Status, Last Scan) as a CSV file.</li>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from typing import Optional
 from sqlmodel import Session, select
@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from datetime import datetime
 import dateutil.parser
 from yads.utils.export import generate_excel, generate_pdf
+from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/cert-timeline", tags=["reports"])
 templates = Jinja2Templates(directory="yads/api/templates")
@@ -24,18 +25,18 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_cert_timeline_data(session: Session, user: User, for_export: bool = False):
+def _get_cert_timeline_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None):
     # 1. Fetch relevant targets
     targets_query = select(Target)
     if user.tenant_id:
         targets_query = targets_query.where(Target.tenant_id == user.tenant_id)
     elif user.role != "admin":
         targets_query = targets_query.where(Target.tenant_id == None)
-        
+
     targets = session.exec(targets_query).all()
     target_ids = tuple(t.id for t in targets)
     target_map = {t.id: t for t in targets}
-    
+
     if not targets:
         return {}, {"total_certs": 0, "expiring_soon": 0, "rogue_candidates": 0}
 
@@ -43,8 +44,16 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
     statement = select(ScanResult).where(
         ScanResult.module_name == "ssl_scanner",
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())
-    
+    )
+
+    # Apply date filtering
+    if date_from:
+        statement = statement.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        statement = statement.where(ScanResult.scanned_at <= date_to)
+
+    statement = statement.order_by(ScanResult.scanned_at.desc())
+
     results = session.exec(statement).all()
     
     # Dedup: Keep only latest per target
@@ -123,18 +132,36 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
     return timeline, stats
 
 @router.get("/", response_class=HTMLResponse)
-async def cert_timeline_dashboard(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
-    timeline, stats = _get_cert_timeline_data(session, user)
+async def cert_timeline_dashboard(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    timeline, stats = _get_cert_timeline_data(session, user, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("cert_timeline.html", {
-        "request": request, 
-        "user": user, 
+        "request": request,
+        "user": user,
         "timeline": timeline,
-        "stats": stats
+        "stats": stats,
+        "date_range_display": date_range_display
     })
 
 @router.get("/export/excel")
-async def export_cert_excel(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    events, _ = _get_cert_timeline_data(session, user, for_export=True)
+async def export_cert_excel(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    events, _ = _get_cert_timeline_data(session, user, for_export=True, date_from=from_dt, date_to=to_dt)
     export_data = []
     for e in events:
         export_data.append({
@@ -147,8 +174,15 @@ async def export_cert_excel(session: Session = Depends(get_session), user: User 
     return generate_excel(export_data, "certificate_timeline_report")
 
 @router.get("/export/pdf")
-async def export_cert_pdf(session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    events, _ = _get_cert_timeline_data(session, user, for_export=True)
+async def export_cert_pdf(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    events, _ = _get_cert_timeline_data(session, user, for_export=True, date_from=from_dt, date_to=to_dt)
     export_data = []
     for e in events:
         export_data.append({
@@ -158,16 +192,27 @@ async def export_cert_pdf(session: Session = Depends(get_session), user: User = 
             "Issuer": e["issuer"]
         })
 @router.get("/inventory", response_class=HTMLResponse)
-async def ssl_inventory_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
-    inventory, stats = _get_ssl_inventory_data(session, user)
+async def ssl_inventory_view(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    date_range_display = get_date_range_display(from_dt, to_dt, preset)
+
+    inventory, stats = _get_ssl_inventory_data(session, user, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("analytics_ssl.html", {
-        "request": request, 
-        "user": user, 
+        "request": request,
+        "user": user,
         "inventory": inventory,
-        "stats": stats
+        "stats": stats,
+        "date_range_display": date_range_display
     })
 
-def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = False):
+def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None):
     # Reuse logic to fetch targets and results
     # 1. Fetch relevant targets
     targets_query = select(Target)
@@ -175,11 +220,11 @@ def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = Fal
         targets_query = targets_query.where(Target.tenant_id == user.tenant_id)
     elif user.role != "admin":
         targets_query = targets_query.where(Target.tenant_id == None)
-        
+
     targets = session.exec(targets_query).all()
     target_ids = tuple(t.id for t in targets)
     target_map = {t.id: t for t in targets}
-    
+
     if not targets:
         return [], {"total_certs": 0}
 
@@ -187,8 +232,16 @@ def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = Fal
     statement = select(ScanResult).where(
         ScanResult.module_name == "ssl_scanner",
         ScanResult.target_id.in_(target_ids)
-    ).order_by(ScanResult.scanned_at.desc())
-    
+    )
+
+    # Apply date filtering
+    if date_from:
+        statement = statement.where(ScanResult.scanned_at >= date_from)
+    if date_to:
+        statement = statement.where(ScanResult.scanned_at <= date_to)
+
+    statement = statement.order_by(ScanResult.scanned_at.desc())
+
     results = session.exec(statement).all()
     
     # Dedup
