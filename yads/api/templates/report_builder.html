@@ -20,6 +20,38 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 Cancel
             </a>
+
+            <!-- Save Dropdown -->
+            <div class="relative" x-data="{ saveMenuOpen: false }">
+                <button @click="saveMenuOpen = !saveMenuOpen"
+                        @click.away="saveMenuOpen = false"
+                        class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-all text-sm font-medium border border-slate-600">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div x-show="saveMenuOpen"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50"
+                     style="display: none;">
+                    <button @click="saveDraft(); saveMenuOpen = false"
+                            class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors rounded-t-lg">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Save as Draft
+                    </button>
+                    <button @click="showSaveTemplateModal = true; saveMenuOpen = false"
+                            class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors rounded-b-lg border-t border-slate-700">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"></path></svg>
+                        Save as Template
+                    </button>
+                </div>
+            </div>
+
             <button @click="generateReport()"
                     :disabled="generating"
                     class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
@@ -751,6 +783,75 @@ No vulnerabilities found.
             </div>
         </div>
     </div>
+
+    <!-- Save as Template Modal -->
+    <div x-show="showSaveTemplateModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click.self="showSaveTemplateModal = false"
+         class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+         style="display: none;">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+             @click.stop>
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"></path></svg>
+                    Save as Template
+                </h2>
+                <button @click="showSaveTemplateModal = false" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Template Name *</label>
+                    <input type="text" x-model="templateName"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                           placeholder="My Custom Template">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Description</label>
+                    <textarea x-model="templateDescription" rows="2"
+                              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none"
+                              placeholder="Brief description of the template..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Category</label>
+                    <select x-model="templateCategory"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500">
+                        <option value="executive">Executive</option>
+                        <option value="technical">Technical</option>
+                        <option value="compliance">Compliance</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-950/50 flex justify-end gap-3">
+                <button @click="showSaveTemplateModal = false"
+                        class="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                    Cancel
+                </button>
+                <button @click="saveAsTemplate()"
+                        :disabled="savingTemplate || !templateName.trim()"
+                        class="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-all text-sm font-medium">
+                    <svg x-show="!savingTemplate" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    <svg x-show="savingTemplate" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span x-text="savingTemplate ? 'Saving...' : 'Save Template'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Template Data Storage -->
@@ -770,7 +871,7 @@ function reportBuilder() {
         reportTitle: 'Security Assessment Report',
         reportDescription: '',
         selectedTemplate: '{{ selected_template.id if selected_template else "" }}',
-        selectedTargets: [],
+        selectedTargets: [...allTargetIds],  // Auto-select all targets by default
         markdownContent: {{ (selected_template.markdown_content|tojson if selected_template else '""')|safe }},
         previewHtml: '<p class="text-gray-400 italic">Preview will appear here...</p>',
         loadingPreview: false,
@@ -781,6 +882,12 @@ function reportBuilder() {
         showValidation: false,
         validationResults: { valid: [], unknown: [], filters: [] },
         checkingVariables: false,
+        showSaveTemplateModal: false,
+        templateName: '',
+        templateDescription: '',
+        templateCategory: 'custom',
+        savingDraft: false,
+        savingTemplate: false,
 
         init() {
             if (this.markdownContent) {
@@ -959,6 +1066,119 @@ function reportBuilder() {
             }
         },
 
+        async saveDraft() {
+            if (!this.reportTitle.trim()) {
+                alert('Please enter a report title');
+                return;
+            }
+
+            if (!this.markdownContent.trim()) {
+                alert('Please enter report content');
+                return;
+            }
+
+            this.savingDraft = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('title', this.reportTitle);
+                formData.append('description', this.reportDescription);
+                formData.append('template_id', this.selectedTemplate);
+                formData.append('markdown_content', this.markdownContent);
+                formData.append('target_ids', JSON.stringify(this.selectedTargets));
+
+                const response = await fetch('/reports/save-draft', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'HX-Request': 'true'
+                    }
+                });
+
+                if (response.ok) {
+                    const redirectUrl = response.headers.get('HX-Redirect');
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        this.showNotification('Draft saved!', 'success');
+                    }
+                } else {
+                    alert('Error saving draft');
+                }
+            } catch (error) {
+                console.error('Save draft error:', error);
+                alert('Error saving draft');
+            } finally {
+                this.savingDraft = false;
+            }
+        },
+
+        async saveAsTemplate() {
+            if (!this.templateName.trim()) {
+                alert('Please enter a template name');
+                return;
+            }
+
+            if (!this.markdownContent.trim()) {
+                alert('Please enter template content');
+                return;
+            }
+
+            this.savingTemplate = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('name', this.templateName);
+                formData.append('description', this.templateDescription);
+                formData.append('category', this.templateCategory);
+                formData.append('markdown_content', this.markdownContent);
+
+                const response = await fetch('/reports/save-as-template', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'HX-Request': 'true'
+                    }
+                });
+
+                if (response.ok) {
+                    const redirectUrl = response.headers.get('HX-Redirect');
+                    this.showSaveTemplateModal = false;
+                    this.templateName = '';
+                    this.templateDescription = '';
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        this.showNotification('Template saved!', 'success');
+                    }
+                } else {
+                    alert('Error saving template');
+                }
+            } catch (error) {
+                console.error('Save template error:', error);
+                alert('Error saving template');
+            } finally {
+                this.savingTemplate = false;
+            }
+        },
+
+        showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 ${
+                type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+            }`;
+            notification.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${
+                        type === 'success' ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'
+                    }"></path>
+                </svg>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        },
+
         async generateReport() {
             if (!this.reportTitle.trim()) {
                 alert('Please enter a report title');
@@ -968,6 +1188,12 @@ function reportBuilder() {
             if (!this.markdownContent.trim()) {
                 alert('Please enter report content');
                 return;
+            }
+
+            if (this.selectedTargets.length === 0) {
+                if (!confirm('No targets selected. The report will have no scan data. Continue anyway?')) {
+                    return;
+                }
             }
 
             this.generating = true;
@@ -982,7 +1208,10 @@ function reportBuilder() {
 
                 const response = await fetch('/reports/generate', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: {
+                        'HX-Request': 'true'  // Signal backend to return HX-Redirect header
+                    }
                 });
 
                 if (response.ok) {
@@ -991,10 +1220,12 @@ function reportBuilder() {
                     if (redirectUrl) {
                         window.location.href = redirectUrl;
                     } else {
+                        // Fallback: try to get report ID from response URL or go to list
                         window.location.href = '/reports';
                     }
                 } else {
-                    alert('Error generating report');
+                    const text = await response.text();
+                    alert('Error generating report: ' + text);
                 }
             } catch (error) {
                 console.error('Generate error:', error);

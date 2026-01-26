@@ -1060,12 +1060,16 @@ class SettingsPage(SmoothScrollArea):
         self.translation_status.setText("Testing...")
         self.translation_status.setStyleSheet("color: gray;")
 
+        # Capture UI values in main thread before starting background thread
+        service = self.ai_service.currentText()
+        model = self.ai_model.currentText()
+        api_key = self.gemini_key.text().strip()
+        project = self.gcp_project.text().strip()
+        location = self.gcp_location.text().strip() or "us-central1"
+
         # Run in separate thread to not block UI
         def run_check():
             try:
-                service = self.ai_service.currentText()
-                model = self.ai_model.currentText()
-
                 if service == "manual":
                     return (False, "Manual mode - no AI service configured")
 
@@ -1073,7 +1077,6 @@ class SettingsPage(SmoothScrollArea):
                 test_text = "### Added\n- New feature: Custom Report Builder with 200+ template variables"
 
                 if service == "gemini":
-                    api_key = self.gemini_key.text().strip()
                     if not api_key:
                         return (False, "Gemini API key not configured")
 
@@ -1095,9 +1098,6 @@ Keep the markdown formatting intact. Only return the translated text, no explana
                         return (False, f"Unexpected response: {translated[:100]}...")
 
                 elif service == "vertexai":
-                    project = self.gcp_project.text().strip()
-                    location = self.gcp_location.text().strip() or "us-central1"
-
                     if not project:
                         return (False, "GCP Project ID not configured")
 
