@@ -340,6 +340,126 @@ async def preview_report(
     return HTMLResponse(html_content)
 
 
+@router.post("/builder/check-variables", dependencies=[Depends(report_access)])
+async def check_template_variables(
+    request: Request,
+    markdown_content: str = Form(...),
+    user: User = Depends(get_current_user_html)
+):
+    """
+    Check template variables against known valid variables.
+    Returns JSON with valid, unknown, and filter lists.
+    """
+    import re
+
+    # Get known variables from our reference
+    known_vars = get_template_variables()
+
+    # Build a set of all valid variable paths
+    valid_paths = set()
+    for category, vars_list in known_vars.items():
+        for var_def in vars_list:
+            # Extract the variable path from {{ var.path }} or {{ var.path|filter }}
+            var_str = var_def.get("var", "")
+            # Remove {{ }} and extract variable path
+            match = re.search(r'\{\{\s*([^}|]+)', var_str)
+            if match:
+                path = match.group(1).strip()
+                valid_paths.add(path)
+                # Also add base path for nested access (e.g., dns.records allows dns.records.A)
+                parts = path.split('.')
+                for i in range(1, len(parts)):
+                    valid_paths.add('.'.join(parts[:i]))
+
+    # Add common loop variables
+    valid_paths.update([
+        't', 't.domain', 't.status', 't.security_score', 't.last_scan',
+        't.dns', 't.ssl', 't.nuclei', 't.web', 't.nmap', 't.infrastructure',
+        't.cloud', 't.crawler', 't.wayback', 't.typosquat', 't.tld', 't.content_discovery',
+        't.osint', 't.seed_files', 't.csp',
+        'f', 'f.name', 'f.severity', 'f.description', 'f.matched_at', 'f.cve_id',
+        'p', 'p.port', 'p.protocol', 'p.state', 'p.service', 'p.version',
+        'sub', 'record', 'tech', 'item', 'finding', 'port', 'page', 'link',
+        'loop.index', 'loop.index0', 'loop.first', 'loop.last', 'loop.length'
+    ])
+
+    # Also add base objects
+    valid_paths.update([
+        'tenant', 'target', 'targets', 'summary', 'report', 'now',
+        'dns', 'ssl', 'nuclei', 'web', 'nmap', 'infrastructure',
+        'cloud', 'crawler', 'wayback', 'typosquat', 'tld', 'content_discovery',
+        'osint', 'seed_files', 'csp'
+    ])
+
+    # Known Jinja2 filters
+    known_filters = {
+        'date', 'datetime', 'count', 'length', 'join', 'truncate', 'default',
+        'upper', 'lower', 'title', 'capitalize', 'trim', 'striptags',
+        'first', 'last', 'sort', 'reverse', 'unique', 'sum', 'min', 'max',
+        'abs', 'round', 'int', 'float', 'string', 'list', 'dictsort',
+        'safe', 'e', 'escape', 'forceescape', 'urlencode', 'tojson',
+        'severity_badge', 'nl2br', 'batch', 'slice', 'groupby', 'map', 'select', 'reject',
+        'selectattr', 'rejectattr', 'filesizeformat', 'pprint', 'indent', 'wordwrap',
+        'center', 'format', 'replace', 'regex_replace', 'wordcount', 'xmlattr'
+    }
+
+    # Extract variables from template using regex
+    # Match {{ variable }} or {{ variable|filter }}
+    var_pattern = r'\{\{\s*([^}]+)\s*\}\}'
+    found_vars = re.findall(var_pattern, markdown_content)
+
+    valid_found = set()
+    unknown_found = set()
+    filters_found = set()
+
+    for expr in found_vars:
+        expr = expr.strip()
+
+        # Extract filters
+        if '|' in expr:
+            parts = expr.split('|')
+            var_part = parts[0].strip()
+            for filter_part in parts[1:]:
+                # Filter might have args like truncate(50)
+                filter_name = filter_part.split('(')[0].strip()
+                if filter_name in known_filters:
+                    filters_found.add(filter_name)
+        else:
+            var_part = expr
+
+        # Clean up variable part (remove any trailing whitespace or operators)
+        var_part = var_part.strip()
+
+        # Skip control structures like 'for x in y' or 'if condition'
+        if any(keyword in var_part for keyword in [' for ', ' in ', ' if ', ' else ', ' endif', ' endfor']):
+            continue
+
+        # Check if it's a valid variable path
+        # Allow nested access like dns.records.A
+        base_var = var_part.split('.')[0].strip()
+        if base_var in valid_paths or var_part in valid_paths:
+            valid_found.add(var_part)
+        else:
+            # Check if it starts with a known base object
+            is_valid = False
+            for valid_base in ['tenant', 'target', 'targets', 'summary', 'report', 'dns', 'ssl',
+                               'nuclei', 'web', 'nmap', 'infrastructure', 'cloud', 'crawler',
+                               'wayback', 'typosquat', 'tld', 'content_discovery', 'osint',
+                               'seed_files', 'csp', 't', 'f', 'p', 'now', 'loop']:
+                if base_var == valid_base or var_part.startswith(valid_base + '.'):
+                    valid_found.add(var_part)
+                    is_valid = True
+                    break
+            if not is_valid:
+                unknown_found.add(var_part)
+
+    return {
+        "valid": sorted(list(valid_found)),
+        "unknown": sorted(list(unknown_found)),
+        "filters": sorted(list(filters_found))
+    }
+
+
 @router.post("/generate", dependencies=[Depends(report_access)])
 async def generate_report(
     request: Request,
