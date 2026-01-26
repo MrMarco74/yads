@@ -179,7 +179,6 @@ def build_template_context(scan_data: Dict[str, Any], tenant: Any = None) -> Dic
             # Calculate days until expiry if not present
             if "not_after" in ssl_data and "days_until_expiry" not in ssl_data:
                 try:
-                    from datetime import datetime
                     expiry = ssl_data["not_after"]
                     if isinstance(expiry, str):
                         expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))

@@ -540,6 +540,126 @@ async def generate_report(
     return RedirectResponse(url=f"/reports/{report.id}", status_code=303)
 
 
+@router.post("/save-draft", dependencies=[Depends(report_access)])
+async def save_draft(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(None),
+    template_id: Optional[int] = Form(None),
+    markdown_content: str = Form(...),
+    target_ids: str = Form("[]"),
+    report_id: Optional[int] = Form(None),
+    user: User = Depends(get_current_user_html),
+    session: Session = Depends(get_session)
+):
+    """Save report as draft (work in progress)."""
+    try:
+        target_id_list = json.loads(target_ids) if target_ids else []
+    except json.JSONDecodeError:
+        target_id_list = []
+
+    # Get tenant
+    tenant = session.get(Tenant, user.tenant_id) if user.tenant_id else None
+
+    # Capture branding snapshot
+    branding_snapshot = {}
+    if tenant:
+        branding_snapshot = {
+            "logo_url": tenant.report_logo_url,
+            "company_name": tenant.report_company_name or tenant.name,
+            "primary_color": tenant.report_primary_color,
+            "secondary_color": tenant.report_secondary_color,
+            "header_text": tenant.report_header_text,
+            "footer_text": tenant.report_footer_text
+        }
+
+    if report_id:
+        # Update existing draft
+        report = session.get(GeneratedReport, report_id)
+        if not report or report.tenant_id != user.tenant_id:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        report.title = title
+        report.description = description
+        report.template_id = template_id if template_id else None
+        report.markdown_content = markdown_content
+        report.target_ids = target_id_list
+        report.branding_snapshot = branding_snapshot
+        report.updated_at = datetime.utcnow()
+    else:
+        # Create new draft
+        report = GeneratedReport(
+            tenant_id=user.tenant_id,
+            template_id=template_id if template_id else None,
+            title=title,
+            description=description,
+            target_ids=target_id_list,
+            markdown_content=markdown_content,
+            html_content=None,
+            status="draft",
+            branding_snapshot=branding_snapshot,
+            created_by=user.id,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        session.add(report)
+
+    session.commit()
+    session.refresh(report)
+
+    logger.info(f"User {user.username} saved draft report '{title}' (ID: {report.id})")
+
+    if request.headers.get("HX-Request"):
+        return HTMLResponse(
+            f'<div class="text-emerald-400">Draft saved!</div>',
+            headers={"HX-Redirect": f"/reports/{report.id}/edit"}
+        )
+
+    return RedirectResponse(url=f"/reports/{report.id}/edit", status_code=303)
+
+
+@router.post("/save-as-template", dependencies=[Depends(report_access)])
+async def save_as_template(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(None),
+    category: str = Form("custom"),
+    markdown_content: str = Form(...),
+    user: User = Depends(get_current_user_html),
+    session: Session = Depends(get_session)
+):
+    """Save current markdown content as a reusable template."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant required")
+
+    # Create new template
+    template = ReportTemplate(
+        tenant_id=user.tenant_id,
+        name=name,
+        description=description,
+        category=category,
+        markdown_content=markdown_content,
+        available_sections=[],
+        is_public=False,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+    session.add(template)
+    session.commit()
+    session.refresh(template)
+
+    logger.info(f"User {user.username} saved report content as template '{name}' (ID: {template.id})")
+
+    if request.headers.get("HX-Request"):
+        return HTMLResponse(
+            f'<div class="text-emerald-400">Template created!</div>',
+            headers={"HX-Redirect": f"/reports/templates/{template.id}"}
+        )
+
+    return RedirectResponse(url=f"/reports/templates/{template.id}", status_code=303)
+
+
 # ============================================================================
 # Report Management
 # ============================================================================
@@ -559,10 +679,29 @@ async def list_reports(
             .order_by(GeneratedReport.created_at.desc())
         ).all()
 
+    # Enrich reports with template type information
+    enriched_reports = []
+    for report in reports:
+        report_dict = {
+            "report": report,
+            "template_type": "ad-hoc",  # Default: no template
+            "template_name": None
+        }
+        if report.template_id:
+            template = session.get(ReportTemplate, report.template_id)
+            if template:
+                report_dict["template_name"] = template.name
+                # System templates have tenant_id = NULL
+                if template.tenant_id is None:
+                    report_dict["template_type"] = "system"
+                else:
+                    report_dict["template_type"] = "custom"
+        enriched_reports.append(report_dict)
+
     return templates.TemplateResponse("reports_list.html", {
         "request": request,
         "user": user,
-        "reports": reports,
+        "reports": enriched_reports,
         "settings": settings
     })
 
@@ -826,6 +965,175 @@ async def get_available_variables(
 # ============================================================================
 
 
+def normalize_scan_data(modules_data: dict) -> dict:
+    """
+    Normalize raw scan data to match documented template variable structure.
+
+    This ensures that template variables like {{ ssl.not_after }} work correctly
+    even though the raw data uses camelCase (notAfter).
+    """
+    normalized = {}
+
+    for module_name, data in modules_data.items():
+        if data is None:
+            normalized[module_name] = {}
+            continue
+
+        # Make a copy to avoid modifying original
+        norm_data = dict(data) if isinstance(data, dict) else data
+
+        # === SSL Scanner Normalization ===
+        if module_name == "ssl_scanner" and isinstance(norm_data, dict):
+            # Convert camelCase to snake_case for common fields
+            if "notAfter" in norm_data:
+                norm_data["not_after"] = norm_data["notAfter"]
+            if "notBefore" in norm_data:
+                norm_data["not_before"] = norm_data["notBefore"]
+            if "subjectAltName" in norm_data:
+                # Convert [["DNS", "example.com"]] to ["example.com"]
+                san_list = norm_data["subjectAltName"]
+                if isinstance(san_list, list):
+                    norm_data["subject_alt_names"] = [
+                        item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else str(item)
+                        for item in san_list
+                    ]
+                else:
+                    norm_data["subject_alt_names"] = []
+            if "serialNumber" in norm_data:
+                norm_data["serial_number"] = norm_data["serialNumber"]
+
+            # Flatten issuer/subject to string for easy template access
+            issuer = norm_data.get("issuer", {})
+            if isinstance(issuer, dict):
+                norm_data["issuer"] = issuer.get("commonName") or issuer.get("organizationName") or str(issuer)
+
+            subject = norm_data.get("subject", {})
+            if isinstance(subject, dict):
+                norm_data["subject"] = subject.get("commonName") or str(subject)
+
+            # Extract protocols from ciphers
+            ciphers = norm_data.get("ciphers", [])
+            if ciphers and isinstance(ciphers, list):
+                protocols = list(set(c.get("version", "") for c in ciphers if isinstance(c, dict)))
+                norm_data["protocols"] = sorted(protocols)
+
+            # Add convenience fields
+            norm_data["is_valid"] = norm_data.get("error") is None and norm_data.get("not_after") is not None
+            norm_data["is_self_signed"] = False  # Would need chain analysis to determine
+
+            # Calculate days until expiry
+            not_after = norm_data.get("not_after") or norm_data.get("notAfter")
+            if not_after and isinstance(not_after, str):
+                try:
+                    from datetime import datetime
+                    # Parse format like "Mar 11 19:12:37 2026 GMT"
+                    expiry_dt = datetime.strptime(not_after.replace(" GMT", ""), "%b %d %H:%M:%S %Y")
+                    norm_data["days_until_expiry"] = (expiry_dt - datetime.utcnow()).days
+                except:
+                    pass
+
+        # === Web Analyzer Normalization ===
+        elif module_name == "web_analyzer" and isinstance(norm_data, dict):
+            # Map http_headers to security_headers for template compatibility
+            http_headers = norm_data.get("http_headers", {})
+            if http_headers and isinstance(http_headers, dict):
+                security_headers = {}
+                security_header_names = [
+                    "Strict-Transport-Security", "Content-Security-Policy",
+                    "X-Frame-Options", "X-Content-Type-Options", "X-XSS-Protection",
+                    "Referrer-Policy", "Permissions-Policy", "X-Permitted-Cross-Domain-Policies"
+                ]
+                for header_name in security_header_names:
+                    # Check case-insensitive
+                    for key, value in http_headers.items():
+                        if key.lower() == header_name.lower():
+                            security_headers[header_name] = value
+                            break
+                norm_data["security_headers"] = security_headers
+
+                # Calculate missing headers
+                missing = [h for h in security_header_names[:6] if h not in security_headers]
+                norm_data["missing_headers"] = missing
+
+            # Add server from headers if not present
+            if "server" not in norm_data and http_headers:
+                for key, value in http_headers.items():
+                    if key.lower() == "server":
+                        norm_data["server"] = value
+                        break
+
+            # Ensure tech_stack is a list
+            if "tech_stack" not in norm_data:
+                norm_data["tech_stack"] = []
+
+        # === DNS Scanner Normalization ===
+        elif module_name == "dns_scanner" and isinstance(norm_data, dict):
+            # Ensure subdomains exists (may come from subdomain_scanner)
+            if "subdomains" not in norm_data:
+                norm_data["subdomains"] = []
+            # Ensure records exists
+            if "records" not in norm_data:
+                norm_data["records"] = {}
+
+        # === Merge subdomain_scanner into dns_scanner ===
+        elif module_name == "subdomain_scanner" and isinstance(norm_data, dict):
+            # This will be handled after the loop
+            pass
+
+        # === Port Scanner / Nmap Normalization ===
+        elif module_name in ("port_scanner", "nmap_scanner") and isinstance(norm_data, dict):
+            # Ensure open_ports list exists
+            if "open_ports" not in norm_data:
+                ports = norm_data.get("ports", [])
+                if isinstance(ports, list):
+                    norm_data["open_ports"] = [p for p in ports if isinstance(p, dict) and p.get("state") == "open"]
+                else:
+                    norm_data["open_ports"] = []
+
+        # === Nuclei Scanner Normalization ===
+        elif module_name == "nuclei_scanner" and isinstance(norm_data, dict):
+            # Ensure both findings and vulnerabilities exist for template compatibility
+            vulns = norm_data.get("vulnerabilities", []) or norm_data.get("findings", [])
+            norm_data["findings"] = vulns
+            norm_data["vulnerabilities"] = vulns
+
+            # Calculate stats if not present
+            if "stats" not in norm_data:
+                stats = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+                for v in vulns:
+                    sev = v.get("severity", "info").lower()
+                    if sev in stats:
+                        stats[sev] += 1
+                norm_data["stats"] = stats
+
+        # === Infrastructure Scanner Normalization ===
+        elif module_name == "infrastructure_scanner" and isinstance(norm_data, dict):
+            # Add convenience aliases
+            if "ip" in norm_data and "ip_address" not in norm_data:
+                norm_data["ip_address"] = norm_data["ip"]
+
+        normalized[module_name] = norm_data
+
+    # Merge subdomain_scanner data into dns_scanner
+    if "subdomain_scanner" in normalized and "dns_scanner" in normalized:
+        subdomain_data = normalized["subdomain_scanner"]
+        dns_data = normalized["dns_scanner"]
+
+        # Copy subdomains to dns_scanner
+        if "subdomains" in subdomain_data:
+            dns_data["subdomains"] = subdomain_data["subdomains"]
+
+        # Merge records if dns_scanner has empty records
+        if subdomain_data.get("records") and not dns_data.get("records", {}).get("A"):
+            dns_data["records"] = subdomain_data["records"]
+
+    # If only subdomain_scanner exists, also expose as dns_scanner
+    if "subdomain_scanner" in normalized and "dns_scanner" not in normalized:
+        normalized["dns_scanner"] = normalized["subdomain_scanner"]
+
+    return normalized
+
+
 def gather_scan_data(session: Session, target_ids: List[int], tenant_id: Optional[int]) -> dict:
     """
     Collect all scan data for the requested targets.
@@ -874,6 +1182,9 @@ def gather_scan_data(session: Session, target_ids: List[int], tenant_id: Optiona
                 modules_data[res.module_name] = res.data
                 seen_modules.add(res.module_name)
 
+        # Normalize module data to match template variable expectations
+        modules_data = normalize_scan_data(modules_data)
+
         # Calculate stats from Nuclei results
         if "nuclei_scanner" in modules_data:
             vulns = modules_data["nuclei_scanner"].get("vulnerabilities", []) or \
@@ -897,10 +1208,15 @@ def gather_scan_data(session: Session, target_ids: List[int], tenant_id: Optiona
             "domain": target.domain,
             "created_at": target.created_at,
             "tags": target.tags or [],
-            "status": target.status,
-            "last_scan": target.last_scan,
+            "status": target.scan_status,
+            "last_scan": None,  # Will be populated from latest scan result below
             "modules": modules_data
         }
+
+        # Get last scan time from the most recent scan result
+        if results:
+            latest_result = max(results, key=lambda r: r.scanned_at)
+            target_info["last_scan"] = latest_result.scanned_at
         scan_data["targets"].append(target_info)
 
     return scan_data

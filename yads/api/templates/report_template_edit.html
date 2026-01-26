@@ -241,11 +241,15 @@ function templateEditor() {
 
                 const response = await fetch('/reports/templates/{{ template.id if template else "" }}/update', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: {
+                        'HX-Request': 'true'
+                    }
                 });
 
                 if (response.ok) {
-                    window.location.href = '/reports/templates/{{ template.id if template else "" }}';
+                    // Show success notification
+                    this.showNotification('Template saved successfully!', 'success');
                 } else {
                     alert('Error saving template');
                 }
@@ -255,6 +259,23 @@ function templateEditor() {
             } finally {
                 this.saving = false;
             }
+        },
+
+        showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 ${
+                type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+            }`;
+            notification.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${
+                        type === 'success' ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'
+                    }"></path>
+                </svg>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
         }
     };
 }

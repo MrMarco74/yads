@@ -15,7 +15,7 @@ from playwright.sync_api import sync_playwright
 from yads.database import redis_client
 from yads.config import settings
 from yads.models import SystemConfig, HTTPTraffic
-from yads.core.base import BaseScannerModule
+from yads.core.base import BaseScannerModule, sanitize_null_bytes
 from sqlmodel import select
 
 class Crawler(BaseScannerModule):
@@ -166,6 +166,8 @@ class Crawler(BaseScannerModule):
                         duration = time.time() - req_start_time
                         
                         # Log Interaction
+                        # Sanitize response body to remove null bytes (PostgreSQL doesn't support them)
+                        body_snippet = sanitize_null_bytes(resp.text[:1024]) if resp.text else ""
                         traffic_entry = {
                             "url": current_url,
                             "method": "GET",
@@ -173,7 +175,7 @@ class Crawler(BaseScannerModule):
                             "duration": round(duration, 3),
                             "request_headers": dict(resp.request.headers),
                             "response_headers": dict(resp.headers),
-                            "response_body_snippet": resp.text[:1024] if resp.text else ""
+                            "response_body_snippet": body_snippet
                         }
                         traffic_log.append(traffic_entry)
 
@@ -204,7 +206,7 @@ class Crawler(BaseScannerModule):
                             "url": current_url,
                             "method": "GET",
                             "status": 0,
-                            "error": str(req_err),
+                            "error": sanitize_null_bytes(str(req_err)),
                             "duration": round(duration, 3),
                             "request_headers": HEADERS
                          })
@@ -215,7 +217,7 @@ class Crawler(BaseScannerModule):
                     if "text/html" in content_type:
                         m = title_re.search(resp.text)
                         if m:
-                            title = m.group(1).strip()
+                            title = sanitize_null_bytes(m.group(1).strip())
                     
                     # Add Node
                     node_entry = {
@@ -275,7 +277,7 @@ class Crawler(BaseScannerModule):
                         "id": current_url,
                         "title": "Error",
                         "status": 0,
-                        "error": str(e),
+                        "error": sanitize_null_bytes(str(e)),
                         "type": "internal_error"
                     })
 

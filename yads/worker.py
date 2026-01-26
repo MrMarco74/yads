@@ -1364,7 +1364,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             target_id=target_id,
                             module_name=dd_scan.module_name,
                             data=scan_data,
-                            data_hash=data_hash,
+                            result_hash=data_hash,
                             log_content=sanitize_null_bytes(captured_logs)
                         )
                         session.add(result)
