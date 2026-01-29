@@ -25,7 +25,7 @@ services:
   # ==========================================================================
 
   yads-api:
-    image: ${YADS_IMAGE:-yads:latest}
+    image: gitlab.example.internal:5050/iac/yads/yads:latest
     command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -63,7 +63,7 @@ services:
           memory: 512M
 
   yads-worker-primary:
-    image: ${YADS_IMAGE:-yads:latest}
+    image: gitlab.example.internal:5050/iac/yads/yads:latest
     command: python /app/scripts/start_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
@@ -100,7 +100,7 @@ services:
   # ==========================================================================
 
   yads-worker:
-    image: ${YADS_IMAGE:-yads:latest}
+    image: gitlab.example.internal:5050/iac/yads/yads:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
@@ -197,7 +197,7 @@ services:
   # ==========================================================================
 
   yads-scheduler:
-    image: ${YADS_IMAGE:-yads:latest}
+    image: gitlab.example.internal:5050/iac/yads/yads:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
