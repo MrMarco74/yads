@@ -1,6 +1,7 @@
 services:
   # --- Backend Services ---
   yads-api:
+    container_name: yads-app-yads-api-1
     build:
       context: .
       target: dev
@@ -27,6 +28,7 @@ services:
       - redis
     networks:
       - yads-net
+      - proxy-net
 
   yads-worker:
     build:
@@ -83,3 +85,5 @@ volumes:
 networks:
   yads-net:
     driver: bridge
+  proxy-net:
+    external: true
