@@ -26,9 +26,9 @@ services:
 
   yads-api:
     image: ${YADS_IMAGE:-yads:latest}
-    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8085
     ports:
-      - "8000:8000"
+      - "8085:8085"
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
@@ -103,7 +103,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
-      - MANAGER_URL=http://yads-api:8000
+      - MANAGER_URL=http://yads-api:8085
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
       - WORKER_MODE=secondary
       - WORKER_MAX_TASKS=${WORKER_MAX_TASKS:-4}
