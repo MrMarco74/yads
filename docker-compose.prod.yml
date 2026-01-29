@@ -5,10 +5,10 @@ services:
   yads-api:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
 
-    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8085"
     restart: always
     ports:
-      - "8000:8000"
+      - "8085:8085"
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-yads_secret_password}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
