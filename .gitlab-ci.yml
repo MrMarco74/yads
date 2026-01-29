@@ -66,8 +66,8 @@ build_images:
 deploy_to_portainer:
   extends: .deploy-portainer
   variables:
-    COMPOSE_FILE_PATH: "docker-compose.prod.yml"
-    PORTAINER_STACK_TYPE: "2" # 1=Swarm, 2=Standalone/Compose
+    COMPOSE_FILE_PATH: "docker-compose.swarm.yml"
+    PORTAINER_STACK_TYPE: "1" # 1=Swarm, 2=Standalone/Compose
 
 # --- CLEANUP STAGE ---
 cleanup:
