@@ -222,10 +222,17 @@ async def osint_page(
         if not user.tenant.osint_enabled:
             return templates.TemplateResponse("osint_blocked.html", {"request": request, "user": user})
             
+    # Check for Google Keys (Tenant or System)
+    has_google_keys = False
+    if (user.tenant and user.tenant.google_api_key and len(user.tenant.google_api_key) > 5) or \
+       (GOOGLE_SEARCH_API_KEY and len(GOOGLE_SEARCH_API_KEY) > 5):
+        has_google_keys = True
+
     return templates.TemplateResponse("osint.html", {
         "request": request,
         "user": user,
-        "active_tab": "osint"
+        "active_tab": "osint",
+        "has_google_keys": has_google_keys
     })
 
 @router.post("/search", response_class=HTMLResponse)
