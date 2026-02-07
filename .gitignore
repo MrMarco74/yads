@@ -26,3 +26,11 @@ logs/backups/
 # Backup Files
 *.bak
 *.backup
+
+# LLM GUI
+.llmgui.context
+.llmgui_db/
+.llmgui_history
+
+# Debug
+debug.log
