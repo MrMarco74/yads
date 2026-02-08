@@ -12,8 +12,12 @@ DOCKER_COMPOSE_FILE="docker-compose.swarm.yml"
 IMAGE_ARCHIVE="yads_deploy.tgz"
 # The image name expected by the swarm stack (must match docker-compose.swarm.yml)
 REGISTRY_IMAGE="gitlab.example.internal:5050/apps/yads/yads:latest"
+# Backup container
+BACKUP_IMAGE_NAME="yads-backup:latest"
+BACKUP_REGISTRY_IMAGE="gitlab.example.internal:5050/apps/yads/yads-backup:latest"
+BACKUP_IMAGE_ARCHIVE="yads_backup_deploy.tgz"
 # List of services to force update (space-separated)
-SERVICES_TO_UPDATE="${STACK_NAME}_yads-api ${STACK_NAME}_yads-worker ${STACK_NAME}_yads-worker-primary"
+SERVICES_TO_UPDATE="${STACK_NAME}_yads-api ${STACK_NAME}_yads-worker ${STACK_NAME}_yads-worker-primary ${STACK_NAME}_yads-backup"
 
 # ==============================================================================
 # Safety Check
@@ -43,6 +47,10 @@ docker build --target prod -t "$IMAGE_NAME" .
 # Tag the image with the registry URL expected by the Swarm stack
 docker tag "$IMAGE_NAME" "$REGISTRY_IMAGE"
 
+echo ">> Building backup container image..."
+docker build -t "$BACKUP_IMAGE_NAME" backup/
+docker tag "$BACKUP_IMAGE_NAME" "$BACKUP_REGISTRY_IMAGE"
+
 # ==============================================================================
 # 2. Image Transfer
 # ==============================================================================
@@ -50,17 +58,22 @@ echo ">> Compressing Docker image to $IMAGE_ARCHIVE..."
 # Save the REGISTRY_IMAGE (not just local tag) so it loads with the correct name on remote
 docker save "$REGISTRY_IMAGE" | gzip > "$IMAGE_ARCHIVE"
 
+echo ">> Compressing backup image to $BACKUP_IMAGE_ARCHIVE..."
+docker save "$BACKUP_REGISTRY_IMAGE" | gzip > "$BACKUP_IMAGE_ARCHIVE"
+
 echo ">> Ensuring remote directory exists..."
 ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DEPLOY_DIR"
 
-echo ">> Transferring compressed image to remote host..."
+echo ">> Transferring compressed images to remote host..."
 scp "$IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
+scp "$BACKUP_IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
 
-echo ">> Loading image on remote host..."
+echo ">> Loading images on remote host..."
 ssh "$REMOTE_HOST" "gunzip -c $REMOTE_DEPLOY_DIR/$IMAGE_ARCHIVE | docker load"
+ssh "$REMOTE_HOST" "gunzip -c $REMOTE_DEPLOY_DIR/$BACKUP_IMAGE_ARCHIVE | docker load"
 
-echo ">> Cleaning up local archive..."
-rm -f "$IMAGE_ARCHIVE"
+echo ">> Cleaning up local archives..."
+rm -f "$IMAGE_ARCHIVE" "$BACKUP_IMAGE_ARCHIVE"
 
 # ==============================================================================
 # 3. Config Transfer
@@ -74,6 +87,12 @@ if [ -f .env ]; then
     echo ">> Found .env, transferring..."
     scp .env "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
 fi
+
+# ==============================================================================
+# 3.5 Ensure Backup Directories Exist on Remote
+# ==============================================================================
+echo ">> Creating backup directories on remote host..."
+ssh "$REMOTE_HOST" 'mkdir -p "/mnt/backups/yads/daily" "/mnt/backups/yads/monthly"'
 
 # ==============================================================================
 # 4. Deployment

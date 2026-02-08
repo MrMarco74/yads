@@ -193,6 +193,44 @@ services:
           memory: 128M
 
   # ==========================================================================
+  # Automated Database Backup (Manager Node Only)
+  # ==========================================================================
+
+  yads-backup:
+    image: gitlab.example.internal:5050/apps/yads/yads-backup:latest
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=yads
+      - DB_USER=yads
+      - PGPASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - BACKUP_BASE=/backups
+      - APP_NAME=yads
+      - DAILY_RETENTION_DAYS=14
+      - CRON_SCHEDULE=0 3 * * *
+    volumes:
+      - type: bind
+        source: /mnt/backups/yads
+        target: /backups
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == prod-node
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 5
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # ==========================================================================
   # Optional: Celery Beat Scheduler (Manager Node Only)
   # ==========================================================================
 
