@@ -16,6 +16,9 @@ logger = logging.getLogger("yads-setup")
 
 # -- Models --
 
+class SetupTokenRequest(BaseModel):
+    token: str
+
 class LicenseRequest(BaseModel):
     license_key: str
 
@@ -62,11 +65,32 @@ def update_persistent_config(key: str, value: str):
 
 # -- Endpoints --
 
+@router.post("/verify-token")
+async def verify_setup_token(req: SetupTokenRequest):
+    expected = settings.SETUP_TOKEN
+    if not expected:
+        # No token configured — skip token verification
+        return {"status": "ok"}
+    if not req.token or req.token.strip() != expected:
+        raise HTTPException(status_code=403, detail="Invalid setup token")
+    return {"status": "ok"}
+
+@router.get("/token-required")
+async def token_required():
+    """Check whether a setup token is configured."""
+    return {"required": bool(settings.SETUP_TOKEN)}
+
 @router.post("/check-license")
 async def check_license(req: LicenseRequest):
     data = license_manager.verify(req.license_key)
     if not data:
         raise HTTPException(status_code=400, detail="Invalid or expired license key")
+    
+    # Persist License Key
+    update_persistent_config("LICENSE_KEY", req.license_key)
+    
+    # Update in-memory settings
+    settings.LICENSE_KEY = req.license_key
     
     # Check if max_targets is present etc.
     return {"status": "valid", "data": data}
@@ -244,4 +268,20 @@ async def create_admin(req: AdminRequest):
 async def finish_setup():
     update_persistent_config("SETUP_COMPLETE", "true")
     settings.SETUP_COMPLETE = True
+    
+    # Also ensure license is in SystemConfig table for next boot
+    from yads.models import SystemConfig
+    from yads.database import engine
+    from sqlmodel import Session
+    
+    if settings.LICENSE_KEY:
+        with Session(engine) as session:
+            config = session.get(SystemConfig, "license_key")
+            if config:
+                config.value = settings.LICENSE_KEY
+            else:
+                config = SystemConfig(key="license_key", value=settings.LICENSE_KEY)
+            session.add(config)
+            session.commit()
+            
     return {"status": "completed"}

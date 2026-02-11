@@ -30,13 +30,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - MFA_ENABLED=${MFA_ENABLED:-true}
       - WORKER_MODE=primary
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
+      - SETUP_TOKEN=${SETUP_TOKEN:-}
     volumes:
       - logs:/app/logs
       - data:/app/data
@@ -66,7 +67,7 @@ services:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
@@ -103,7 +104,7 @@ services:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - MANAGER_URL=http://yads-api:8000
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
@@ -151,7 +152,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-REDACTED}
       - POSTGRES_DB=yads
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -203,12 +204,13 @@ services:
       - DB_PORT=5432
       - DB_NAME=yads
       - DB_USER=yads
-      - PGPASSWORD=${POSTGRES_PASSWORD:-changeme}
       - BACKUP_BASE=/backups
       - APP_NAME=yads
       - DAILY_RETENTION_DAYS=14
       - CRON_SCHEDULE=0 3 * * *
+      - CONFIG_PATH=/app/data/config.env
     volumes:
+      - data:/app/data:ro
       - type: bind
         source: /mnt/backups/yads
         target: /backups
@@ -238,7 +240,7 @@ services:
     image: gitlab.example.internal:5050/apps/yads/yads:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
     networks:
       - yads-internal

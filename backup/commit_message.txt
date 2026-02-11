@@ -1,0 +1,1 @@
+feat(backup.sh): Load PGPASSWORD from config file and improve error handling

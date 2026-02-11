@@ -60,7 +60,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_PASSWORD=REDACTED
       - POSTGRES_DB=yads
     ports:
       - "5432:5432"

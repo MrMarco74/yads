@@ -15,8 +15,9 @@ echo "============================================="
 
 # BusyBox crond does not inherit environment variables,
 # so we write them inline into the crontab entry.
+# PGPASSWORD is omitted here — backup.sh reads it from the shared config file.
 cat > /var/spool/cron/crontabs/root <<EOF
-${CRON_SCHEDULE} DB_HOST=${DB_HOST:-db} DB_PORT=${DB_PORT:-5432} DB_NAME=${DB_NAME:-yads} DB_USER=${DB_USER:-yads} PGPASSWORD=${PGPASSWORD} BACKUP_BASE=${BACKUP_BASE:-/backups} APP_NAME=${APP_NAME:-yads} DAILY_RETENTION_DAYS=${DAILY_RETENTION_DAYS:-14} /usr/local/bin/backup.sh >> /proc/1/fd/1 2>&1
+${CRON_SCHEDULE} DB_HOST=${DB_HOST:-db} DB_PORT=${DB_PORT:-5432} DB_NAME=${DB_NAME:-yads} DB_USER=${DB_USER:-yads} BACKUP_BASE=${BACKUP_BASE:-/backups} APP_NAME=${APP_NAME:-yads} DAILY_RETENTION_DAYS=${DAILY_RETENTION_DAYS:-14} CONFIG_PATH=${CONFIG_PATH:-/app/data/config.env} /usr/local/bin/backup.sh >> /proc/1/fd/1 2>&1
 EOF
 
 chmod 0600 /var/spool/cron/crontabs/root
