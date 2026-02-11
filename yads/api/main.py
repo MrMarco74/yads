@@ -3988,6 +3988,36 @@ async def admin_reset(session: Session = Depends(get_session)):
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
 
 
+@app.post("/admin/license/validate", response_class=HTMLResponse)
+async def validate_license_ui(
+    request: Request,
+    license_key: str = Form(...),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"]))
+):
+    from yads.core.license import license_manager
+    
+    trimmed_lic = license_key.strip()
+    data = license_manager.verify(trimmed_lic)
+    
+    license_status = "Invalid or Expired"
+    license_limit = 0
+    license_data = {}
+    
+    if data:
+        license_status = "Valid License"
+        license_limit = data.get("max_targets", 0)
+        license_data = data
+        
+    return templates.TemplateResponse("_license_card_content.html", {
+        "request": request,
+        "license_key": trimmed_lic,
+        "license_status": license_status,
+        "license_data": license_data,
+        "license_limit": license_limit
+    })
+
+
 # -- Table View & Bulk Actions --
 
     return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)

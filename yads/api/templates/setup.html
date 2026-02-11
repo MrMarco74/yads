@@ -18,8 +18,8 @@
         </div>
     </div>
 
-    <!-- Progress Steps -->
-    <div class="flex justify-between items-center mb-12 px-4 relative">
+    <!-- Progress Steps (hidden during token verification) -->
+    <div x-show="step >= 1" class="flex justify-between items-center mb-12 px-4 relative">
         <!-- Connecting Line -->
         <div class="absolute left-0 top-1/2 w-full h-0.5 bg-slate-800 -z-10"></div>
         
@@ -37,6 +37,27 @@
                       x-text="label"></span>
             </div>
         </template>
+    </div>
+
+    <!-- Step 0: Setup Token (shown only if token is required) -->
+    <div x-show="step === 0" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-12" x-transition:enter-end="opacity-100 translate-x-0">
+        <h2 class="text-xl font-semibold text-white mb-4">Setup Authorization</h2>
+        <p class="text-slate-400 text-sm mb-6">Enter the setup token that was generated during deployment.</p>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-medium text-slate-500 uppercase mb-1">Setup Token</label>
+                <input type="text" x-model="formData.setupToken" class="w-full bg-slate-950/50 border border-slate-700 rounded-xl p-3 text-sm text-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono" placeholder="Paste token here...">
+            </div>
+
+            <div class="flex justify-end pt-4">
+                <button @click="verifyToken" :disabled="loading" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2">
+                    <span x-show="!loading">Verify</span>
+                    <span x-show="loading" class="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></span>
+                </button>
+            </div>
+            <p x-show="error" x-text="error" class="text-red-400 text-sm text-center mt-2"></p>
+        </div>
     </div>
 
     <!-- Step 1: License -->
@@ -169,19 +190,53 @@
 <script>
     function setupWizard() {
         return {
-            step: 1,
+            step: 0,
+            tokenRequired: true,
             steps: ['License', 'Database', 'Data', 'Admin'],
             loading: false,
             error: '',
             showDbPass: false,
             formData: {
+                setupToken: '',
                 licenseKey: '',
                 dbPassword: '',
                 adminUser: 'admin',
                 adminPass: '',
                 adminPassConfirm: ''
             },
-            
+
+            async init() {
+                try {
+                    const res = await fetch('/setup/token-required');
+                    const data = await res.json();
+                    this.tokenRequired = data.required;
+                    if (!this.tokenRequired) {
+                        this.step = 1;
+                    }
+                } catch (e) {
+                    // If check fails, assume token is required for safety
+                    this.tokenRequired = true;
+                }
+            },
+
+            async verifyToken() {
+                this.loading = true;
+                this.error = '';
+                try {
+                    const res = await fetch('/setup/verify-token', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ token: this.formData.setupToken })
+                    });
+                    if (!res.ok) throw new Error((await res.json()).detail || 'Invalid token');
+                    this.step = 1;
+                } catch (e) {
+                    this.error = e.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
             async verifyLicense() {
                 this.loading = true;
                 this.error = '';

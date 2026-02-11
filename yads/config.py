@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.18.2"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:changeme@db:5432/yads")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:REDACTED@db:5432/yads")
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_USER: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
@@ -46,11 +46,12 @@ class Settings(BaseSettings):
     CLIENT_KEY_PATH: Optional[str] = os.getenv("CLIENT_KEY_PATH", None)
 
     # Licensing
-    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQTFJZ2pBSUx6elI2cHNsSFpidHJER1BHUlcxclNhSDVhLyszM2dEdWVNdVU9Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQURXL0UxMzJWUzkwQlZLclZTYW9zYzVablRIZERQME1WRGhPaDZZNTYwVG89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
     LICENSE_KEY: Optional[str] = None
 
     # Setup Wizard
     SETUP_COMPLETE: bool = False
+    SETUP_TOKEN: Optional[str] = None
     CONFIG_PATH: str = os.getenv("CONFIG_PATH", "/app/data/config.env")
 
     # Prometheus Metrics

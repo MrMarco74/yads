@@ -34,6 +34,10 @@ Usage:
 
 import os
 import sys
+
+# Ensure /app is in path so we can import yads
+sys.path.insert(0, '/app')
+
 import time
 import signal
 import logging
