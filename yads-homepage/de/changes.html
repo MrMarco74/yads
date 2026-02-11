@@ -152,6 +152,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.18.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.18.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & Automatisierung</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Implementierung einer UI zur Validierung von Lizenzschlüsseln mit Token-Verifizierung und persistenter Lizenzspeicherung.</li>
+                    <li>Hinzufügung eines automatisierten, täglichen Datenbank-Backup-Systems mit Planung, Aufbewahrung und Off-Host-Speicherung auf der Hetzner Storage Box.</li>
+                    <li>Hinzufügung eines manuellen Deployment-Skripts.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Standardisierung des YADS API Service Ports auf 8000 und Aktualisierung der zugehörigen Konfigurationen.</li>
+                    <li>Integration des Docker Swarm Deployments auf den `dmzweb` Knoten mit CI/CD Updates und `proxy-net` Integration.</li>
+                    <li>Hinzufügung einer Google API Key Erkennung und eines Warnbanners für den Mock-Daten Modus auf der OSINT Seite.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Aktualisierung der Docker Swarm Placement Constraints von dmzweb auf prod-node.</li>
+                    <li>Aktualisierung der Applikation und des freigegebenen Ports von 8000 auf 8085.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung von Pipeline-Problemen und anderen kleineren Fehlerbehebungen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 13fe2bd9a78fd7ad6a3b55feef734c174fde6360c561b0b01bfbb59ff6190da9</p>
+            </div>
+        </div>
+
         <!-- Version 1.18.2 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.18.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -173,7 +204,7 @@
                     <li>yads-api Service-Port auf 8000 standardisiert und dann auf 8085 aktualisiert, zugehörige Konfigurationen und Docker Compose-Dateien aktualisiert.</li>
                     <li>Das kompilierte Python-Crawler-Modul aktualisiert.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 13fe2bd9a78fd7ad6a3b55feef734c174fde6360c561b0b01bfbb59ff6190da9</p>
             </div>
         </div>
 
