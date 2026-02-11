@@ -152,6 +152,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.18.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.18.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Security & Automation</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Implemented license key validation UI with token verification and persistent license storage.</li>
+                    <li>Added automated daily database backup system with scheduling, retention, and off-host storage to Hetzner Storage Box.</li>
+                    <li>Added manual deployment script.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Standardized YADS API service port to 8000 and updated related configurations.</li>
+                    <li>Integrated Docker Swarm deployment targeting the `dmzweb` node with CI/CD updates and `proxy-net` integration.</li>
+                    <li>Added Google API key detection and mock data mode warning banner on the OSINT page.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Updated Docker Swarm placement constraints from dmzweb to prod-node.</li>
+                    <li>Updated application and exposed port from 8000 to 8085.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Resolved pipeline issues and other minor bug fixes.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 13fe2bd9a78fd7ad6a3b55feef734c174fde6360c561b0b01bfbb59ff6190da9</p>
+            </div>
+        </div>
+
         <!-- Version 1.18.2 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.18.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -173,7 +204,7 @@
                     <li>Standardized yads-api service port to 8000 and then updated to 8085, updating related configurations and Docker Compose files.</li>
                     <li>Updated the compiled Python crawler module.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 13fe2bd9a78fd7ad6a3b55feef734c174fde6360c561b0b01bfbb59ff6190da9</p>
             </div>
         </div>
 
