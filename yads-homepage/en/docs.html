@@ -142,6 +142,16 @@
     </li>
     <li><strong>Admin Creation</strong>: Create the first System Administrator account.</li>
 </ol>
+
+<h3 id="2-2-interactive-setup-script">2.2 Interactive Setup Script (New)</h3>
+<p>For simplified deployment, use the provided <code>setup.sh</code> script. It automates the configuration of ports, SSL, and environment variables.</p>
+<ol>
+    <li>Navigate to your release directory.</li>
+    <li>Run <code>chmod +x setup.sh && ./setup.sh</code></li>
+    <li>Follow the interactive prompts to configure your instance.</li>
+    <li>The script will generate a <code>.env</code> file and a optimized <code>docker-compose.yml</code>.</li>
+</ol>
+
 <blockquote>
     <p><strong>Re-running the Setup</strong>:<br>
     If you need to re-run this wizard (e.g. to factory reset), restart the container with the environment variable <code>SETUP_COMPLETE=false</code>:<br>

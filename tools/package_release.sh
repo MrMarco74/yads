@@ -164,12 +164,21 @@ fi
 
 
 
-# Docker Compose (Customer Version)
+# Docker Compose and Setup Scripts (Customer Version)
 if [ -f "release_assets/docker-compose.customer.yml" ]; then
     cp release_assets/docker-compose.customer.yml "$OUTPUT_DIR/$RELEASE_NAME/docker-compose.yml"
 else
     echo -e "${RED}Error: release_assets/docker-compose.customer.yml not found!${NC}"
     exit 1
+fi
+
+if [ -f "release_assets/setup.sh" ]; then
+    cp release_assets/setup.sh "$OUTPUT_DIR/$RELEASE_NAME/"
+    chmod +x "$OUTPUT_DIR/$RELEASE_NAME/setup.sh"
+fi
+
+if [ -f "release_assets/nginx.conf.template" ]; then
+    cp release_assets/nginx.conf.template "$OUTPUT_DIR/$RELEASE_NAME/"
 fi
 
 # 6. Create Archive
