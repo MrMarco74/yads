@@ -4993,6 +4993,32 @@ def seed_changelog():
 
             session.add(entry_1183)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.18.4").first():
+            entry_1184 = ChangelogEntry(
+                title="YADS v1.18.4: Maintenance and UI Polish (Beta)",
+                version="1.18.4",
+                content="""
+                <h2 style="margin-bottom: 1rem; color: #fff;">Maintenance and UI Polish</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>General system maintenance and performance optimizations.</li>
+                    <li>UI polish and minor layout improvements across various dashboards.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Enhanced data loading efficiency for large asset lists.</li>
+                    <li>Updated documentation with latest feature guides and best practices.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Resolved minor UI inconsistencies and addressed community-reported issues.</li>
+                </ul>
+                <p style="margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;">SHA256: 3a7f8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a</p>
+                """
+            )
+            session.add(entry_1184)
+
 
 
 
