@@ -391,6 +391,8 @@ class ReleaseGUI:
             "yads-homepage/de/support.html",
             "yads-homepage/de/changes.html",
             "yads-homepage/de/docs.html",
+            "release_assets/setup.sh",
+            "release_assets/nginx.conf.template",
         ]
 
         copied = []

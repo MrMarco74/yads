@@ -720,6 +720,8 @@ class ReleasePage(QWidget):
             "yads-homepage/de/support.html",
             "yads-homepage/de/changes.html",
             "yads-homepage/de/docs.html",
+            "release_assets/setup.sh",
+            "release_assets/nginx.conf.template",
         ]
 
         copied = []
@@ -1240,7 +1242,7 @@ class AboutPage(QWidget):
         app_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_layout.addWidget(app_title)
 
-        version_label = SubtitleLabel("Version 2.0 - Fluent UI Edition", self)
+        version_label = SubtitleLabel("Version 2.1 - Fluent UI Edition", self)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_layout.addWidget(version_label)
 

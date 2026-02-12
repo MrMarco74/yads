@@ -142,6 +142,16 @@
     </li>
     <li><strong>Admin Erstellen</strong>: Erstellen Sie das erste Systemadministrator-Konto.</li>
 </ol>
+
+<h3 id="2-2-interactive-setup-script">2.2 Interaktives Setup Script (Neu)</h3>
+<p>Für eine vereinfachte Bereitstellung verwenden Sie das mitgelieferte <code>setup.sh</code> Script. Es automatisiert die Konfiguration von Ports, SSL und Umgebungsvariablen.</p>
+<ol>
+    <li>Navigieren Sie zu Ihrem Release-Verzeichnis.</li>
+    <li>Führen Sie <code>chmod +x setup.sh && ./setup.sh</code> aus.</li>
+    <li>Folgen Sie den interaktiven Anweisungen, um Ihre Instanz zu konfigurieren.</li>
+    <li>Das Script generiert eine <code>.env</code>-Datei und eine optimierte <code>docker-compose.yml</code>.</li>
+</ol>
+
 <blockquote>
     <p><strong>Setup erneut ausführen</strong>:<br>
     Wenn Sie diesen Assistenten erneut ausführen müssen (z. B. für einen Factory Reset), starten Sie den Container mit der Umgebungsvariablen <code>SETUP_COMPLETE=false</code> neu:<br>

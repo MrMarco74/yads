@@ -5,7 +5,7 @@ This package provides tools for automating the YADS release process,
 including version management, changelog generation, translation, and deployment.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.1.0"
 
 from .version import SemanticVersion
 from .config import ReleaseConfig
