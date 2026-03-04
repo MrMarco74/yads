@@ -5612,6 +5612,43 @@ def seed_changelog():
 
             )
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.18.5").first():
+            entry_1185 = ChangelogEntry(
+                title="YADS v1.18.5: Security Hardening & Deception Detection (Beta)",
+                version="1.18.5",
+                content="""
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Beta Release</span>
+
+                <h2 style="margin-bottom: 1rem; color: #fff;">Security Hardening &amp; Deception Detection</h2>
+
+                <h3>🕵️ New Module: Deception Detection</h3>
+                <ul>
+                    <li><strong>Honeypot Detection</strong>: Identifies Web, SSH, FTP, Telnet, and SMTP honeypots using known signature databases.</li>
+                    <li><strong>DNS Sinkhole Detection</strong>: Detects Spamhaus, Microsoft DCU, FBI, and Shadowserver sinkholes.</li>
+                    <li><strong>Tarpit Detection</strong>: Timing-based analysis for HTTP, SMTP, and TCP tarpits.</li>
+                    <li><strong>Confidence Scoring</strong>: Every detection rated 0–100% with risk level (low/medium/high/critical).</li>
+                    <li><strong>Frontend Integration</strong>: Full display in Target Detail View.</li>
+                </ul>
+                <h3>🔐 Security Fixes</h3>
+                <ul>
+                    <li>XSS Protection: Jinja2 template engine configuration documented and secured.</li>
+                    <li>SSL Certificate Handling: All <code>verify=False</code> calls annotated with security comments.</li>
+                    <li>Subprocess Hardening: All external tool calls (nmap, nuclei, docker) annotated with explicit <code># nosec</code> comments.</li>
+                    <li>SQL False Positive: Documented <code>safe_table_name</code> in backup.py as compile-time constant.</li>
+                </ul>
+                <h3>🧹 Code Quality</h3>
+                <ul>
+                    <li>Replaced deprecated <code>datetime.utcnow()</code> with timezone-aware <code>datetime.now(timezone.utc)</code>.</li>
+                    <li>Centralized <code>'+00:00'</code> literal as <code>_UTC_SUFFIX</code> constant.</li>
+                    <li>Replaced bare <code>except:</code> clauses with <code>except Exception:</code>.</li>
+                    <li>Minor <code>re.sub()</code> replaced with <code>str.replace()</code> where regex was unnecessary.</li>
+                </ul>
+                <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: pending</p>
+                """
+            )
+            session.add(entry_1185)
+
+
 
 
 
@@ -5644,6 +5681,532 @@ def seed_changelog():
 
 
             session.add(entry_1184)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.18.6").first():
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            entry_1186 = ChangelogEntry(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                title="YADS v1.18.6: Enhanced Scanning Capabilities (Beta)",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                version="1.18.6",
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                content="""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Beta Release</span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                <h3>🚀 New Features</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    <li>Introduced new API routers for system management, API key handling, target configuration, dashboard data access, and Post-Quantum Cryptography (PQC) scanning.</li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    <li>Updated UI components and core modules to support the new scanning features and API endpoints.</li>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: e8a60062bb87ca3c6e4e0668a9d4a92e27684b2a77dc6ed54916afd3a6b7d132</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            session.add(entry_1186)
+
+
 
 
 
