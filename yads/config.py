@@ -7,6 +7,7 @@ import re
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
     VERSION: str = "1.18.6"
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:REDACTED@db:5432/yads")

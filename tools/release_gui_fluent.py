@@ -8,6 +8,7 @@ import os
 import re
 import threading
 import queue
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -160,6 +161,7 @@ class ReleaseWorker(QThread):
                 self._execute_release()
             elif self.operation == "retry_upload":
                 self._retry_upload()
+            self._log("Diagnostic: Worker execution finished. Application should remain active.", "info")
         finally:
             sys.stdout.flush()
             sys.stdout = old_stdout
@@ -356,6 +358,429 @@ class ReleaseWorker(QThread):
                 orchestrator.translator.model,
                 orchestrator.translator.service
             )
+
+
+class ProdDeployWorker(QThread):
+    """Worker thread for PROD deployment (Update path only)"""
+
+    def __init__(self, project_root: Path):
+        super().__init__()
+        self.project_root = project_root
+        self.signals = LogSignals()
+        self.cancelled = False
+        self.current_process = None
+        
+        # Deployment target
+        self.remote_host = "root@prod.example.com"
+        self.stack_name = "yads"
+        self.remote_deploy_dir = "~/deploy/yads"
+        
+        # SSH Connection Sharing (ControlMaster)
+        import tempfile
+        self.control_socket = Path(tempfile.gettempdir()) / f"yads_deploy_{os.getpid()}.sock"
+
+        # Configuration from manual_deploy.sh
+        self.docker_compose_file = "docker-compose.swarm.yml"
+        self.registry_image = "gitlab.fritz.box:5050/apps/yads/yads:latest"
+        self.backup_registry_image = "gitlab.fritz.box:5050/apps/yads/yads-backup:latest"
+        self.services_to_update = [
+            f"{self.stack_name}_yads-api",
+            f"{self.stack_name}_yads-worker",
+            f"{self.stack_name}_yads-worker-primary",
+            f"{self.stack_name}_yads-backup"
+        ]
+
+    def run(self):
+        try:
+            self._execute_deploy()
+            self._log("Diagnostic: Worker execution finished successfully. Application should remain active.", "info")
+        except Exception as e:
+            self._log(f"Critical error during deployment: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+        finally:
+            self._cleanup_ssh()
+
+    def _cleanup_ssh(self):
+        """Close the SSH ControlMaster connection"""
+        if self.control_socket.exists():
+            self._log("Closing master SSH connection...", "info")
+            subprocess.run(["ssh", "-o", f"ControlPath={self.control_socket}", "-O", "exit", self.remote_host], 
+                           stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+            try:
+                self.control_socket.unlink(missing_ok=True)
+            except:
+                pass
+
+    def cancel(self):
+        self.cancelled = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except:
+                pass
+        self._cleanup_ssh()
+
+    def _log(self, message: str, level: str = "info"):
+        self.signals.log_message.emit(message, level)
+
+    def _inject_ssh_opts(self, cmd: list) -> list:
+        if not cmd: return cmd
+        
+        # Stability and Connection Sharing options
+        all_opts = [
+            "-o", f"ControlPath={self.control_socket}",
+            "-o", "ControlMaster=auto",
+            "-o", "ControlPersist=10m",
+            "-o", "ClearAllForwardings=yes",
+            "-o", "ConnectTimeout=15",
+            "-o", "ServerAliveInterval=30",
+            "-o", "ServerAliveCountMax=3"
+        ]
+        
+        if cmd[0] in ['ssh', 'scp']:
+            return [cmd[0]] + all_opts + cmd[1:]
+        elif cmd[0] == 'rsync':
+            ssh_str = f"ssh {' '.join(all_opts)}"
+            # Find where source/dest starts in rsync. Usually rsync [opts] src dest
+            # We want to insert -e "ssh ..."
+            return ['rsync', '-e', ssh_str] + cmd[1:]
+        return cmd
+
+    def _run_cmd(self, cmd: list, shell=False, cwd=None, is_rsync=False) -> bool:
+        if self.cancelled:
+            return False
+
+        if cwd is None:
+            cwd = str(self.project_root)
+
+        # Inject options to avoid port forwarding conflicts and reuse connections
+        if not shell:
+            cmd = self._inject_ssh_opts(cmd)
+
+        self._log(f"Running: {' '.join(cmd) if not shell else cmd}", "info")
+        
+        try:
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                shell=shell,
+                cwd=cwd,
+                bufsize=1,
+                universal_newlines=True
+            )
+
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                
+                # Filter noise (mostly from initial master connection attempt)
+                if any(x in line for x in ["channel_setup_fwd_listener_tcpip", "cannot listen to port", "Address already in use"]):
+                    continue
+                
+                # Parse rsync progress
+                if is_rsync and "%" in line:
+                    match = re.search(r'(\d+)%', line)
+                    if match:
+                        percent = int(match.group(1))
+                        self.signals.progress_update.emit(percent, 100, "Transferring images...")
+                        if percent % 10 == 0:
+                            self._log(line.strip(), "info")
+                        continue
+
+                self._log(line.strip(), "info")
+
+            self.current_process.wait()
+            success = self.current_process.returncode == 0
+            
+            if not success and not self.cancelled:
+                self._log(f"Command failed with return code {self.current_process.returncode}", "error")
+            
+            return success
+        except Exception as e:
+            self._log(f"Error executing command: {e}", "error")
+            return False
+        finally:
+            self.current_process = None
+
+    def _execute_deploy(self):
+        try:
+            self._log("🚀 Starting Production Deployment (Update Path)", "success")
+            self.signals.progress_update.emit(0, 100, "Initializing connection...")
+            
+            # 0. Establish Master Connection
+            self._log("Establishing persistent SSH connection...", "info")
+            if not self._run_cmd(["ssh", "-fN", self.remote_host]):
+                self._log("Warning: Could not start ControlMaster, will proceed with standard connections", "warning")
+
+            # 1. Local Build
+            self._log("Step 1/8: Building YADS Docker image locally...", "info")
+            self.signals.progress_update.emit(5, 100, "Building YADS image...")
+            if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
+                return self.signals.operation_finished.emit(False, "Build failed")
+
+            self._log("Tagging image...", "info")
+            if not self._run_cmd(["docker", "tag", "yads:latest", self.registry_image]):
+                return self.signals.operation_finished.emit(False, "Tagging failed")
+
+            self._log("Step 2/8: Building backup container image...", "info")
+            self.signals.progress_update.emit(15, 100, "Building backup image...")
+            if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest", "backup/"]):
+                return self.signals.operation_finished.emit(False, "Backup build failed")
+
+            if not self._run_cmd(["docker", "tag", "yads-backup:latest", self.backup_registry_image]):
+                return self.signals.operation_finished.emit(False, "Backup tagging failed")
+
+            # 2. Transfer
+            self._log("Step 3/8: Compressing images...", "info")
+            self.signals.progress_update.emit(25, 100, "Compressing images...")
+            if not self._run_cmd(f"docker save {self.registry_image} | gzip > yads_deploy.tgz", shell=True):
+                return self.signals.operation_finished.emit(False, "Compression failed")
+            
+            if not self._run_cmd(f"docker save {self.backup_registry_image} | gzip > yads_backup_deploy.tgz", shell=True):
+                return self.signals.operation_finished.emit(False, "Backup compression failed")
+
+            self._log("Step 4/8: Transferring images to PROD (rsync)...", "info")
+            self.signals.progress_update.emit(40, 100, "Transferring images...")
+            self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
+            # Use rsync for progress reporting
+            rsync_cmd = ["rsync", "--info=progress2", "yads_deploy.tgz", "yads_backup_deploy.tgz", f"{self.remote_host}:{self.remote_deploy_dir}/"]
+            if not self._run_cmd(rsync_cmd, is_rsync=True):
+                self._log("Rsync failed or not found, falling back to scp...", "warning")
+                if not self._run_cmd(["scp", "yads_deploy.tgz", "yads_backup_deploy.tgz", f"{self.remote_host}:{self.remote_deploy_dir}/"]):
+                    return self.signals.operation_finished.emit(False, "Transfer failed")
+
+            # 3. Load
+            self._log("Step 5/8: Loading images on remote host (combined session)...", "info")
+            self.signals.progress_update.emit(80, 100, "Loading images on remote...")
+            load_cmd = (
+                f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load && "
+                f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load"
+            )
+            if not self._run_cmd(["ssh", self.remote_host, load_cmd]):
+                return self.signals.operation_finished.emit(False, "Remote docker load failed")
+
+            # 4. Config
+            self._log("Step 6/8: Transferring configuration...", "info")
+            self.signals.progress_update.emit(90, 100, "Transferring config...")
+            if not self._run_cmd(["scp", self.docker_compose_file, f"{self.remote_host}:{self.remote_deploy_dir}/"]):
+                return self.signals.operation_finished.emit(False, "Config transfer failed")
+            
+            if (self.project_root / ".env").exists():
+                self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
+
+            # 5. Deploy & Update
+            self._log("Step 7/8: Deploying stack and forcing updates...", "info")
+            self.signals.progress_update.emit(95, 100, "Finalizing deployment...")
+            
+            combined_deploy_cmd = [
+                f"cd {self.remote_deploy_dir}",
+                "set -a && [ -f .env ] && source .env; set +a",
+                f"docker stack deploy -c {self.docker_compose_file} {self.stack_name}"
+            ]
+            for service in self.services_to_update:
+                img = self.backup_registry_image if "backup" in service else self.registry_image
+                combined_deploy_cmd.append(f"docker service update --force --image {img} {service}")
+                
+            full_remote_cmd = " && ".join(combined_deploy_cmd)
+            
+            if not self._run_cmd(["ssh", self.remote_host, full_remote_cmd]):
+                return self.signals.operation_finished.emit(False, "Remote deployment/update failed")
+
+            self.signals.progress_update.emit(100, 100, "Success!")
+            self._log("✅ Deployment to PROD completed successfully!", "success")
+            self.signals.operation_finished.emit(True, "PROD Update finished")
+
+        finally:
+            # Cleanup locals ALWAYS
+            self._log("Cleaning up local archives...", "info")
+            import os
+            for f in ["yads_deploy.tgz", "yads_backup_deploy.tgz"]:
+                try:
+                    p = self.project_root / f
+                    if p.exists():
+                        os.remove(p)
+                except:
+                    pass
+
+
+class ProdDeployPage(QWidget):
+    """Production deployment page"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("prodDeployPage")
+        self.worker = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        # Title
+        title = TitleLabel("Update PROD", self)
+        layout.addWidget(title)
+
+        # Info Banner
+        self.info_bar = InfoBar.warning(
+            "Production Update",
+            "This will only update the existing stack. No data will be wiped. Destined for: root@prod.example.com",
+            parent=self,
+            isClosable=False,
+            position=InfoBarPosition.NONE
+        )
+        layout.addWidget(self.info_bar)
+
+        # Action Card
+        action_card = CardWidget(self)
+        action_layout = QHBoxLayout(action_card)
+        action_layout.setContentsMargins(20, 20, 20, 20)
+        action_layout.setSpacing(16)
+
+        self.deploy_btn = PrimaryPushButton(FIF.SEND, "Deploy to PROD (Update)", self)
+        self.deploy_btn.setFixedWidth(240)
+        self.deploy_btn.clicked.connect(self._on_deploy)
+        action_layout.addWidget(self.deploy_btn)
+
+        self.cancel_btn = PushButton(FIF.CLOSE, "Cancel", self)
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self._on_cancel)
+        action_layout.addWidget(self.cancel_btn)
+
+        action_layout.addStretch()
+        layout.addWidget(action_card)
+
+        # Progress
+        progress_layout = QVBoxLayout()
+        progress_layout.setSpacing(4)
+        
+        self.progress_label = BodyLabel("Ready", self)
+        progress_layout.addWidget(self.progress_label)
+        
+        self.progress_bar = ProgressBar(self)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setMinimumHeight(16)
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar)
+        
+        self.indeterminate_progress = IndeterminateProgressBar(self)
+        self.indeterminate_progress.setVisible(False)
+        progress_layout.addWidget(self.indeterminate_progress)
+        
+        layout.addLayout(progress_layout)
+
+        # Log Card
+        log_card = CardWidget(self)
+        log_layout = QVBoxLayout(log_card)
+        log_layout.setContentsMargins(20, 16, 20, 20)
+        log_layout.setSpacing(12)
+
+        log_header = QHBoxLayout()
+        log_title = SubtitleLabel("Deployment Logs", self)
+        log_header.addWidget(log_title)
+        log_header.addStretch()
+
+        clear_btn = TransparentPushButton(FIF.DELETE, "Clear", self)
+        clear_btn.clicked.connect(self._clear_logs)
+        log_header.addWidget(clear_btn)
+        log_layout.addLayout(log_header)
+
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMinimumHeight(350)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        log_layout.addWidget(self.log_view)
+
+        layout.addWidget(log_card, 1)
+
+    def _on_deploy(self):
+        box = MessageBox(
+            "Confirm Production Deployment",
+            "You are about to start a LIVE deployment to prod.example.com.\n\n"
+            "This will build, transfer, and update the application services.\n"
+            "No data will be wiped.\n\n"
+            "Proceed?",
+            self
+        )
+        if box.exec():
+            self._start_worker()
+
+    def _start_worker(self):
+        self.deploy_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.indeterminate_progress.setVisible(False)
+        self.log_view.clear()
+
+        self.worker = ProdDeployWorker(script_dir.parent)
+        self.worker.signals.log_message.connect(self._on_log)
+        self.worker.signals.operation_finished.connect(self._on_finished)
+        self.worker.signals.progress_update.connect(self._on_progress)
+        self.worker.start()
+
+    def _on_progress(self, current: int, total: int, description: str):
+        self.progress_bar.setValue(current)
+        self.progress_label.setText(description)
+        # If it's a long static step, show indeterminate instead? 
+        # For now rsync gives real progress.
+        if current > 0 and current < 100:
+            self.progress_bar.setVisible(True)
+            self.indeterminate_progress.setVisible(False)
+        elif current == 0:
+            self.indeterminate_progress.setVisible(True)
+            self.progress_bar.setVisible(False)
+
+    def _on_cancel(self):
+        if self.worker:
+            self.worker.cancel()
+            self._log("Cancel requested... terminating deployment.", "warning")
+
+    def _on_log(self, message: str, level: str):
+        self._log(message, level)
+
+    def _log(self, message: str, level: str = "info"):
+        dark = isDarkTheme()
+        if dark:
+            colors = {"info": "#d4d4d4", "success": "#4ec9b0", "warning": "#dcdcaa", "error": "#f14c4c"}
+            timestamp_color = "#6a9955"
+        else:
+            colors = {"info": "#1e1e1e", "success": "#107c10", "warning": "#ca5010", "error": "#d13438"}
+            timestamp_color = "#107c10"
+
+        color = colors.get(level, colors["info"])
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        html = f'<span style="color: {timestamp_color};">[{timestamp}]</span> <span style="color: {color};">{message}</span><br>'
+        cursor = self.log_view.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.log_view.setTextCursor(cursor)
+        self.log_view.insertHtml(html)
+        self.log_view.ensureCursorVisible()
+
+    def _clear_logs(self):
+        self.log_view.clear()
+
+    def _on_finished(self, success: bool, message: str):
+        self.deploy_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.progress_bar.setVisible(False)
+        self.indeterminate_progress.stop()
+        self.indeterminate_progress.setVisible(False)
+        self.progress_label.setText("Complete" if success else "Failed")
+
+        if success:
+            InfoBar.success("Deployment Complete", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
+            self._log(message, "success")
+        else:
+            InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
+            self._log(message, "error")
+
+        self.worker = None
 
 
 class SettingsCard(CardWidget):
@@ -1285,6 +1710,7 @@ class MainWindow(FluentWindow):
 
         # Create pages
         self.release_page = ReleasePage(self)
+        self.prod_deploy_page = ProdDeployPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
 
@@ -1322,6 +1748,7 @@ class MainWindow(FluentWindow):
         """Initialize navigation sidebar"""
         # Add pages to stacked widget
         self.addSubInterface(self.release_page, FIF.PLAY, "Release")
+        self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
         # Add about at bottom
@@ -1365,6 +1792,9 @@ def main():
 
     window = MainWindow()
     window.show()
+
+    # Ensure application doesn't accidentally quit
+    app.setQuitOnLastWindowClosed(True)
 
     sys.exit(app.exec())
 
