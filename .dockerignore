@@ -43,4 +43,5 @@ data/
 *.sql.gz
 *.bak
 *.backup
+*.tgz
 logs/backups/

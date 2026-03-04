@@ -161,6 +161,19 @@ async def lifespan(app: FastAPI):
                 # Check WorkerNode Columns
                 if inspector.has_table("workernode"):
                     columns = [c["name"] for c in inspector.get_columns("workernode")]
+                    
+                    if "node_id" not in columns:
+                        logger.info("Migrating schema: Adding node_id to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN node_id VARCHAR"))
+                        
+                    if "status" not in columns:
+                        logger.info("Migrating schema: Adding status to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN status VARCHAR DEFAULT 'pending'"))
+                        
+                    if "capabilities" not in columns:
+                        logger.info("Migrating schema: Adding capabilities to workernode table")
+                        session.exec(text("ALTER TABLE workernode ADD COLUMN capabilities JSONB DEFAULT '[]'"))
+
                     if "assigned_tenant_ids" not in columns:
                         logger.info("Migrating schema: Adding assigned_tenant_ids to workernode table")
                         # JSONB column
