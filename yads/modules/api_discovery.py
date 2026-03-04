@@ -66,7 +66,7 @@ class ApiDiscoveryScanner(BaseScannerModule):
                 if r.status_code < 600: 
                     primary_url = url.rstrip('/')
                     break
-            except:
+            except Exception:
                 continue
         
         if not primary_url:
@@ -129,8 +129,8 @@ class ApiDiscoveryScanner(BaseScannerModule):
                         "status": resp.status_code,
                         "content_type": ct
                     }
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"API path probe failed for {full_url}: {e}")
             return None
 
         with ThreadPoolExecutor(max_workers=5) as executor:

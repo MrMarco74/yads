@@ -96,7 +96,9 @@ async def view_sbom(request: Request, user: User = Depends(get_current_user_html
                 with open(p, "r") as f:
                     sbom_data = json.load(f)
                 break
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to load sbom: {e}")
                 continue
                 
     from yads.config import settings
@@ -123,7 +125,9 @@ async def view_cbom(request: Request, user: User = Depends(get_current_user_html
                 with open(p, "r") as f:
                     cbom_data = json.load(f)
                 break
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to load cbom: {e}")
                 continue
                 
     from yads.config import settings
@@ -154,7 +158,9 @@ async def download_sbom(request: Request, user: User = Depends(get_current_user_
                     content=sbom_data,
                     headers={"Content-Disposition": "attachment; filename=sbom_cyclonedx.json"}
                 )
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to load sbom for download: {e}")
                 continue
     
     raise HTTPException(status_code=404, detail="SBOM file not found")
@@ -179,7 +185,9 @@ async def download_cbom(request: Request, user: User = Depends(get_current_user_
                     content=cbom_data,
                     headers={"Content-Disposition": "attachment; filename=cbom_cyclonedx.json"}
                 )
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to load cbom for download: {e}")
                 continue
     
     raise HTTPException(status_code=404, detail="CBOM file not found")

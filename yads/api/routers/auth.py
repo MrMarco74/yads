@@ -81,8 +81,9 @@ async def login(
         if window_conf:
              try:
                  window = int(window_conf.value)
-             except:
-                 pass
+             except ValueError as e:
+                 import logging
+                 logging.getLogger(__name__).warning(f"Failed to parse OTP_VALID_WINDOW: {e}")
                  
         if not otp_code:
             # Log MFA required (not a failure, just a step)
@@ -132,8 +133,9 @@ async def login(
         if tm_conf:
             try:
                 token_minutes = int(tm_conf.value)
-            except:
-                pass
+            except ValueError as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to parse ACCESS_TOKEN_EXPIRE_MINUTES: {e}")
 
 
              

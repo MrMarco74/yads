@@ -40,8 +40,9 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False, q: s
     if port and str(port).strip():
         try:
             port_int = int(port)
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Invalid port filter format: {e}")
     # 1. Scope definition (Strict Tenant Isolation)
     targets_query = select(Target)
     if user.tenant_id:

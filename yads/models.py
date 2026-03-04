@@ -494,3 +494,25 @@ class GeneratedReport(SQLModel, table=True):
     # Creator
     created_by: Optional[int] = Field(default=None, foreign_key="user.id")
 
+
+class APIKey(SQLModel, table=True):
+    """
+    Secure API keys for machine-to-machine communication (e.g., LLMGui -> YADS).
+    Keys are stored as hashes (SHA-256).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+
+    name: str = Field(description="Friendly name for the key (e.g., 'LLMGui-Laptop')")
+    key_prefix: str = Field(index=True, description="First 6-8 characters of the key for display/lookup")
+    key_hash: str = Field(index=True, description="SHA-256 hash of the full key")
+
+    scopes: List[str] = Field(default=["read"], sa_column=Column(JSONB), description="List of authorized scopes")
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    is_active: bool = Field(default=True)
+
+    # Relationships
+    tenant: Tenant = Relationship(sa_relationship_kwargs={"lazy": "selectin"})

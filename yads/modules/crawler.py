@@ -18,6 +18,8 @@ from yads.models import SystemConfig, HTTPTraffic
 from yads.core.base import BaseScannerModule, sanitize_null_bytes
 from sqlmodel import select
 
+TEXT_HTML = "text/html"
+
 class Crawler(BaseScannerModule):
     def __init__(self, db_session=None):
         super().__init__(db_session)
@@ -28,291 +30,224 @@ class Crawler(BaseScannerModule):
         return "crawler"
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Slow crawler to map site structure and find anomalies.
-        """
-        logger = logging.getLogger("yads.modules.crawler")
+        """Slow crawler to map site structure and find anomalies."""
+        config = self._load_config()
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
         
-        # Configuration (Defaults)
-        MAX_PAGES = 100
-        MAX_SCREENSHOTS = 10 # Limit screenshots for performance/storage
-        DEPTH_LIMIT = 3
-        DELAY = 0.5 
-        TIMEOUT = 5
-
-        # Override from Settings
-        if self.db:
-            try:
-                # Delay
-                delay_conf = self.db.get(SystemConfig, "WEB_RATE_LIMIT_DELAY")
-                if delay_conf:
-                    DELAY = float(delay_conf.value)
-                
-                # Timeout
-                timeout_conf = self.db.get(SystemConfig, "WEB_REQUEST_TIMEOUT")
-                if timeout_conf:
-                    TIMEOUT = int(timeout_conf.value)
-            except Exception as e:
-                logger.warning(f"Failed to load settings: {e}")
-
-        HEADERS = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        
-        # State
         start_url = target
         if not start_url.startswith("http"):
              start_url = f"https://{target}"
              
-        # Initial Check (Fallback to HTTP if HTTPS fails, to avoid 0s scan)
-        try:
-            requests.get(start_url, headers=HEADERS, timeout=TIMEOUT, verify=False)
-        except:
-            if start_url.startswith("https"):
-                fallback = start_url.replace("https://", "http://")
-                try:
-                    requests.get(fallback, headers=HEADERS, timeout=TIMEOUT, verify=False)
-                    start_url = fallback
-                    logger.info(f"HTTPS failed, falling back to {start_url}")
-                except:
-                    pass # Let the main loop handle it (and fail/log error node)
+        # Initial Check / Fallback
+        start_url = self._check_initial_url(start_url, headers, config["TIMEOUT"])
         
-        # Normalize start_url to ensure we stay on domain
-        parsed_start = urlparse(start_url)
-        base_domain = parsed_start.netloc
-        
-        # Queue: (url, depth)
         queue: Deque[tuple[str, int]] = deque([(start_url, 0)])
         visited: Set[str] = set()
-        
-        # Graph Data
-        nodes: List[Dict[str, Any]] = [] # {id: url, title: str, status: int, type: internal/internal_error}
-        edges: List[Dict[str, str]] = [] # {source: url, target: url}
+        nodes: List[Dict[str, Any]] = []
+        edges: List[Dict[str, str]] = []
         external_counts = Counter()
-        traffic_log: List[Dict[str, Any]] = [] # List of request/response pairs
+        traffic_log: List[Dict[str, Any]] = []
         
-        # Helper to normalize URL
-        def normalize(url, base):
-            try:
-                joined = urljoin(base, url)
-                parsed = urlparse(joined)
-                # Remove fragment
-                clean = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, parsed.query, ""))
-                return clean
-            except:
-                return None
-
-        # Helper to extract links (Regex to avoid external dependencies like bs4 for now)
-        # <a href="...">
-        href_re = re.compile(r'<a\s+(?:[^>]*?\s+)?href=["\']([^"\']*)["\']', re.IGNORECASE)
-        title_re = re.compile(r'<title>(.*?)</title>', re.IGNORECASE | re.DOTALL)
-
-        logger.info(f"Starting crawl of {start_url} (Max Pages: {MAX_PAGES})")
-
-        pages_processed = 0
-        screenshots_taken = 0
+        playwright_data = self._init_browser(headers["User-Agent"])
+        p_page = playwright_data.get("page")
         
         try:
-            try:
-                playwright = sync_playwright().start()
-                browser = playwright.chromium.launch(
-                    headless=True, 
-                    args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]
-                )
-                context = browser.new_context(ignore_https_errors=True, viewport={'width': 1280, 'height': 800})
-                p_page = context.new_page()
-                p_page.set_extra_http_headers({"User-Agent": HEADERS["User-Agent"]})
-            except Exception as p_err:
-                logger.error(f"Failed to initialize Playwright for Crawler: {p_err}")
-        
-            while queue and len(visited) < MAX_PAGES:
+            while queue and len(visited) < config["MAX_PAGES"]:
                 current_url, depth = queue.popleft()
-                
-                if current_url in visited:
+                if current_url in visited or self._is_globally_visited(current_url):
                     continue
 
-                # GLOBAL DEDUPLICATION (Redis)
-                url_hash = hashlib.md5(current_url.encode()).hexdigest()
-                redis_key = f"crawler:visited:{url_hash}"
-                
-                if self.redis_client:
-                    if self.redis_client.exists(redis_key):
-                        logger.debug(f"Skipping globally visited URL: {current_url}")
-                        # Optionally add to visited set to stop local re-queueing, 
-                        # but don't count towards 'pages_processed' limit if we want fresh pages?
-                        # Actually, if we skip it, we shouldn't process it.
-                        visited.add(current_url) 
-                        continue
-                    else:
-                        # Mark as visited globally (TTL 24h)
-                        self.redis_client.setex(redis_key, 86400, "1")
-
                 visited.add(current_url)
-                pages_processed += 1
-                
-                # Fetch
-                try:
-                    # Polite Delay
-                    if pages_processed > 1:
-                        time.sleep(DELAY)
-                        
-                    if pages_processed > 1:
-                        time.sleep(DELAY)
-                    
-                    # Capture Request Data
-                    req_start_time = time.time()
-                    try:
-                        resp = requests.get(current_url, headers=HEADERS, timeout=TIMEOUT, verify=False) # Skip SSL verify
-                        duration = time.time() - req_start_time
-                        
-                        # Log Interaction
-                        # Sanitize response body to remove null bytes (PostgreSQL doesn't support them)
-                        body_snippet = sanitize_null_bytes(resp.text[:1024]) if resp.text else ""
-                        traffic_entry = {
-                            "url": current_url,
-                            "method": "GET",
-                            "status": resp.status_code,
-                            "duration": round(duration, 3),
-                            "request_headers": dict(resp.request.headers),
-                            "response_headers": dict(resp.headers),
-                            "response_body_snippet": body_snippet
-                        }
-                        traffic_log.append(traffic_entry)
+                if len(visited) > 1:
+                    time.sleep(config["DELAY"])
 
-                        # Persist to historical table if database and target_id are available
-                        if self.db and target_id:
-                            try:
-                                traffic_record = HTTPTraffic(
-                                    target_id=target_id,
-                                    method=traffic_entry["method"],
-                                    url=traffic_entry["url"],
-                                    status_code=traffic_entry["status"],
-                                    request_headers=traffic_entry["request_headers"],
-                                    response_headers=traffic_entry["response_headers"],
-                                    response_body_snippet=traffic_entry["response_body_snippet"],
-                                    duration=traffic_entry["duration"]
-                                )
-                                self.db.add(traffic_record)
-                                # We don't commit here, BaseScannerModule will commit after the scan
-                            except Exception as db_err:
-                                logger.warning(f"Failed to save HTTP traffic record: {db_err}")
-                        
-                        status = resp.status_code
-                        content_type = resp.headers.get('Content-Type', '')
-                    except Exception as req_err:
-                         # Log failed request
-                         duration = time.time() - req_start_time
-                         traffic_log.append({
-                            "url": current_url,
-                            "method": "GET",
-                            "status": 0,
-                            "error": sanitize_null_bytes(str(req_err)),
-                            "duration": round(duration, 3),
-                            "request_headers": HEADERS
-                         })
-                         raise req_err
-                    
-                    # Extract Title
-                    title = "Unknown"
-                    if "text/html" in content_type:
-                        m = title_re.search(resp.text)
-                        if m:
-                            title = sanitize_null_bytes(m.group(1).strip())
-                    
-                    # Add Node
-                    node_entry = {
-                        "id": current_url,
-                        "title": title[:50] + "..." if len(title) > 50 else title,
-                        "status": status,
-                        "type": "internal",
-                        "screenshot": None
-                    }
-                    
-                    # Take Screenshot if conditions met
-                    if p_page and status == 200 and "text/html" in content_type and screenshots_taken < MAX_SCREENSHOTS:
-                        try:
-                            screenshot_filename = f"crawler_{self.compute_hash({'u':current_url})}_{uuid.uuid4()}.png"
-                            screenshot_dir = "yads/api/static/screenshots"
-                            os.makedirs(screenshot_dir, exist_ok=True)
-                            filepath = os.path.join(screenshot_dir, screenshot_filename)
-                            
-                            logger.info(f"Capturing crawler screenshot: {current_url}")
-                            p_page.goto(current_url, wait_until="networkidle", timeout=TIMEOUT * 1000)
-                            p_page.screenshot(path=filepath, full_page=False)
-                            
-                            node_entry["screenshot"] = screenshot_filename
-                            screenshots_taken += 1
-                        except Exception as s_err:
-                            logger.warning(f"Failed to take crawler screenshot for {current_url}: {s_err}")
+                self._crawl_url(current_url, depth, headers, config, target_id, p_page, visited, nodes, edges, external_counts, traffic_log, queue)
 
-                    nodes.append(node_entry)
-                    
-                    # If OK and HTML and within depth, parse links
-                    if status == 200 and "text/html" in content_type and depth < DEPTH_LIMIT:
-                        links = href_re.findall(resp.text)
-                        for link in links:
-                            full_link = normalize(link, current_url)
-                            if not full_link: continue
-                            
-                            # Classify
-                            link_parsed = urlparse(full_link)
-                            # Internal if netloc matches base or is empty (relative)
-                            is_internal = link_parsed.netloc == base_domain or link_parsed.netloc == ""
-                            
-                            # Add Edge
-                            edges.append({"source": current_url, "target": full_link, "type": "internal" if is_internal else "external"})
-                            
-                            if is_internal:
-                                if full_link not in visited:
-                                    # Prioritize by depth (BFS is natural with queue)
-                                    queue.append((full_link, depth + 1))
-                            else:
-                                # External
-                                if link_parsed.netloc:
-                                    external_counts[link_parsed.netloc] += 1
-                                
-                except Exception as e:
-                    logger.debug(f"Failed to fetch {current_url}: {e}")
-                    nodes.append({
-                        "id": current_url,
-                        "title": "Error",
-                        "status": 0,
-                        "error": sanitize_null_bytes(str(e)),
-                        "type": "internal_error"
-                    })
+            return self._analyze_crawl_results(nodes, edges, external_counts, visited, config["DEPTH_LIMIT"], traffic_log)
 
-            # Analysis
-            # 1. Dead Ends: Internal nodes with NO outgoing INTERNAL links (that are not errors)
-            # We need to map outgoing internal (source -> count)
-            outgoing_internal_map = Counter([e['source'] for e in edges if e.get('type') == 'internal'])
-                
-            dead_ends = [
-                {"url": node['id'], "title": node['title']} 
-                for node in nodes 
-                if outgoing_internal_map[node['id']] == 0 and node['status'] == 200 and node.get('type') != 'internal_error'
-            ]
-            
-            # 2. Collector Domains (Top 10)
-            collectors = [{"domain": k, "count": v} for k, v in external_counts.most_common(10)]
-
-            return {
-                "stats": {
-                    "pages_crawled": len(visited),
-                    "depth_reached": DEPTH_LIMIT,
-                    "total_links": len(edges)
-                },
-                "dead_ends": dead_ends,
-                "collectors": collectors,
-                "edges": edges, # Persist edges for graph viz
-                "nodes": nodes, # Persist nodes (optional, but good for context)
-                "http_traffic": traffic_log,
-                "sample_nodes": nodes[:5] 
-            }
         finally:
-            if browser:
-                browser.close()
-            if playwright:
-                playwright.stop()
+            if playwright_data.get("browser"): playwright_data["browser"].close()
+            if playwright_data.get("playwright"): playwright_data["playwright"].stop()
+
+    def _load_config(self) -> Dict[str, Any]:
+        """Loads crawler configuration."""
+        config = {
+            "MAX_PAGES": 100, "MAX_SCREENSHOTS": 10, "DEPTH_LIMIT": 3,
+            "DELAY": 0.5, "TIMEOUT": 5, "screenshots_taken": 0
+        }
+        if self.db:
+            try:
+                delay_conf = self.db.get(SystemConfig, "WEB_RATE_LIMIT_DELAY")
+                if delay_conf: config["DELAY"] = float(delay_conf.value)
+                timeout_conf = self.db.get(SystemConfig, "WEB_REQUEST_TIMEOUT")
+                if timeout_conf: config["TIMEOUT"] = int(timeout_conf.value)
+            except Exception as e:
+                logger.warning(f"Failed to load settings: {e}")
+        return config
+
+    def _check_initial_url(self, url: str, headers: Dict[str, str], timeout: int) -> str:
+        """Checks if URL works, falls back to HTTP if HTTPS fails."""
+        try:
+            requests.get(url, headers=headers, timeout=timeout, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+            return url
+        except Exception:
+            if url.startswith("https"):
+                fallback = url.replace("https://", "http://")
+                try:
+                    requests.get(fallback, headers=headers, timeout=timeout, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+                    return fallback
+                except Exception:
+                    pass
+        return url
+
+    def _init_browser(self, user_agent: str) -> Dict[str, Any]:
+        """Initializes Playwright browser."""
+        try:
+            playwright = sync_playwright().start()
+            browser = playwright.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"])
+            context = browser.new_context(ignore_https_errors=True, viewport={'width': 1280, 'height': 800})
+            page = context.new_page()
+            page.set_extra_http_headers({"User-Agent": user_agent})
+            return {"playwright": playwright, "browser": browser, "page": page}
+        except Exception as e:
+            logger.error(f"Failed to initialize Playwright: {e}")
+            return {}
+
+    def _is_globally_visited(self, url: str) -> bool:
+        """Checks Redis for global deduplication."""
+        if not self.redis_client: return False
+        url_hash = hashlib.sha256(url.encode()).hexdigest()
+        redis_key = f"crawler:visited:{url_hash}"
+        if self.redis_client.exists(redis_key): return True
+        self.redis_client.setex(redis_key, 86400, "1")
+        return False
+
+    def _fetch_page(self, url: str, headers: Dict[str, str], timeout: int, target_id: Optional[int]) -> Dict[str, Any]:
+        """Fetches page via requests and logs traffic."""
+        start_time = time.time()
+        try:
+            resp = requests.get(url, headers=headers, timeout=timeout, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+            duration = time.time() - start_time
+            body = resp.text or ""
+            traffic = {
+                "url": url, "method": "GET", "status": resp.status_code, "duration": round(duration, 3),
+                "request_headers": dict(resp.request.headers), "response_headers": dict(resp.headers),
+                "response_body_snippet": sanitize_null_bytes(body[:1024])
+            }
+            if self.db and target_id:
+                self._log_traffic(traffic, target_id)
+            return {"status": resp.status_code, "content_type": resp.headers.get('Content-Type', ''), "html": body, "traffic": traffic}
+        except Exception as e:
+            duration = time.time() - start_time
+            traffic = {"url": url, "method": "GET", "status": 0, "error": sanitize_null_bytes(str(e)), "duration": round(duration, 3), "request_headers": headers}
+            raise e
+
+    def _log_traffic(self, traffic: Dict[str, Any], target_id: int):
+        """Saves traffic record to DB."""
+        try:
+            record = HTTPTraffic(
+                target_id=target_id, method=traffic["method"], url=traffic["url"],
+                status_code=traffic.get("status", 0), request_headers=traffic.get("request_headers"),
+                response_headers=traffic.get("response_headers"),
+                response_body_snippet=traffic.get("response_body_snippet"),
+                duration=traffic["duration"]
+            )
+            self.db.add(record)
+        except Exception as e:
+            logger.warning(f"Failed to save traffic record: {e}")
+
+    def _extract_title(self, html: str) -> str:
+        """Extracts title using regex."""
+        m = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+        if m: return sanitize_null_bytes(m.group(1).strip())[:100]
+        return "Unknown"
+
+    def _take_screenshot(self, page: Any, url: str, timeout: int) -> Optional[str]:
+        """Captures page screenshot."""
+        try:
+            filename = f"crawler_{self.compute_hash({'u':url})}_{uuid.uuid4()}.png"
+            path = os.path.join("yads/api/static/screenshots", filename)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            page.screenshot(path=path, full_page=False)
+            return filename
+        except Exception as e:
+            logger.warning(f"Screenshot failed for {url}: {e}")
+        return None
+
+    def _normalize_url(self, url: str, base: str) -> Optional[str]:
+        """Normalizes relative URL to absolute."""
+        try:
+            joined = urljoin(base, url)
+            p = urlparse(joined)
+            return urlunparse((p.scheme, p.netloc, p.path, p.params, p.query, ""))
+        except Exception:
+            return None
+
+    def _process_links(self, html: str, current_url: str, base_domain: str, depth: int, visited: Set[str], edges: List[Dict[str, str]], external_counts: Counter) -> List[tuple[str, int]]:
+        """Extracts and classifies links."""
+        links = re.findall(r'<a\s+(?:[^>]*?\s+)?href=["\']([^"\']*)["\']', html, re.IGNORECASE)
+        new_links = []
+        for link in links:
+            full = self._normalize_url(link, current_url)
+            if not full: continue
+            
+            p = urlparse(full)
+            is_internal = p.netloc == base_domain or p.netloc == ""
+            edges.append({"source": current_url, "target": full, "type": "internal" if is_internal else "external"})
+            
+            if is_internal:
+                if full not in visited:
+                    new_links.append((full, depth + 1))
+            elif p.netloc:
+                external_counts[p.netloc] += 1
+        return new_links
+
+    def _analyze_crawl_results(self, nodes: List[Dict[str, Any]], edges: List[Dict[str, str]], external_counts: Counter, visited: Set[str], depth_limit: int, traffic_log: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Summarizes crawl data."""
+        outgoing_internal = Counter([e['source'] for e in edges if e.get('type') == 'internal'])
+        dead_ends = [{"url": n['id'], "title": n['title']} for n in nodes if outgoing_internal[n['id']] == 0 and n['status'] == 200 and n.get('type') != 'internal_error']
+        collectors = [{"domain": k, "count": v} for k, v in external_counts.most_common(10)]
+
+        return {
+            "stats": {"pages_crawled": len(visited), "depth_reached": depth_limit, "total_links": len(edges)},
+            "dead_ends": dead_ends, "collectors": collectors, "edges": edges, "nodes": nodes,
+            "http_traffic": traffic_log, "sample_nodes": nodes[:5]
+        }
+
+    def _crawl_url(self, url: str, depth: int, headers: Dict[str, str], config: Dict[str, Any], target_id: Optional[int], p_page: Any, visited: Set[str], nodes: List[Dict[str, Any]], edges: List[Dict[str, str]], external_counts: Counter, traffic_log: List[Dict[str, Any]], queue: Deque):
+        """Processes a single URL in the crawl queue."""
+        try:
+            page_data = self._fetch_page(url, headers, config["TIMEOUT"], target_id)
+            traffic_log.append(page_data["traffic"])
+            
+            status, content_type, html = page_data["status"], page_data["content_type"], page_data["html"]
+            is_html = TEXT_HTML in content_type
+            
+            node_entry = {
+                "id": url, "status": status, "type": "internal", "screenshot": None,
+                "title": self._extract_title(html) if is_html else "Unknown"
+            }
+
+            if p_page and status == 200 and is_html and config["screenshots_taken"] < config["MAX_SCREENSHOTS"]:
+                screenshot = self._take_screenshot(p_page, url, config["TIMEOUT"])
+                if screenshot:
+                    node_entry["screenshot"] = screenshot
+                    config["screenshots_taken"] += 1
+
+            nodes.append(node_entry)
+
+            if status == 200 and is_html and depth < config["DEPTH_LIMIT"]:
+                base_domain = urlparse(url).netloc
+                new_links = self._process_links(html, url, base_domain, depth, visited, edges, external_counts)
+                queue.extend(new_links)
+
+        except Exception as e:
+            logger.debug(f"Failed to fetch {url}: {e}")
+            nodes.append({
+                "id": url, "title": "Error", "status": 0,
+                "error": sanitize_null_bytes(str(e)), "type": "internal_error"
+            })
     
     def __del__(self):
         # Base class might not have cleanup, but we should try to close playwright if it leaked

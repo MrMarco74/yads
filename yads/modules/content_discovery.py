@@ -77,7 +77,7 @@ class ContentDiscoveryScanner(BaseScannerModule):
                 if r.status_code < 500: # Accept 200, 403, 301, 404... just need connectivity
                     primary_url = url.rstrip('/')
                     break
-            except:
+            except Exception:
                 continue
         
         if not primary_url:

@@ -50,8 +50,8 @@ def extract_tenant_from_task(task: dict) -> int | None:
         args = task.get('args', [])
         if isinstance(args, (list, tuple)) and len(args) > 3:
             return args[3]  # tenant_id is at position 3
-    except:
-        pass
+    except Exception as e:
+        scan_logger.debug(f"Could not extract tenant from task: {e}")
     return None
 
 
@@ -170,7 +170,8 @@ async def view_queue(
                             if len(args) > 1: domain = args[1]
                             if len(args) > 2: scan_types = args[2]
                             if len(args) > 3: task_tenant_id = args[3]
-                    except:
+                    except Exception as e:
+                        scan_logger.debug(f"Failed to decode item body: {e}")
                         # Fallback if not base64 or complex body
                         domain = "Raw Data"
 
@@ -341,10 +342,11 @@ async def cancel_single_task(
                                 args = body_json[0]
                                 if len(args) > 0: target_id = args[0]
                                 if len(args) > 3: task_tenant_id = args[3]
-                        except:
-                            pass
+                        except Exception as e:
+                            scan_logger.debug(f"Failed to decode task body: {e}")
                     break
-            except:
+            except Exception as e:
+                scan_logger.debug(f"Error parsing queue item: {e}")
                 continue
 
         # 2. Check if task is reserved or active (via Celery inspect)
@@ -488,8 +490,8 @@ async def purge_queue(
                                 args = body_json[0]
                                 if len(args) > 3:
                                     task_tenant_id = args[3]
-                        except:
-                            pass
+                        except Exception as e:
+                            scan_logger.debug(f"Failed to decode body in purge: {e}")
                     
                     # Keep if NOT this tenant's task
                     if task_tenant_id != user.tenant_id:
@@ -497,7 +499,8 @@ async def purge_queue(
                     else:
                         purged_count += 1
                         
-                except:
+                except Exception as e:
+                    scan_logger.debug(f"Error parsing queue item for purge: {e}")
                     # If we can't parse, keep it to be safe
                     items_to_keep.append(raw)
             

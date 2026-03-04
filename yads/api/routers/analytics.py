@@ -130,7 +130,9 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode data: {e}")
                 data = {}
 
         # --- Infrastructure Scanner ---
@@ -214,7 +216,9 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
                     if score >= 9.0: severity = "CRITICAL"
                     elif score >= 7.0: severity = "HIGH"
                     elif score >= 4.0: severity = "MEDIUM"
-                except: pass
+                except (ValueError, TypeError) as e:
+                    import logging
+                    logging.getLogger(__name__).debug(f"Failed to parse CVSS score: {e}")
                 
                 vulnerabilities.append({
                     "target": t_name,
@@ -369,14 +373,15 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
     else:
         tenant_clause = "AND t.tenant_id IS NULL"
 
-    query_str = f"""
+    query_str = """
         SELECT s.target_id, s.module_name, s.data 
         FROM scanresult s
         JOIN target t ON s.target_id = t.id
         WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
-          {tenant_clause}
-        ORDER BY s.scanned_at DESC
-    """
+        """
+    if tenant_clause:
+        query_str += " " + tenant_clause
+    query_str += " ORDER BY s.scanned_at DESC"
     results = session.exec(text(query_str), params=params).all()
     
     target_statement = select(Target)
@@ -410,7 +415,9 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode data: {e}")
                 data = {}
         
         if mod == 'ssl_scanner':
@@ -425,7 +432,7 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                         try:
                             dt = datetime.strptime(clean_date, fmt)
                             break
-                        except: continue
+                        except ValueError: continue
                     
                     if dt:
                         days_left = (dt - datetime.utcnow()).days
@@ -441,7 +448,9 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                             "expiry_date": dt.strftime("%Y-%m-%d"),
                             "status": status
                         })
-                except: pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).debug(f"Failed to parse SSL dates: {e}")
 
         elif mod == 'infrastructure_scanner':
             # Buckets
@@ -485,7 +494,9 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                     if score >= 9.0: severity = "CRITICAL"
                     elif score >= 7.0: severity = "HIGH"
                     elif score >= 4.0: severity = "MEDIUM"
-                 except: pass
+                 except (ValueError, TypeError) as e:
+                    import logging
+                    logging.getLogger(__name__).debug(f"Failed to parse CVSS score: {e}")
                  
                  vulnerabilities.append({
                     "target": t_name,
@@ -563,7 +574,9 @@ def _get_hijacking_data(session: Session, user: User, date_from: datetime = None
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode data: {e}")
                 # Log error if needed, but safe continue
                 continue
                 
@@ -658,7 +671,10 @@ def _get_tech_radar_data(session: Session, user: User, date_from: datetime = Non
         data = res.data
         if isinstance(data, str):
             try: data = json.loads(data)
-            except: continue
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode tech stack data: {e}")
+                continue
             
         if not isinstance(data, dict): continue
         
@@ -848,7 +864,9 @@ def timestamp_to_time(value):
     try:
         dt = datetime.fromtimestamp(float(value))
         return dt.strftime("%Y-%m-%d %H:%M:%S")
-    except:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Failed to parse timestamp: {e}")
         return str(value)
 
 templates.env.filters["timestamp_to_time"] = timestamp_to_time
@@ -994,7 +1012,9 @@ def _get_external_links_data(session: Session, user: User, date_from: datetime =
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode crawler data: {e}")
                 data = {}
 
         found_domains = []
@@ -1009,7 +1029,9 @@ def _get_external_links_data(session: Session, user: User, date_from: datetime =
                         # Strip port if present
                         d = parsed.netloc.split(':')[0]
                         if d: found_domains.append((d, "link"))
-                except: pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).debug(f"Failed to parse target URL {dst}: {e}")
                 
         elif mod == 'dns_scanner':
             records = data.get("records", {})
@@ -1199,7 +1221,9 @@ def _get_dead_links_data(session: Session, user: User, date_from: datetime = Non
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-            except:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to JSON decode data: {e}")
                 data = {}
         
         status = data.get("status_code")
@@ -1257,7 +1281,9 @@ def _get_dead_links_data(session: Session, user: User, date_from: datetime = Non
                 if parsed.netloc:
                      d = parsed.netloc.split(':')[0]
                      referenced_domains.add(d)
-            except: pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to parse target URL {dst}: {e}")
             
     # 2. Check each target if it is in referenced_domains
     unlinked_count = 0

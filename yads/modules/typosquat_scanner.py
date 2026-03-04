@@ -79,7 +79,7 @@ class TyposquatScanner(BaseScannerModule):
                     "ips": ips,
                     "type": "A_RECORD"
                 }
-            except:
+            except Exception:
                 return None
 
         # Increase limit to 2000 or all. With 50 threads, 2000 checks takes ~40s max (assuming 1s timeout worst case, but mostly minimal)

@@ -123,7 +123,7 @@ class PortScanner(BaseScannerModule):
         }
         
         try:
-            resp = requests.get(url, timeout=3, allow_redirects=False, headers=headers, verify=False)
+            resp = requests.get(url, timeout=3, allow_redirects=False, headers=headers, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             return {
                 "status": resp.status_code,
                 "server": resp.headers.get("Server")

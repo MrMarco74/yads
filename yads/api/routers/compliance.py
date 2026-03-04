@@ -81,7 +81,9 @@ def get_latest_scan_results(session: Session, user: User, modules: List[str] = N
     elif user.role != "admin":
         tenant_clause = "AND t.tenant_id IS NULL"
 
-    modules_str = ", ".join(f"'{m}'" for m in modules)
+    modules_str = ", ".join(f":m_{i}" for i in range(len(modules)))
+    for i, m in enumerate(modules):
+        params[f"m_{i}"] = m
 
     query = f"""
         SELECT DISTINCT ON (s.target_id, s.module_name)
@@ -90,9 +92,10 @@ def get_latest_scan_results(session: Session, user: User, modules: List[str] = N
         JOIN target t ON s.target_id = t.id
         WHERE s.module_name IN ({modules_str})
         AND t.is_archived = false
-        {tenant_clause}
-        ORDER BY s.target_id, s.module_name, s.scanned_at DESC
     """
+    if tenant_clause:
+        query += " " + tenant_clause
+    query += " ORDER BY s.target_id, s.module_name, s.scanned_at DESC"
 
     return session.exec(text(query), params=params).all()
 

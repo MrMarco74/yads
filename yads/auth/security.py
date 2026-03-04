@@ -23,3 +23,22 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
     to_encode = {"sub": str(subject), "exp": expire}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+# API Key Handling
+import secrets
+import hashlib
+
+def hash_api_key(key: str) -> str:
+    """Hash an API key using SHA-256."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+def generate_api_key() -> tuple[str, str, str]:
+    """
+    Generate a new API key.
+    Returns: (plain_key, prefix, hash)
+    The plain_key should be shown to the user ONLY ONCE.
+    """
+    key = f"yads_{secrets.token_urlsafe(32)}"
+    prefix = key[:12] # e.g. 'yads_ABC123'
+    key_hash = hash_api_key(key)
+    return key, prefix, key_hash

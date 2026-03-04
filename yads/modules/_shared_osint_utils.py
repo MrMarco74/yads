@@ -97,7 +97,7 @@ class SecretPatterns:
 
     ]
 
-    _compiled_patterns: List[tuple] = None
+    _compiled_patterns: Optional[List[tuple]] = None
 
     @classmethod
     def get_compiled_patterns(cls) -> List[tuple]:
@@ -111,43 +111,32 @@ class SecretPatterns:
 
     @classmethod
     def scan_text(cls, text: str, file_path: Optional[str] = None) -> List[SecretMatch]:
-        """
-        Scan text for secrets.
-
-        Args:
-            text: The text content to scan
-            file_path: Optional file path for context
-
-        Returns:
-            List of SecretMatch objects for found secrets
-        """
+        """Scan text for secrets."""
         findings = []
         lines = text.split('\n')
-
         for name, pattern, severity in cls.get_compiled_patterns():
             for line_num, line in enumerate(lines, 1):
-                for match in pattern.finditer(line):
-                    # Redact the actual secret value for storage
-                    matched = match.group(0)
-                    
-                    # Context-based filtering for Heroku
-                    if name == "Heroku API Key":
-                        # Check text preceding the match in the line
-                        pre_context = line[max(0, match.start() - 30):match.start()]
-                        if re.search(r'(?i)(id|uuid|tag_id|vtp_instanceDestinationId|key)["\'\s]?\s*[:=]\s*["\'\s]?$', pre_context):
-                             continue
-
-                    redacted = cls._redact_secret(matched)
-
-                    findings.append(SecretMatch(
-                        pattern_name=name,
-                        matched_text=redacted,
-                        line_number=line_num,
-                        file_path=file_path,
-                        severity=severity
-                    ))
-
+                self._process_line(findings, name, pattern, severity, line, line_num, file_path)
         return findings
+
+    @classmethod
+    def _process_line(cls, findings, name, pattern, severity, line, line_num, file_path):
+        for match in pattern.finditer(line):
+            if cls._is_ignored(name, line, match): continue
+            redacted = cls._redact_secret(match.group(0))
+            findings.append(SecretMatch(
+                pattern_name=name, matched_text=redacted,
+                line_number=line_num, file_path=file_path, severity=severity
+            ))
+
+    @classmethod
+    def _is_ignored(cls, name, line, match) -> bool:
+        """Context-based filtering to reduce false positives."""
+        if name == "Heroku API Key":
+            pre_context = line[max(0, match.start() - 30):match.start()]
+            if re.search(r'(?i)(id|uuid|tag_id|vtp_instanceDestinationId|key)["\'\s]?\s*[:=]\s*["\'\s]?$', pre_context):
+                return True
+        return False
 
     @classmethod
     def _redact_secret(cls, secret: str) -> str:
@@ -563,9 +552,11 @@ class EmailPatternDetector:
     Detects email address patterns from discovered emails.
     """
 
+    PATTERN_FIRST_LAST = "first.last"
+
     # Common email patterns to test
     PATTERNS = [
-        ("first.last", "{first}.{last}@{domain}"),
+        (PATTERN_FIRST_LAST, "{first}.{last}@{domain}"),
         ("firstlast", "{first}{last}@{domain}"),
         ("first_last", "{first}_{last}@{domain}"),
         ("f.last", "{f}.{last}@{domain}"),
@@ -578,66 +569,45 @@ class EmailPatternDetector:
 
     @classmethod
     def detect_pattern(cls, emails: List[str], domain: str) -> Optional[Dict[str, Any]]:
-        """
-        Analyze a list of emails to detect the naming pattern.
+        """Analyze a list of emails to detect the naming pattern."""
+        local_parts = cls._extract_local_parts(emails, domain)
+        if len(local_parts) < 2: return None
 
-        Returns:
-            Dict with pattern name, format, and confidence score.
-        """
-        if not emails:
-            return None
-
-        # Extract local parts for the target domain
-        local_parts = []
-        for email in emails:
-            if '@' in email:
-                local, email_domain = email.lower().split('@', 1)
-                if email_domain == domain.lower():
-                    local_parts.append(local)
-
-        if len(local_parts) < 2:
-            return None
-
-        # Analyze patterns
-        pattern_scores = {}
-
-        # Check for dots
+        scores = {cls.PATTERN_FIRST_LAST: 0.0, "first_last": 0.0, "flast": 0.0, "firstlast": 0.0}
         has_dots = sum(1 for lp in local_parts if '.' in lp)
         has_underscores = sum(1 for lp in local_parts if '_' in lp)
 
         if has_dots > len(local_parts) * 0.5:
-            if all(lp.count('.') == 1 for lp in local_parts if '.' in lp):
-                # Likely first.last or similar
-                pattern_scores["first.last"] = 0.8
+            scores[cls.PATTERN_FIRST_LAST] = 0.8
         elif has_underscores > len(local_parts) * 0.5:
-            pattern_scores["first_last"] = 0.8
+            scores["first_last"] = 0.8
         else:
-            # Check length patterns
             avg_len = sum(len(lp) for lp in local_parts) / len(local_parts)
-            if avg_len < 10:
-                pattern_scores["flast"] = 0.6
-            else:
-                pattern_scores["firstlast"] = 0.6
+            scores["flast" if avg_len < 10 else "firstlast"] = 0.6
 
-        if not pattern_scores:
-            return None
-
-        # Return highest scoring pattern
-        best_pattern = max(pattern_scores, key=pattern_scores.get)
-
+        best = max(scores, key=scores.get)
+        if scores[best] == 0: return None
         return {
-            "pattern": best_pattern,
-            "format": next(fmt for name, fmt in cls.PATTERNS if name == best_pattern),
-            "confidence": pattern_scores[best_pattern],
-            "sample_count": len(local_parts)
+            "pattern": best,
+            "format": next(fmt for name, fmt in cls.PATTERNS if name == best),
+            "confidence": scores[best], "sample_count": len(local_parts)
         }
+
+    @classmethod
+    def _extract_local_parts(cls, emails: List[str], domain: str) -> List[str]:
+        local_parts = []
+        for email in emails:
+            if '@' in email:
+                local, email_domain = email.lower().split('@', 1)
+                if email_domain == domain.lower(): local_parts.append(local)
+        return local_parts
 
     @classmethod
     def generate_emails(
         cls,
         names: List[Dict[str, str]],
         domain: str,
-        pattern: str = "first.last"
+        pattern: str = PATTERN_FIRST_LAST
     ) -> List[str]:
         """
         Generate potential emails from names using a pattern.
@@ -650,6 +620,7 @@ class EmailPatternDetector:
         Returns:
             List of generated email addresses
         """
+        if pattern == "first.last": pattern = cls.PATTERN_FIRST_LAST
         emails = []
         fmt = next((f for n, f in cls.PATTERNS if n == pattern), "{first}.{last}@{domain}")
 

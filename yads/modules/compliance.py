@@ -128,7 +128,8 @@ class ComplianceScorer:
                         deduction += 5
                         # Don't spam reasons for every high, maybe aggregate?
                         # reasons.append(f"High Vulnerability on {target_map[tid]}")
-                except: pass
+                except (TypeError, ValueError):
+                    pass  # Invalid CVSS score format
                 
         return deduction, reasons
 

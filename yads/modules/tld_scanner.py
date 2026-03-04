@@ -92,7 +92,7 @@ class TLDScanner(BaseScannerModule):
                     # Quick HEAD request
                     h = requests.head(f"http://{candidate}", timeout=2, allow_redirects=True)
                     server_header = h.headers.get("Server")
-                except:
+                except Exception:
                     pass
 
                 # Check if matches reference

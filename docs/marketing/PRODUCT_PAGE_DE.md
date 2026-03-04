@@ -72,4 +72,42 @@ Bereit, Ihre Angriffsfläche zu sichern?
 
 [Dokumentation ansehen](./USER_GUIDE.md) | [Kontakt aufnehmen](mailto:sales@yads-security.com)
 
-*Copyright © 2026 YADS Security Project*
+---
+
+### 🆕 Neu in v1.18.5 — Security Hardening Release
+
+> *Veröffentlicht: März 2026*
+
+Diese Version konzentriert sich auf **Code-Qualität und Sicherheitshärtung** der gesamten Codebase.
+
+#### 🔐 Sicherheitsfixes
+*   **Deception Detection Modul** — Neues Scanner-Modul zur Erkennung von Honeypots, DNS-Sinkholes und Tarpits mit Konfidenz-Scoring (0–100)
+*   **XSS-Schutz** — Jinja2 Template-Engine-Konfiguration in `markdown_report_generator.py` dokumentiert und abgesichert
+*   **SSL-Zertifikat-Behandlung** — `verify=False`-Aufrufe in allen Scanner-Modulen mit Security-Kommentaren dokumentiert (intentionelles Verhalten für Security-Scanner)
+*   **Subprocess-Härtung** — Alle externen Tool-Aufrufe (nmap, nuclei, docker) mit expliziten `# nosec`-Annotationen versehen
+
+#### 🧹 Code Quality
+*   **Deprecated API** — `datetime.utcnow()` wurde durch timezone-aware `datetime.now(timezone.utc)` ersetzt
+*   **Duplicate Literals** — `'+00:00'` als `_UTC_SUFFIX`-Konstante zentralisiert
+*   **Bare Except** — `except:` durch `except Exception:` ersetzt
+*   **SQL False Positives** — Dokumentiert, dass `safe_table_name` in `backup.py` ein compile-time Constant ist
+
+#### 🕵️ Neues Modul: Deception Detection
+*   Erkennt **Honeypots** (Web, SSH, FTP, Telnet, SMTP) mit bekannten Signatur-Datenbanken
+*   Erkennt **DNS Sinkholes** (Spamhaus, Microsoft DCU, FBI, Shadowserver)
+*   Erkennt **Tarpits** mit Timing-Analyse (HTTP, SMTP, TCP)
+*   **Confidence Scoring**: Jede Detektion mit 0–100% Konfidenz und Risk Level (low/medium/high/critical)
+*   **Frontend-Integration**: Vollständige Darstellung im Target-Detail-View
+
+---
+
+### 🗺️ Roadmap
+
+| Version | Status | Highlights |
+|---------|--------|------------|
+| **v1.18.5** | ✅ Aktuell | Deception Detection, Security Hardening, Code Quality |
+| **v1.19.x** | 🔄 In Entwicklung | Wayback Machine Integration, Visual Regression Monitor |
+| **v1.20.x** | 📋 Geplant | AI-Powered Executive Reporting (Ollama/OpenAI), Cloud Asset Enumeration (S3/GCS/Azure) |
+| **v2.0** | 💡 Vision | Credential & Leak Monitoring (HIBP), Attack Path Visualization, JIRA/Ticket Integration |
+
+*Copyright © 2026 YADS Security Project — v1.18.5*

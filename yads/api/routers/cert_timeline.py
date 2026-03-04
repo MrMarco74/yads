@@ -112,7 +112,9 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
                 "expires_display": expiry_date.strftime("%b %d, %Y") if expiry_date else "Unknown"
             })
             
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Error processing cert dates: {e}")
             continue
 
     # 4. Sort by Issuance Date (Newest First)
@@ -310,6 +312,11 @@ def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = Fal
             else:
                 issuer_display = cn or "Unknown Issuer"
 
+            # PQC Status extraction
+            pqc = data.get("pqc_readiness", {})
+            pqc_status = pqc.get("status", "") if pqc else ""
+            pqc_score = pqc.get("score", 0) if pqc else 0
+
             inventory.append({
                 "target_id": t_id,
                 "domain": target.domain,
@@ -321,10 +328,14 @@ def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = Fal
                 "serial_short": str(data.get("serialNumber", ""))[:8],
                 "version": f"v{data.get('version', '?')}",
                 "san_count": len(san_list),
-                "sans": ", ".join(san_list[:5]) + ("..." if len(san_list) > 5 else "")
+                "sans": ", ".join(san_list[:5]) + ("..." if len(san_list) > 5 else ""),
+                "pqc_status": pqc_status,
+                "pqc_score": pqc_score,
             })
             
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Error processing inventory dates: {e}")
             continue
 
     # Sort by failing/expiring first

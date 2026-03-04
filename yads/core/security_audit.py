@@ -72,6 +72,7 @@ class SecurityEventType(str, Enum):
     API_KEY_CREATED = "api_key_created"
     API_KEY_ROTATED = "api_key_rotated"
     API_KEY_REVOKED = "api_key_revoked"
+    API_KEY_USED = "api_key_used"
 
     # System Events
     SYSTEM_CONFIG_CHANGED = "system_config_changed"
@@ -199,6 +200,9 @@ MITRE_MAPPINGS: Dict[SecurityEventType, MITREMapping] = {
     ),
     SecurityEventType.API_KEY_REVOKED: MITREMapping(
         "TA0040", "Impact", "T1531", "Account Access Removal"
+    ),
+    SecurityEventType.API_KEY_USED: MITREMapping(
+        "TA0001", "Initial Access", "T1078", "Valid Accounts"
     ),
 
     # System Events
@@ -666,5 +670,25 @@ def log_system_config_change(request, user, config_key: str, old_value: Any, new
             "old_value": str(old_value) if old_value is not None else None,
             "new_value": str(new_value),
         },
+        session=session
+    )
+
+
+def log_api_key_access(request, api_key_record, success: bool = True, session=None):
+    """Log access via API Key."""
+    details = {
+        "key_id": api_key_record.id,
+        "key_name": api_key_record.name,
+        "key_prefix": api_key_record.key_prefix,
+        "endpoint": str(request.url),
+        "method": request.method
+    }
+    audit_log.log_from_request(
+        request=request,
+        event_type=SecurityEventType.API_KEY_USED,
+        username=f"apikey:{api_key_record.id}",
+        tenant_id=api_key_record.tenant_id,
+        details=details,
+        success=success,
         session=session
     )
