@@ -177,8 +177,8 @@ def get_database_stats(session: Session) -> Dict[str, Any]:
             )).first()
             if result:
                 stats["scan_results_size_estimate"] = result[0]
-        except Exception:
-            pass  # Fall back to estimate
+        except Exception as e:
+            logger.debug(f"Could not get pg_total_relation_size, using estimate: {e}")
 
     except Exception as e:
         logger.error(f"Error getting database stats: {e}")
@@ -555,7 +555,7 @@ def _archive_old_scans(session: Session, days: int) -> Dict[str, Any]:
 
         # Delete old scans
         session.exec(
-            text(f"DELETE FROM scanresult WHERE scanned_at < :cutoff"),
+            text("DELETE FROM scanresult WHERE scanned_at < :cutoff"),
             {"cutoff": cutoff}
         )
         session.commit()

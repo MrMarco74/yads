@@ -72,4 +72,42 @@ Ready to secure your attack surface?
 
 [View Documentation](./USER_GUIDE.md) | [Contact Us](mailto:sales@yads-security.com)
 
-*Copyright © 2026 YADS Security Project*
+---
+
+### 🆕 What's New in v1.18.5 — Security Hardening Release
+
+> *Released: March 2026*
+
+This release focuses on **code quality and security hardening** across the entire codebase.
+
+#### 🔐 Security Fixes
+*   **Deception Detection Module** — New scanner module for detecting Honeypots, DNS Sinkholes, and Tarpits with confidence scoring (0–100)
+*   **XSS Protection** — Jinja2 template engine configuration in `markdown_report_generator.py` documented and secured
+*   **SSL Certificate Handling** — All `verify=False` calls across scanner modules annotated with security comments (intentional behavior for security scanners)
+*   **Subprocess Hardening** — All external tool calls (nmap, nuclei, docker) annotated with explicit `# nosec` comments
+
+#### 🧹 Code Quality
+*   **Deprecated API** — `datetime.utcnow()` replaced with timezone-aware `datetime.now(timezone.utc)` throughout
+*   **Duplicate Literals** — `'+00:00'` centralized as `_UTC_SUFFIX` constant
+*   **Bare Except** — `except:` replaced with `except Exception:` where applicable
+*   **SQL False Positives** — Documented that `safe_table_name` in `backup.py` is a compile-time constant, not user input
+
+#### 🕵️ New Module: Deception Detection
+*   Detects **Honeypots** (Web, SSH, FTP, Telnet, SMTP) using known signature databases
+*   Detects **DNS Sinkholes** (Spamhaus, Microsoft DCU, FBI, Shadowserver)
+*   Detects **Tarpits** with timing analysis (HTTP, SMTP, TCP)
+*   **Confidence Scoring**: Every detection rated 0–100% confidence with risk level (low/medium/high/critical)
+*   **Frontend Integration**: Full display in Target Detail View
+
+---
+
+### 🗺️ Roadmap
+
+| Version | Status | Highlights |
+|---------|--------|------------|
+| **v1.18.5** | ✅ Current | Deception Detection, Security Hardening, Code Quality |
+| **v1.19.x** | 🔄 In Development | Wayback Machine Integration, Visual Regression Monitor |
+| **v1.20.x** | 📋 Planned | AI-Powered Executive Reporting (Ollama/OpenAI), Cloud Asset Enumeration (S3/GCS/Azure) |
+| **v2.0** | 💡 Vision | Credential & Leak Monitoring (HIBP), Attack Path Visualization, JIRA/Ticket Integration |
+
+*Copyright © 2026 YADS Security Project — v1.18.5*

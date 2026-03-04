@@ -67,6 +67,7 @@
                         <th class="px-6 py-4">Common Name (CN)</th>
                         <th class="px-6 py-4">Issuer</th>
                         <th class="px-6 py-4">Validity</th>
+                        <th class="px-6 py-4">PQC Status</th>
                         <th class="px-6 py-4">Status</th>
                         <th class="px-6 py-4 text-right">Serial / Details</th>
                     </tr>
@@ -95,6 +96,19 @@
                                 <span class="text-slate-300">From: {{ cert.issued_display }}</span>
                                 <span class="text-slate-500">To: {{ cert.expires_display }}</span>
                             </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if cert.pqc_status == 'PQC Active' %}
+                                <span class="inline-flex items-center gap-1 rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse inline-block"></span>PQC Active
+                                </span>
+                            {% elif cert.pqc_status == 'PQC Capable' %}
+                                <span class="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-300 ring-1 ring-inset ring-yellow-400/20">Capable</span>
+                            {% elif cert.pqc_status %}
+                                <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">Not Ready</span>
+                            {% else %}
+                                <span class="text-slate-600 text-xs">—</span>
+                            {% endif %}
                         </td>
                         <td class="px-6 py-4">
                             {% if cert.days_valid < 0 %}

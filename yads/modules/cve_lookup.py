@@ -51,7 +51,7 @@ def lookup_cves(product: str, version: str) -> List[Dict[str, str]]:
                     desc_list = data.get("containers", {}).get("cna", {}).get("descriptions", [])
                     if desc_list:
                         summary = desc_list[0].get("value", "")
-                except:
+                except (AttributeError, KeyError, IndexError):
                     pass
                     
             elif isinstance(item, dict):

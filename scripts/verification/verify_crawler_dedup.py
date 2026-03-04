@@ -13,7 +13,7 @@ def verify_dedup():
     r = redis.from_url(settings.REDIS_URL, decode_responses=True)
     
     # 1. Clear Redis state for target
-    url_hash = hashlib.md5(target.encode()).hexdigest()
+    url_hash = hashlib.sha256(target.encode()).hexdigest()
     key = f"crawler:visited:{url_hash}"
     r.delete(key)
     print(f"Cleared Redis key: {key}")

@@ -105,75 +105,65 @@ class CSPScanner(BaseScannerModule):
         logger.info(f"Starting CSP scan for {target}")
 
         results = {
-            "domain": target,
-            "scanned_at": datetime.utcnow().isoformat(),
-            "csp_header": None,
-            "csp_report_only": None,
-            "parsed_directives": {},
-            "external_domains": [],
-            "potential_assets": [],
-            "third_party_services": {},
-            "security_findings": [],
-            "statistics": {}
+            "domain": target, "scanned_at": datetime.utcnow().isoformat(),
+            "csp_header": None, "csp_report_only": None, "parsed_directives": {},
+            "external_domains": [], "potential_assets": [], "third_party_services": {},
+            "security_findings": [], "statistics": {}
         }
 
-        # Fetch headers from HTTPS and HTTP
-        headers_https = self._fetch_headers(f"https://{target}")
-        headers_http = self._fetch_headers(f"http://{target}")
-
-        # Use HTTPS headers preferentially
-        headers = headers_https or headers_http
-
+        headers = self._fetch_effective_headers(target)
         if not headers:
             results["error"] = "Could not fetch headers from target"
             return results
 
         # Extract CSP headers
-        csp_header = headers.get('Content-Security-Policy') or headers.get('content-security-policy')
-        csp_report_only = headers.get('Content-Security-Policy-Report-Only') or headers.get('content-security-policy-report-only')
+        results["csp_header"] = headers.get('Content-Security-Policy') or headers.get('content-security-policy')
+        results["csp_report_only"] = headers.get('Content-Security-Policy-Report-Only') or headers.get('content-security-policy-report-only')
 
-        results["csp_header"] = csp_header
-        results["csp_report_only"] = csp_report_only
-
-        if not csp_header and not csp_report_only:
+        if not results["csp_header"] and not results["csp_report_only"]:
             results["security_findings"].append({
-                "finding": "No CSP Header",
-                "severity": "medium",
+                "finding": "No CSP Header", "severity": "medium",
                 "description": "The website does not implement Content-Security-Policy headers."
             })
             return results
 
-        # Parse CSP header(s)
-        csp_to_parse = csp_header or csp_report_only
-        parsed = self._parse_csp(csp_to_parse)
-        results["parsed_directives"] = parsed
-
-        # Extract all external domains
-        all_domains = self._extract_domains(parsed, target)
+        # Parse and Analyze
+        csp_to_parse = results["csp_header"] or results["csp_report_only"]
+        results["parsed_directives"] = self._parse_csp(csp_to_parse)
+        all_domains = self._extract_domains(results["parsed_directives"], target)
         results["external_domains"] = sorted(list(all_domains))
 
-        # Categorize domains
-        potential_assets, third_party = self._categorize_domains(all_domains, target)
-        results["potential_assets"] = potential_assets
-        results["third_party_services"] = third_party
+        # Categorize
+        results["potential_assets"], results["third_party_services"] = self._categorize_domains(all_domains, target)
 
-        # Security analysis
-        findings = self._analyze_security(parsed, csp_header, csp_report_only)
-        results["security_findings"] = findings
+        # Security
+        results["security_findings"] = self._analyze_security(results["parsed_directives"], results["csp_header"], results["csp_report_only"])
 
         # Statistics
-        results["statistics"] = {
+        results["statistics"] = self._build_csp_statistics(
+            all_domains, results["potential_assets"], results["third_party_services"], 
+            results["parsed_directives"], results["security_findings"],
+            results["csp_header"] is not None, results["csp_report_only"] is not None
+        )
+
+        logger.info(f"CSP scan complete for {target}: found {len(all_domains)} external domains")
+        return results
+
+    def _fetch_effective_headers(self, target: str) -> Optional[Dict[str, str]]:
+        """Fetch headers with HTTP/HTTPS fallback."""
+        return self._fetch_headers(f"https://{target}") or self._fetch_headers(f"http://{target}")
+
+    def _build_csp_statistics(self, all_domains, potential_assets, third_party, parsed, findings, has_header, has_report_only) -> Dict[str, Any]:
+        """Aggregates scan statistics."""
+        return {
             "total_external_domains": len(all_domains),
             "potential_company_assets": len(potential_assets),
             "third_party_domains": sum(len(v) for v in third_party.values()),
             "directives_count": len(parsed),
-            "has_csp": csp_header is not None,
-            "has_csp_report_only": csp_report_only is not None,
+            "has_csp": has_header,
+            "has_csp_report_only": has_report_only,
             "security_issues": len(findings)
         }
-
-        logger.info(f"CSP scan complete for {target}: found {len(all_domains)} external domains")
-        return results
 
     def _fetch_headers(self, url: str) -> Optional[Dict[str, str]]:
         """Fetch HTTP headers from URL."""
@@ -193,10 +183,11 @@ class CSPScanner(BaseScannerModule):
                     timeout=self.timeout,
                     headers={"User-Agent": "YADS Security Scanner"},
                     allow_redirects=True,
-                    verify=False
+                    verify=False  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 )
                 return dict(response.headers)
-            except:
+            except Exception as e:
+                logger.debug(f"SSL fallback SSL header fetch failed for {url}: {e}")
                 return None
         except Exception as e:
             logger.debug(f"Error fetching headers from {url}: {e}")
@@ -264,7 +255,8 @@ class CSPScanner(BaseScannerModule):
             try:
                 parsed = urlparse(value)
                 return parsed.netloc
-            except:
+            except Exception as e:
+                logger.debug(f"URL domain extraction failed for value '{value}': {e}")
                 return None
 
         # Handle wildcards like *.example.com

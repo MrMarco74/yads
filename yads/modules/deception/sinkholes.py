@@ -282,7 +282,7 @@ class SinkholeDetector:
                     response = requests.get(
                         url,
                         timeout=self.timeout,
-                        verify=False,
+                        verify=False,  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                         allow_redirects=True,
                         headers={"User-Agent": "YADS-Security-Scanner/1.15.0"}
                     )

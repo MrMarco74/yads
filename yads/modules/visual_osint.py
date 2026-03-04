@@ -193,7 +193,8 @@ class VisualOSINT(BaseScannerModule):
                 r = requests.head(s["url"], timeout=3)
                 if r.status_code == 200:
                     logos.append(s)
-            except: pass
+            except Exception as e:
+                self.logger.debug(f"Failed to check logo source {s['url']}: {e}")
         return logos
 
     def _calculate_favicon_hash(self, base_url: str) -> Optional[int]:
@@ -207,7 +208,7 @@ class VisualOSINT(BaseScannerModule):
         """
         favicon_url = f"{base_url.rstrip('/')}/favicon.ico"
         try:
-            r = requests.get(favicon_url, timeout=5, verify=False)
+            r = requests.get(favicon_url, timeout=5, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             if r.status_code == 200 and len(r.content) > 0:
                 # Shodan Hashing Algorithm:
                 # 1. Base64
@@ -224,5 +225,5 @@ class VisualOSINT(BaseScannerModule):
                 self.logger.info(f"Favicon Hash for {base_url}: {favicon_hash}")
                 return favicon_hash
         except Exception as e:
-            pass
+            self.logger.debug(f"Favicon hash calculation failed for {favicon_url}: {e}")
         return None

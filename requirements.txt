@@ -21,6 +21,7 @@ Pillow
 imagehash
 tldextract
 python-jose[cryptography]
+ecdsa>=0.19.1
 passlib[bcrypt]
 bcrypt==3.2.2
 pyotp
@@ -38,3 +39,4 @@ psutil
 # Metrics
 prometheus-client>=0.19.0
 mmh3==4.1.0
+defusedxml>=0.7.1

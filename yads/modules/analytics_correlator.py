@@ -50,13 +50,13 @@ class AnalyticsCorrelator(BaseScannerModule):
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
-            resp = requests.get(url, timeout=10, headers=headers, verify=False)
+            resp = requests.get(url, timeout=10, headers=headers, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             content = resp.text
         except Exception as e:
             # Try HTTP Fallback
             try:
                 url = f"http://{target}"
-                resp = requests.get(url, timeout=10, headers=headers, verify=False)
+                resp = requests.get(url, timeout=10, headers=headers, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 content = resp.text
             except Exception as e2:
                 results["error"] = f"Failed to fetch page: {e2}"

@@ -249,18 +249,17 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         if target_ids:
              # Delete dependent tables
              logger.debug("Deleting ChangeEvents, ScanResults, ModuleStates, Targets...")
-             session.exec(text(f"DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN ({target_ids_str}))"))
-             session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({target_ids_str})"))
-             session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({target_ids_str})"))
-             session.exec(text(f"DELETE FROM target WHERE id IN ({target_ids_str})"))
+             session.exec(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN :tids)"), {"tids": tuple(target_ids)})
+             session.exec(text("DELETE FROM scanresult WHERE target_id IN :tids"), {"tids": tuple(target_ids)})
+             session.exec(text("DELETE FROM modulestate WHERE target_id IN :tids"), {"tids": tuple(target_ids)})
+             session.exec(text("DELETE FROM target WHERE id IN :tids"), {"tids": tuple(target_ids)})
         
         # Purge Users and Tenant
-        tenant_ids_str = ",".join(map(str, tenant_ids))
-        if tenant_ids_str:
+        if tenant_ids:
              if not exclude_system:
                  logger.debug("Deleting UserTenantLinks, Users...")
-                 session.exec(text(f"DELETE FROM usertenantlink WHERE tenant_id IN ({tenant_ids_str})"))
-                 session.exec(text(f"DELETE FROM \"user\" WHERE tenant_id IN ({tenant_ids_str})"))
+                 session.exec(text("DELETE FROM usertenantlink WHERE tenant_id IN :tids"), {"tids": tuple(tenant_ids)})
+                 session.exec(text("DELETE FROM \"user\" WHERE tenant_id IN :tids"), {"tids": tuple(tenant_ids)})
              
              # Always delete/refresh Tenant? Or keeps it?
              # If we exclude system, we usually KEEP Tenants too, but Tenants are parent of Targets.
@@ -272,7 +271,7 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
              # Strategy: If exclude_system, DO NOT DELETE Tenant.
              if not exclude_system:
                   logger.debug("Deleting Tenants...")
-                  session.exec(text(f"DELETE FROM tenant WHERE id IN ({tenant_ids_str})"))
+                  session.exec(text("DELETE FROM tenant WHERE id IN :tids"), {"tids": tuple(tenant_ids)})
         
     else:
         # --- FULL WIPE STRATEGY ---
@@ -412,12 +411,12 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
         
         if hasattr(model, "id"):
              try:
-                 max_id = session.scalar(text(f"SELECT MAX(id) FROM {safe_table_name}"))
+                 max_id = session.scalar(text(f"SELECT MAX(id) FROM {safe_table_name}"))  # nosec B608 - safe_table_name is derived from SQLModel.__tablename__ (compile-time constant), never user input
                  if max_id:
                      seq_name = f"{table_name}_id_seq" # Sequences usually don't need quotes if standard naming, but let's check.
                      # Postgres creates "user_id_seq". Unquoted sequence name is usually fine unless it matches keyword.
                      logger.debug(f"Resetting sequence {seq_name} to {max_id}")
-                     session.exec(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
+                     session.exec(text("SELECT setval(:seq_name, :max_id, true)"), {"seq_name": seq_name, "max_id": max_id})
              except Exception as e:
                  # Ignore errors only for sequence reset, but rollback transaction to clear state
                  logger.warning(f"Failed to reset sequence for {table_name}: {e}")

@@ -82,8 +82,9 @@ def get_queue_stats(session: Session, tenant_id: Optional[int] = None) -> dict:
                         if tenant_id is None or task_tenant_id == tenant_id:
                             stats["reserved"] += 1
 
-    except Exception:
-        pass  # Celery might not be available
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Celery inspect failed: {e}")
 
     # Get pending tasks from Redis backlog
     try:
@@ -101,10 +102,11 @@ def get_queue_stats(session: Session, tenant_id: Optional[int] = None) -> dict:
                         task_tenant_id = args[3] if len(args) > 3 else None
                         if tenant_id is None or task_tenant_id == tenant_id:
                             stats["pending"] += 1
-            except Exception:
+            except Exception as e:
                 stats["pending"] += 1  # Count it anyway
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Redis fetch failed: {e}")
 
     # Get currently running targets
     running = session.exec(
@@ -204,8 +206,9 @@ async def mobile_pause_queue(
     # Cancel Celery consumer
     try:
         celery_app.control.cancel_consumer("celery")
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Failed to cancel consumer: {e}")
 
     return HTMLResponse(content="""
         <div class="control-feedback success">Queue paused</div>
@@ -234,8 +237,9 @@ async def mobile_resume_queue(
     # Re-add Celery consumer
     try:
         celery_app.control.add_consumer("celery")
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug(f"Failed to resume consumer: {e}")
 
     return HTMLResponse(content="""
         <div class="control-feedback success">Queue resumed</div>
@@ -270,8 +274,9 @@ async def mobile_clear_queue(
                         if tenant_id is None or task_tenant_id == tenant_id:
                             r.lrem("celery", 1, item)
                             cleared += 1
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to process Redis backlog item: {e}")
 
         # Reset queued targets to idle
         queued_targets = session.exec(

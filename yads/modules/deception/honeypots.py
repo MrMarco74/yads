@@ -155,7 +155,7 @@ class HoneypotDetector:
             return self._session.get(
                 url,
                 timeout=self.timeout,
-                verify=False,
+                verify=False,  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 allow_redirects=True
             )
         except Exception as e:
@@ -178,7 +178,7 @@ class HoneypotDetector:
                 "/admin",
                 "/login",
                 "/test123",
-                f"/{hashlib.md5(str(time.time()).encode()).hexdigest()[:8]}"
+                f"/{hashlib.sha256(str(time.time()).encode()).hexdigest()[:8]}"
             ]
 
             responses = []

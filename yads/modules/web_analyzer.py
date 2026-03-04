@@ -1,7 +1,7 @@
 import re
 import dns.resolver
 import requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Set
 from playwright.sync_api import sync_playwright
 import time
 
@@ -142,6 +142,7 @@ TECH_SIGNATURES = {
 }
 
 class WebAnalyzer(BaseScannerModule):
+    INDEX_OF_SLASH = "Index of /"
     @property
     def module_name(self) -> str:
         return "web_analyzer"
@@ -159,36 +160,12 @@ class WebAnalyzer(BaseScannerModule):
         2. Deep Scan (Playwright) - if needed or configured
         """
         results = {
-            "http_headers": {},
-            "status_code": None,
-            "redirect_chain": [],
-            "tech_stack": [],
-            "risk_hints": [],
-            "keywords_found": [],
-            "visuals": {"favicon": None, "og_image": None},
-            "screenshot_path": None,
-            "meta_tags": {},
-            "visuals": {"favicon": None, "og_image": None},
-            "screenshot_path": None,
-            "meta_tags": {},
-            "title": None,
-            "emails": [],
-            "socials": [],
-            "documents": [],
-            "phones": [],
-            "broken_links": [],
-            "http_status": 0,
-            "https_status": 0,
-            "https_redirect": False,
-            "cves": [],
-            "secrets": [],
-            "api_endpoints": [],
-            "js_analysis": {
-                "files_analyzed": [],
-                "findings": []
-            },
-            "api_specs": [],
-            "is_login_page": False
+            "http_headers": {}, "status_code": None, "redirect_chain": [], "tech_stack": [],
+            "risk_hints": [], "keywords_found": [], "visuals": {"favicon": None, "og_image": None},
+            "screenshot_path": None, "meta_tags": {}, "title": None, "emails": [], "socials": [],
+            "documents": [], "phones": [], "broken_links": [], "http_status": 0, "https_status": 0,
+            "https_redirect": False, "cves": [], "secrets": [], "api_endpoints": [],
+            "js_analysis": {"files_analyzed": [], "findings": []}, "api_specs": [], "is_login_page": False
         }
         
         url = f"http://{target}" # Start with http, let it redirect to https
@@ -204,97 +181,8 @@ class WebAnalyzer(BaseScannerModule):
             except Exception:
                 pass # Fallback to default
         
-        # --- Stage 1: Connectivity Check & Basic Headers ---
-        self.logger.info(f"Stage 1: Connectivity Check for {target} (Timeout: {timeout}s)")
-        self.limiter.wait(target)
-        
-        # Check HTTP
-        try:
-            req_start_time = time.time()
-            r_http = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False, verify=False)
-            results["http_status"] = r_http.status_code
-            
-            # Log Traffic
-            if self.db and target_id:
-                try:
-                    self.db.add(HTTPTraffic(
-                        target_id=target_id,
-                        method="GET",
-                        url=r_http.url,
-                        status_code=r_http.status_code,
-                        request_headers=dict(r_http.request.headers),
-                        response_headers=dict(r_http.headers),
-                        response_body_snippet=r_http.text[:1024] if r_http.text else "",
-                        duration=round(time.time() - req_start_time, 3)
-                    ))
-                except: pass
-            
-            # Check for redirect to HTTPS
-            if r_http.is_redirect and r_http.headers.get("Location", "").startswith("https"):
-                results["https_redirect"] = True
-            
-            # 401 means Basic Auth -> Login Page
-            if r_http.status_code == 401:
-                results["is_login_page"] = True
-                self.logger.info(f"Login Page Detected (HTTP 401) for {target}")
-                
-        except Exception:
-            results["http_status"] = 0 # Failed
-
-        # Check HTTPS
-        try:
-            req_start_time = time.time()
-            r_https = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True, verify=False)
-            results["https_status"] = r_https.status_code
-            
-            # Log Traffic
-            if self.db and target_id:
-                try:
-                    self.db.add(HTTPTraffic(
-                        target_id=target_id,
-                        method="GET",
-                        url=r_https.url,
-                        status_code=r_https.status_code,
-                        request_headers=dict(r_https.request.headers),
-                        response_headers=dict(r_https.headers),
-                        response_body_snippet=r_https.text[:1024] if r_https.text else "",
-                        duration=round(time.time() - req_start_time, 3)
-                    ))
-                except: pass
-            results["http_headers"] = dict(r_https.headers)
-            results["redirect_chain"] = [r.url for r in r_https.history] + [r_https.url]
-            results["status_code"] = r_https.status_code # Primary status for legacy logic
-            
-            # Tech Stack fingerprinting via headers (Stage 1)
-            for tech, signatures in TECH_SIGNATURES.items():
-                if "headers" in signatures:
-                    for header_name, regex in signatures["headers"].items():
-                        header_val = results["http_headers"].get(header_name) or results["http_headers"].get(header_name.lower())
-                        if header_val:
-                            if re.search(regex, header_val, re.IGNORECASE):
-                                if tech not in results["tech_stack"]:
-                                    results["tech_stack"].append(tech)
-                                    
-                                    # Version extraction hints
-                                    # Start with simple one: if header has digits, maybe version?
-                                    # Refined: checks if the matched value actually contains the version
-                                    # This is a broad heuristic.
-                                    if any(c.isdigit() for c in header_val) and len(header_val) < 50:
-                                         # Try to isolate version? 
-                                         # For now, just logging the hint or sending to CVE check
-                                         self._check_cve(f"{tech} {header_val}", results)
-
-        except requests.RequestException as e:
-             if results["http_status"] == 0:
-                 results["error"] = f"Both HTTP/HTTPS failed: {e}"
-                 return results
-             # If HTTP worked but HTTPS failed, we still have some info
-             results["https_status"] = 0
-             if results["http_status"] > 0:
-                 results["status_code"] = results["http_status"]
-
-        # Decide which URL to use for Deep Scan (prefer HTTPS if available, else HTTP)
-        url = f"https://{target}" if results["https_status"] > 0 else f"http://{target}"
+        # Stage 1: Connectivity & Basic Headers
+        url = self._check_connectivity_and_headers(target, timeout, target_id, results)
 
 
         # --- Stage 2: Headless (Playwright) ---
@@ -303,56 +191,15 @@ class WebAnalyzer(BaseScannerModule):
              self.logger.info("Stage 2: Starting Headless Scan (Playwright)...")
              self._run_headless(url, results, timeout)
 
-        # --- Stage 3: Smart Merge (Data Preservation) ---
-        # If we failed to find technologies/title (likely timeout/error), 
-        # try to restore from previous scan to avoid "blinking" dashboard.
-        if not results["tech_stack"] and self.db:
-            try:
-                from yads.models import Target, ScanResult
-                from sqlmodel import select
-                
-                # We need target_id. `target` arg is string domain.
-                t_obj = self.db.exec(select(Target).where(Target.domain == target)).first()
-                if t_obj:
-                    # Fetch LAST successful WebAnalyzer result
-                    prev = self.db.exec(select(ScanResult).where(
-                        ScanResult.target_id == t_obj.id,
-                        ScanResult.module_name == "web_analyzer"
-                    ).order_by(ScanResult.scanned_at.desc())).first()
-                    
-                    if prev and prev.data:
-                         prev_stack = prev.data.get("tech_stack", [])
-                         if prev_stack:
-                             results["tech_stack"] = prev_stack
-                             results["risk_hints"].append("Cached technologies used (Scan failed)")
-                             self.logger.info(f"Restored {len(prev_stack)} technologies from history.")
-                         
-                         if not results.get("title") and prev.data.get("title"):
-                             results["title"] = prev.data.get("title")
-
-            except Exception as e:
-                self.logger.error(f"Smart Merge failed: {e}")
+        # Stage 3: Smart Merge (Data Preservation)
+        self._restore_from_history(target, results)
 
         return results
 
     def _scan_secrets(self, content: str, results: Dict[str, Any], source: str = "Main Page"):
-        """
-        Scans HTML/JS content for known secret patterns.
-        """
-        # Blocklist for sources that are known to contain false positives (e.g. tracking scripts with random UUIDs)
-        ignored_sources = [
-            "googletagmanager.com",
-            "google-analytics.com",
-            "connect.facebook.net",
-            "static.hotjar.com",
-            "cdn.shopify.com"
-        ]
-        
-        if any(ignored in source for ignored in ignored_sources):
-            # We skip generic API key checks for these, but might still want to check for critical things like Private Keys?
-            # For now, let's skip Heroku and Generic keys, but keep AWS/Private Keys if they somehow end up there (unlikely but safe).
-            # Actually, to be safe and avoid noise, let's skip the "Heroku API Key" specifically for these sources.
-            pass
+        """Scans HTML/JS content for known secret patterns."""
+        ignored_sources = ["googletagmanager.com", "google-analytics.com", "connect.facebook.net", "static.hotjar.com", "cdn.shopify.com"]
+        if any(ignored in source for ignored in ignored_sources): return
 
         patterns = {
             "AWS Access Key": r"\b(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)(?![A-Z]{16}\b)[A-Z0-9]{16}\b",
@@ -360,65 +207,38 @@ class WebAnalyzer(BaseScannerModule):
             "Google API Key": r"\bAIza[0-9A-Za-z\\-_]{35}\b",
             "Slack Token": r"\bxox[baprs]-[0-9a-zA-Z]{10,48}\b",
             "Private Key": r"-----BEGIN PRIVATE KEY-----",
-
         }
         
         for name, regex in patterns.items():
-            matches = re.finditer(regex, content)
-            for match in matches:
-                full_match = match.group(0)
-                # No Redaction per user request
-                redacted = full_match
+            for match in re.finditer(regex, content):
+                val = match.group(0)
+                if any(s['value'] == val and s.get('source') == source for s in results["secrets"]): continue
                 
-                # Calculate Line Number
-                line_number = content.count('\n', 0, match.start()) + 1
-                
-                # Context Extraction
-                # Default window
-                start_offset = max(0, match.start() - 100)
-                end_offset = min(len(content), match.end() + 100)
-                
-                # If we have newlines, try to align to full lines for better context in code
-                line_start = content.rfind('\n', 0, match.start())
-                if line_start != -1:
-                    # Look back 2 more lines
-                    l2 = content.rfind('\n', 0, line_start)
-                    if l2 != -1:
-                        l3 = content.rfind('\n', 0, l2)
-                        start_offset = l3 + 1 if l3 != -1 else 0
-                    else:
-                        start_offset = 0
-                
-                line_end = content.find('\n', match.end())
-                if line_end != -1:
-                    # Look forward 2 more lines
-                    l2 = content.find('\n', line_end + 1)
-                    if l2 != -1:
-                        l3 = content.find('\n', l2 + 1)
-                        end_offset = l3 if l3 != -1 else len(content)
-                    else:
-                        end_offset = len(content)
-                
-                context_snippet = content[start_offset:end_offset]
+                line_no = content.count('\n', 0, match.start()) + 1
+                context = self._calculate_secret_context(content, match.start(), match.end())
+                results["secrets"].append({"type": name, "value": val, "source": source, "line": line_no, "context": context.strip()})
+                self.logger.warning(f"Potential Secret Found: {name} in {source} at line {line_no}")
 
-                # Check for uniqueness
-                if not any(s['value'] == redacted and s.get('source') == source for s in results["secrets"]):
-                    
-
-
-                    results["secrets"].append({
-                        "type": name,
-                        "value": redacted,
-                        "source": source,
-                        "line": line_number,
-                        "context": context_snippet.strip()
-                    })
-                    self.logger.warning(f"Potential Secret Found: {name} in {source} at line {line_number}")
+    def _calculate_secret_context(self, content: str, start: int, end: int) -> str:
+        """Calculates a few lines of context around a match."""
+        s_offset = max(0, start - 100)
+        e_offset = min(len(content), end + 100)
+        
+        l_start = content.rfind('\n', 0, start)
+        if l_start != -1:
+            l2 = content.rfind('\n', 0, l_start)
+            s_offset = (content.rfind('\n', 0, l2) + 1) if l2 != -1 else 0
+        
+        l_end = content.find('\n', end)
+        if l_end != -1:
+            l2 = content.find('\n', l_end + 1)
+            e_offset = content.find('\n', l2 + 1) if l2 != -1 else len(content)
+            if e_offset == -1: e_offset = len(content)
+            
+        return content[s_offset:e_offset]
 
     def _scan_api_endpoints(self, content: str, results: Dict[str, Any], page=None):
-        """
-        Scans for API endpoints and documentation.
-        """
+        """Scans for API endpoints and documentation."""
         api_patterns = {
             "Swagger/OpenAPI": r"swagger\.json|openapi\.yaml|/api-docs|swagger-ui",
             "GraphQL": r"/graphql\b|query\s*\{|mutation\s*\{",
@@ -428,457 +248,472 @@ class WebAnalyzer(BaseScannerModule):
         }
         
         found = []
-        
-        # 1. Regex on Content
         for type_name, regex in api_patterns.items():
             if re.search(regex, content, re.IGNORECASE):
                 found.append({"type": type_name, "source": "content_regex"})
                 
-        # 2. Check Intercepted Requests (if page available)
-        # We can't easily access request history from here unless we tracked it during goto
-        # But we can check links in the page
         if page:
-             try:
-                 links = page.locator("a").evaluate_all("list => list.map(el => el.href)")
-                 for link in links:
-                     for type_name, regex in api_patterns.items():
-                         if re.search(regex, link, re.IGNORECASE):
-                             # Avoid dups
-                             if not any(f.get('url') == link for f in found):
-                                 found.append({"type": type_name, "source": "link", "url": link})
-                                 
-                                 # If it's Swagger, try to parse it immediately
-                                 if type_name == "Swagger/OpenAPI":
-                                     self._fetch_and_parse_swagger(link, results)
-             except: pass
+            self._check_links_for_api(page, api_patterns, found, results)
 
         results["api_endpoints"] = found
 
-    def _fetch_and_parse_swagger(self, url: str, results: Dict[str, Any]):
-        """
-        Attempts to download and parse a Swagger/OpenAPI Definition.
-        """
+    def _check_links_for_api(self, page, api_patterns, found, results):
+        """Extracts and checks page links for API indicators."""
         try:
-            # Check if already parsed
-            if any(s['url'] == url for s in results.get("api_specs", [])):
+            links = self._get_page_links(page)
+            for link in links:
+                self._match_link_to_api(link, api_patterns, found, results)
+        except Exception as e:
+            self.logger.debug(f"Failed to scan API endpoints via page links: {e}")
+
+    def _match_link_to_api(self, link, api_patterns, found, results):
+        """Checks if a single link matches any API patterns."""
+        for type_name, regex in api_patterns.items():
+            if re.search(regex, link, re.IGNORECASE):
+                if not any(f.get('url') == link for f in found):
+                    found.append({"type": type_name, "source": "link", "url": link})
+                    if type_name == "Swagger/OpenAPI":
+                        self._fetch_and_parse_swagger(link, results)
                 return
 
-            r = requests.get(url, timeout=5, verify=False)
+    def _fetch_and_parse_swagger(self, url: str, results: Dict[str, Any]):
+        """Attempts to download and parse a Swagger/OpenAPI Definition."""
+        try:
+            if any(s['url'] == url for s in results.get("api_specs", [])): return
+            r = requests.get(url, timeout=5, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             if r.status_code != 200: return
             
-            spec = None
-            try:
-                spec = r.json()
-            except:
-                pass # Could try YAML later if needed
-            
-            if not spec or not isinstance(spec, dict):
-                return
-                
-            # Basic Validation (Swagger 2.0 or OpenAPI 3.0)
-            if not ("swagger" in spec or "openapi" in spec):
-                return
+            spec = r.json()
+            if not spec or not isinstance(spec, dict): return
+            if not ("swagger" in spec or "openapi" in spec): return
                 
             endpoints = []
-            paths = spec.get("paths", {})
-            for path, methods in paths.items():
-                # Extract methods (get, post, etc.)
-                active_methods = [m.upper() for m in methods.keys() if m.lower() in ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']]
-                endpoints.append({
-                    "path": path,
-                    "methods": active_methods
-                })
+            for path, methods in spec.get("paths", {}).items():
+                m_list = [m.upper() for m in methods.keys() if m.lower() in ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']]
+                endpoints.append({"path": path, "methods": m_list})
                 
             if endpoints:
                 results["api_specs"].append({
-                    "url": url,
-                    "version": spec.get("info", {}).get("version", "unknown"),
-                    "title": spec.get("info", {}).get("title", "Unknown API"),
-                    "endpoints": endpoints
+                    "url": url, "version": spec.get("info", {}).get("version", "unknown"),
+                    "title": spec.get("info", {}).get("title", "Unknown API"), "endpoints": endpoints
                 })
                 self.logger.info(f"Parsed Swagger Spec at {url}: {len(endpoints)} endpoints found.")
-
         except Exception as e:
             self.logger.error(f"Swagger Parse Error: {e}")
 
     def _check_cve(self, product_string: str, results: Dict[str, Any]):
-        """
-        Parses product string (e.g. 'nginx/1.18.0 (Ubuntu)') and looks up CVEs.
-        """
-        if not self.enable_cves:
-            return
-
-        if not product_string or ('/' not in product_string and ' ' not in product_string):
-            return
+        """Parses product string and looks up CVEs."""
+        if not self.enable_cves or not product_string or ('/' not in product_string and ' ' not in product_string): return
         
         try:
-            # Handle multiple products in one header (e.g. "nginx/1.18.0 (Ubuntu)")
-            # or "PHP/7.4.3"
-            
-            # Simple splitter: treat spaces as separate products if they look like Prod/Ver
-            parts = product_string.split(' ')
-            for part in parts:
-                if '/' in part:
-                    p_split = part.split('/')
-                    if len(p_split) == 2:
-                        product = p_split[0]
-                        version = p_split[1]
-                        
-                        # Cleanup version (remove trailing parens etc)
-                        version = version.rstrip(';,()')
-                        
-                        # Skip generic
-                        if product.lower() in ['cern-httpd', 'apache', 'nginx'] and not any(c.isdigit() for c in version):
-                             continue
-
-                        cves = lookup_cves(product, version)
-                        if cves:
-                            self.logger.warning(f"CVEs found for {product} {version}: {len(cves)}")
-                            # Avoid dups
-                            existing_ids = {c['id'] for c in results["cves"]}
-                            for cve in cves:
-                                if cve['id'] not in existing_ids:
-                                    cve['product'] = f"{product} {version}" # Add context
-                                    results["cves"].append(cve)
-                                    existing_ids.add(cve['id'])
+            for part in product_string.split(' '):
+                self._parse_and_lookup_cve(part, results)
         except Exception as e:
             self.logger.error(f"CVE Check Error: {e}")
 
+    def _parse_and_lookup_cve(self, part: str, results: Dict[str, Any]):
+        """Parses a single product/version part."""
+        if '/' not in part: return
+        p_split = part.split('/')
+        if len(p_split) != 2: return
+        
+        prod, ver = p_split[0], p_split[1].rstrip(';,()')
+        if prod.lower() in ['cern-httpd', 'apache', 'nginx'] and not any(c.isdigit() for c in ver): return
+
+        cves = lookup_cves(prod, ver)
+        if cves:
+            self.logger.warning(f"CVEs found for {prod} {ver}: {len(cves)}")
+            existing_ids = {c['id'] for c in results["cves"]}
+            for cve in cves:
+                if cve['id'] not in existing_ids:
+                    cve['product'] = f"{prod} {ver}"
+                    results["cves"].append(cve)
+                    existing_ids.add(cve['id'])
+
+    def _detect_login_page(self, page, results, url):
+        """Checks for password inputs or login-related keywords in title."""
+        try:
+            if page.locator("input[type='password']").count() > 0:
+                results["is_login_page"] = True
+                self.logger.info(f"Login Page Detected (Password Input) for {url}")
+                return
+
+            if results.get("title"):
+                t_lower = results["title"].lower()
+                if any(kw in t_lower for kw in ["login", "sign in", "anmeldung"]):
+                    results["is_login_page"] = True
+                    self.logger.info(f"Login Page Detected (Title Keyword) for {url}")
+        except Exception as e:
+            self.logger.error(f"Login detection failed: {e}")
+
+    def _extract_visual_identity(self, page, results):
+        """Extracts favicon and OG image URLs."""
+        try:
+            icon = page.locator("link[rel*='icon']").first
+            if icon.count() > 0:
+                results["visuals"]["favicon"] = icon.get_attribute("href")
+                
+            og = page.locator("meta[property='og:image']").first
+            if og.count() > 0:
+                results["visuals"]["og_image"] = og.get_attribute("content")
+        except Exception as e:
+            self.logger.debug(f"Failed to read favicon/og_image: {e}")
+
+    def _search_sensitive_keywords(self, page, results, title_text):
+        """Scans page text for sensitive keywords and directory listing indicators."""
+        keywords = ["Confidential", "Internal Use Only", self.INDEX_OF_SLASH, "admin portal", "login", "dashboard"]
+        try:
+            page_text = page.inner_text("body").lower()
+            title_lower = (title_text or "").lower()
+            
+            # Directory Listing Check
+            if self.INDEX_OF_SLASH.lower() in title_lower or self.INDEX_OF_SLASH.lower() in page_text:
+                if self.INDEX_OF_SLASH not in results["keywords_found"]:
+                    results["keywords_found"].append(self.INDEX_OF_SLASH)
+                if "Directory Listing Enabled" not in results["risk_hints"]:
+                    results["risk_hints"].append("Directory Listing Enabled")
+                
+                # Add Vulnerability if not present
+                if not any(v.get('id') == "MISC-DIR-LISTING" for v in results["cves"]):
+                    results["cves"].append({
+                        "id": "MISC-DIR-LISTING",
+                        "severity": "MEDIUM", "cvss": 5.3,
+                        "description": f"Directory Browsing is enabled ({self.INDEX_OF_SLASH} found).",
+                        "references": ["https://cwe.mitre.org/data/definitions/548.html"],
+                        "product": "Web Server Configuration"
+                    })
+
+            for kw in keywords:
+                if kw.lower() in page_text and kw != self.INDEX_OF_SLASH:
+                    results["keywords_found"].append(kw)
+            return page_text
+        except Exception as e:
+            self.logger.debug(f"Keyword search failed: {e}")
+            return ""
+
+    def _fingerprint_tech_stack_complex(self, page, content, results, cookie_names):
+        """Performs comprehensive fingerprinting using multiple sources."""
+        try:
+            script_srcs = page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
+        except Exception as e:
+            self.logger.debug(f"Script src evaluation failed: {e}")
+            script_srcs = []
+
+        for tech, sigs in TECH_SIGNATURES.items():
+            if tech in results["tech_stack"]: continue
+            if self._matches_tech_signature(tech, sigs, content, results["meta_tags"], script_srcs, cookie_names, results, results.get("http_headers")):
+                results["tech_stack"].append(tech)
+
+    def _matches_tech_signature(self, tech, sigs, content, meta_tags, script_srcs, cookie_names, results, headers=None) -> bool:
+        """Checks if a technology matches any of its signatures."""
+        if self._check_meta_sigs(tech, sigs.get("meta"), meta_tags, results): return True
+        if self._check_content_sigs(sigs.get("html"), content): return True
+        if self._check_script_sigs(sigs.get("script"), script_srcs): return True
+        if self._check_cookie_sigs(sigs.get("cookies"), cookie_names): return True
+        if headers and self._check_header_sigs(sigs.get("headers"), headers): return True
+        return False
+
+    def _check_meta_sigs(self, tech, meta_sigs, meta_tags, results) -> bool:
+        if not meta_sigs: return False
+        for m_name, m_regex in meta_sigs.items():
+            val = meta_tags.get(m_name)
+            if val and re.search(m_regex, val, re.IGNORECASE):
+                if any(c.isdigit() for c in val):
+                    self._check_cve(f"{tech} {val}", results)
+                return True
+        return False
+
+    def _check_content_sigs(self, html_sigs, content) -> bool:
+        return bool(html_sigs and any(re.search(r, content, re.IGNORECASE) for r in html_sigs))
+
+    def _check_script_sigs(self, script_sigs, script_srcs) -> bool:
+        return bool(script_sigs and script_srcs and any(re.search(r, src, re.IGNORECASE) for src in script_srcs for r in script_sigs))
+
+    def _check_cookie_sigs(self, cookie_sigs, cookie_names) -> bool:
+        return bool(cookie_sigs and cookie_names and any(re.search(r, c, re.IGNORECASE) for c in cookie_names for r in cookie_sigs))
+
+    def _check_header_sigs(self, header_sigs, headers) -> bool:
+        if not header_sigs or not headers: return False
+        h_lower = {k.lower(): str(v).lower() for k, v in headers.items()}
+        for h_name, h_regex in header_sigs.items():
+            val = h_lower.get(h_name.lower())
+            if val and re.search(h_regex.lower(), val): return True
+        return False
+
+    def _extract_osint_data_complex(self, page_text, links, results):
+        """Extracts emails, social media profiles, documents, and phones."""
+        self._extract_emails(page_text, results)
+        self._extract_socials_and_docs(links, results)
+        self._extract_phones(page_text, results)
+
+    def _extract_emails(self, text: str, results: Dict[str, Any]):
+        """Regex-based email extraction with exclusion logic."""
+        email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        ignore_ext = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js'}
+        emails = {e.lower() for e in re.findall(email_regex, text) 
+                  if not any(e.lower().endswith(ext) for ext in ignore_ext)}
+        results["emails"] = list(emails)
+
+    def _extract_socials_and_docs(self, links: List[str], results: Dict[str, Any]):
+        """Categorizes links into social media profiles and documents."""
+        social_map = {
+            "linkedin": r"linkedin\.com/(in|company)/", "twitter": r"(twitter|x)\.com/",
+            "facebook": r"facebook\.com/", "instagram": r"instagram\.com/",
+            "youtube": r"(youtube\.com/|youtu\.be/)", "github": r"github\.com/", "gitlab": r"gitlab\.com/"
+        }
+        doc_exts = {'.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.csv'}
+        found_socials, found_docs = set(), set()
+        
+        for link in links:
+            l_lower = link.lower()
+            if any(re.search(regex, link, re.IGNORECASE) for regex in social_map.values()):
+                found_socials.add(link)
+            if any(l_lower.endswith(ext) for ext in doc_exts):
+                found_docs.add(link)
+        
+        results["socials"], results["documents"] = list(found_socials), list(found_docs)
+
+    def _extract_phones(self, text: str, results: Dict[str, Any]):
+        """Regex-based phone number extraction."""
+        phone_regex = r"(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
+        results["phones"] = list({m.group(0).strip() for m in re.finditer(phone_regex, text)})
+
+    def _check_broken_links_complex(self, links, target_url, results):
+        """Identifies potentially hijackable broken external links."""
+        from urllib.parse import urlparse
+        try:
+            domain = urlparse(target_url).netloc or target_url
+            broken = []
+            checked = set()
+            for link in links:
+                try:
+                    parsed = urlparse(link)
+                    if not parsed.netloc or parsed.netloc == domain or parsed.netloc.endswith("." + domain):
+                        continue
+                    if parsed.netloc in checked: continue
+                    checked.add(parsed.netloc)
+                    
+                    try:
+                        dns.resolver.resolve(parsed.netloc, 'A')
+                    except dns.resolver.NXDOMAIN:
+                        broken.append(link)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            results["broken_links"] = broken
+        except Exception as e:
+            self.logger.debug(f"Broken link check failed: {e}")
+
     def _run_headless(self, url: str, results: Dict[str, Any], timeout: int = 30):
-        """
-        Uses Playwright to render the page, take screenshot, and extract dynamic content.
-        """
+        """Simplified entry point for headless analysis."""
         try:
             with sync_playwright() as p:
-                # Performance optimizations: disable-gpu, no-sandbox
-                browser = p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]) 
-                
+                browser = p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"])
                 context = browser.new_context(ignore_https_errors=True)
                 page = context.new_page()
                 page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"})
                 
                 try:
-                    target_domain = url.split("//")[-1].split("/")[0]
-                    self.limiter.wait(target_domain)
-                    response = page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+                    self.limiter.wait(url.split("//")[-1].split("/")[0])
+                    page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
                 except Exception as e:
                     results["headless_error_goto"] = str(e)
                 
-                content = page.content()
-                results["title"] = page.title()
-                
-                # 0. Secret Scanning
-                self._scan_secrets(content, results, source="Main HTML")
-                self._scan_api_endpoints(content, results, page)
-                
-                # 0.1 JS SAST Analysis
-                self._scan_js_files(page, url, results)
-                
-                # 0.5 Login Page Detection
-                try:
-                    # Check 1: Password Input
-                    pw_count = page.locator("input[type='password']").count()
-                    if pw_count > 0:
-                        results["is_login_page"] = True
-                        self.logger.info(f"Login Page Detected (Password Input) for {url}")
-                    
-                    # Check 2: Title Keywords (if not already found)
-                    if not results["is_login_page"] and results["title"]:
-                        t_lower = results["title"].lower()
-                        if "login" in t_lower or "sign in" in t_lower or "anmeldung" in t_lower:
-                            results["is_login_page"] = True
-                            self.logger.info(f"Login Page Detected (Title Keyword) for {url}")
-                            
-                except Exception as e:
-                    self.logger.error(f"Login detection failed: {e}")
-                
-                # 1. Visual Identity (Favicon & OG)
-                try:
-                    icon_href = page.locator("link[rel*='icon']").first.get_attribute("href")
-                    if icon_href: results["visuals"]["favicon"] = icon_href
-                        
-                    og_img = page.locator("meta[property='og:image']").first.get_attribute("content")
-                    if og_img: results["visuals"]["og_image"] = og_img
-                except: pass
-
-                # 2. Sensitive Keyword Search
-                keywords = ["Confidential", "Internal Use Only", "Index of /", "admin portal", "login", "dashboard"]
-                page_text = page.inner_text("body").lower()
-                title_text = (results.get("title") or "").lower()
-                
-                found_dir_listing = False
-                
-                # Check for Directory Listing (Title or Body)
-                if "index of /" in title_text or "index of /" in page_text:
-                     found_dir_listing = True
-                     if "Index of /" not in results["keywords_found"]:
-                         results["keywords_found"].append("Index of /")
-
-                for kw in keywords:
-                    if kw.lower() in page_text:
-                        # Avoid duplicating Index of / if already added
-                        if kw == "Index of /": continue
-                        results["keywords_found"].append(kw)
-                
-                if found_dir_listing:
-                    hint = "Directory Listing Enabled"
-                    if hint not in results["risk_hints"]:
-                        results["risk_hints"].append(hint)
-                    
-                    # Explicit Vulnerability
-                    vuln_id = "MISC-DIR-LISTING"
-                    if not any(v.get('id') == vuln_id for v in results["cves"]):
-                        results["cves"].append({
-                            "id": vuln_id,
-                            "severity": "MEDIUM",
-                            "cvss": 5.3,
-                            "description": "Directory Browsing is enabled (Index of / found). This exposes the web server's file structure and may allow attackers to download sensitive files not intended for public access.",
-                            "references": ["https://cwe.mitre.org/data/definitions/548.html"],
-                            "product": "Web Server Configuration"
-                        })
-
-                # 3. Enhanced Fingerprinting & CVE (Comprehensive)
-                
-                # Gather data points
-                cookies_list = context.cookies()
-                cookie_names = [c["name"] for c in cookies_list]
-                
-                # Re-check headers from response if accessible (Playwright response object)
-                # But we mostly rely on Requests for headers.
-                
-                # Check Signatures
-                for tech, signatures in TECH_SIGNATURES.items():
-                    if tech in results["tech_stack"]:
-                        continue # Already found
-                        
-                    # Meta Tags
-                    if "meta" in signatures:
-                        for m_name, m_regex in signatures["meta"].items():
-                            val = results["meta_tags"].get(m_name)
-                            if val and re.search(m_regex, val, re.IGNORECASE):
-                                results["tech_stack"].append(tech)
-                                if any(c.isdigit() for c in val):
-                                    self._check_cve(f"{tech} {val}", results)
-                                break
-                    
-                    if tech in results["tech_stack"]: continue
-
-                    # HTML Content
-                    if "html" in signatures:
-                        for html_regex in signatures["html"]:
-                            if re.search(html_regex, content, re.IGNORECASE):
-                                results["tech_stack"].append(tech)
-                                break
-                                
-                    if tech in results["tech_stack"]: continue
-
-                    # Scripts (src)
-                    if "script" in signatures:
-                        try:
-                            # We can re-evaluate script tags or check network requests if we tracked them
-                            # Simple approach: check script src in DOM
-                            script_srcs = page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
-                            found_script = False
-                            for src in script_srcs:
-                                for s_regex in signatures["script"]:
-                                    if re.search(s_regex, src, re.IGNORECASE):
-                                        results["tech_stack"].append(tech)
-                                        found_script = True
-                                        break
-                                if found_script: break
-                        except: pass
-                        
-                    if tech in results["tech_stack"]: continue
-
-                    # Cookies
-                    if "cookies" in signatures:
-                        for c_regex in signatures["cookies"]:
-                            if any(re.search(c_regex, c_name, re.IGNORECASE) for c_name in cookie_names):
-                                results["tech_stack"].append(tech)
-                                break
-
-                # --- 4. OSINT Extraction ---
-                # A. Emails
-                email_regex = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-                raw_emails = re.findall(email_regex, page_text)
-                unique_emails = set()
-                ignore_ext = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js']
-                for email in raw_emails:
-                    email = email.lower()
-                    if not any(email.endswith(ext) for ext in ignore_ext):
-                         unique_emails.add(email)
-                results["emails"] = list(unique_emails)
-
-                # B. Social Media
-                social_platforms = {
-                    "linkedin": r"linkedin\.com/in/|linkedin\.com/company/",
-                    "twitter": r"twitter\.com/|x\.com/",
-                    "facebook": r"facebook\.com/",
-                    "instagram": r"instagram\.com/",
-                    "youtube": r"youtube\.com/|youtu\.be/",
-                    "github": r"github\.com/",
-                    "gitlab": r"gitlab\.com/"
-                }
-                found_socials = []
-                try:
-                    links = page.locator("a").evaluate_all("list => list.map(el => el.href)")
-                    for link in links:
-                        for platform, regex in social_platforms.items():
-                            if re.search(regex, link, re.IGNORECASE):
-                                if link not in found_socials: found_socials.append(link)
-                except: pass
-                results["socials"] = found_socials
-
-                # C. Documents
-                doc_exts = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.csv']
-                found_docs = []
-                try:
-                    for link in links:
-                        lower_link = link.lower()
-                        if any(lower_link.endswith(ext) for ext in doc_exts):
-                            if link not in found_docs: found_docs.append(link)
-                except: pass
-                results["documents"] = found_docs
-                
-                # D. Phones
-                phone_regex = r"(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
-                found_phones = set()
-                for match in re.finditer(phone_regex, page_text):
-                    found_phones.add(match.group(0).strip())
-                results["phones"] = list(found_phones)
-
-                # --- 5. Broken Link Hijacking ---
-                broken_links = []
-                checked_domains = set()
-                try:
-                    from urllib.parse import urlparse
-                    target_domain = urlparse(target).netloc if '://' in target else target
-                    if not target_domain: target_domain = target
-                    
-                    for link in links:
-                        try:
-                            parsed = urlparse(link)
-                            if not parsed.netloc: continue
-                            if parsed.netloc == target_domain or parsed.netloc.endswith("." + target_domain): continue
-                                
-                            ext_domain = parsed.netloc
-                            if ext_domain in checked_domains: continue
-                            checked_domains.add(ext_domain)
-                            
-                            try:
-                                dns.resolver.resolve(ext_domain, 'A')
-                            except dns.resolver.NXDOMAIN:
-                                broken_links.append(link)
-                            except: pass
-                        except: pass
-                except: pass
-                results["broken_links"] = broken_links
-
-                # Meta tags general
-                metas = page.locator("meta").all()
-                for m in metas:
-                    name = m.get_attribute("name")
-                    content_attr = m.get_attribute("content")
-                    if name and content_attr:
-                        results["meta_tags"][name] = content_attr
-
-                # Screenshot
-                import os, uuid
-                screenshot_filename = f"screenshot_{self.compute_hash({'u':url})}_{uuid.uuid4()}.png"
-                screenshot_dir = "yads/api/static/screenshots"
-                os.makedirs(screenshot_dir, exist_ok=True)
-                page.screenshot(path=f"{screenshot_dir}/{screenshot_filename}")
-                results["screenshot_path"] = screenshot_filename
-                
-                if page.url != url and page.url not in results["redirect_chain"]:
-                    results["redirect_chain"].append(page.url)
-
+                self._run_page_analysis_pipeline(page, context, url, results)
                 browser.close()
         except Exception as e:
+            self.logger.error(f"Headless analysis failed for {url}: {e}")
             results["headless_error"] = str(e)
 
-    def _scan_js_files(self, page, base_url: str, results: Dict[str, Any]):
-        """
-        Fetches and statically analyzes referenced JS files for sinks and routes.
-        """
+    def _run_page_analysis_pipeline(self, page, context, url, results):
+        """Orchestrates different analysis modules on the loaded page."""
+        content = page.content()
+        results["title"] = page.title()
+        
+        self._deep_page_analysis(page, url, results, content)
+        self._risk_and_osint_analysis(page, context, url, results, content)
+        self._capture_screenshot(page, url, results)
+        
+        if page.url != url and page.url not in results["redirect_chain"]:
+            results["redirect_chain"].append(page.url)
+
+    def _deep_page_analysis(self, page, url, results, content):
+        """Runs deep content-based analysis like secrets, APIs and JS scanning."""
+        self._scan_secrets(content, results, source="Main HTML")
+        self._scan_api_endpoints(content, results, page)
+        self._scan_js_files(page, url, results)
+        self._detect_login_page(page, results, url)
+        self._extract_page_metadata(page, results)
+
+    def _risk_and_osint_analysis(self, page, context, url, results, content):
+        """Analyzes tech stack, OSINT data and potential risks."""
+        p_text = self._search_sensitive_keywords(page, results, results["title"])
+        cookies = [c["name"] for c in context.cookies()]
+        self._fingerprint_tech_stack_complex(page, content, results, cookies)
+        
+        links = self._get_page_links(page)
+        self._extract_osint_data_complex(p_text, links, results)
+        self._check_broken_links_complex(links, url, results)
+
+    def _get_page_links(self, page) -> List[str]:
+        try: return page.locator("a").evaluate_all("list => list.map(el => el.href)")
+        except Exception: return []
+
+    def _capture_screenshot(self, page, url, results):
+        import os, uuid
+        f_name = f"screenshot_{self.compute_hash({'u':url})}_{uuid.uuid4()}.png"
+        s_dir = "yads/api/static/screenshots"
+        os.makedirs(s_dir, exist_ok=True)
         try:
-            # Get all script srcs
-            scripts = page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
-            
-            # Patterns
+            page.screenshot(path=f"{s_dir}/{f_name}")
+            results["screenshot_path"] = f_name
+        except Exception: pass
+
+    def _check_connectivity_and_headers(self, target: str, timeout: int, target_id: Optional[int], results: Dict[str, Any]) -> str:
+        """Stage 1: Checks HTTP/HTTPS connectivity and extracts header signatures."""
+        self.logger.info(f"Stage 1: Connectivity Check for {target}")
+        self.limiter.wait(target)
+        self._check_http_vitals(target, timeout, target_id, results)
+        self._check_https_vitals_and_headers(target, timeout, target_id, results)
+        return f"https://{target}" if results["https_status"] > 0 else f"http://{target}"
+
+    def _check_http_vitals(self, target: str, timeout: int, target_id: Optional[int], results: Dict[str, Any]):
+        """Checks basic HTTP connectivity."""
+        try:
+            req_start = time.time()
+            r = requests.get(f"http://{target}", timeout=timeout, allow_redirects=False, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+            results["http_status"] = r.status_code
+            if self.db and target_id: self._log_traffic(target_id, r, req_start)
+            if r.is_redirect and r.headers.get("Location", "").startswith("https"): results["https_redirect"] = True
+            if r.status_code == 401: results["is_login_page"] = True
+        except Exception:
+            results["http_status"] = 0
+
+    def _check_https_vitals_and_headers(self, target: str, timeout: int, target_id: Optional[int], results: Dict[str, Any]):
+        """Checks HTTPS and analyzes response headers."""
+        try:
+            req_start = time.time()
+            r = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+            results["https_status"] = r.status_code
+            if self.db and target_id: self._log_traffic(target_id, r, req_start)
+            results.update({"http_headers": dict(r.headers), "redirect_chain": [res.url for res in r.history] + [r.url], "status_code": r.status_code})
+            self._fingerprint_headers(r.headers, results)
+        except requests.RequestException as e:
+            results["https_status"] = 0
+            if results["http_status"] == 0: results["error"] = f"Both HTTP/HTTPS failed: {e}"
+            else: results["status_code"] = results["http_status"]
+
+    def _fingerprint_headers(self, headers, results):
+        """Extracts technology information from headers."""
+        for tech, sigs in TECH_SIGNATURES.items():
+            if "headers" not in sigs: continue
+            for h_name, regex in sigs["headers"].items():
+                val = headers.get(h_name) or headers.get(h_name.lower())
+                if val and re.search(regex, val, re.IGNORECASE):
+                    self._add_detected_tech(tech, val, results)
+                    return
+
+    def _add_detected_tech(self, tech, val, results):
+        if tech in results["tech_stack"]: return
+        results["tech_stack"].append(tech)
+        if any(c.isdigit() for c in val) and len(val) < 50:
+            self._check_cve(f"{tech} {val}", results)
+
+    def _log_traffic(self, target_id: int, resp: requests.Response, start_time: float):
+        """Utility to log HTTP traffic."""
+        try:
+            self.db.add(HTTPTraffic(
+                target_id=target_id, method="GET", url=resp.url, status_code=resp.status_code,
+                request_headers=dict(resp.request.headers), response_headers=dict(resp.headers),
+                response_body_snippet=resp.text[:1024] if resp.text else "",
+                duration=round(time.time() - start_time, 3)
+            ))
+            self.db.commit()
+        except Exception as e:
+            self.logger.debug(f"Traffic logging failed: {e}")
+
+    def _restore_from_history(self, target: str, results: Dict[str, Any]):
+        """Stage 3: Restore technology details from history if scan fails."""
+        if results["tech_stack"] or not self.db: return
+        try:
+            prev_result = self._fetch_history_objects(target)
+            if prev_result and prev_result.data:
+                if "tech_stack" in prev_result.data and prev_result.data["tech_stack"]:
+                    results["tech_stack"] = prev_result.data["tech_stack"]
+                    results["risk_hints"].append("Cached technologies used (Scan failed)")
+                if not results.get("title") and prev_result.data.get("title"):
+                    results["title"] = prev_result.data.get("title")
+        except Exception as e:
+            self.logger.error(f"History restore failed: {e}")
+
+    def _fetch_history_objects(self, target: str):
+        """Helper to fetch the latest past results from DB."""
+        from yads.models import Target, ScanResult
+        from sqlmodel import select
+        t_obj = self.db.exec(select(Target).where(Target.domain == target)).first()
+        if not t_obj: return None
+        return self.db.exec(select(ScanResult).where(
+            ScanResult.target_id == t_obj.id, ScanResult.module_name == self.module_name
+        ).order_by(ScanResult.scanned_at.desc())).first()
+
+    def _extract_page_metadata(self, page, results: Dict[str, Any]):
+        """Extracts meta tags and visual identity from the page."""
+        self._extract_visual_identity(page, results)
+        try:
+            for m in page.locator("meta").all():
+                name, c = m.get_attribute("name"), m.get_attribute("content")
+                if name and c: results["meta_tags"][name] = c
+        except Exception: pass
+
+    def _scan_js_files(self, page, base_url: str, results: Dict[str, Any]):
+        """Fetches and statically analyzes referenced JS files for sinks and routes."""
+        try:
+            scripts = self._get_script_sources(page)
             sinks = {
-                "Dangerous Sink (innerHTML)": r"\.innerHTML\s*=",
-                "Dangerous Sink (outerHTML)": r"\.outerHTML\s*=",
-                "Dangerous Sink (document.write)": r"document\.write\(",
-                "Dangerous Func (eval)": r"\beval\(",
-                "Dangerous Sink (location assignment)": r"location\.(href|search)\s*=",
-                "Open Redirect Potential": r"window\.location\s*="
+                "Dangerous Sink (innerHTML)": r"\.innerHTML\s*=", "Dangerous Sink (outerHTML)": r"\.outerHTML\s*=",
+                "Dangerous Sink (document.write)": r"document\.write\(", "Dangerous Func (eval)": r"\beval\(",
+                "Dangerous Sink (location assignment)": r"location\.(href|search)\s*=", "Open Redirect Potential": r"window\.location\s*="
             }
-            
-            # Simple heuristic for routes: strings starting with /api, /v1, etc.
-            # Avoid overly generic paths.
             route_pattern = r"['\"](\/api\/[\w\-\/]+|\/v\d\/[\w\-\/]+|\/graphql|\/admin\/[\w\-\/]+)['\"]"
-            
-            analyzed_count = 0
-            # Limit analysis
-            max_files = 10
             
             from urllib.parse import urlparse
             base_domain = urlparse(base_url).netloc
-            
+            analyzed_count = 0
             for src in scripts:
-                if analyzed_count >= max_files: break
-                
-                # Filter: Only scan same-origin or relevant subdomains logic?
-                # For now, simplistic: if it contains the domain name OR is relative (which playwright resolves to absolute, so check domain)
+                if analyzed_count >= 10: break
                 src_domain = urlparse(src).netloc
-                if base_domain not in src_domain and "cdn" in src_domain:
-                    # Skip generic CDNs
-                    continue
+                if (base_domain not in src_domain and "cdn" in src_domain) or src in results["js_analysis"]["files_analyzed"]: continue
                 
-                if src in results["js_analysis"]["files_analyzed"]:
-                    continue
-                
-                try:
-                    # Fetch
-                    r = requests.get(src, timeout=5, verify=False)
-                    if r.status_code == 200:
-                        content = r.text
-                        results["js_analysis"]["files_analyzed"].append(src)
-                        analyzed_count += 1
-                        
-                        # 0. Check Secrets in JS Code
-                        self._scan_secrets(content, results, source=src)
-                        
-                        # Check Sinks
-                        for name, regex in sinks.items():
-                            if re.search(regex, content):
-                                results["js_analysis"]["findings"].append({
-                                    "file": src,
-                                    "type": "sink",
-                                    "name": name,
-                                    "severity": "medium", # SAST is prone to FP, so medium default
-                                    "details": f"Found pattern: {regex}"
-                                })
-                        
-                        # Check Routes
-                        matches = re.finditer(route_pattern, content)
-                        for m in matches:
-                            route = m.group(1)
-                            # Avoid duplicates globally or per file?
-                            # Let's add if unique
-                            if not any(f.get('route') == route for f in results["js_analysis"]["findings"]):
-                                results["js_analysis"]["findings"].append({
-                                    "file": src,
-                                    "type": "route",
-                                    "name": "Hidden API Route",
-                                    "severity": "info",
-                                    "route": route,
-                                    "details": f"Discovered potential endpoint: {route}"
-                                })
-
-                except Exception as e:
-                    pass
-                    
+                if self._process_single_js_file(src, results, sinks, route_pattern):
+                    analyzed_count += 1
         except Exception as e:
-            self.logger.error(f"JS Analysis failed: {e}")
+            self.logger.debug(f"JS file scanning failed: {e}")
+
+    def _get_script_sources(self, page) -> List[str]:
+        try: return page.locator("script[src]").evaluate_all("list => list.map(el => el.src)")
+        except Exception: return []
+
+    def _process_single_js_file(self, src: str, results: Dict[str, Any], sinks: Dict[str, str], route_pattern: str) -> bool:
+        """Analyzes a single JS file for vulnerabilities and routes."""
+        try:
+            r = requests.get(src, timeout=5, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
+            if r.status_code != 200: return False
+            content = r.text
+            results["js_analysis"]["files_analyzed"].append(src)
+            self._scan_secrets(content, results, source=src)
+            self._check_js_vulnerabilities(src, content, results, sinks)
+            self._detect_js_routes(src, content, results, route_pattern)
+            return True
+        except Exception: return False
+
+    def _check_js_vulnerabilities(self, file_url, content, results, sinks):
+        for name, regex in sinks.items():
+            if re.search(regex, content):
+                results["js_analysis"]["findings"].append({"file": file_url, "type": "sink", "name": name, "severity": "medium", "details": f"Found pattern: {regex}"})
+
+    def _detect_js_routes(self, file_url, content, results, route_pattern):
+        for m in re.finditer(route_pattern, content):
+            route = m.group(1)
+            if not any(f.get('route') == route for f in results["js_analysis"]["findings"]):
+                results["js_analysis"]["findings"].append({"file": file_url, "type": "route", "name": "Hidden API Route", "severity": "info", "route": route, "details": f"Discovered endpoint: {route}"})

@@ -124,8 +124,9 @@ def _get_asr_data(session: Session, user: User, for_export: bool = False):
                             "detected_at": ssl_res.scanned_at
                         })
                         stats["expired_certs"] += 1
-                except:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Error checking SSL expiry for {target.domain}: {e}")
 
     stats["total_cleanup"] = len(items)
     

@@ -144,6 +144,140 @@ class BaseComplianceFramework(ABC):
             return "medium"
         return "low"
 
+    DEPRECATED_TLS = ["TLSv1.0", "TLSv1.1"]
+    SPF_VERSION = "v=spf1"
+
+    # =========================================================================
+    # Common Check Helpers
+    # =========================================================================
+
+    def _common_ssl_check(self, data, target_map, expired_deduction=20, weak_deduction=10, deprec_deduction=5, max_total=25) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            ssl = modules.get("ssl_scanner")
+            if not ssl: continue
+            d, r = self._process_ssl_target(ssl, target_map[tid], expired_deduction, weak_deduction, deprec_deduction)
+            deduction += d
+            reasons.extend(r)
+        return min(deduction, max_total), reasons
+
+    def _process_ssl_target(self, ssl, target, exp_d, weak_d, deprec_d) -> Tuple[int, List[str]]:
+        d, r = 0, []
+        if ssl.get("expired"):
+            d += exp_d
+            r.append(f"Expired SSL certificate on {target}")
+        elif ssl.get("grade") in ["F", "T", "M"]:
+            d += weak_d
+            r.append(f"Weak SSL configuration on {target}")
+        v = ssl.get("tls_version", "")
+        if v in self.DEPRECATED_TLS:
+            d += deprec_d
+            r.append(f"Deprecated TLS version ({v}) on {target}")
+        return d, r
+
+    def _common_cves_check(self, data, target_map, crit_points=15, high_points=5, max_total=20) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            web = modules.get("web_analyzer") or modules.get("cve_scanner")
+            if not web: continue
+            d, r = self._process_cve_target(web, target_map[tid], crit_points, high_points)
+            deduction += d
+            reasons.extend(r)
+        return min(deduction, max_total), reasons
+
+    def _process_cve_target(self, web, target, crit_p, high_p) -> Tuple[int, List[str]]:
+        crit, high, reasons = 0, 0, []
+        for cve in web.get("cves", []):
+            try:
+                s = float(cve.get("cvss", 0))
+                if s >= 9.0:
+                    crit += 1
+                    if crit <= 3: reasons.append(f"Critical CVE ({cve.get('id')}) on {target}")
+                elif s >= 7.0: high += 1
+            except (TypeError, ValueError): pass
+        d = (crit_p if crit else 0) + (high_p if high else 0)
+        return d, reasons
+
+    def _common_headers_check(self, data, target_map, required_headers=None, max_total=10) -> Tuple[int, List[str]]:
+        if not required_headers: required_headers = {"strict-transport-security": 2, "content-security-policy": 2, "x-frame-options": 1, "x-content-type-options": 1}
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            web = modules.get("web_analyzer")
+            if not web: continue
+            keys = [k.lower() for k in web.get("http_headers", {}).keys()]
+            for h, points in required_headers.items():
+                if h not in keys:
+                    deduction += points
+                    reasons.append(f"Missing {h.upper()} on {target_map[tid]}")
+        return min(deduction, max_total), reasons
+
+    def _common_secrets_check(self, data, target_map, max_total=25) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            nuclei = modules.get("nuclei_scanner")
+            if not nuclei: continue
+            for f in nuclei.get("findings", []):
+                name = f.get("name", "").lower()
+                if any(kw in name for kw in ["secret", "api key", "token", "credential", "password"]):
+                    if f.get("severity", "").lower() in ["critical", "high"]:
+                        deduction += 25
+                        reasons.append(f"Exposed secret: {f.get('name')} on {target_map[tid]}")
+        return min(deduction, max_total), reasons
+
+    def _common_buckets_check(self, data, target_map, max_total=25) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            infra = modules.get("infrastructure_scanner") or modules.get("cloud_scanner")
+            if not infra: continue
+            for b in (infra.get("buckets", []) or infra.get("assets", [])):
+                if b.get("status") == "Public" or b.get("public"):
+                    deduction += 25
+                    reasons.append(f"Public cloud storage exposed on {target_map[tid]}")
+                    break
+        return min(deduction, max_total), reasons
+
+    def _common_ports_check(self, data, target_map, risky_ports, error_points=10, port_points=5, max_total=15) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            pm = modules.get("port_scanner") or modules.get("nmap_scanner")
+            if not pm: continue
+            if pm.get("error"):
+                deduction += error_points
+                reasons.append(f"Port scan error on {target_map[tid]}: {pm['error']}")
+                continue
+            for p in pm.get("open_ports", []):
+                pn = p if isinstance(p, int) else p.get("port", 0)
+                if pn in risky_ports:
+                    deduction += port_points
+                    reasons.append(f"Risky port {pn} open on {target_map[tid]}")
+        return min(deduction, max_total), reasons
+
+    def _common_email_check(self, data, target_map, spf_points=2, dmarc_points=3, dkim_points=0, max_total=5) -> Tuple[int, List[str]]:
+        deduction, reasons = 0, []
+        for tid, modules in data.items():
+            dns = modules.get("dns_scanner") or modules.get("subdomain_scanner")
+            if not dns: continue
+            d, r = self._process_email_target(dns, target_map[tid], spf_points, dmarc_points, dkim_points)
+            deduction += d
+            reasons.extend(r)
+        return min(deduction, max_total), reasons
+
+    def _process_email_target(self, dns, target, spf_p, dmarc_p, dkim_p) -> Tuple[int, List[str]]:
+        d, r = 0, []
+        recs = dns.get("records", {})
+        txts = recs.get("TXT", [])
+        txt_content = " ".join(str(i) for i in txts).lower()
+        if self.SPF_VERSION not in txt_content:
+            d += spf_p
+            r.append(f"Missing SPF record on {target}")
+        if not (any("_dmarc" in str(i).lower() for i in txts) or recs.get("DMARC") or "v=dmarc" in txt_content):
+            d += dmarc_p
+            r.append(f"Missing DMARC record on {target}")
+        if dkim_p and not any("dkim" in str(i).lower() for i in txts):
+            d += dkim_p
+            r.append(f"Missing DKIM on {target}")
+        return d, r
+
 
 class SOC2Scorer(BaseComplianceFramework):
     """
@@ -222,180 +356,25 @@ class SOC2Scorer(BaseComplianceFramework):
         ]
 
     def _check_ssl(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-            if not ssl:
-                continue
-
-            if ssl.get("expired"):
-                deduction += 20
-                reasons.append(f"Expired SSL certificate on {target_map[tid]}")
-            elif ssl.get("grade") in ["F", "T", "M"]:
-                deduction += 10
-                reasons.append(f"Weak SSL configuration on {target_map[tid]}")
-
-            # Check TLS version
-            tls_version = ssl.get("tls_version", "")
-            if tls_version and tls_version in ["TLSv1.0", "TLSv1.1"]:
-                deduction += 5
-                reasons.append(f"Deprecated TLS version ({tls_version}) on {target_map[tid]}")
-
-        return min(deduction, 25), reasons
+        return self._common_ssl_check(data, target_map, expired_deduction=20, weak_deduction=10, deprec_deduction=5, max_total=25)
 
     def _check_cves(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer") or modules.get("cve_scanner")
-            if not web:
-                continue
-
-            cves = web.get("cves", [])
-            critical_count = 0
-            high_count = 0
-
-            for cve in cves:
-                try:
-                    score = float(cve.get("cvss", 0))
-                    if score >= 9.0:
-                        critical_count += 1
-                        if critical_count <= 3:
-                            reasons.append(f"Critical CVE ({cve.get('id')}) on {target_map[tid]}")
-                    elif score >= 7.0:
-                        high_count += 1
-                except:
-                    pass
-
-            if critical_count > 0:
-                deduction += 15
-            if high_count > 0:
-                deduction += 5
-
-        return min(deduction, 20), reasons
+        return self._common_cves_check(data, target_map, crit_points=15, high_points=5, max_total=20)
 
     def _check_headers(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            if not web:
-                continue
-
-            headers = web.get("http_headers", {})
-            keys = [k.lower() for k in headers.keys()]
-
-            if "strict-transport-security" not in keys:
-                deduction += 2
-                reasons.append(f"Missing HSTS on {target_map[tid]}")
-
-            if "content-security-policy" not in keys:
-                deduction += 2
-                reasons.append(f"Missing CSP on {target_map[tid]}")
-
-            if "x-frame-options" not in keys:
-                deduction += 1
-                reasons.append(f"Missing X-Frame-Options on {target_map[tid]}")
-
-            if "x-content-type-options" not in keys:
-                deduction += 1
-                reasons.append(f"Missing X-Content-Type-Options on {target_map[tid]}")
-
-        return min(deduction, 10), reasons
+        return self._common_headers_check(data, target_map, max_total=10)
 
     def _check_buckets(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            infra = modules.get("infrastructure_scanner") or modules.get("cloud_scanner")
-            if not infra:
-                continue
-
-            buckets = infra.get("buckets", []) or infra.get("assets", [])
-            for b in buckets:
-                if b.get("status") == "Public" or b.get("public"):
-                    deduction += 25
-                    reasons.append(f"Public cloud storage exposed on {target_map[tid]}")
-                    break
-
-        return min(deduction, 25), reasons
+        return self._common_buckets_check(data, target_map, max_total=25)
 
     def _check_open_ports(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-        risky_ports = [21, 23, 25, 3306, 5432, 3389]
-
-        for tid, modules in data.items():
-            port_mod = modules.get("port_scanner") or modules.get("nmap_scanner")
-            if not port_mod:
-                continue
-
-            # Flag errors as failures for conservative scoring
-            if port_mod.get("error"):
-                deduction += 10
-                reasons.append(f"Port scan error on {target_map[tid]}: {port_mod['error']}")
-                continue
-
-            ports = port_mod.get("open_ports", [])
-            for p in ports:
-                port_num = p if isinstance(p, int) else p.get("port", 0)
-                if port_num in risky_ports:
-                    deduction += 5
-                    reasons.append(f"Risky port {port_num} open on {target_map[tid]}")
-
-        return min(deduction, 15), reasons
+        return self._common_ports_check(data, target_map, risky_ports=[21, 23, 25, 3306, 5432, 3389], max_total=15)
 
     def _check_email_security(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            dns = modules.get("dns_scanner") or modules.get("subdomain_scanner")
-            if not dns:
-                continue
-
-            records = dns.get("records", {})
-            txt_records = records.get("TXT", [])
-            txt_content = " ".join(str(r) for r in txt_records).lower()
-
-            has_spf = "v=spf1" in txt_content
-            has_dmarc = any("_dmarc" in str(r).lower() for r in txt_records) or records.get("DMARC")
-
-            if not has_spf:
-                deduction += 2
-                reasons.append(f"Missing SPF record on {target_map[tid]}")
-
-            if not has_dmarc:
-                deduction += 3
-                reasons.append(f"Missing DMARC record on {target_map[tid]}")
-
-        return min(deduction, 5), reasons
+        return self._common_email_check(data, target_map, spf_points=2, dmarc_points=3, max_total=5)
 
     def _check_secrets(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            nuclei = modules.get("nuclei_scanner")
-            if not nuclei:
-                continue
-
-            findings = nuclei.get("findings", [])
-            for finding in findings:
-                severity = finding.get("severity", "").lower()
-                name = finding.get("name", "").lower()
-
-                if any(kw in name for kw in ["secret", "api key", "token", "credential", "password"]):
-                    if severity in ["critical", "high"]:
-                        deduction += 25
-                        reasons.append(f"Exposed secret: {finding.get('name')} on {target_map[tid]}")
-
-        return min(deduction, 25), reasons
+        return self._common_secrets_check(data, target_map, max_total=25)
 
 
 class GDPRScorer(BaseComplianceFramework):
@@ -466,156 +445,84 @@ class GDPRScorer(BaseComplianceFramework):
         ]
 
     def _check_https_enforcement(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
             ssl = modules.get("ssl_scanner")
             web = modules.get("web_analyzer")
-
-            # Check if SSL is present
             if not ssl or ssl.get("error"):
                 deduction += 20
                 reasons.append(f"No HTTPS available on {target_map[tid]}")
                 continue
-
             if ssl.get("expired"):
                 deduction += 15
                 reasons.append(f"Expired SSL certificate on {target_map[tid]}")
-
-            # Check HSTS for enforcement
             if web:
-                headers = web.get("http_headers", {})
-                keys = [k.lower() for k in headers.keys()]
-                if "strict-transport-security" not in keys:
+                h = web.get("http_headers", {})
+                if "strict-transport-security" not in [k.lower() for k in h.keys()]:
                     deduction += 5
                     reasons.append(f"HTTPS not enforced via HSTS on {target_map[tid]}")
-
         return min(deduction, 20), reasons
 
     def _check_encryption(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
             ssl = modules.get("ssl_scanner")
-            if not ssl:
-                continue
-
-            tls_version = ssl.get("tls_version", "")
-            if tls_version in ["TLSv1.0", "TLSv1.1"]:
+            if not ssl: continue
+            ver = ssl.get("tls_version", "")
+            if ver in self.DEPRECATED_TLS:
                 deduction += 10
-                reasons.append(f"Weak TLS version ({tls_version}) on {target_map[tid]}")
-
-            # Check for weak ciphers
-            ciphers = ssl.get("ciphers", [])
-            weak_ciphers = [c for c in ciphers if any(w in str(c).upper() for w in ["RC4", "DES", "MD5", "NULL"])]
-            if weak_ciphers:
+                reasons.append(f"Weak TLS version ({ver}) on {target_map[tid]}")
+            weak_c = [c for c in ssl.get("ciphers", []) if any(w in str(c).upper() for w in ["RC4", "DES", "MD5", "NULL"])]
+            if weak_c:
                 deduction += 5
                 reasons.append(f"Weak ciphers detected on {target_map[tid]}")
-
         return min(deduction, 15), reasons
 
     def _check_confidentiality(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
             web = modules.get("web_analyzer")
-            if not web:
-                continue
-
-            headers = web.get("http_headers", {})
-            keys = [k.lower() for k in headers.keys()]
-
+            if not web: continue
+            h = web.get("http_headers", {})
+            keys = [k.lower() for k in h.keys()]
             if "strict-transport-security" not in keys:
                 deduction += 3
                 reasons.append(f"Missing HSTS on {target_map[tid]}")
-
-            # Check cookies for secure flag
-            cookies = web.get("cookies", [])
-            for cookie in cookies:
-                if not cookie.get("secure"):
-                    deduction += 2
-                    reasons.append(f"Insecure cookie on {target_map[tid]}")
-                    break
-
+            if any(not c.get("secure") for c in web.get("cookies", [])):
+                deduction += 2
+                reasons.append(f"Insecure cookie on {target_map[tid]}")
             if "x-content-type-options" not in keys:
                 deduction += 2
                 reasons.append(f"Missing X-Content-Type-Options on {target_map[tid]}")
-
         return min(deduction, 10), reasons
 
     def _check_vulnerabilities(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            nuclei = modules.get("nuclei_scanner")
-
-            # Check CVEs
-            if web:
-                cves = web.get("cves", [])
-                for cve in cves:
-                    try:
-                        score = float(cve.get("cvss", 0))
-                        if score >= 9.0:
-                            deduction += 10
-                            reasons.append(f"Critical vulnerability ({cve.get('id')}) on {target_map[tid]}")
-                        elif score >= 7.0:
-                            deduction += 5
-                    except:
-                        pass
-
-            # Check Nuclei findings
-            if nuclei:
-                findings = nuclei.get("findings", [])
-                for f in findings:
-                    if f.get("severity", "").lower() == "critical":
-                        deduction += 10
-                        reasons.append(f"Critical finding: {f.get('name')} on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        return self._common_cves_check(data, target_map, crit_points=10, high_points=5, max_total=20)
 
     def _check_credential_leaks(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
             nuclei = modules.get("nuclei_scanner")
-            if not nuclei:
-                continue
-
-            findings = nuclei.get("findings", [])
-            for finding in findings:
-                name = finding.get("name", "").lower()
+            if not nuclei: continue
+            for f in nuclei.get("findings", []):
+                name = f.get("name", "").lower()
                 if any(kw in name for kw in ["credential", "password", "leak", "exposed"]):
                     deduction += 25
-                    reasons.append(f"Potential credential leak: {finding.get('name')} on {target_map[tid]}")
-
+                    reasons.append(f"Potential credential leak: {f.get('name')} on {target_map[tid]}")
         return min(deduction, 25), reasons
 
     def _check_sensitive_files(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        sensitive_patterns = [".env", "config.json", "database.yml", ".git", "backup", ".sql", "dump"]
-
+        deduction, reasons = 0, []
+        pats = [".env", "config.json", "database.yml", ".git", "backup", ".sql", "dump"]
         for tid, modules in data.items():
-            content = modules.get("content_discovery")
-            if not content:
-                continue
-
-            discovered = content.get("discovered", []) or content.get("paths", [])
-            for path in discovered:
-                path_lower = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
-                for pattern in sensitive_patterns:
-                    if pattern in path_lower:
-                        deduction += 10
-                        reasons.append(f"Sensitive file exposed: {path_lower} on {target_map[tid]}")
-                        break
-
+            cnt = modules.get("content_discovery")
+            if not cnt: continue
+            for path in (cnt.get("discovered", []) or cnt.get("paths", [])):
+                pl = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
+                if any(p in pl for p in pats):
+                    deduction += 10
+                    reasons.append(f"Sensitive file exposed: {pl} on {target_map[tid]}")
+                    break
         return min(deduction, 15), reasons
 
 
@@ -687,154 +594,45 @@ class PCIDSSScorer(BaseComplianceFramework):
         ]
 
     def _check_strong_tls(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-            if not ssl:
-                continue
-
-            tls_version = ssl.get("tls_version", "")
-            if tls_version in ["TLSv1.0", "TLSv1.1"]:
-                deduction += 15
-                reasons.append(f"PCI-DSS violation: {tls_version} not allowed on {target_map[tid]}")
-
-            # Check for weak ciphers
-            ciphers = ssl.get("ciphers", [])
-            weak_patterns = ["RC4", "DES", "3DES", "MD5", "NULL", "EXPORT", "anon"]
-            for cipher in ciphers:
-                cipher_str = str(cipher).upper()
-                for pattern in weak_patterns:
-                    if pattern in cipher_str:
-                        deduction += 10
-                        reasons.append(f"Weak cipher {pattern} on {target_map[tid]}")
-                        break
-
-        return min(deduction, 25), reasons
+        return self._common_ssl_check(data, target_map, expired_deduction=10, weak_deduction=10, deprec_deduction=15, max_total=25)
 
     def _check_transmission_encryption(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-            web = modules.get("web_analyzer")
-
+            ssl, web = modules.get("ssl_scanner"), modules.get("web_analyzer")
             if not ssl or ssl.get("error"):
                 deduction += 20
                 reasons.append(f"No SSL/TLS available on {target_map[tid]}")
                 continue
-
             if ssl.get("expired"):
                 deduction += 10
                 reasons.append(f"Expired certificate on {target_map[tid]}")
-
-            # HSTS is mandatory for PCI
             if web:
-                headers = web.get("http_headers", {})
-                keys = [k.lower() for k in headers.keys()]
-                if "strict-transport-security" not in keys:
+                h = web.get("http_headers", {})
+                if "strict-transport-security" not in [k.lower() for k in h.keys()]:
                     deduction += 5
                     reasons.append(f"Missing HSTS (PCI requirement) on {target_map[tid]}")
-
         return min(deduction, 20), reasons
 
     def _check_cves(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            if not web:
-                continue
-
-            cves = web.get("cves", [])
-            for cve in cves:
-                try:
-                    score = float(cve.get("cvss", 0))
-                    if score >= 9.0:
-                        deduction += 15
-                        reasons.append(f"Critical CVE ({cve.get('id')}) - PCI non-compliant on {target_map[tid]}")
-                    elif score >= 7.0:
-                        deduction += 10
-                        reasons.append(f"High CVE ({cve.get('id')}) on {target_map[tid]}")
-                except:
-                    pass
-
-        return min(deduction, 20), reasons
+        return self._common_cves_check(data, target_map, crit_points=15, high_points=10, max_total=20)
 
     def _check_firewall_ports(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-        # Database and management ports that should not be publicly accessible
-        pci_risky_ports = {
-            21: "FTP",
-            23: "Telnet",
-            3306: "MySQL",
-            5432: "PostgreSQL",
-            1433: "MSSQL",
-            1521: "Oracle",
-            27017: "MongoDB",
-            6379: "Redis",
-            3389: "RDP",
-            5900: "VNC"
-        }
-
-        for tid, modules in data.items():
-            port_mod = modules.get("port_scanner") or modules.get("nmap_scanner")
-            if not port_mod:
-                continue
-
-            # Flag errors as failures for conservative scoring
-            if port_mod.get("error"):
-                deduction += 15
-                reasons.append(f"Port scan error on {target_map[tid]}: {port_mod['error']}")
-                continue
-
-            ports = port_mod.get("open_ports", [])
-            for p in ports:
-                port_num = p if isinstance(p, int) else p.get("port", 0)
-                if port_num in pci_risky_ports:
-                    deduction += 10
-                    reasons.append(f"PCI violation: {pci_risky_ports[port_num]} port {port_num} exposed on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        ports = {21: "FTP", 23: "Telnet", 3306: "MySQL", 5432: "PostgreSQL", 1433: "MSSQL", 1521: "Oracle", 27017: "MongoDB", 6379: "Redis", 3389: "RDP", 5900: "VNC"}
+        return self._common_ports_check(data, target_map, risky_ports=ports, error_points=15, port_points=10, max_total=20)
 
     def _check_default_credentials(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            nuclei = modules.get("nuclei_scanner")
-            if not nuclei:
-                continue
-
-            findings = nuclei.get("findings", [])
-            for finding in findings:
-                name = finding.get("name", "").lower()
-                if any(kw in name for kw in ["default", "credential", "admin:admin", "root:root"]):
-                    deduction += 25
-                    reasons.append(f"Default credentials detected: {finding.get('name')} on {target_map[tid]}")
-
-        return min(deduction, 25), reasons
+        return self._common_secrets_check(data, target_map, max_total=25)
 
     def _check_active_exploits(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
+        deduction, reasons = 0, []
         for tid, modules in data.items():
-            nuclei = modules.get("nuclei_scanner")
-            if not nuclei:
-                continue
-
-            findings = nuclei.get("findings", [])
-            for finding in findings:
-                severity = finding.get("severity", "").lower()
-                if severity in ["critical", "high"]:
+            n = modules.get("nuclei_scanner")
+            if not n: continue
+            for f in n.get("findings", []):
+                if f.get("severity", "").lower() in ["critical", "high"]:
                     deduction += 10
-                    reasons.append(f"Active vulnerability: {finding.get('name')} on {target_map[tid]}")
-
+                    reasons.append(f"Active vulnerability: {f.get('name')} on {target_map[tid]}")
         return min(deduction, 20), reasons
 
 
@@ -906,141 +704,33 @@ class HIPAAScorer(BaseComplianceFramework):
         ]
 
     def _check_transmission_security(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-
-            if not ssl or ssl.get("error"):
-                deduction += 25
-                reasons.append(f"HIPAA violation: No encryption on {target_map[tid]}")
-                continue
-
-            if ssl.get("expired"):
-                deduction += 15
-                reasons.append(f"Expired SSL certificate on {target_map[tid]}")
-
-        return min(deduction, 25), reasons
+        return self._common_ssl_check(data, target_map, expired_deduction=15, deprec_deduction=0, weak_deduction=0, max_total=25)
 
     def _check_encryption_standard(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-            if not ssl:
-                continue
-
-            tls_version = ssl.get("tls_version", "")
-            if tls_version in ["TLSv1.0", "TLSv1.1"]:
-                deduction += 15
-                reasons.append(f"HIPAA violation: Weak TLS ({tls_version}) on {target_map[tid]}")
-
-            # Check key length
-            key_size = ssl.get("key_size", 0)
-            if key_size and key_size < 2048:
-                deduction += 5
-                reasons.append(f"Weak key size ({key_size} bits) on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        return self._common_ssl_check(data, target_map, expired_deduction=0, deprec_deduction=15, weak_deduction=5, max_total=20)
 
     def _check_authentication(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            nuclei = modules.get("nuclei_scanner")
-            if not nuclei:
-                continue
-
-            findings = nuclei.get("findings", [])
-            for finding in findings:
-                name = finding.get("name", "").lower()
-                if any(kw in name for kw in ["default", "credential", "password", "weak auth"]):
-                    deduction += 25
-                    reasons.append(f"HIPAA violation: {finding.get('name')} on {target_map[tid]}")
-
-        return min(deduction, 25), reasons
+        return self._common_secrets_check(data, target_map, max_total=25)
 
     def _check_risk_analysis(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            nuclei = modules.get("nuclei_scanner")
-
-            if web:
-                cves = web.get("cves", [])
-                for cve in cves:
-                    try:
-                        score = float(cve.get("cvss", 0))
-                        if score >= 9.0:
-                            deduction += 15
-                            reasons.append(f"Critical risk: {cve.get('id')} on {target_map[tid]}")
-                        elif score >= 7.0:
-                            deduction += 5
-                    except:
-                        pass
-
-            if nuclei:
-                findings = nuclei.get("findings", [])
-                critical_count = sum(1 for f in findings if f.get("severity", "").lower() == "critical")
-                if critical_count > 0:
-                    deduction += 10
-                    reasons.append(f"{critical_count} critical findings on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        return self._common_cves_check(data, target_map, crit_points=15, high_points=5, max_total=20)
 
     def _check_access_control(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-        # Healthcare databases and EHR system ports
-        hipaa_restricted_ports = {
-            3306: "MySQL",
-            5432: "PostgreSQL",
-            1433: "MSSQL",
-            1521: "Oracle",
-            27017: "MongoDB",
-            6379: "Redis",
-            9200: "Elasticsearch"
-        }
-
-        for tid, modules in data.items():
-            port_mod = modules.get("port_scanner") or modules.get("nmap_scanner")
-            if not port_mod:
-                continue
-
-            ports = port_mod.get("open_ports", [])
-            for p in ports:
-                port_num = p if isinstance(p, int) else p.get("port", 0)
-                if port_num in hipaa_restricted_ports:
-                    deduction += 15
-                    reasons.append(f"HIPAA violation: {hipaa_restricted_ports[port_num]} ({port_num}) exposed on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        r = {3306: "MySQL", 5432: "PostgreSQL", 1433: "MSSQL", 1521: "Oracle", 27017: "MongoDB", 6379: "Redis", 9200: "Elasticsearch"}
+        return self._common_ports_check(data, target_map, risky_ports=r, port_points=15, max_total=20)
 
     def _check_data_disposal(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        sensitive_patterns = ["backup", ".sql", "dump", ".bak", "export", "phi", "patient", "medical"]
-
+        pats = ["backup", ".sql", "dump", ".bak", "export", "phi", "patient", "medical"]
+        deduction, reasons = 0, []
         for tid, modules in data.items():
-            content = modules.get("content_discovery")
-            if not content:
-                continue
-
-            discovered = content.get("discovered", []) or content.get("paths", [])
-            for path in discovered:
-                path_lower = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
-                for pattern in sensitive_patterns:
-                    if pattern in path_lower:
-                        deduction += 15
-                        reasons.append(f"HIPAA violation: Exposed data file {path_lower} on {target_map[tid]}")
-                        break
-
+            cnt = modules.get("content_discovery")
+            if not cnt: continue
+            for path in (cnt.get("discovered", []) or cnt.get("paths", [])):
+                pl = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
+                if any(p in pl for p in pats):
+                    deduction += 15
+                    reasons.append(f"HIPAA violation: Exposed data file {pl} on {target_map[tid]}")
+                    break
         return min(deduction, 25), reasons
 
 
@@ -1120,186 +810,35 @@ class ISO27001Scorer(BaseComplianceFramework):
         ]
 
     def _check_vulnerability_management(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            nuclei = modules.get("nuclei_scanner")
-
-            if web:
-                cves = web.get("cves", [])
-                critical_count = 0
-                high_count = 0
-
-                for cve in cves:
-                    try:
-                        score = float(cve.get("cvss", 0))
-                        if score >= 9.0:
-                            critical_count += 1
-                        elif score >= 7.0:
-                            high_count += 1
-                    except:
-                        pass
-
-                if critical_count > 0:
-                    deduction += 15
-                    reasons.append(f"{critical_count} critical CVEs on {target_map[tid]}")
-                if high_count > 0:
-                    deduction += 5
-
-            if nuclei:
-                findings = nuclei.get("findings", [])
-                critical = [f for f in findings if f.get("severity", "").lower() == "critical"]
-                if critical:
-                    deduction += 10
-                    reasons.append(f"{len(critical)} critical Nuclei findings on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        return self._common_cves_check(data, target_map, crit_points=15, high_points=5, max_total=20)
 
     def _check_network_security(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-        risky_ports = [21, 23, 3389, 5900, 22]  # Including SSH for public-facing checks
-
-        for tid, modules in data.items():
-            port_mod = modules.get("port_scanner") or modules.get("nmap_scanner")
-            if not port_mod:
-                continue
-
-            ports = port_mod.get("open_ports", [])
-            risky_found = []
-            for p in ports:
-                port_num = p if isinstance(p, int) else p.get("port", 0)
-                if port_num in risky_ports:
-                    risky_found.append(port_num)
-
-            if risky_found:
-                deduction += 10
-                reasons.append(f"Risky ports {risky_found} exposed on {target_map[tid]}")
-
-        return min(deduction, 15), reasons
+        return self._common_ports_check(data, target_map, risky_ports=[21, 23, 3389, 5900, 22], port_points=10, max_total=15)
 
     def _check_secure_communications(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            ssl = modules.get("ssl_scanner")
-            if not ssl:
-                continue
-
-            if ssl.get("expired"):
-                deduction += 15
-                reasons.append(f"Expired certificate on {target_map[tid]}")
-
-            tls_version = ssl.get("tls_version", "")
-            if tls_version in ["TLSv1.0", "TLSv1.1"]:
-                deduction += 10
-                reasons.append(f"Deprecated TLS ({tls_version}) on {target_map[tid]}")
-
-            grade = ssl.get("grade", "")
-            if grade in ["F", "T"]:
-                deduction += 10
-                reasons.append(f"Poor SSL grade ({grade}) on {target_map[tid]}")
-
-        return min(deduction, 20), reasons
+        return self._common_ssl_check(data, target_map, expired_deduction=15, weak_deduction=10, deprec_deduction=10, max_total=20)
 
     def _check_email_policies(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            dns = modules.get("dns_scanner") or modules.get("subdomain_scanner")
-            if not dns:
-                continue
-
-            records = dns.get("records", {})
-            txt_records = records.get("TXT", [])
-            txt_content = " ".join(str(r) for r in txt_records).lower()
-
-            has_spf = "v=spf1" in txt_content
-            has_dmarc = "v=dmarc" in txt_content or any("_dmarc" in str(r).lower() for r in txt_records)
-            has_dkim = any("dkim" in str(r).lower() for r in txt_records)
-
-            if not has_spf:
-                deduction += 3
-                reasons.append(f"Missing SPF on {target_map[tid]}")
-
-            if not has_dmarc:
-                deduction += 4
-                reasons.append(f"Missing DMARC on {target_map[tid]}")
-
-            if not has_dkim:
-                deduction += 3
-                reasons.append(f"Missing DKIM on {target_map[tid]}")
-
-        return min(deduction, 10), reasons
+        return self._common_email_check(data, target_map, spf_points=3, dmarc_points=4, dkim_points=3, max_total=10)
 
     def _check_security_headers(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        required_headers = [
-            "strict-transport-security",
-            "content-security-policy",
-            "x-frame-options",
-            "x-content-type-options"
-        ]
-
-        for tid, modules in data.items():
-            web = modules.get("web_analyzer")
-            if not web:
-                continue
-
-            headers = web.get("http_headers", {})
-            keys = [k.lower() for k in headers.keys()]
-
-            missing = [h for h in required_headers if h not in keys]
-            if missing:
-                deduction += min(len(missing) * 2, 10)
-                reasons.append(f"Missing headers {missing} on {target_map[tid]}")
-
-        return min(deduction, 10), reasons
+        return self._common_headers_check(data, target_map, max_total=10)
 
     def _check_asset_classification(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        for tid, modules in data.items():
-            cloud = modules.get("cloud_scanner") or modules.get("infrastructure_scanner")
-            if not cloud:
-                continue
-
-            assets = cloud.get("assets", []) or cloud.get("buckets", [])
-            for asset in assets:
-                if asset.get("public") or asset.get("status") == "Public":
-                    deduction += 20
-                    reasons.append(f"Public cloud asset on {target_map[tid]}")
-                    break
-
-        return min(deduction, 20), reasons
+        return self._common_buckets_check(data, target_map, max_total=20)
 
     def _check_access_management(self, data: Dict[int, Dict], target_map: Dict[int, str]) -> Tuple[int, List[str]]:
-        deduction = 0
-        reasons = []
-
-        admin_patterns = ["admin", "phpmyadmin", "wp-admin", "manager", "console", "dashboard", "cpanel"]
-
+        deduction, reasons = 0, []
+        pats = ["admin", "phpmyadmin", "wp-admin", "manager", "console", "dashboard", "cpanel"]
         for tid, modules in data.items():
-            content = modules.get("content_discovery")
-            if not content:
-                continue
-
-            discovered = content.get("discovered", []) or content.get("paths", [])
-            for path in discovered:
-                path_lower = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
-                for pattern in admin_patterns:
-                    if pattern in path_lower:
-                        deduction += 10
-                        reasons.append(f"Exposed admin interface: {path_lower} on {target_map[tid]}")
-                        break
-
+            cnt = modules.get("content_discovery")
+            if not cnt: continue
+            for path in (cnt.get("discovered", []) or cnt.get("paths", [])):
+                pl = str(path).lower() if isinstance(path, str) else str(path.get("path", "")).lower()
+                if any(p in pl for p in pats):
+                    deduction += 10
+                    reasons.append(f"Exposed admin interface: {pl} on {target_map[tid]}")
+                    break
         return min(deduction, 15), reasons
 
 

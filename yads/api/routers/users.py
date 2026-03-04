@@ -50,8 +50,9 @@ async def list_users(request: Request, session: Session = Depends(get_db_session
     if timeout_conf:
         try:
             timeout_minutes = int(timeout_conf.value)
-        except:
-            pass
+        except ValueError as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to parse ACCESS_TOKEN_EXPIRE_MINUTES: {e}")
             
     # Also fetch tenants list for the dropdown if Platform Admin
     tenants = []

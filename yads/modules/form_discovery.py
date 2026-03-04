@@ -59,7 +59,7 @@ class FormDiscoveryScanner(BaseScannerModule):
         try:
             # 1. Fetch Page
             # Verify False to ensure we get results even with bad certs
-            resp = requests.get(url, timeout=10, verify=False, allow_redirects=True)
+            resp = requests.get(url, timeout=10, verify=False, allow_redirects=True)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             
             if resp.status_code == 200:
                 # 2. Parse

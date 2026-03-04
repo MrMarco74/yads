@@ -1029,8 +1029,9 @@ def normalize_scan_data(modules_data: dict) -> dict:
                     # Parse format like "Mar 11 19:12:37 2026 GMT"
                     expiry_dt = datetime.strptime(not_after.replace(" GMT", ""), "%b %d %H:%M:%S %Y")
                     norm_data["days_until_expiry"] = (expiry_dt - datetime.utcnow()).days
-                except:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).debug(f"Failed to parse SSL expiry date: {e}")
 
         # === Web Analyzer Normalization ===
         elif module_name == "web_analyzer" and isinstance(norm_data, dict):

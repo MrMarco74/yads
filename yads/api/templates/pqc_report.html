@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display flex items-center gap-3">
+                <svg class="w-7 h-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                PQC Readiness Report
+            </h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Post-Quantum Cryptography readiness assessment across all scanned targets.
+                Based on TLS 1.3 support and Hybrid Key Exchange group detection via Nmap.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center rounded-md bg-indigo-400/10 px-2 py-1 text-xs font-medium text-indigo-400 ring-1 ring-inset ring-indigo-400/20">
+                {{ dist.total }} targets scanned
+            </span>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-violet-900/20 border border-violet-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-violet-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm text-violet-200/80 space-y-1">
+            <p class="font-medium text-violet-300">What is PQC?</p>
+            <p>Post-Quantum Cryptography (PQC) refers to cryptographic algorithms resistant to attacks from quantum computers.
+            NIST finalized PQC standards in 2024 (ML-KEM / CRYSTALS-Kyber for key exchange, ML-DSA for digital signatures).
+            Hybrid schemes combine classical (X25519, P-256) with PQC algorithms for a transition period.</p>
+        </div>
+    </div>
+
+    {% if dist.total > 0 %}
+    <!-- Fleet Overview: Distribution Cards + Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Distribution Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-1 gap-4 lg:col-span-1">
+            <div class="bg-slate-900 border border-cyan-800/40 rounded-xl p-5 flex items-center gap-4">
+                <div class="p-3 rounded-full bg-cyan-500/10">
+                    <span class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse inline-block"></span>
+                </div>
+                <div>
+                    <p class="text-3xl font-bold text-cyan-300">{{ dist.active }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">PQC Active</p>
+                    <p class="text-[10px] text-slate-600">Hybrid key exchange confirmed</p>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-yellow-800/30 rounded-xl p-5 flex items-center gap-4">
+                <div class="p-3 rounded-full bg-yellow-500/10">
+                    <span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span>
+                </div>
+                <div>
+                    <p class="text-3xl font-bold text-yellow-300">{{ dist.capable }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">PQC Capable</p>
+                    <p class="text-[10px] text-slate-600">TLS 1.3 ready, no hybrid yet</p>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-red-800/30 rounded-xl p-5 flex items-center gap-4">
+                <div class="p-3 rounded-full bg-red-500/10">
+                    <span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+                </div>
+                <div>
+                    <p class="text-3xl font-bold text-red-400">{{ dist.not_ready }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Not Ready</p>
+                    <p class="text-[10px] text-slate-600">No TLS 1.3 or scan failed</p>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 flex items-center gap-4">
+                <div class="p-3 rounded-full bg-slate-700/50">
+                    <span class="w-3 h-3 rounded-full bg-slate-500 inline-block"></span>
+                </div>
+                <div>
+                    <p class="text-3xl font-bold text-slate-400">{{ dist.unknown }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Unknown / No Data</p>
+                    <p class="text-[10px] text-slate-600">Scan not run or no result</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Donut Chart -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center">
+            <p class="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">Fleet PQC Distribution</p>
+            <div class="relative w-64 h-64">
+                <canvas id="pqcDonutChart"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-3xl font-bold text-white">{{ dist.total }}</span>
+                    <span class="text-xs text-slate-500">Targets</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-6 mt-6 text-xs text-slate-400">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>PQC Active</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>Capable</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>Not Ready</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>Unknown</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fleet Ranking Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-white">Target PQC Ranking</h2>
+            <span class="text-xs text-slate-500">Sorted by PQC Score (highest first)</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-4">Domain / Target</th>
+                        <th class="px-6 py-4">PQC Status</th>
+                        <th class="px-6 py-4">Score</th>
+                        <th class="px-6 py-4">Hybrid Groups</th>
+                        <th class="px-6 py-4">TLS 1.3 Ciphers</th>
+                        <th class="px-6 py-4">Classical Ciphers</th>
+                        <th class="px-6 py-4">Last Scanned</th>
+                        <th class="px-6 py-4">Recommendations</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for row in rows %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/target/{{ row.target_id }}" class="text-white font-medium hover:text-violet-400 hover:underline font-mono text-xs">{{ row.domain }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.status == 'PQC Active' %}
+                                <span class="inline-flex items-center gap-1 rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse inline-block"></span>PQC Active
+                                </span>
+                            {% elif row.status == 'PQC Capable' %}
+                                <span class="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-300 ring-1 ring-inset ring-yellow-400/20">Capable</span>
+                            {% elif row.status in ('Not Ready', 'Evaluation Failed') %}
+                                <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">Not Ready</span>
+                            {% else %}
+                                <span class="inline-flex items-center rounded-md bg-slate-400/10 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-400/20">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 bg-slate-800 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full {{ 'bg-cyan-500' if row.score >= 80 else ('bg-yellow-500' if row.score >= 50 else 'bg-red-500') }}"
+                                         style="width: {{ row.score }}%"></div>
+                                </div>
+                                <span class="text-xs font-mono font-bold {{ 'text-cyan-400' if row.score >= 80 else ('text-yellow-400' if row.score >= 50 else 'text-red-400') }}">
+                                    {{ row.score }}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.hybrid_groups %}
+                                <div class="flex flex-wrap gap-1">
+                                    {% for g in row.hybrid_groups %}
+                                    <span class="text-[10px] font-mono bg-cyan-900/20 text-cyan-300 border border-cyan-700/30 rounded px-1.5 py-0.5">{{ g }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-slate-600 text-xs">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="font-mono font-bold {{ 'text-cyan-400' if row.tls13_ciphers > 0 else 'text-red-400' }}">
+                                {{ row.tls13_ciphers }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="font-mono {{ 'text-yellow-400' if row.classical_ciphers > 0 else 'text-slate-500' }}">
+                                {{ row.classical_ciphers }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-xs text-slate-500">{{ row.scanned_at }}</td>
+                        <td class="px-6 py-4">
+                            {% if row.recommendations %}
+                            <details class="group">
+                                <summary class="cursor-pointer text-xs text-violet-400 hover:text-violet-300 list-none">
+                                    {{ row.recommendations|length }} action(s) ▸
+                                </summary>
+                                <ul class="mt-2 space-y-1">
+                                    {% for rec in row.recommendations %}
+                                    <li class="text-[11px] text-slate-400 flex items-start gap-1">
+                                        <svg class="w-3 h-3 mt-0.5 text-violet-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                        {{ rec }}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                            {% else %}
+                                <span class="text-slate-700 text-xs">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+        <svg class="w-12 h-12 text-slate-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        <p class="text-slate-500 text-sm">No SSL scan data available yet.</p>
+        <p class="text-slate-600 text-xs mt-1">Run the SSL Scanner module on your targets to generate PQC readiness data.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js Donut -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const ctx = document.getElementById('pqcDonutChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['PQC Active', 'PQC Capable', 'Not Ready', 'Unknown'],
+            datasets: [{
+                data: [{{ dist.active }}, {{ dist.capable }}, {{ dist.not_ready }}, {{ dist.unknown }}],
+                backgroundColor: [
+                    'rgba(34, 211, 238, 0.7)',  // cyan
+                    'rgba(250, 204, 21, 0.7)',   // yellow
+                    'rgba(248, 113, 113, 0.7)',  // red
+                    'rgba(100, 116, 139, 0.5)',  // slate
+                ],
+                borderColor: [
+                    'rgba(34, 211, 238, 1)',
+                    'rgba(250, 204, 21, 1)',
+                    'rgba(248, 113, 113, 1)',
+                    'rgba(100, 116, 139, 0.8)',
+                ],
+                borderWidth: 1.5,
+                hoverOffset: 6,
+            }]
+        },
+        options: {
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? Math.round(ctx.raw / total * 100) : 0;
+                            return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            animation: { animateRotate: true, duration: 800 }
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -208,7 +208,7 @@ class TarpitDetector:
             with requests.get(
                 url,
                 timeout=self.timeout,
-                verify=False,
+                verify=False,  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 stream=True,
                 headers={"User-Agent": "YADS-Security-Scanner/1.15.0"}
             ) as response:

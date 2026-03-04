@@ -16,7 +16,7 @@ import json
 import time
 from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 import requests
@@ -302,7 +302,7 @@ class UpdateManager:
         """
         try:
             # Try to pull latest tag metadata without downloading
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - hardcoded docker command, not user input
                 ["docker", "image", "inspect", f"{self.DOCKER_IMAGE}:latest"],
                 capture_output=True,
                 text=True,
@@ -421,7 +421,7 @@ class UpdateManager:
                 return False
 
         self._state.status = UpdateStatus.PREPARING
-        self._state.started_at = datetime.utcnow().isoformat()
+        self._state.started_at = datetime.now(timezone.utc).isoformat()
         self._state.progress = 0
         self._state.error = None
 
@@ -553,7 +553,7 @@ class UpdateManager:
         logger.info(f"Pulling Docker image: {docker_tag}")
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - hardcoded docker command, not user input
                 ["docker", "pull", docker_tag],
                 capture_output=True,
                 text=True,
@@ -587,7 +587,7 @@ class UpdateManager:
         # Method 1: Create signal file for entrypoint script
         try:
             with open(self.RESTART_SIGNAL_FILE, "w") as f:
-                f.write(datetime.utcnow().isoformat())
+                f.write(datetime.now(timezone.utc).isoformat())
             logger.info(f"Created restart signal file: {self.RESTART_SIGNAL_FILE}")
         except Exception as e:
             logger.warning(f"Could not create signal file: {e}")
@@ -599,7 +599,7 @@ class UpdateManager:
 
             if os.path.exists(compose_file) or os.path.exists("/var/run/docker.sock"):
                 # Schedule a restart in the background
-                subprocess.Popen(
+                subprocess.Popen(  # nosec B603 B607 - hardcoded docker-compose command, compose_file from trusted env var
                     ["docker-compose", "-f", compose_file, "up", "-d", "--force-recreate"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
