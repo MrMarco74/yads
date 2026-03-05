@@ -361,11 +361,13 @@ class ReleaseWorker(QThread):
 
 
 class ProdDeployWorker(QThread):
-    """Worker thread for PROD deployment (Update path only)"""
+    """Worker thread for PROD deployment"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None):
         super().__init__()
         self.project_root = project_root
+        self.wipe_reinstall = wipe_reinstall
+        self.setup_token = setup_token
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
@@ -388,6 +390,13 @@ class ProdDeployWorker(QThread):
             f"{self.stack_name}_yads-worker",
             f"{self.stack_name}_yads-worker-primary",
             f"{self.stack_name}_yads-backup"
+        ]
+        self.data_volumes = [
+            f"{self.stack_name}_postgres_data",
+            f"{self.stack_name}_redis_data",
+            f"{self.stack_name}_logs",
+            f"{self.stack_name}_data",
+            f"{self.stack_name}_nuclei_templates"
         ]
 
     def run(self):
@@ -507,13 +516,51 @@ class ProdDeployWorker(QThread):
 
     def _execute_deploy(self):
         try:
-            self._log("🚀 Starting Production Deployment (Update Path)", "success")
+            if self.wipe_reinstall:
+                self._log("🚀 Starting Production Deployment (FRESH INSTALL)", "warning")
+            else:
+                self._log("🚀 Starting Production Deployment (Update Path)", "success")
             self.signals.progress_update.emit(0, 100, "Initializing connection...")
             
             # 0. Establish Master Connection
             self._log("Establishing persistent SSH connection...", "info")
             if not self._run_cmd(["ssh", "-fN", self.remote_host]):
                 self._log("Warning: Could not start ControlMaster, will proceed with standard connections", "warning")
+
+            if self.wipe_reinstall:
+                import time
+                self._log("==================================================", "warning")
+                self._log(f"SETUP TOKEN: {self.setup_token}", "success")
+                self._log("Save this token to access the setup wizard!", "warning")
+                self._log("==================================================", "warning")
+
+                self._log("Step 0.5/8: Wiping existing installation...", "warning")
+                self.signals.progress_update.emit(2, 100, "Wiping existing installation...")
+                
+                self._log("Removing existing stack...", "info")
+                self._run_cmd(["ssh", self.remote_host, f"docker stack rm {self.stack_name}"])
+
+                self._log("Waiting for services to stop (max 60s)...", "info")
+                for i in range(30):
+                    result = subprocess.run(["ssh", self.remote_host, f"docker ps -q --filter label=com.docker.stack.namespace={self.stack_name}"], capture_output=True, text=True)
+                    if not result.stdout.strip():
+                        self._log("All containers stopped.", "info")
+                        break
+                    time.sleep(2)
+                
+                self._log("Pruning containers...", "info")
+                self._run_cmd(["ssh", self.remote_host, f"docker container prune -f --filter label=com.docker.stack.namespace={self.stack_name}"])
+
+                self._log("Removing data volumes...", "info")
+                for vol in self.data_volumes:
+                    self._run_cmd(["ssh", self.remote_host, f"docker volume rm {vol}"])
+                
+                self._log("Removing stack networks...", "info")
+                self._run_cmd(["ssh", self.remote_host, f"docker network rm {self.stack_name}_yads-internal {self.stack_name}_yads-frontend"])
+
+                self._log("Removing old images...", "info")
+                self._run_cmd(["ssh", self.remote_host, f"docker rmi {self.registry_image} {self.backup_registry_image}"])
+                self._log("Wipe complete.", "success")
 
             # 1. Local Build
             self._log("Step 1/8: Building YADS Docker image locally...", "info")
@@ -571,8 +618,16 @@ class ProdDeployWorker(QThread):
             if (self.project_root / ".env").exists():
                 self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
 
+            if self.wipe_reinstall and hasattr(self, 'setup_token'):
+                self._log("Injecting SETUP_TOKEN into remote .env...", "info")
+                inject_cmd = f"cd {self.remote_deploy_dir} && (grep -q '^SETUP_TOKEN=' .env 2>/dev/null && sed -i 's/^SETUP_TOKEN=.*/SETUP_TOKEN={self.setup_token}/' .env || echo 'SETUP_TOKEN={self.setup_token}' >> .env)"
+                self._run_cmd(["ssh", self.remote_host, inject_cmd])
+
+            self._log("Creating backup directories on remote host...", "info")
+            self._run_cmd(["ssh", self.remote_host, "mkdir -p '/mnt/backups/yads/daily' '/mnt/backups/yads/monthly'"])
+
             # 5. Deploy & Update
-            self._log("Step 7/8: Deploying stack and forcing updates...", "info")
+            self._log("Step 7/8: Deploying stack...", "info")
             self.signals.progress_update.emit(95, 100, "Finalizing deployment...")
             
             combined_deploy_cmd = [
@@ -580,9 +635,12 @@ class ProdDeployWorker(QThread):
                 "set -a && [ -f .env ] && source .env; set +a",
                 f"docker stack deploy -c {self.docker_compose_file} {self.stack_name}"
             ]
-            for service in self.services_to_update:
-                img = self.backup_registry_image if "backup" in service else self.registry_image
-                combined_deploy_cmd.append(f"docker service update --force --image {img} {service}")
+            
+            if not self.wipe_reinstall:
+                self._log("Forcing service updates...", "info")
+                for service in self.services_to_update:
+                    img = self.backup_registry_image if "backup" in service else self.registry_image
+                    combined_deploy_cmd.append(f"docker service update --force --image {img} {service}")
                 
             full_remote_cmd = " && ".join(combined_deploy_cmd)
             
@@ -633,6 +691,12 @@ class ProdDeployPage(QWidget):
             position=InfoBarPosition.NONE
         )
         layout.addWidget(self.info_bar)
+        
+        # Checkbox overlay logic
+        self.wipe_check = CheckBox("Wipe Data (NEUINSTALLATION)", self)
+        self.wipe_check.setToolTip("WARNING: This will destroy all production data and database!")
+        self.wipe_check.stateChanged.connect(self._on_wipe_toggled)
+        layout.addWidget(self.wipe_check)
 
         # Action Card
         action_card = CardWidget(self)
@@ -696,19 +760,58 @@ class ProdDeployPage(QWidget):
 
         layout.addWidget(log_card, 1)
 
+    def _on_wipe_toggled(self, state):
+        if self.wipe_check.isChecked():
+            self.info_bar.setTitle("Production Wipe & Reinstall")
+            self.info_bar.setContent("WARNING: Destructive operation. All remote data will be wiped before install.")
+        else:
+            self.info_bar.setTitle("Production Update")
+            self.info_bar.setContent("This will only update the existing stack. No data will be wiped.")
+
     def _on_deploy(self):
-        box = MessageBox(
-            "Confirm Production Deployment",
+        msg = (
             "You are about to start a LIVE deployment to prod.example.com.\n\n"
             "This will build, transfer, and update the application services.\n"
-            "No data will be wiped.\n\n"
-            "Proceed?",
-            self
         )
-        if box.exec():
-            self._start_worker()
+        if self.wipe_check.isChecked():
+            msg += "\n🛑 WARNING: NEUINSTALLATION selected!\nTHIS WILL DESTROY ALL DATA ON THE REMOTE HOST!\n- PostgreSQL database\n- Redis data\n- Logs and config\n\n"
+        else:
+            msg += "No data will be wiped.\n\n"
+        msg += "Proceed?"
 
-    def _start_worker(self):
+        box = MessageBox("Confirm Production Deployment", msg, self)
+        if box.exec():
+            if self.wipe_check.isChecked():
+                import secrets
+                from PySide6.QtWidgets import QApplication
+                from qfluentwidgets import MessageBoxBase, SubtitleLabel, LineEdit
+                
+                setup_token = secrets.token_hex(16)
+                
+                class TokenDialog(MessageBoxBase):
+                    def __init__(self, token, parent=None):
+                        super().__init__(parent)
+                        self.titleLabel = SubtitleLabel("Save Setup Token", self)
+                        self.tokenEdit = LineEdit(self)
+                        self.tokenEdit.setText(token)
+                        self.tokenEdit.setReadOnly(True)
+                        self.viewLayout.addWidget(self.titleLabel)
+                        self.viewLayout.addWidget(self.tokenEdit)
+                        self.yesButton.setText("Copy and Continue")
+                        self.cancelButton.setText("Cancel")
+                        self.widget.setMinimumWidth(350)
+                
+                token_box = TokenDialog(setup_token, self)
+                if token_box.exec():
+                    QApplication.clipboard().setText(setup_token)
+                    InfoBar.success("Copied", "Setup token copied to clipboard", parent=self, position=InfoBarPosition.TOP)
+                    self._start_worker(setup_token)
+                else:
+                    return
+            else:
+                self._start_worker(None)
+
+    def _start_worker(self, setup_token=None):
         self.deploy_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         self.progress_bar.setVisible(True)
@@ -716,11 +819,12 @@ class ProdDeployPage(QWidget):
         self.indeterminate_progress.setVisible(False)
         self.log_view.clear()
 
-        self.worker = ProdDeployWorker(script_dir.parent)
-        self.worker.signals.log_message.connect(self._on_log)
-        self.worker.signals.operation_finished.connect(self._on_finished)
-        self.worker.signals.progress_update.connect(self._on_progress)
-        self.worker.start()
+        # Store a reference to avoid early garbage collection
+        self._active_worker = ProdDeployWorker(script_dir.parent, wipe_reinstall=self.wipe_check.isChecked(), setup_token=setup_token)
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.operation_finished.connect(self._on_finished)
+        self._active_worker.signals.progress_update.connect(self._on_progress)
+        self._active_worker.start()
 
     def _on_progress(self, current: int, total: int, description: str):
         self.progress_bar.setValue(current)
@@ -735,8 +839,8 @@ class ProdDeployPage(QWidget):
             self.progress_bar.setVisible(False)
 
     def _on_cancel(self):
-        if self.worker:
-            self.worker.cancel()
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.cancel()
             self._log("Cancel requested... terminating deployment.", "warning")
 
     def _on_log(self, message: str, level: str):
@@ -780,8 +884,282 @@ class ProdDeployPage(QWidget):
             InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
             self._log(message, "error")
 
-        self.worker = None
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.deleteLater()
+            self._active_worker = None
 
+
+class LocalDeployWorker(QThread):
+    """Worker thread for local environment controls"""
+    def __init__(self, project_root: Path, action: str, wipe_data: bool = False):
+        super().__init__()
+        self.project_root = project_root
+        self.action = action
+        self.wipe_data = wipe_data
+        self.signals = LogSignals()
+        self.cancelled = False
+        self.current_process = None
+
+    def run(self):
+        try:
+            self._execute_action()
+        except Exception as e:
+            self._log(f"Critical error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    def cancel(self):
+        self.cancelled = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except:
+                pass
+
+    def _log(self, message: str, level: str = "info"):
+        self.signals.log_message.emit(message, level)
+
+    def _run_cmd(self, cmd: list, shell=False) -> bool:
+        if self.cancelled: return False
+        self._log(f"Running: {' '.join(cmd) if not shell else cmd}", "info")
+        try:
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                shell=shell,
+                cwd=str(self.project_root),
+                bufsize=1,
+                universal_newlines=True
+            )
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                self._log(line.strip(), "info")
+            self.current_process.wait()
+            return self.current_process.returncode == 0
+        except Exception as e:
+            self._log(f"Error executing command: {e}", "error")
+            return False
+        finally:
+            self.current_process = None
+
+    def _execute_action(self):
+        self.signals.progress_update.emit(0, 100, f"Starting local {self.action}...")
+        
+        if self.action == "start":
+            self._log("Starting local environment...", "info")
+            if self.wipe_data:
+                self._log("Wiping volumes (Neuinstallation) first...", "warning")
+                self._run_cmd(["docker", "compose", "down", "-v"])
+            
+            build_cmd = ["docker", "compose", "build"]
+            up_cmd = ["docker", "compose", "up", "-d"]
+            
+            self._log("Building containers...", "info")
+            if not self._run_cmd(build_cmd):
+                return self.signals.operation_finished.emit(False, "Build failed")
+                
+            self._log("Starting services...", "info")
+            if not self._run_cmd(up_cmd):
+                return self.signals.operation_finished.emit(False, "Start failed")
+                
+            self.signals.operation_finished.emit(True, "Local environment started successfully")
+
+        elif self.action == "stop":
+            self._log("Stopping local environment...", "info")
+            down_cmd = ["docker", "compose", "down"]
+            if self.wipe_data:
+                self._log("Will wipe data volumes...", "warning")
+                down_cmd.append("-v")
+                
+            if not self._run_cmd(down_cmd):
+                return self.signals.operation_finished.emit(False, "Stop failed")
+                
+            msg = "Local environment stopped and wiped" if self.wipe_data else "Local environment stopped"
+            self.signals.operation_finished.emit(True, msg)
+
+
+class LocalDeployPage(QWidget):
+    """Local deployment page for dev environment management"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("localDeployPage")
+        self.worker = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        # Title
+        title = TitleLabel("Local Environment", self)
+        layout.addWidget(title)
+
+        # Info Banner
+        self.info_bar = InfoBar.info(
+            "Local Docker Compose",
+            "Manage your local development stack. Uses the docker-compose.yml file in the project root.",
+            parent=self,
+            isClosable=False,
+            position=InfoBarPosition.NONE
+        )
+        layout.addWidget(self.info_bar)
+        
+        self.wipe_check = CheckBox("Wipe Data (NEUINSTALLATION / DELETE VOLUMES)", self)
+        self.wipe_check.setToolTip("WARNING: This removes all local db data upon start/stop!")
+        self.wipe_check.stateChanged.connect(self._on_wipe_toggled)
+        layout.addWidget(self.wipe_check)
+
+        # Action Card
+        action_card = CardWidget(self)
+        action_layout = QHBoxLayout(action_card)
+        action_layout.setContentsMargins(20, 20, 20, 20)
+        action_layout.setSpacing(16)
+
+        self.start_btn = PrimaryPushButton(FIF.PLAY, "Start Environment", self)
+        self.start_btn.setFixedWidth(200)
+        self.start_btn.clicked.connect(lambda: self._on_action("start"))
+        action_layout.addWidget(self.start_btn)
+
+        self.stop_btn = PushButton(FIF.POWER_BUTTON, "Stop Environment", self)
+        self.stop_btn.setFixedWidth(200)
+        self.stop_btn.clicked.connect(lambda: self._on_action("stop"))
+        action_layout.addWidget(self.stop_btn)
+
+        self.cancel_btn = PushButton(FIF.CLOSE, "Cancel", self)
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self._on_cancel)
+        action_layout.addWidget(self.cancel_btn)
+
+        action_layout.addStretch()
+        layout.addWidget(action_card)
+
+        # Progress
+        progress_layout = QVBoxLayout()
+        progress_layout.setSpacing(4)
+        
+        self.progress_label = BodyLabel("Ready", self)
+        progress_layout.addWidget(self.progress_label)
+        
+        self.progress_bar = ProgressBar(self)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setMinimumHeight(16)
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar)
+        
+        self.indeterminate_progress = IndeterminateProgressBar(self)
+        self.indeterminate_progress.setVisible(False)
+        progress_layout.addWidget(self.indeterminate_progress)
+        
+        layout.addLayout(progress_layout)
+
+        # Log Card
+        log_card = CardWidget(self)
+        log_layout = QVBoxLayout(log_card)
+        log_layout.setContentsMargins(20, 16, 20, 20)
+        log_layout.setSpacing(12)
+
+        log_header = QHBoxLayout()
+        log_title = SubtitleLabel("Execution Logs", self)
+        log_header.addWidget(log_title)
+        log_header.addStretch()
+
+        clear_btn = TransparentPushButton(FIF.DELETE, "Clear", self)
+        clear_btn.clicked.connect(self._clear_logs)
+        log_header.addWidget(clear_btn)
+        log_layout.addLayout(log_header)
+
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMinimumHeight(300)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        log_layout.addWidget(self.log_view)
+
+        layout.addWidget(log_card, 1)
+
+    def _on_wipe_toggled(self, state):
+        if self.wipe_check.isChecked():
+            self.info_bar.setTitle("Local Wipe Active")
+            self.info_bar.setContent("WARNING: Will wipe local databases and reset all data!")
+        else:
+            self.info_bar.setTitle("Local Docker Compose")
+            self.info_bar.setContent("Manage your local development stack. Uses the docker-compose.yml file in the project root.")
+
+    def _on_action(self, action: str):
+        msg = f"You are about to {action} the local Docker environment.\n\n"
+        if self.wipe_check.isChecked():
+            msg += "🛑 WARNING: NEUINSTALLATION selected!\nTHIS WILL DESTROY ALL LOCAL DATA VOLUMES!\n\n"
+        msg += "Proceed?"
+
+        box = MessageBox(f"Confirm Local {action.title()}", msg, self)
+        if box.exec():
+            self._start_worker(action)
+
+    def _start_worker(self, action: str):
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.indeterminate_progress.setVisible(True)
+        self.indeterminate_progress.start()
+        self.log_view.clear()
+
+        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked())
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.operation_finished.connect(self._on_finished)
+        self._active_worker.start()
+
+    def _on_cancel(self):
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.cancel()
+            self._log("Cancel requested... terminating.", "warning")
+
+    def _on_log(self, message: str, level: str):
+        self._log(message, level)
+
+    def _log(self, message: str, level: str = "info"):
+        dark = isDarkTheme()
+        if dark:
+            colors = {"info": "#d4d4d4", "success": "#4ec9b0", "warning": "#dcdcaa", "error": "#f14c4c"}
+            timestamp_color = "#6a9955"
+        else:
+            colors = {"info": "#1e1e1e", "success": "#107c10", "warning": "#ca5010", "error": "#d13438"}
+            timestamp_color = "#107c10"
+
+        color = colors.get(level, colors["info"])
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        html = f'<span style="color: {timestamp_color};">[{timestamp}]</span> <span style="color: {color};">{message}</span><br>'
+        cursor = self.log_view.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.log_view.setTextCursor(cursor)
+        self.log_view.insertHtml(html)
+        self.log_view.ensureCursorVisible()
+
+    def _clear_logs(self):
+        self.log_view.clear()
+
+    def _on_finished(self, success: bool, message: str):
+        self.start_btn.setEnabled(True)
+        self.stop_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.indeterminate_progress.stop()
+        self.indeterminate_progress.setVisible(False)
+        self.progress_label.setText("Complete" if success else "Failed")
+
+        if success:
+            InfoBar.success("Success", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
+            self._log(message, "success")
+        else:
+            InfoBar.error("Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
+            self._log(message, "error")
+
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.deleteLater()
+            self._active_worker = None
 
 class SettingsCard(CardWidget):
     """A card widget for settings sections"""
@@ -1094,15 +1472,15 @@ class ReleasePage(QWidget):
         self.progress_bar.setVisible(True)
         self.progress_bar.start()
 
-        self.worker = ReleaseWorker(operation, params, script_dir.parent)
-        self.worker.signals.log_message.connect(self._on_log)
-        self.worker.signals.operation_finished.connect(self._on_finished)
-        self.worker.start()
+        self._active_worker = ReleaseWorker(operation, params, script_dir.parent)
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.operation_finished.connect(self._on_finished)
+        self._active_worker.start()
 
     def _on_cancel(self):
         """Cancel current operation"""
-        if self.worker:
-            self.worker.cancel()
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.cancel()
             self._log("Cancel requested... terminating operation.", "warning")
 
     def _on_download(self):
@@ -1231,7 +1609,9 @@ class ReleasePage(QWidget):
             InfoBar.error("Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
             self._log(message, "error")
 
-        self.worker = None
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.deleteLater()
+            self._active_worker = None
 
     def _set_buttons_enabled(self, enabled: bool):
         """Enable/disable action buttons"""
@@ -1710,6 +2090,7 @@ class MainWindow(FluentWindow):
 
         # Create pages
         self.release_page = ReleasePage(self)
+        self.local_deploy_page = LocalDeployPage(self)
         self.prod_deploy_page = ProdDeployPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
@@ -1743,11 +2124,14 @@ class MainWindow(FluentWindow):
         # Update log view stylesheet
         if hasattr(self.release_page, 'log_view'):
             self.release_page.log_view.setStyleSheet(get_log_stylesheet())
+        if hasattr(self.local_deploy_page, 'log_view'):
+            self.local_deploy_page.log_view.setStyleSheet(get_log_stylesheet())
 
     def _init_navigation(self):
         """Initialize navigation sidebar"""
         # Add pages to stacked widget
         self.addSubInterface(self.release_page, FIF.PLAY, "Release")
+        self.addSubInterface(self.local_deploy_page, FIF.APPLICATION, "Local Env")
         self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
