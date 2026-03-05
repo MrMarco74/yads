@@ -152,6 +152,66 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.18.9 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.18.9</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Sicherheits- & Benutzerfreundlichkeits-Aktualisierungen</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Querverbindungen von Certificate Transparency (CT)-Daten nach Organisation und E-Mail hinzugefügt, wodurch die Ermittlung verwandter Apex-Domains ermöglicht wird. Diese Daten sind jetzt in den SubdomainScanner integriert.</li>
+                    <li>Einen neuen, robusten API-Endpunkt für die Dokumenterstellung mit umfassender Authentifizierung, Autorisierung, Validierung und Fehlerbehandlung implementiert.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>SSL/TLS-Scanning mit CT-Organisations-/E-Mail-Extraktion verbessert, TLS-Baseline-Cipher-Listen (BASELINE_TLS13/12_CIPHERS, FORBIDDEN_PATTERNS) aktualisiert, verbotene/Nicht-Baseline-Cipher-Prüfungen mit Strafpunkten und erweiterte PQC-Gruppenliste.</li>
+                    <li>Lokale Bereitstellungserfahrung verbessert mit automatisch generiertem SETUP_TOKEN, Injektion in .env, Bereinigung veralteter Nuclei-Vorlagen und config.env sowie automatischer Browseröffnung bei erfolgreichem Start.</li>
+                    <li>Standard-Anmeldedaten für die lokale Entwicklung aktualisiert.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Problem mit SQL-Abfragen im Dashboard behoben (session.exec zu session.execute).</li>
+                    <li>Reihenfolge der Router-Registrierung in main.py korrigiert (Graphen vor Zielen).</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Veraltetes yads_deploy.tgz-Binary aus dem Repository entfernt.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: dbfcc94343b2f65d9607215ba983ae225aaaf347b8fd6f9b068144ba65d7c78a</p>
+            </div>
+        </div>
+
+        <!-- Version 1.18.8 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.18.8</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & Automatisierung</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Querverbindungen von Certificate Transparency (CT) Organisationsdaten hinzugefügt, um verwandte Apex-Domains zu identifizieren.</li>
+                    <li>Automatische Generierung eines Setup-Tokens beim Löschen und Start implementiert, das in die .env-Datei eingefügt wird, das veraltete nuclei_templates Volume und config.env beim Löschen bereinigt und den Browser automatisch 5 Sekunden nach einem erfolgreichen Start der Anwendung öffnet.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte TLS-Baseline-Sicherheit mit strengeren Cipher-Listen (BASELINE_TLS13/12_CIPHERS) und verbotene Cipher-Prüfungen hinzugefügt.</li>
+                    <li>Verbesserter lokaler Bereitstellungsprozess.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Ein Problem im Dashboard behoben, bei dem session.exec anstelle von session.execute für rohe SQL-Abfragen verwendet wurde.</li>
+                    <li>Die Router-Registrierungsreihenfolge in main.py korrigiert, um sicherzustellen, dass Graphen vor Zielen registriert werden.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>SETUP_TOKEN Umgebungsvariable Passthrough hinzugefügt.</li>
+                    <li>Die veraltete yads_deploy.tgz Binärdatei aus dem Repository entfernt.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: dbfcc94343b2f65d9607215ba983ae225aaaf347b8fd6f9b068144ba65d7c78a</p>
+            </div>
+        </div>
+
         <!-- Version 1.18.7 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.18.7</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

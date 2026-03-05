@@ -340,5 +340,33 @@ def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = Fal
 
     # Sort by failing/expiring first
     inventory.sort(key=lambda x: x['days_valid'])
-    
+
     return inventory, stats
+
+
+@router.get("/inventory/export/excel")
+async def export_ssl_inventory_excel(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    inventory, _ = _get_ssl_inventory_data(session, user, for_export=True, date_from=from_dt, date_to=to_dt)
+    export_data = []
+    for cert in inventory:
+        export_data.append({
+            "Domain": cert["domain"],
+            "Common Name (CN)": cert["subject"],
+            "Issuer": cert["issuer"],
+            "Issued On": cert["issued_display"],
+            "Expires On": cert["expires_display"],
+            "Days Valid": cert["days_valid"],
+            "SANs": cert["sans"],
+            "PQC Status": cert["pqc_status"] or "Unknown",
+            "PQC Score": cert["pqc_score"],
+            "Version": cert["version"],
+            "Serial (short)": cert["serial_short"],
+        })
+    return generate_excel(export_data, "ssl_inventory_report")
