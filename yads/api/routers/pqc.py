@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html
 from yads.models import User, Target, ScanResult
+from yads.utils.export import generate_excel
 from fastapi.templating import Jinja2Templates
+from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -124,3 +126,25 @@ async def pqc_report(
         "rows": rows,
         "dist": dist,
     })
+
+
+@router.get("/export/excel")
+async def export_pqc_excel(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html),
+):
+    rows, _ = _get_pqc_fleet_data(session, user)
+    export_data = []
+    for r in rows:
+        export_data.append({
+            "Domain": r["domain"],
+            "PQC Status": r["status"],
+            "PQC Score": r["score"],
+            "TLS 1.3 Ciphers": r["tls13_ciphers"],
+            "Classical Ciphers": r["classical_ciphers"],
+            "Hybrid Groups Detected": ", ".join(r["hybrid_groups"]) if r["hybrid_groups"] else "—",
+            "Flags": " | ".join(r["flags"]) if r["flags"] else "—",
+            "Recommendations": " | ".join(r["recommendations"]) if r["recommendations"] else "—",
+            "Last Scanned": r["scanned_at"],
+        })
+    return generate_excel(export_data, "pqc_fleet_report")

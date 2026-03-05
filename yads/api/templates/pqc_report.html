@@ -6,8 +6,8 @@
     <!-- Page Header -->
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display flex items-center gap-3">
-                <svg class="w-7 h-7 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display flex items-center gap-2">
+                <svg width="22" height="22" class="text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
                 PQC Readiness Report
@@ -21,6 +21,12 @@
             <span class="inline-flex items-center rounded-md bg-indigo-400/10 px-2 py-1 text-xs font-medium text-indigo-400 ring-1 ring-inset ring-indigo-400/20">
                 {{ dist.total }} targets scanned
             </span>
+            <a href="/pqc/export/excel" class="inline-flex items-center gap-1.5 rounded-md bg-violet-900/30 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-800/40 hover:text-white border border-violet-800/50 transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export Excel
+            </a>
         </div>
     </div>
 

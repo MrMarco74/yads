@@ -19,11 +19,17 @@
             </span>
             {% endif %}
             <div class="flex items-center gap-2">
-                <a href="/cert-timeline/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="inline-flex items-center gap-1.5 rounded-md bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-800/40 hover:text-white border border-emerald-800/50 transition-colors">
+                <a href="/cert-timeline/inventory/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="inline-flex items-center gap-1.5 rounded-md bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-800/40 hover:text-white border border-emerald-800/50 transition-colors">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Export Excel
+                </a>
+                <a href="/pqc/export/excel" class="inline-flex items-center gap-1.5 rounded-md bg-violet-900/30 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-800/40 hover:text-white border border-violet-800/50 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    PQC Fleet Report
                 </a>
                 <span class="inline-flex items-center rounded-md bg-indigo-400/10 px-2 py-1 text-xs font-medium text-indigo-400 ring-1 ring-inset ring-indigo-400/20">
                     Total: {{ stats.total_certs }}
@@ -54,6 +60,27 @@
                 This report provides a granular view of your cryptographic identity. 
                 Monitor <strong>Expiration Dates</strong> to prevent outages, verify <strong>Issuers</strong> to detect unauthorized CAs, and audit <strong>Subject Alternative Names (SANs)</strong> for unexpected coverage.
             </p>
+        </div>
+    </div>
+
+    <!-- PQC Status Legend -->
+    <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">PQC Status — Legende</p>
+        <div class="flex flex-wrap gap-4 text-xs text-slate-300">
+            <div class="flex items-start gap-2">
+                <span class="inline-flex items-center gap-1 rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/20 whitespace-nowrap">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse inline-block"></span>PQC Active
+                </span>
+                <span class="text-slate-400 leading-tight">Ein Hybrid-PQC-Schlüsselaustausch (z.&nbsp;B. X25519MLKEM768) wurde aktiv ausgehandelt. Der Server ist bereits quantensicher.</span>
+            </div>
+            <div class="flex items-start gap-2">
+                <span class="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-300 ring-1 ring-inset ring-yellow-400/20 whitespace-nowrap">Capable</span>
+                <span class="text-slate-400 leading-tight">TLS&nbsp;1.3 ist aktiv (technische Voraussetzung erfüllt), jedoch noch kein PQC-Schlüsselaustausch konfiguriert. Durch Aktivierung einer PQC-Gruppe sofort nachrüstbar.</span>
+            </div>
+            <div class="flex items-start gap-2">
+                <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20 whitespace-nowrap">Not Ready</span>
+                <span class="text-slate-400 leading-tight">Kein TLS&nbsp;1.3 erkannt. Erst Upgrade auf TLS&nbsp;1.3 erforderlich, bevor PQC aktiviert werden kann.</span>
+            </div>
         </div>
     </div>
 
