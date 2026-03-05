@@ -592,23 +592,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sslChart) sslChart.destroy();
         sslChart = new Chart(sslCtx, {
             type: 'bar',
+            plugins: [ChartDataLabels],
             data: {
                 labels: labels,
                 datasets: [{
                     label: 'Days to Expiry',
                     data: values,
                     backgroundColor: colors,
-                    borderRadius: 4
+                    borderRadius: 4,
+                    clip: false
                 }]
             },
             options: {
                 indexAxis: 'y',
                 maintainAspectRatio: false,
+                layout: { padding: { right: 48 } },
                 scales: {
                     x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#9ca3af' } },
                     y: { grid: { display: false }, ticks: { color: '#e5e7eb' } }
                 },
-                plugins: { legend: { display: false } }
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'end',
+                        offset: 6,
+                        color: (ctx) => colors[ctx.dataIndex],
+                        font: { size: 11, weight: 'bold' },
+                        formatter: (value, ctx) => {
+                            const item = topSSL[ctx.dataIndex];
+                            if (item.status === 'expired') return 'abgelaufen';
+                            return value + 'd';
+                        }
+                    }
+                }
             }
         });
 

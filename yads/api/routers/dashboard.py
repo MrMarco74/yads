@@ -103,7 +103,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             all_targets_query = select(Target).where(Target.tenant_id == user.tenant_id)
             all_targets = session.exec(all_targets_query).all()
             
-            comp_results = session.exec(query_compliance, {"tenant_id": user.tenant_id}).all()
+            comp_results = session.execute(query_compliance, {"tenant_id": user.tenant_id}).all()
             
             # Convert raw rows to pseudo-ScanResult objects or dicts for the scorer
             # Scorer expects List[ScanResult] with .target_id, .module_name, .data
@@ -321,7 +321,7 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
             all_targets_query = select(Target).where(Target.tenant_id == user.tenant_id)
             all_targets = session.exec(all_targets_query).all()
             
-            security_results = session.exec(text(query_security), {"tenant_id": user.tenant_id}).all()
+            security_results = session.execute(text(query_security), {"tenant_id": user.tenant_id}).all()
             
             # Build target results map
             target_results_map = {}

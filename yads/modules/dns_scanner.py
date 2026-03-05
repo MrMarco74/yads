@@ -214,6 +214,9 @@ class SubdomainScanner(DNSRecordScanner):
         potential_full_domains = set()
         if self.use_ct_logs:
             potential_full_domains.update(self._fetch_ct_logs(target))
+
+        # CT Org Cross-Query: find other apex domains owned by same org
+        results["ct_related_domains"] = self._fetch_ct_related_domains(target)
         
         wordlist_subs = self._load_subdomain_wordlist()
         for sub in wordlist_subs:
@@ -356,8 +359,34 @@ class SubdomainScanner(DNSRecordScanner):
                 logging.getLogger("yads.modules.dns").info(f"Hackertarget found {len(subs)} subdomains.")
         except Exception as e:
              logging.getLogger("yads.modules.dns").error(f"Hackertarget fallback failed: {e}")
-             
+
         return list(subs)
+
+    def _fetch_ct_related_domains(self, domain: str) -> List[str]:
+        """
+        Queries crt.sh for other apex domains owned by the same organisation
+        or e-mail address found in the target's TLS certificate.
+        Returns a sorted list of related domains (excluding the target itself).
+        """
+        log = logging.getLogger("yads.modules.dns")
+        try:
+            from yads.modules.ssl_scanner import SSLScanner
+            from yads.modules.crtSH_client import search_by_org
+
+            ssl_data = SSLScanner().run_scan(domain)
+            org = ssl_data.get("ct_org")
+            email = ssl_data.get("ct_email")
+
+            if not org and not email:
+                log.info(f"CT org query skipped for {domain}: no org/email in cert")
+                return []
+
+            log.info(f"CT org query for {domain}: org='{org}' email='{email}'")
+            return search_by_org(org_name=org, email=email, exclude_domain=domain)
+
+        except Exception as e:
+            log.warning(f"CT org cross-query failed for {domain}: {e}")
+            return []
 
 
     def _detect_wildcard(self, domain: str, resolver: dns.resolver.Resolver) -> Set[str]:

@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import shutil
+import tldextract
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -14,6 +15,7 @@ from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, Cha
 from yads.api.templating import templates
 
 from yads.core.scoring import calculate_target_score, get_grade_color
+from yads.api.routers.tags import get_unique_tags
 
 from celery import Celery
 from yads.config import settings
