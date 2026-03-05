@@ -14,29 +14,67 @@ class SSLScanner(BaseScannerModule):
     def module_name(self) -> str:
         return "ssl_scanner"
 
-    # NIST PQC Hybrid Key Exchange Groups (as seen in OpenSSL 3.x and Chrome/Firefox)
-    # Mapping of common hybrid group names to their PQC status
+    # ---------------------------------------------------------------------------
+    # YADS TLS Baseline
+    # ---------------------------------------------------------------------------
+
+    # PQC Hybrid Key Exchange Groups (NIST FIPS 203 ML-KEM + classical hybrid)
+    # Nmap / OpenSSL report these in kex_group or cipher name (lowercase, with or without underscore)
     PQC_HYBRID_GROUPS = [
-        "x25519_kyber768",
-        "x25519mlkem768",
+        # ML-KEM (NIST FIPS 203 – formerly Kyber) — IANA-standardised
+        "x25519mlkem768",       # Primary recommendation
         "x25519_mlkem768",
-        "secp256r1_kyber768",
+        "secp256r1mlkem768",
         "secp256r1_mlkem768",
-        "x25519_hqc128",
+        "x448mlkem1024",        # High security
+        "x448_mlkem1024",
+        "secp384r1mlkem1024",   # High security
+        "secp384r1_mlkem1024",
+        # Older draft names (Kyber pre-standardisation) — still deployed
+        "x25519_kyber768",
+        "x25519kyber768",
+        "secp256r1_kyber768",
         "p256_kyber768",
         "p384_kyber1024",
-        "kyber512",
-        "kyber768",
-        "kyber1024",
+        "x25519_hqc128",
+        # Standalone ML-KEM identifiers (seen in some stacks)
         "mlkem512",
         "mlkem768",
         "mlkem1024",
+        "kyber512",
+        "kyber768",
+        "kyber1024",
+        # Older p256/p384 aliases
         "p256_mlkem768",
         "p384_mlkem1024",
-        "x448_mlkem1024",
     ]
 
-    # Classical algorithms known to be vulnerable to Shor's / Grover's algorithm
+    # Acceptable TLS 1.3 cipher suites (AEAD-only, key exchange handled via groups above)
+    BASELINE_TLS13_CIPHERS = [
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_AES_128_GCM_SHA256",
+    ]
+
+    # Acceptable TLS 1.2 cipher suites (AEAD + Forward Secrecy required)
+    BASELINE_TLS12_CIPHERS = [
+        "ECDHE-ECDSA-AES-256-GCM-SHA384",
+        "ECDHE-RSA-AES-256-GCM-SHA384",
+        "ECDHE-ECDSA-CHACHA20-POLY1305",
+        "ECDHE-RSA-CHACHA20-POLY1305",
+        "ECDHE-ECDSA-AES-128-GCM-SHA256",
+        "ECDHE-RSA-AES-128-GCM-SHA256",
+        "DHE-RSA-AES-256-GCM-SHA384",
+        "DHE-RSA-AES-128-GCM-SHA256",
+    ]
+
+    # Cipher patterns that must never appear — flagged as critical
+    BASELINE_FORBIDDEN_PATTERNS = [
+        "RC4", "NULL", "EXPORT", "anon", "ANON",
+        "DES", "3DES", "MD5", "PSK", "SRP",
+    ]
+
+    # Classical algorithms vulnerable to Shor's / Grover's algorithm
     CLASSICAL_VULNERABLE_ALGS = ["RSA", "ECDSA", "DH_", "DHE_", "ECDH_"]
 
     def run_scan(self, domain: str, target_id: Optional[int] = None) -> Dict[str, Any]:
@@ -88,6 +126,9 @@ class SSLScanner(BaseScannerModule):
                     results["notBefore"] = cert_dict.get('notBefore')
                     results["notAfter"] = cert_dict.get('notAfter')
                     results["subjectAltName"] = cert_dict.get('subjectAltName', [])
+                    # Extract org/email for CT cross-query
+                    results["ct_org"] = results["subject"].get("organizationName") or results["issuer"].get("organizationName")
+                    results["ct_email"] = results["subject"].get("emailAddress")
                     
         except Exception as e:
             results["error"] = str(e)
@@ -204,8 +245,32 @@ class SSLScanner(BaseScannerModule):
             assessment["flags"].append(f"Legacy TLS versions still supported: {', '.join(legacy_versions)}")
             if "TLSv1.0" in legacy_versions or "SSLv3" in legacy_versions:
                 assessment["recommendations"].append("Disable TLS 1.0 and SSLv3 immediately — they are insecure")
-                # Penalty for truly broken protocols
                 assessment["score"] = max(0, assessment["score"] - 20)
+
+        # --- Forbidden cipher check ---
+        forbidden_found = []
+        for c in ciphers:
+            name = c.get("name", "")
+            for pattern in self.BASELINE_FORBIDDEN_PATTERNS:
+                if pattern.upper() in name.upper() and name not in forbidden_found:
+                    forbidden_found.append(name)
+        if forbidden_found:
+            assessment["flags"].append(f"Forbidden ciphers detected: {', '.join(forbidden_found)}")
+            assessment["recommendations"].append("Immediately disable: " + ", ".join(forbidden_found))
+            assessment["score"] = max(0, assessment["score"] - 30)
+
+        # --- Non-baseline TLS 1.2 cipher check ---
+        non_baseline_tls12 = [
+            c.get("name") for c in ciphers
+            if c.get("version") == "TLSv1.2"
+            and c.get("name") not in self.BASELINE_TLS12_CIPHERS
+            and c.get("name") not in forbidden_found
+        ]
+        if non_baseline_tls12:
+            assessment["flags"].append(f"Non-baseline TLS 1.2 ciphers: {', '.join(non_baseline_tls12)}")
+            assessment["recommendations"].append(
+                "Restrict TLS 1.2 to ECDHE/DHE-AEAD ciphers only (baseline list)"
+            )
 
         return assessment
 

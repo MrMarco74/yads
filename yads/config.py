@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:REDACTED@db:5432/yads")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:yadsLocal2026@db:5432/yads")
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_USER: Optional[str] = None
     POSTGRES_DB: Optional[str] = None

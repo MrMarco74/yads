@@ -896,11 +896,12 @@ class ProdDeployPage(QWidget):
 
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
-    def __init__(self, project_root: Path, action: str, wipe_data: bool = False):
+    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None):
         super().__init__()
         self.project_root = project_root
         self.action = action
         self.wipe_data = wipe_data
+        self.setup_token = setup_token
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
@@ -958,7 +959,25 @@ class LocalDeployWorker(QThread):
             if self.wipe_data:
                 self._log("Wiping volumes (Neuinstallation) first...", "warning")
                 self._run_cmd(["docker", "compose", "down", "-v"])
-            
+                # Force-remove nuclei_templates volume in case down -v left stale data
+                self._run_cmd(["docker", "volume", "rm", "--force", "yads_nuclei_templates"])
+                # Remove persistent config so setup wizard runs on fresh start
+                # Use a temp container since the file is root-owned (written by Docker)
+                self._log("Resetting data/config.env for fresh setup...", "info")
+                self._run_cmd([
+                    "docker", "run", "--rm",
+                    "-v", f"{self.project_root}/data:/data",
+                    "alpine", "sh", "-c", "rm -f /data/config.env"
+                ])
+
+            if self.setup_token:
+                self._log("Injecting SETUP_TOKEN into .env...", "info")
+                env_path = self.project_root / ".env"
+                lines = env_path.read_text().splitlines() if env_path.exists() else []
+                lines = [l for l in lines if not l.startswith("SETUP_TOKEN=")]
+                lines.append(f"SETUP_TOKEN={self.setup_token}")
+                env_path.write_text("\n".join(lines) + "\n")
+
             build_cmd = ["docker", "compose", "build"]
             up_cmd = ["docker", "compose", "up", "-d"]
             
@@ -1101,9 +1120,37 @@ class LocalDeployPage(QWidget):
 
         box = MessageBox(f"Confirm Local {action.title()}", msg, self)
         if box.exec():
-            self._start_worker(action)
+            setup_token = None
+            if action == "start" and self.wipe_check.isChecked():
+                import secrets
+                from PySide6.QtWidgets import QApplication
+                from qfluentwidgets import MessageBoxBase, SubtitleLabel, LineEdit as _LineEdit
 
-    def _start_worker(self, action: str):
+                setup_token = secrets.token_hex(16)
+
+                class TokenDialog(MessageBoxBase):
+                    def __init__(self, token, parent=None):
+                        super().__init__(parent)
+                        self.titleLabel = SubtitleLabel("Save Setup Token", self)
+                        self.tokenEdit = _LineEdit(self)
+                        self.tokenEdit.setText(token)
+                        self.tokenEdit.setReadOnly(True)
+                        self.viewLayout.addWidget(self.titleLabel)
+                        self.viewLayout.addWidget(self.tokenEdit)
+                        self.yesButton.setText("Copy and Continue")
+                        self.cancelButton.setText("Cancel")
+                        self.widget.setMinimumWidth(350)
+
+                token_box = TokenDialog(setup_token, self)
+                if token_box.exec():
+                    QApplication.clipboard().setText(setup_token)
+                    InfoBar.success("Copied", "Setup token copied to clipboard", parent=self, position=InfoBarPosition.TOP)
+                else:
+                    return
+            self._start_worker(action, setup_token)
+
+    def _start_worker(self, action: str, setup_token=None):
+        self._last_action = action
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
@@ -1111,7 +1158,7 @@ class LocalDeployPage(QWidget):
         self.indeterminate_progress.start()
         self.log_view.clear()
 
-        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked())
+        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token)
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.start()
@@ -1158,6 +1205,11 @@ class LocalDeployPage(QWidget):
         if success:
             InfoBar.success("Success", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
             self._log(message, "success")
+            if getattr(self, '_last_action', None) == "start":
+                import webbrowser
+                url = "http://localhost:8085"
+                self._log(f"Opening browser in 5 seconds: {url}", "info")
+                QTimer.singleShot(5000, lambda: webbrowser.open(url))
         else:
             InfoBar.error("Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
             self._log(message, "error")

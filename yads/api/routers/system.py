@@ -2,6 +2,7 @@ import logging
 import json
 import os
 import shutil
+import aiofiles
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse

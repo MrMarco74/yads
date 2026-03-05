@@ -1,6 +1,52 @@
 import requests
 import logging
+import tldextract
 from typing import List, Set
+
+def search_by_org(org_name: str = None, email: str = None, exclude_domain: str = None) -> List[str]:
+    """
+    Queries crt.sh for certificates matching an organisation name or e-mail address.
+    Returns a deduplicated list of apex domains found in those certificates,
+    excluding subdomains of exclude_domain (the target itself).
+    """
+    logger = logging.getLogger("yads.modules.crtsh")
+    domains: Set[str] = set()
+
+    queries = []
+    if org_name:
+        queries.append(org_name)
+    if email:
+        queries.append(email)
+
+    for q in queries:
+        url = f"https://crt.sh/?q={requests.utils.quote(q)}&output=json"
+        try:
+            resp = requests.get(url, timeout=20)
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            for entry in data:
+                for field in ("common_name", "name_value"):
+                    value = entry.get(field, "") or ""
+                    for name in value.split("\n"):
+                        name = name.strip().lower()
+                        if not name or "*" in name:
+                            continue
+                        ext = tldextract.extract(name)
+                        if not ext.domain or not ext.suffix:
+                            continue
+                        apex = f"{ext.domain}.{ext.suffix}"
+                        if exclude_domain and apex == exclude_domain.lower():
+                            continue
+                        domains.add(apex)
+        except requests.exceptions.Timeout:
+            logger.warning(f"crt.sh org query timed out for: {q}")
+        except Exception as e:
+            logger.warning(f"crt.sh org query failed for '{q}': {e}")
+
+    logger.info(f"crt.sh org search found {len(domains)} related domains")
+    return sorted(domains)
+
 
 def search_domain(domain_name: str) -> List[str]:
     """
