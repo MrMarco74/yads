@@ -128,6 +128,10 @@ fi
 # ==============================================================================
 # 2. Local Build
 # ==============================================================================
+echo ">> Cleaning up old local images before build..."
+docker rmi "$IMAGE_NAME" "$REGISTRY_IMAGE" "$BACKUP_IMAGE_NAME" "$BACKUP_REGISTRY_IMAGE" 2>/dev/null || true
+docker image prune -f
+
 echo ">> Building Docker image locally..."
 # Build the 'prod' or 'release' target if applicable, or just default.
 # The Dockerfile has a 'prod' stage.

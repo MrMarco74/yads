@@ -131,6 +131,10 @@ if [ -f "releases/cbom.json" ]; then
 fi
 
 # 3. Build Docker Images
+echo -e "${BLUE}>> Cleaning up old images before build...${NC}"
+docker rmi ${API_IMAGE_NAME}:latest ${WORKER_IMAGE_NAME}:latest 2>/dev/null || true
+docker image prune -f
+
 echo -e "${BLUE}>> Building Docker Images (Nuitka Compiled)...${NC}"
 # We build both services tagged as latest. We use the 'release' stage for compiled code.
 docker build -t ${API_IMAGE_NAME}:latest --target release .
