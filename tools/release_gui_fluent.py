@@ -563,6 +563,11 @@ class ProdDeployWorker(QThread):
                 self._log("Wipe complete.", "success")
 
             # 1. Local Build
+            self._log("Cleaning up old local images before build...", "info")
+            self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
+            self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image, "yads-backup:latest", self.backup_registry_image])
+            self._run_cmd(["docker", "image", "prune", "-f"])
+            
             self._log("Step 1/8: Building YADS Docker image locally...", "info")
             self.signals.progress_update.emit(5, 100, "Building YADS image...")
             if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
