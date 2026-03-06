@@ -50,6 +50,33 @@
         </div>
     </div>
 
+    <!-- New Feature Announcement -->
+    <section class="container" style="margin-bottom: 4rem;">
+        <div style="background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(6,182,212,0.10) 100%); border: 1px solid rgba(99,102,241,0.35); border-radius: 16px; padding: 2rem 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                <span style="background: var(--accent-secondary); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap;">NEW IN V1.19</span>
+                <h3 style="margin: 0; font-size: 1.4rem;">AI-Powered Security Analysis &amp; Comprehensive Exports</h3>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🤖</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">AI Risk Analysis</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Automatic executive summary, risk score (0–100), and prioritized recommendations — compatible with OpenAI, Anthropic, Ollama, and any OpenAI-compatible endpoint.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📦</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Analytics ZIP Export</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Download all analytics reports — PDF and Excel — in a single click as a ZIP archive. Includes infrastructure, SSL, hijacking, reputation, and more.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📄</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Executive PDF with Cover Page</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">The Infrastructure PDF report now includes a professional cover page, table of contents, chapter introductions, and — when AI is enabled — a full management summary.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="features-list container">
         <div class="feature-card">
             <h3>Asset Discovery</h3>
@@ -97,13 +124,25 @@
             <div class="feature-card" style="padding: 1rem;">
                 <img src="./images/reports-overview.png" alt="Reports Overview" class="hero-image img-clickable" style="margin-bottom: 1rem;">
                 <h4 style="margin-bottom: 0.5rem; color: #fff;">Executive Reports</h4>
-                <p style="font-size: 0.85rem;">Generate comprehensive PDF and CSV reports for compliance audits.</p>
+                <p style="font-size: 0.85rem;">Professional PDF reports with cover page, table of contents, chapter intros, and one-click ZIP export for compliance audits.</p>
             </div>
             <div class="feature-card" style="padding: 1rem; position: relative;">
                 <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
                 <img src="./images/report-builder.png" alt="Custom Report Builder" class="hero-image img-clickable" style="margin-bottom: 1rem;">
                 <h4 style="margin-bottom: 0.5rem; color: #fff;">Custom Report Builder</h4>
                 <p style="font-size: 0.85rem;">Create fully customized reports with Markdown templates and 200+ dynamic variables.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                <img src="./images/analytics.png" alt="AI Risk Analysis" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">AI Risk Analysis</h4>
+                <p style="font-size: 0.85rem;">AI-generated executive summary with risk score (0–100) and recommendations — powered by OpenAI, Anthropic, or Ollama.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                <img src="./images/hijacking.png" alt="Broken Link Hijacking" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">Broken Link Hijacking</h4>
+                <p style="font-size: 0.85rem;">Detection of broken external links that could be exploited for domain hijacking — with analytics card and PDF export.</p>
             </div>
         </div>
     </section>
@@ -143,6 +182,11 @@
                 <div>
                     <h4 style="color: var(--accent-primary);">Report Builder</h4>
                     <p style="font-size: 0.9rem; color: var(--text-secondary);">Custom Templates</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                    <h4 style="color: var(--accent-primary);">AI Analysis</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">AI Risk Assessment</p>
                 </div>
             </div>
             <p style="text-align: center; margin-top: 2rem; color: var(--text-secondary); font-size: 0.9rem;">
