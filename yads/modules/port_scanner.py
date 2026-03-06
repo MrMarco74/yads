@@ -45,15 +45,20 @@ class PortScanner(BaseScannerModule):
         # Ports that should trigger a full HTTP request probe
         self.WEB_PORTS = [80, 443, 8000, 8008, 8080, 8443, 8888, 9200]
 
+    WEB_PROBE_PORTS = {80: "HTTP", 443: "HTTPS"}
+
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
+        if getattr(self, "quick_mode", False):
+            return self._run_quick_web_probe(target)
+
         results = {
             "open_ports": [],
             "is_active": False,
-            "scanned_ports": list(self.INTERESTING_PORTS.keys())
+            "scanned_ports": list(self.INTERESTING_PORTS.keys()),
         }
-        
-        self.logger.info(f"Starting Enhanced Port Scan for {target}...")
-        
+
+        self.logger.info(f"Starting Full Port Scan for {target}...")
+
         # Resolve target first to avoid repeated lookups
         try:
             target_ip = socket.gethostbyname(target)
@@ -62,8 +67,8 @@ class PortScanner(BaseScannerModule):
             self.logger.warning(f"Could not resolve hostname: {target}")
             return results
 
-        timeout = 2  # Seconds for socket connection
-        
+        timeout = 1.5
+
         for port, service_label in self.INTERESTING_PORTS.items():
             is_open = False
             banner = None
@@ -98,7 +103,7 @@ class PortScanner(BaseScannerModule):
                 elif port in [21, 22, 25]: # FTP, SSH, SMTP usually send banner on connect
                      try:
                         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(1.5)
+                            s.settimeout(timeout)
                             s.connect((target_ip, port))
                             # Receive up to 1024 bytes
                             banner_bytes = s.recv(1024)
@@ -129,6 +134,40 @@ class PortScanner(BaseScannerModule):
                 "server": resp.headers.get("Server")
             }
         except Exception:
-            # Fallback: Try HTTPS on standard HTTP ports if HTTP fails (and vice versa?) 
+            # Fallback: Try HTTPS on standard HTTP ports if HTTP fails (and vice versa?)
             # For now keep naive.
             return None
+
+    def _run_quick_web_probe(self, target: str) -> Dict[str, Any]:
+        """
+        Lightweight probe: one HEAD request each to http:// and https://.
+        No socket scanning, no banner grab. Only determines if a web server responds.
+        """
+        self.logger.info(f"Quick Web Probe for {target}...")
+        results = {
+            "open_ports": [],
+            "is_active": False,
+            "scanned_ports": [80, 443],
+            "quick": True,
+        }
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; YADS/1.9; +http://yads.local)"}
+        for scheme, port in (("http", 80), ("https", 443)):
+            try:
+                resp = requests.head(
+                    f"{scheme}://{target}",
+                    timeout=3,
+                    allow_redirects=False,
+                    headers=headers,
+                    verify=False,  # nosec B501
+                )
+                results["is_active"] = True
+                results["open_ports"].append({
+                    "port": port,
+                    "service": scheme.upper(),
+                    "http_status": resp.status_code,
+                    "banner": resp.headers.get("Server"),
+                })
+                self.logger.info(f"Quick probe {scheme}://{target} → {resp.status_code}")
+            except Exception as e:
+                self.logger.debug(f"Quick probe {scheme}://{target} failed: {e}")
+        return results

@@ -532,6 +532,44 @@
                 </button>
             </div>
 
+            <!-- LLM / AI Analysis -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 space-y-4">
+                <div class="flex items-center gap-2 mb-1">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">AI / LLM Report Analysis</h3>
+                </div>
+                <p class="text-xs text-gray-500">Configure an LLM provider to generate AI-powered risk assessments and management summaries in PDF exports. Use <strong class="text-indigo-400">Export PDF + AI</strong> on the Analytics page to trigger analysis.</p>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Provider</label>
+                    <select name="llm_provider" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500">
+                        <option value="" {% if not tenant.llm_provider %}selected{% endif %}>Disabled (use global setting)</option>
+                        <option value="disabled" {% if tenant.llm_provider == 'disabled' %}selected{% endif %}>Disabled (override global)</option>
+                        <option value="ollama" {% if tenant.llm_provider == 'ollama' %}selected{% endif %}>Ollama (local)</option>
+                        <option value="openai" {% if tenant.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                        <option value="anthropic" {% if tenant.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                        <option value="custom" {% if tenant.llm_provider == 'custom' %}selected{% endif %}>Custom (OpenAI-compatible)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API URL <span class="text-gray-600 font-normal">(Ollama / Custom)</span></label>
+                    <input type="text" name="llm_api_url" value="{{ tenant.llm_api_url or '' }}"
+                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                           placeholder="http://ollama:11434">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API Key <span class="text-gray-600 font-normal">(OpenAI / Anthropic / Custom)</span></label>
+                    <input type="password" name="llm_api_key" value="{{ tenant.llm_api_key or '' }}"
+                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                           placeholder="sk-...">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Model <span class="text-gray-600 font-normal">(leave blank for default)</span></label>
+                    <input type="text" name="llm_model" value="{{ tenant.llm_model or '' }}"
+                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                           placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
+                </div>
+            </div>
+
 
 
         </form>

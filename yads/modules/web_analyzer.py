@@ -516,7 +516,7 @@ class WebAnalyzer(BaseScannerModule):
                 
                 try:
                     self.limiter.wait(url.split("//")[-1].split("/")[0])
-                    page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+                    page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
                 except Exception as e:
                     results["headless_error_goto"] = str(e)
                 

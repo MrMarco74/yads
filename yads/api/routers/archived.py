@@ -16,6 +16,7 @@ import logging
 router = APIRouter(prefix="/reports/archived", tags=["Reports"])
 logger = logging.getLogger(__name__)
 
+@router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 async def view_archived_targets(
     request: Request,
@@ -83,21 +84,26 @@ async def trigger_cleanup_scan(
     user: User = Depends(get_current_user_html),
     next: str = "/reports/archived"
 ):
-    """Trigger a cleanup scan for all targets in the tenant"""
+    """Trigger a quick web probe for all non-archived targets in the tenant"""
     from yads.worker import celery_app
-    
-    # Fetch all non-archived targets for the tenant
+    from urllib.parse import quote
+
     targets = session.exec(
         select(Target).where(
             Target.tenant_id == user.tenant_id,
             Target.is_archived == False
         )
     ).all()
-    
+
     for t in targets:
-        celery_app.send_task("yads.worker.run_all_scans", args=[t.id, t.domain, ["dns_cleanup"], user.tenant_id])
-        
-    return RedirectResponse(url=f"{next}?msg=Cleanup scan queued for {len(targets)} targets", status_code=303)
+        t.scan_status = "queued"
+        session.add(t)
+        celery_app.send_task("yads.worker.run_all_scans", args=[t.id, t.domain, ["quick_web_probe"], user.tenant_id])
+
+    session.commit()
+
+    msg = quote(f"Quick Web Probe queued for {len(targets)} targets")
+    return RedirectResponse(url=f"{next}?msg={msg}", status_code=303)
 
 @router.post("/bulk-delete-dead")
 async def bulk_delete_dead(

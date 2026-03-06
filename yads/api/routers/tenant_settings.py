@@ -90,6 +90,11 @@ async def update_tenant_settings(
     report_secondary_color: Optional[str] = Form(None),
     report_header_text: Optional[str] = Form(None),
     report_footer_text: Optional[str] = Form(None),
+    # LLM Settings
+    llm_provider: Optional[str] = Form(None),
+    llm_api_url: Optional[str] = Form(None),
+    llm_api_key: Optional[str] = Form(None),
+    llm_model: Optional[str] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
 ):
@@ -129,6 +134,12 @@ async def update_tenant_settings(
                 "error": "Session timeout cannot exceed 8 hours (480 minutes)."
             })
         tenant.session_timeout_minutes = session_timeout_minutes
+
+    # LLM Settings
+    tenant.llm_provider = llm_provider if llm_provider and llm_provider.strip() else None
+    tenant.llm_api_url = llm_api_url if llm_api_url and llm_api_url.strip() else None
+    tenant.llm_api_key = llm_api_key if llm_api_key and llm_api_key.strip() else None
+    tenant.llm_model = llm_model if llm_model and llm_model.strip() else None
 
     # Report Branding Settings
     tenant.report_logo_url = report_logo_url if report_logo_url and report_logo_url.strip() else None

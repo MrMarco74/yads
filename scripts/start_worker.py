@@ -15,7 +15,7 @@ def main():
     # 1. Connect to Database
     try:
         engine = create_engine(settings.DATABASE_URL)
-        concurrency = 4 # Default Safe Value
+        concurrency = 8 # Default Safe Value
         
         with Session(engine) as session:
             conf = session.exec(select(SystemConfig).where(SystemConfig.key == "WORKER_CONCURRENCY")).first()
@@ -30,10 +30,10 @@ def main():
                 except ValueError:
                      print(f"[Startup] Malformed WORKER_CONCURRENCY in DB ({conf.value}), using default.")
             else:
-                print("[Startup] No WORKER_CONCURRENCY set in DB, using default (4).")
+                print("[Startup] No WORKER_CONCURRENCY set in DB, using default (8).")
     except Exception as e:
-        print(f"[Startup] Failed to read settings from DB: {e}. Using default concurrency (4).")
-        concurrency = 4
+        print(f"[Startup] Failed to read settings from DB: {e}. Using default concurrency (8).")
+        concurrency = 8
 
     # 2. Construct Command
     cmd = [

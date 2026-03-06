@@ -152,6 +152,38 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.19.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.19.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserungen bei KI-Analysen und Berichterstattung</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>KI-Risikoanalyse mit OpenAI/Anthropic/Ollama hinzugefügt</li>
+                    <li>ZIP-Export für alle Berichte implementiert</li>
+                    <li>Executive PDF-Berichte mit Deckblatt und Kapitel-Intros eingeführt</li>
+                    <li>Analysen zum Broken-Link-Hijacking sowie Excel/PDF-Export-Endpunkte hinzugefügt</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>KI-Analyse-Prompt mit Hijacking-Daten und detaillierten Blacklist-IPs erweitert</li>
+                    <li>Deckblatt für PDF-Berichte verbessert und neue Intro-Seite mit KPIs und Dokumentbeschreibung eingeführt</li>
+                    <li>Lade-Overlay für KI-Analyse-Button hinzugefügt</li>
+                    <li>Englischen Kapitel-Intro-Text zu allen PDF-Abschnitten hinzugefügt</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Latin-1-Encoding-Crash in PDF-Berichten behoben</li>
+                    <li>openpyxl IllegalCharacterError im HTTP-Traffic-Excel-Export aufgrund von binärem PNG in Headern behoben</li>
+                    <li>Bytearray-Crash in generate_traffic_pdf behoben</li>
+                    <li>Fehlenden JSON-Import in export.py behoben</li>
+                    <li>PDF-Rendering für Reputation/Blacklist behoben</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: e83c303842cebbf33cee36f4412cc780787d9a3d1e1cbd60a73834de11630969</p>
+            </div>
+        </div>
+
         <!-- Version 1.18.9 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.18.9</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

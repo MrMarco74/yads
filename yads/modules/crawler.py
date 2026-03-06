@@ -168,7 +168,7 @@ class Crawler(BaseScannerModule):
             filename = f"crawler_{self.compute_hash({'u':url})}_{uuid.uuid4()}.png"
             path = os.path.join("yads/api/static/screenshots", filename)
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
             page.screenshot(path=path, full_page=False)
             return filename
         except Exception as e:
