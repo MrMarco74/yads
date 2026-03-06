@@ -520,12 +520,13 @@ class InfrastructurePDF(FPDF):
         self._build_sections()
         toc_snapshot = list(self._toc_entries)
 
-        # Reset: cover (p1) + ToC (p2) + content (p3+), so all page numbers shift by +2
+        # Reset: cover (p1) + intro (p2) + ToC (p3) + content (p4+), shift by +3
         self._reset_fpdf()
         self._cover_page()          # page 1 = cover
-        self.add_page()             # page 2 = ToC
-        self._render_toc([(name, pg + 2) for name, pg in toc_snapshot])
-        self.add_page()             # page 3 = first section
+        self._intro_page()          # page 2 = intro / executive KPIs
+        self.add_page()             # page 3 = ToC
+        self._render_toc([(name, pg + 3) for name, pg in toc_snapshot])
+        self.add_page()             # page 4 = first section
         self._build_sections()
 
     # ---- helpers ----
@@ -728,49 +729,30 @@ class InfrastructurePDF(FPDF):
 
         # ── Tenant / company block ────────────────────────────────────────
         self._text_rgb(self.C_TEXT)
-        self.set_font('helvetica', 'B', 26)
-        self.set_xy(12, 104)
-        self.cell(0, 13, self._s(self.tenant_name), align='L')
+        self.set_font('helvetica', 'B', 30)
+        self.set_xy(12, 108)
+        self.cell(186, 14, self._s(self.tenant_name), align='L')
 
         self._text_rgb(self.C_MUTED)
-        self.set_font('helvetica', '', 11)
-        self.set_xy(12, 119)
-        self.cell(0, 6, 'Infrastructure & Security Executive Summary', align='L')
+        self.set_font('helvetica', '', 12)
+        self.set_xy(12, 125)
+        self.cell(186, 7, 'Infrastructure & Security Intelligence Report', align='L')
 
         # Accent divider
         self._rgb(self.C_ACCENT)
-        self.rect(12, 129, 90, 1.2, 'F')
+        self.rect(12, 136, 100, 1.2, 'F')
 
-        # ── KPI boxes ─────────────────────────────────────────────────────
-        d = self.d
-        vs = d.get('vuln_stats', {})
-        total_vulns = sum(vs.values())
-        sds = d.get('service_distribution_stats', {})
-        total_svc = sum(sds.values()) or 1
-        https_pct = round(100 * (sds.get('HTTPS Only', 0) + sds.get('Both', 0)) / total_svc)
-        rep_count = len(d.get('reputation_issues', []))
-        kpis = [
-            ('Targets Scoped',   len(d.get('cloud_details', [])), self.C_ACCENT),
-            ('Cloud Providers',  len(d.get('cloud_providers', {})), self.C_CYAN),
-            ('Countries',        len(d.get('countries', {})), self.C_OK),
-            ('Total Vulns',      total_vulns, self.C_CRITICAL if total_vulns else self.C_OK),
-            ('Critical Vulns',   vs.get('critical', 0), self.C_CRITICAL),
-            ('High Vulns',       vs.get('high', 0), self.C_HIGH),
-            ('HTTPS Coverage',   f'{https_pct}%', self.C_OK if https_pct >= 80 else self.C_MEDIUM),
-            ('Blacklist Issues', rep_count, self.C_CRITICAL if rep_count else self.C_OK),
-        ]
-        kh, kgap = 26, 3
-        kw = (self.epw - (len(kpis) - 1) * kgap) / len(kpis)
-        ky = 136
-        for i, (lbl, val, col) in enumerate(kpis):
-            self._kpi_box(12 + i * (kw + kgap), ky, kw, kh, lbl, val, col)
-
-        # ── Scope metadata row ────────────────────────────────────────────
+        # ── Three metadata lines ──────────────────────────────────────────
         self._text_rgb(self.C_MUTED)
-        self.set_font('helvetica', '', 8)
-        self.set_xy(12, 170)
-        techs = len(d.get('tech_stack', {}))
-        self.cell(0, 5, f'Unique Technologies Detected: {techs}   |   Report Period: All Time', align='L')
+        self.set_font('helvetica', '', 9)
+        meta = [
+            'Report Period:   All Time',
+            'Classification:  CONFIDENTIAL - Internal Use Only',
+            'Prepared by:     YADS Security Intelligence Platform',
+        ]
+        for idx, line in enumerate(meta):
+            self.set_xy(12, 142 + idx * 9)
+            self.cell(186, 6, self._s(line), align='L')
 
         # ── Footer: prepared by ───────────────────────────────────────────
         self._rgb((241, 245, 249))
@@ -781,6 +763,149 @@ class InfrastructurePDF(FPDF):
         self.cell(90, 5, 'Prepared by YADS Security Intelligence Platform', align='L')
         self.set_xy(100, 248)
         self.cell(98, 5, f'Report Date: {now.strftime("%Y-%m-%d")}   |   Classification: CONFIDENTIAL', align='R')
+
+    def _intro_page(self):
+        """Page 2 — Executive KPI overview + document introduction."""
+        self.add_page()
+        now = datetime.datetime.now()
+        d = self.d
+        vs   = d.get('vuln_stats', {})
+        total_vulns = sum(vs.values())
+        sds  = d.get('service_distribution_stats', {})
+        total_svc   = sum(sds.values()) or 1
+        https_pct   = round(100 * (sds.get('HTTPS Only', 0) + sds.get('Both', 0)) / total_svc)
+        rep_count   = len(d.get('reputation_issues', []))
+        techs_count = len(d.get('tech_stack', {}))
+
+        # ── Header band ───────────────────────────────────────────────────
+        self._rgb(self.C_PANEL)
+        self.rect(0, 0, 210, 20, 'F')
+        self._text_rgb(self.C_CYAN)
+        self.set_font('helvetica', 'B', 12)
+        self.set_xy(self.l_margin, 6)
+        self.cell(self.epw, 8, 'INFRASTRUCTURE & SECURITY EXECUTIVE SUMMARY', align='L')
+        self._text_rgb((148, 163, 184))
+        self.set_font('helvetica', '', 8)
+        self.set_xy(self.l_margin, 14)
+        self.cell(self.epw / 2, 5, self._s(self.tenant_name), align='L')
+        self.set_xy(self.l_margin, 14)
+        self.cell(self.epw, 5, now.strftime('%d %B %Y'), align='R')
+        self.set_y(26)
+
+        # ── KPI boxes — Row 1 (scope) ─────────────────────────────────────
+        kgap, kh = 4, 28
+        kw = (self.epw - 3 * kgap) / 4
+        row1 = [
+            ('Targets Scoped',  len(d.get('cloud_details', [])),      self.C_ACCENT),
+            ('Cloud Providers', len(d.get('cloud_providers', {})),     self.C_CYAN),
+            ('Countries',       len(d.get('countries', {})),           self.C_OK),
+            ('Technologies',    techs_count,                           self.C_ACCENT),
+        ]
+        row2 = [
+            ('Total Vulns',     total_vulns, self.C_CRITICAL if total_vulns else self.C_OK),
+            ('Critical Vulns',  vs.get('critical', 0),                 self.C_CRITICAL),
+            ('High Vulns',      vs.get('high', 0),                     self.C_HIGH),
+            ('HTTPS Coverage',  f'{https_pct}%', self.C_OK if https_pct >= 80 else self.C_MEDIUM),
+        ]
+        ky1 = self.get_y()
+        for i, (lbl, val, col) in enumerate(row1):
+            self._kpi_box(self.l_margin + i * (kw + kgap), ky1, kw, kh, lbl, val, col)
+        ky2 = ky1 + kh + kgap
+        for i, (lbl, val, col) in enumerate(row2):
+            self._kpi_box(self.l_margin + i * (kw + kgap), ky2, kw, kh, lbl, val, col)
+        self.set_y(ky2 + kh + 10)
+
+        # ── Accent divider ────────────────────────────────────────────────
+        self._rgb(self.C_ACCENT)
+        self.rect(self.l_margin, self.get_y(), self.epw, 1, 'F')
+        self.ln(6)
+
+        # ── About this report ─────────────────────────────────────────────
+        self._text_rgb(self.C_PANEL)
+        self.set_font('helvetica', 'B', 10)
+        self.set_x(self.l_margin)
+        self.cell(self.epw, 6, 'ABOUT THIS REPORT', new_x='LMARGIN', new_y='NEXT')
+        self.ln(3)
+
+        about_text = (
+            'This report provides a comprehensive, automated security intelligence assessment of the '
+            'monitored infrastructure within the YADS platform. It is generated from the aggregated '
+            'results of all active scanner modules and reflects the security posture at the time of '
+            'generation.'
+        )
+        self._text_rgb(self.C_TEXT)
+        self.set_font('helvetica', '', 9)
+        self.set_x(self.l_margin)
+        self.multi_cell(self.epw, 5.5, self._s(about_text), align='L')
+        self.ln(5)
+
+        # ── Two-column: Target Audience | Report Scope ───────────────────
+        col_w = (self.epw - 6) / 2
+
+        # Left column header
+        left_x = self.l_margin
+        right_x = self.l_margin + col_w + 6
+        col_y  = self.get_y()
+
+        self._rgb(self.C_ROWALT)
+        self.rect(left_x, col_y, col_w, 7, 'F')
+        self.rect(right_x, col_y, col_w, 7, 'F')
+        self._text_rgb(self.C_PANEL)
+        self.set_font('helvetica', 'B', 9)
+        self.set_xy(left_x + 3, col_y + 1)
+        self.cell(col_w - 3, 6, 'TARGET AUDIENCE')
+        self.set_xy(right_x + 3, col_y + 1)
+        self.cell(col_w - 3, 6, 'REPORT SCOPE & CHAPTERS')
+
+        audience_lines = [
+            '* CISOs and Security Leadership',
+            '* IT Risk and Compliance Officers',
+            '* Infrastructure and Platform Teams',
+            '* Auditors and external assessors',
+            '* Executive Management (AI sections)',
+        ]
+        scope_lines = [
+            '1. AI Management Summary (if enabled)',
+            '2. Executive KPI Overview',
+            '3. Vulnerability Landscape',
+            '4. Cloud & Infrastructure Distribution',
+            '5. SSL / TLS Certificate Status',
+            '6. Reputation & Blacklist Intelligence',
+            '7. Technology Stack & Attack Surface',
+            '8. Secrets & Data Leak Detection',
+            '9. Critical Risk Feed & Vuln Table',
+        ]
+
+        self.set_font('helvetica', '', 8.5)
+        text_y = col_y + 10
+        max_lines = max(len(audience_lines), len(scope_lines))
+        for idx in range(max_lines):
+            row_y = text_y + idx * 6.5
+            if row_y + 8 > self.h - self.b_margin:
+                break
+            self._text_rgb(self.C_TEXT)
+            if idx < len(audience_lines):
+                self.set_xy(left_x + 3, row_y)
+                self.cell(col_w - 3, 6, self._s(audience_lines[idx]), align='L')
+            if idx < len(scope_lines):
+                self.set_xy(right_x + 3, row_y)
+                self.cell(col_w - 3, 6, self._s(scope_lines[idx]), align='L')
+
+        self.set_y(text_y + max_lines * 6.5 + 6)
+
+        # ── Disclaimer ────────────────────────────────────────────────────
+        self._rgb((254, 243, 199))   # amber-50
+        disclaimer_y = self.get_y()
+        self.rect(self.l_margin, disclaimer_y, self.epw, 12, 'F')
+        self._text_rgb((146, 64, 14))
+        self.set_font('helvetica', 'I', 8)
+        self.set_xy(self.l_margin + 3, disclaimer_y + 2)
+        self.multi_cell(self.epw - 6, 4.5,
+            'DISCLAIMER: This report is generated automatically by YADS and may not capture all '
+            'security issues. Findings should be reviewed by a qualified security professional before '
+            'remediation decisions are made. Classification: CONFIDENTIAL - do not distribute externally.',
+            align='L')
+        self._text_rgb(self.C_TEXT)
 
     def _section_exec_summary(self):
         d = self.d
