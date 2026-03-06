@@ -39,7 +39,7 @@ async def bulk_scan_targets(
          
     scan_types_selected = form.getlist("scan_types")
     
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "quick_web_probe", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
     final_types = [t for t in scan_types_selected if t in valid_types]
     
     if "full_scan" in final_types:
@@ -357,7 +357,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
     
     # Validation/Default
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
+    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "quick_web_probe", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
     selected_types = [t for t in scan_types if t in valid_types]
     
     if "full_scan" in selected_types:
@@ -685,6 +685,14 @@ async def view_target_table(
              # Unknown = Never Scanned (Same as Last Scan: Never)
              sub_scanned = select(ScanResult.target_id).distinct()
              query = query.where(Target.id.notin_(sub_scanned))
+
+        elif filter_online == "not_checked":
+             # Not Checked = No results from any connectivity module (shows "—")
+             # Target may have other scan results (e.g. dns_scanner) but none from infra/web/port
+             sub_connectivity = select(ScanResult.target_id).where(
+                 ScanResult.module_name.in_(["infrastructure_scanner", "web_analyzer", "port_scanner"])
+             ).distinct()
+             query = query.where(Target.id.notin_(sub_connectivity))
 
     # -- Filter: Server (Web Analyzer) --
     if filter_server:

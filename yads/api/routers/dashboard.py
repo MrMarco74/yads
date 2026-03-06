@@ -18,54 +18,26 @@ from yads.core.scoring import calculate_target_score, get_grade
 logger = logging.getLogger(__name__)
 
 
-def _get_redis_queue_len(tenant_id) -> int:
+def _get_redis_queue_len(session, tenant_id) -> int:
     """
-    Count pending + reserved Celery tasks, filtered by tenant_id.
-    Mirrors the logic used by the queue page.
+    Count queued + running tasks for the dashboard.
+    - Pending: Redis llen (tasks not yet picked up by a worker)
+    - Active:  DB scan_status == 'running' (picked up, currently executing)
+    Both are fast operations with no blocking network calls.
     """
     count = 0
 
-    # 1. Pending tasks sitting in the Redis list
+    # Use DB as source of truth: queued + running targets
+    # This is reliable regardless of Redis state (tasks can be lost/restored during restarts)
     try:
-        r = redis_client
-        total = r.llen("celery")
-        if total > 0:
-            if tenant_id is None:
-                count += total  # platform admin: count all
-            else:
-                raw_items = r.lrange("celery", 0, min(total - 1, 999))
-                for raw in raw_items:
-                    try:
-                        item_data = json.loads(raw)
-                        body_b64 = item_data.get("body")
-                        if body_b64:
-                            body_str = base64.b64decode(body_b64).decode("utf-8")
-                            body_json = json.loads(body_str)
-                            if isinstance(body_json, list) and len(body_json) > 0:
-                                args = body_json[0]
-                                task_tenant_id = args[3] if len(args) > 3 else None
-                                if task_tenant_id == tenant_id:
-                                    count += 1
-                    except Exception:
-                        pass
-    except Exception:
-        pass
-
-    # 2. Reserved tasks (prefetched by worker, not yet executing)
-    try:
-        from celery import Celery as _Celery
-        from yads.config import settings
-        celery_app = _Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-        reserved_raw = celery_app.control.inspect(timeout=1).reserved() or {}
-        for tasks in reserved_raw.values():
-            for task in tasks:
-                if tenant_id is None:
-                    count += 1
-                else:
-                    args = task.get("args", [])
-                    task_tenant_id = args[3] if isinstance(args, (list, tuple)) and len(args) > 3 else None
-                    if task_tenant_id == tenant_id:
-                        count += 1
+        db_count = session.exec(
+            select(func.count()).select_from(Target).where(
+                Target.tenant_id == tenant_id,
+                Target.scan_status.in_(["queued", "running"]),
+                Target.is_archived == False
+            )
+        ).one()
+        count += db_count
     except Exception:
         pass
 
@@ -125,7 +97,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
 
     # Queue Stats
     # Queue Stats (From DB for accuracy & tenant isolation)
-    queue_len = _get_redis_queue_len(user.tenant_id)
+    queue_len = _get_redis_queue_len(session, user.tenant_id)
     
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = config.value.lower() == "true" if config else False
@@ -345,7 +317,7 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
     
     # Queue Stats
     # Queue Stats (From DB for accuracy & tenant isolation)
-    queue_len = _get_redis_queue_len(user.tenant_id)
+    queue_len = _get_redis_queue_len(session, user.tenant_id)
     
     config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = config.value.lower() == "true" if config else False

@@ -26,6 +26,8 @@ _worker_client = None
 # Initialize Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 celery_app.conf.worker_hijack_root_logger = False
+celery_app.conf.task_time_limit = 600        # hard kill after 10 min
+celery_app.conf.task_soft_time_limit = 540   # SIGTERM after 9 min (allows graceful finish)
 
 from celery.signals import worker_ready, worker_process_init
 
@@ -365,6 +367,28 @@ class LogCapture:
 
 
 import socket
+from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait, ALL_COMPLETED
+
+
+def _run_parallel_module(module_cls, target_id: int, domain: str):
+    """
+    Run a scanner module in its own DB session (thread-safe parallel execution).
+    Each parallel module gets an isolated session; results are committed independently.
+    LogCapture is intentionally skipped to avoid root-logger thread-safety issues —
+    logs still flow via the Redis handler attached by the parent task.
+    """
+    from yads.utils.sanitize import sanitize_null_bytes
+    try:
+        with Session(engine) as session:
+            mod = module_cls(db_session=session)
+            result = mod.process(target_id, domain)
+            if result and hasattr(result, 'log_content'):
+                session.add(result)
+                session.commit()
+            logger.info(f"[Worker] Parallel: {mod.module_name} finished.")
+    except Exception as e:
+        logger.error(f"[Worker] Parallel module {module_cls.__name__} error: {e}")
+
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True)
 def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = None, tenant_id: int = None, ignore_queue_pause: bool = False):
@@ -664,6 +688,50 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in DNS Cleanup Scanner: {e}")
                     session.rollback()
 
+            # Group A: launch independent modules in background while web_analyzer runs
+            _group_a_futures = []
+            _group_a_modules = []
+            _group_a_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="scan-a")
+            if "ssl_scanner" in scan_types and has_https:
+                from yads.modules.ssl_scanner import SSLScanner
+                _group_a_modules.append("ssl_scanner")
+                _group_a_futures.append(
+                    _group_a_executor.submit(_run_parallel_module, SSLScanner, target_id, domain))
+            if "infrastructure_scanner" in scan_types:
+                from yads.modules.infrastructure_scanner import InfrastructureScanner
+                _group_a_modules.append("infrastructure_scanner")
+                _group_a_futures.append(
+                    _group_a_executor.submit(_run_parallel_module, InfrastructureScanner, target_id, domain))
+            # deception_detector is independent when port_scanner is not requested
+            # (it falls back to default ports; no dependency on port_scanner results)
+            if "deception_detector" in scan_types and "port_scanner" not in scan_types:
+                from yads.modules.deception_detector import DeceptionDetector
+
+                def _run_deception_parallel(t_id, dom):
+                    from yads.utils.sanitize import sanitize_null_bytes
+                    import hashlib, json as _json
+                    try:
+                        dd = DeceptionDetector(timeout=30)
+                        scan_data = dd.run_scan(dom, ports=[22, 23, 21, 25, 80, 443, 8080])
+                        if scan_data:
+                            scan_data = sanitize_null_bytes(scan_data)
+                            data_hash = hashlib.sha256(_json.dumps(scan_data, sort_keys=True).encode()).hexdigest()
+                            with Session(engine) as _s:
+                                _s.add(ScanResult(
+                                    target_id=t_id, module_name=dd.module_name,
+                                    data=scan_data, result_hash=data_hash))
+                                _s.commit()
+                        logger.info(f"[Worker] Parallel: {dd.module_name} finished.")
+                    except Exception as e:
+                        logger.error(f"[Worker] Parallel deception_detector error: {e}")
+
+                _group_a_modules.append("deception_detector")
+                _group_a_futures.append(
+                    _group_a_executor.submit(_run_deception_parallel, target_id, domain))
+            _group_a_executor.shutdown(wait=False)  # threads keep running; we wait later
+            if _group_a_modules:
+                logger.info(f"[Worker] Group A started in background: {_group_a_modules}")
+
             # 2. Run Web Scanner
             # Dependency: CVE Scanner requires Web Analyzer
             if "cve_scanner" in scan_types and "web_analyzer" not in scan_types:
@@ -771,33 +839,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Typosquat Scanner: {e}")
                     session.rollback()
 
-            # 4. Run Infrastructure Scanner (Independent)
-            if "infrastructure_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Infrastructure Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.infrastructure_scanner import InfrastructureScanner
-                    inf = InfrastructureScanner(db_session=session)
-                    logger.info(f"[Worker] Step 4: Running {inf.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {inf.module_name} for {domain}")
-                        result = inf.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                         result.log_content = sanitize_null_bytes(captured_logs)
-                         session.add(result)
-                         session.commit()
-                         print(f"[Worker] {inf.module_name} found changes/new data.")
-                    else:
-                         print(f"[Worker] {inf.module_name} no change.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
-                    session.rollback()
+            # 4. Infrastructure Scanner runs in Group A (background thread, see above)
 
             # 5. Run Analytics Correlator
             if "analytics_correlator" in scan_types:
@@ -829,19 +871,21 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Analytics Correlator: {e}")
                     session.rollback()
 
-            # 4b. Run Port Scanner (Lightweight Web Probe)
-            if "port_scanner" in scan_types:
-                logger.info(f"[Worker] PortScanner requested for {domain}")
+            # 4b. Run Port Scanner / Quick Web Probe
+            if "quick_web_probe" in scan_types or "port_scanner" in scan_types:
+                is_quick = "quick_web_probe" in scan_types and "port_scanner" not in scan_types
+                logger.info(f"[Worker] PortScanner requested for {domain} (quick={is_quick})")
                 try:
                     t = session.get(Target, target_id)
                     if t:
-                        t.scan_progress = "Running Port Scanner..."
+                        t.scan_progress = "Running Quick Web Probe..." if is_quick else "Running Port Scanner..."
                         session.add(t)
                         session.commit()
 
                     from yads.modules.port_scanner import PortScanner
                     ps = PortScanner(db_session=session)
-                    logger.info(f"[Worker] Step 4b: Running {ps.module_name}...")
+                    ps.quick_mode = is_quick
+                    logger.info(f"[Worker] Step 4b: Running {ps.module_name} (quick={ps.quick_mode})...")
                     with LogCapture() as logs:
                         logger.info(f"Starting {ps.module_name} for {domain}")
                         result = ps.process(target_id, domain)
@@ -945,115 +989,59 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Wayback Scanner: {e}")
                     session.rollback()
         
-            # 6. Run SSL Scanner
-            if "ssl_scanner" in scan_types:
-                if not has_https: # Strict check for SSL
-                    # Optimization: if port 443 closed, likely no SSL to scan.
-                    # NOTE: Some SSL might be on 8443, etc. but scanner currently defaults to 443.
-                    logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
-                else:
-                    try:
-                        t = session.get(Target, target_id)
-                        if t:
-                            t.scan_progress = "Running SSL Scanner..."
-                            session.add(t)
-                            session.commit()
+            # 6. Wait for Group A (ssl_scanner + infrastructure_scanner) then post-process SSL
+            if _group_a_futures:
+                logger.info(f"[Worker] Waiting for Group A background modules: {_group_a_modules}...")
+                _futures_wait(_group_a_futures, return_when=ALL_COMPLETED)
+                logger.info("[Worker] Group A completed.")
 
-                        from yads.modules.ssl_scanner import SSLScanner
-                        ssl_mod = SSLScanner(db_session=session)
-                        logger.info(f"[Worker] Step 6: Running {ssl_mod.module_name}...")
-                        with LogCapture() as logs:
-                            logger.info(f"Starting {ssl_mod.module_name} for {domain}")
-                            result = ssl_mod.process(target_id, domain)
-                            captured_logs = logs.get_logs()
-                        
-                        if result and hasattr(result, 'log_content'):
-                             result.log_content = sanitize_null_bytes(captured_logs)
-                             session.add(result)
-                             
-                             # Check for extracted domains from SSL Certificates
-                             if result.data and "extracted_domains" in result.data:
-                                 extracted = result.data["extracted_domains"]
-                                 new_found = 0
-                                 import dns.resolver
-                                 
-                                 for edomain in extracted:
-                                     edomain = edomain.strip().lower()
-                                     if not edomain: continue
-                                     
-                                     # Verify DNS first (Active Check)
-                                     # We only add if it resolves, per user preference
-                                     resolves = False
-                                     try:
-                                         dns.resolver.resolve(edomain, 'A')
-                                         resolves = True
-                                     except:
-                                         try:
-                                             dns.resolver.resolve(edomain, 'AAAA')
-                                             resolves = True
-                                         except:
-                                             resolves = False
-                                     
-                                     if resolves:
-                                         # Check DB existence
-                                         existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
-                                         if not existing_t:
-                                             # Inherit Tenant ID from parent
-                                             new_target = Target(domain=edomain, tenant_id=parent_tenant_id)
-                                             session.add(new_target)
-                                             session.commit() # Commit to get ID
-                                             session.refresh(new_target)
-                                             new_found += 1
-                                             session.refresh(new_target)
-                                             new_found += 1
-                                             print(f"[Worker] Discovered and added new target from SSL: {edomain}")
-                                             
-                                             # Webhook: New Asset
-                                             webhook_service.trigger_event(parent_tenant_id, "new_asset", {
-                                                 "domain": edomain,
-                                                 "source": "ssl_scanner",
-                                                 "parent": domain
-                                             })
-                                 
-                                 if new_found > 0:
-                                     print(f"[Worker] SSL Discovery added {new_found} new targets.")
+            if "ssl_scanner" in scan_types and has_https:
+                # Post-process: auto-queue extracted domains from SSL cert (read from DB)
+                try:
+                    import dns.resolver
+                    ssl_result = session.exec(
+                        select(ScanResult).where(
+                            ScanResult.target_id == target_id,
+                            ScanResult.module_name == "ssl_scanner"
+                        ).order_by(ScanResult.scanned_at.desc())
+                    ).first()
+                    if ssl_result and ssl_result.data and "extracted_domains" in ssl_result.data:
+                        extracted = ssl_result.data["extracted_domains"]
+                        new_found = 0
+                        for edomain in extracted:
+                            edomain = edomain.strip().lower()
+                            if not edomain:
+                                continue
+                            resolves = False
+                            try:
+                                dns.resolver.resolve(edomain, 'A')
+                                resolves = True
+                            except Exception:
+                                try:
+                                    dns.resolver.resolve(edomain, 'AAAA')
+                                    resolves = True
+                                except Exception:
+                                    resolves = False
+                            if resolves:
+                                existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
+                                if not existing_t:
+                                    new_target = Target(domain=edomain, tenant_id=parent_tenant_id)
+                                    session.add(new_target)
+                                    session.commit()
+                                    session.refresh(new_target)
+                                    new_found += 1
+                                    print(f"[Worker] Discovered and added new target from SSL: {edomain}")
+                                    webhook_service.trigger_event(parent_tenant_id, "new_asset", {
+                                        "domain": edomain, "source": "ssl_scanner", "parent": domain
+                                    })
+                        if new_found > 0:
+                            print(f"[Worker] SSL Discovery added {new_found} new targets.")
+                except Exception as e:
+                    logger.error(f"[Worker] SSL domain extraction error: {e}")
+            elif "ssl_scanner" in scan_types and not has_https:
+                logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
 
-                             session.commit()
-                             print(f"[Worker] {ssl_mod.module_name} found changes/new data.")
-                        else:
-                             print(f"[Worker] {ssl_mod.module_name} no change.")
-                    except Exception as e:
-                        logger.error(f"[Worker] Error in SSL Scanner: {e}")
-                        session.rollback()
-
-            # 7. Run Slow Crawler
-            if "crawler" in scan_types:
-                if not has_http and not has_https:
-                    logger.info("[Worker] Skipping Crawler: Port 80/443 closed (Optimization).")
-                else:
-                    try:
-                        t = session.get(Target, target_id)
-                        if t:
-                            t.scan_progress = "Running Site Crawler..."
-                            session.add(t)
-                            session.commit()
-
-                        from yads.modules.crawler import Crawler
-                        crawl = Crawler(db_session=session)
-                        logger.info(f"[Worker] Step 7: Running {crawl.module_name}...")
-                        with LogCapture() as logs:
-                            logger.info(f"Starting {crawl.module_name} for {domain}")
-                            result = crawl.process(target_id, domain)
-                            captured_logs = logs.get_logs()
-                        
-                        if result and hasattr(result, 'log_content'):
-                             result.log_content = sanitize_null_bytes(captured_logs)
-                             session.add(result)
-                             session.commit()
-                             print(f"[Worker] {crawl.module_name} found changes/new data.")
-                    except Exception as e:
-                        logger.error(f"[Worker] Error in Crawler: {e}")
-                        session.rollback()
+            # 7. Crawler queued for parallel execution with content_discovery (see step 9 below)
 
             # 8. Run Wayback Scanner
             if "wayback_scanner" in scan_types:
@@ -1083,36 +1071,31 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Wayback Scanner: {e}")
                     session.rollback()
 
-            # 9. Run Content Discovery (Fuzzing)
-            if "content_discovery" in scan_types:
-                if not (has_http or has_https):
-                    logger.info("[Worker] Skipping Content Discovery: Port 80/443 closed.")
-                else:
-                    try:
-                        t = session.get(Target, target_id)
-                        if t:
-                            t.scan_progress = "Running Content Discovery (Fuzzing)..."
-                            session.add(t)
-                            session.commit()
+            # 7+9. Run Crawler and Content Discovery in parallel (Group B)
+            _group_b_classes = []
+            if "crawler" in scan_types and (has_http or has_https):
+                from yads.modules.crawler import Crawler
+                _group_b_classes.append(Crawler)
+            elif "crawler" in scan_types:
+                logger.info("[Worker] Skipping Crawler: Port 80/443 closed (Optimization).")
 
-                        from yads.modules.content_discovery import ContentDiscoveryScanner
-                        cd_scan = ContentDiscoveryScanner(db_session=session)
-                        logger.info(f"[Worker] Step 9: Running {cd_scan.module_name}...")
-                        with LogCapture() as logs:
-                            logger.info(f"Starting {cd_scan.module_name} for {domain}")
-                            result = cd_scan.process(target_id, domain)
-                            captured_logs = logs.get_logs()
-                        
-                        if result and hasattr(result, 'log_content'):
-                            result.log_content = sanitize_null_bytes(captured_logs)
-                            session.add(result)
-                            session.commit()
-                            print(f"[Worker] {cd_scan.module_name} found changes/new data.")
-                        else:
-                            print(f"[Worker] {cd_scan.module_name} no change.")
-                    except Exception as e:
-                        logger.error(f"[Worker] Error in Content Discovery: {e}")
-                        session.rollback()
+            if "content_discovery" in scan_types and (has_http or has_https):
+                from yads.modules.content_discovery import ContentDiscoveryScanner
+                _group_b_classes.append(ContentDiscoveryScanner)
+            elif "content_discovery" in scan_types:
+                logger.info("[Worker] Skipping Content Discovery: Port 80/443 closed.")
+
+            if _group_b_classes:
+                logger.info(f"[Worker] Group B: running {[c.__name__ for c in _group_b_classes]} in parallel...")
+                t = session.get(Target, target_id)
+                if t:
+                    t.scan_progress = "Running Crawler & Content Discovery..."
+                    session.add(t)
+                    session.commit()
+                with ThreadPoolExecutor(max_workers=len(_group_b_classes), thread_name_prefix="scan-b") as _ex_b:
+                    for _cls in _group_b_classes:
+                        _ex_b.submit(_run_parallel_module, _cls, target_id, domain)
+                logger.info("[Worker] Group B completed.")
 
             # 10. Run TLD Scanner
             if "tld_scanner" in scan_types:
@@ -1319,8 +1302,9 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Social Media Scanner: {e}")
                     session.rollback()
 
-            # 17. Run Deception Technology Detector
-            if "deception_detector" in scan_types:
+            # 17. Deception Detector: runs in Group A if port_scanner not requested,
+            # otherwise runs sequentially here (uses port_scanner results from DB).
+            if "deception_detector" in scan_types and "port_scanner" in scan_types:
                 try:
                     t = session.get(Target, target_id)
                     if t:
@@ -1330,54 +1314,33 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
                     from yads.modules.deception_detector import DeceptionDetector
                     dd_scan = DeceptionDetector(timeout=30)
-                    logger.info(f"[Worker] Step 17: Running {dd_scan.module_name}...")
+                    logger.info(f"[Worker] Step 17: Running {dd_scan.module_name} (sequential, uses port results)...")
 
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {dd_scan.module_name} for {domain}")
+                    ports_to_check = [22, 23, 21, 25, 80, 443, 8080]
+                    try:
+                        port_result = session.exec(select(ScanResult).where(
+                            ScanResult.target_id == target_id,
+                            ScanResult.module_name == "port_scanner"
+                        ).order_by(ScanResult.scanned_at.desc())).first()
+                        if port_result and port_result.data and "open_ports" in port_result.data:
+                            ports_to_check = [p["port"] for p in port_result.data["open_ports"]]
+                            logger.info(f"Using discovered open ports: {ports_to_check}")
+                    except Exception:
+                        pass
 
-                        # Get open ports from port_scanner if available for better coverage
-                        ports_to_check = [22, 23, 21, 25, 80, 443, 8080]
-                        try:
-                            port_result = session.exec(select(ScanResult).where(
-                                ScanResult.target_id == target_id,
-                                ScanResult.module_name == "port_scanner"
-                            ).order_by(ScanResult.scanned_at.desc())).first()
-
-                            if port_result and port_result.data and "open_ports" in port_result.data:
-                                ports_to_check = [p["port"] for p in port_result.data["open_ports"]]
-                                logger.info(f"Using discovered open ports: {ports_to_check}")
-                        except Exception:
-                            pass
-
-                        scan_data = dd_scan.run_scan(domain, ports=ports_to_check)
-                        captured_logs = logs.get_logs()
-
-                    # Save result using standard pattern
+                    scan_data = dd_scan.run_scan(domain, ports=ports_to_check)
                     if scan_data:
-                        import hashlib
-                        import json
-
+                        import hashlib, json as _json2
                         scan_data = sanitize_null_bytes(scan_data)
-                        data_hash = hashlib.sha256(json.dumps(scan_data, sort_keys=True).encode()).hexdigest()
-
-                        result = ScanResult(
-                            target_id=target_id,
-                            module_name=dd_scan.module_name,
-                            data=scan_data,
-                            result_hash=data_hash,
-                            log_content=sanitize_null_bytes(captured_logs)
-                        )
-                        session.add(result)
+                        data_hash = hashlib.sha256(_json2.dumps(scan_data, sort_keys=True).encode()).hexdigest()
+                        session.add(ScanResult(
+                            target_id=target_id, module_name=dd_scan.module_name,
+                            data=scan_data, result_hash=data_hash))
                         session.commit()
-
-                        # Log summary
                         summary = scan_data.get("summary", {})
                         logger.info(f"[Worker] {dd_scan.module_name} finished: "
-                                   f"{summary.get('total_detections', 0)} detections, "
-                                   f"risk: {summary.get('overall_risk', 'none')}")
-                    else:
-                        print(f"[Worker] {dd_scan.module_name} finished (no data).")
-
+                                    f"{summary.get('total_detections', 0)} detections, "
+                                    f"risk: {summary.get('overall_risk', 'none')}")
                 except Exception as e:
                     logger.error(f"[Worker] Error in Deception Detector: {e}")
                     session.rollback()

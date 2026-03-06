@@ -118,21 +118,21 @@
     class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden"
   >
     <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm">
+      <table id="archived-table" class="w-full text-left text-sm">
         <thead
           class="bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px] font-bold"
         >
           <tr>
-            <th class="px-6 py-4">Target</th>
-            <th class="px-6 py-4">Archived Reason</th>
-            <th class="px-6 py-4">Archived At</th>
-            <th class="px-6 py-4 text-right">Actions</th>
+            <th class="px-6 py-4 sortable">Target</th>
+            <th class="px-6 py-4 sortable">Archived Reason</th>
+            <th class="px-6 py-4 sortable">Archived At</th>
+            <th class="px-6 py-4 text-right" data-nosort>Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800">
           {% if targets %} {% for target in targets %}
           <tr class="hover:bg-slate-800/30 transition-colors group">
-            <td class="px-6 py-4">
+            <td class="px-6 py-4" data-sort="{{ target.domain }}">
               <div class="flex items-center gap-3">
                 <div
                   class="h-8 w-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs uppercase"
@@ -145,7 +145,7 @@
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4">
+            <td class="px-6 py-4" data-sort="{{ target.archived_reason or '' }}">
               {% if target.archived_reason == 'dns_dead' %}
               <span
                 class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20"
@@ -166,7 +166,7 @@
               </span>
               {% endif %}
             </td>
-            <td class="px-6 py-4 text-slate-400">
+            <td class="px-6 py-4 text-slate-400" data-sort="{{ target.archived_at.isoformat() if target.archived_at else '' }}">
               {{ target.archived_at.strftime('%Y-%m-%d %H:%M:%S') if
               target.archived_at else 'N/A' }}
             </td>
@@ -221,4 +221,41 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  function initSortableTable(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    table.querySelectorAll('thead th.sortable').forEach(th => {
+      const colIndex = Array.from(th.parentElement.children).indexOf(th);
+      th.classList.add('cursor-pointer', 'select-none', 'hover:text-white', 'transition-colors');
+      th.innerHTML += '<span class="sort-icon ml-1 opacity-30 text-[10px]">↕</span>';
+      th.addEventListener('click', () => {
+        const asc = th.dataset.sortDir !== 'asc';
+        th.dataset.sortDir = asc ? 'asc' : 'desc';
+        table.querySelectorAll('thead th .sort-icon').forEach(i => {
+          i.textContent = '↕'; i.classList.add('opacity-30'); i.classList.remove('opacity-100');
+        });
+        const icon = th.querySelector('.sort-icon');
+        icon.textContent = asc ? '↑' : '↓';
+        icon.classList.replace('opacity-30', 'opacity-100');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.cells.length > 1);
+        rows.sort((a, b) => {
+          const aVal = a.cells[colIndex]?.dataset.sort ?? a.cells[colIndex]?.textContent.trim() ?? '';
+          const bVal = b.cells[colIndex]?.dataset.sort ?? b.cells[colIndex]?.textContent.trim() ?? '';
+          const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
+          if (!isNaN(aNum) && !isNaN(bNum)) return asc ? aNum - bNum : bNum - aNum;
+          return asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        });
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', () => initSortableTable('archived-table'));
+})();
+</script>
 {% endblock %}

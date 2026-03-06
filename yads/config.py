@@ -6,7 +6,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.18.9"
+    VERSION: str = "1.19.0"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Database
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     CHROME_BIN: str = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
     AUTO_QUEUE_SUBDOMAINS: bool = False
     SCAN_QUEUE_RATE_LIMIT: Optional[str] = None
-    WEB_REQUEST_TIMEOUT: int = int(os.getenv("YADS_WEB_TIMEOUT", 10))
+    WEB_REQUEST_TIMEOUT: int = int(os.getenv("YADS_WEB_TIMEOUT", 7))
     QUEUE_PAUSE_ON_BOOT: bool = os.getenv("QUEUE_PAUSE_ON_BOOT", "false").lower() == "true"
 
     # Authentication & Security

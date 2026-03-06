@@ -348,7 +348,9 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     target = session.get(Target, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
-        
+    if user.role != "admin" and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     results = session.exec(select(ScanResult).where(ScanResult.target_id == target_id).order_by(ScanResult.scanned_at.desc())).all()
     
     # Extract Data

@@ -75,6 +75,7 @@
                     <option value="online" {% if filter_online == 'online' %}selected{% endif %}>Online Only</option>
                     <option value="offline" {% if filter_online == 'offline' %}selected{% endif %}>Offline Only</option>
                     <option value="unknown" {% if filter_online == 'unknown' %}selected{% endif %}>Unknown</option>
+                    <option value="not_checked" {% if filter_online == 'not_checked' %}selected{% endif %}>— (Not Checked)</option>
                 </select>
             </div>
 
@@ -233,7 +234,7 @@
                                 <span class="text-xs text-slate-200">TLD Scanner</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="port_scanner" {% if 'port_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <input type="checkbox" name="scan_types" value="quick_web_probe" {% if 'quick_web_probe' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-slate-200">Quick Web Probe (80/443)</span>
                             </label>
                              <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
@@ -337,6 +338,7 @@
                                     <option value="online" {% if filter_online == 'online' %}selected{% endif %}>On</option>
                                     <option value="offline" {% if filter_online == 'offline' %}selected{% endif %}>Off</option>
                                     <option value="unknown" {% if filter_online == 'unknown' %}selected{% endif %}>?</option>
+                                    <option value="not_checked" {% if filter_online == 'not_checked' %}selected{% endif %}>—</option>
                                 </select>
                             </th>
                              <!-- Probe -->

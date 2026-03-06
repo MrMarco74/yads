@@ -39,6 +39,12 @@ class Tenant(SQLModel, table=True):
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
 
+    # LLM / AI Report Analysis (per-tenant)
+    llm_provider: Optional[str] = Field(default=None)   # disabled|ollama|openai|anthropic|custom
+    llm_api_url: Optional[str] = Field(default=None)    # base URL for ollama/custom
+    llm_api_key: Optional[str] = Field(default=None)    # API key for openai/anthropic/custom
+    llm_model: Optional[str] = Field(default=None)      # model name override
+
     # Report Branding Settings
     report_logo_url: Optional[str] = Field(default=None)  # URL or base64 data URI
     report_company_name: Optional[str] = Field(default=None)
@@ -142,6 +148,20 @@ class ChangeEvent(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     scan_result: ScanResult = Relationship(back_populates="change_events")
+
+class AIAnalysisResult(SQLModel, table=True):
+    """Stores AI-generated risk assessments per tenant."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    risk_rating: str = Field(default="UNKNOWN")
+    risk_score: int = Field(default=0)
+    executive_summary: str = Field(default="")
+    key_findings: str = Field(default="[]")       # JSON array
+    recommendations: str = Field(default="[]")    # JSON array
+    llm_provider: Optional[str] = Field(default=None)
+    llm_model: Optional[str] = Field(default=None)
+
 
 class SystemConfig(SQLModel, table=True):
     """

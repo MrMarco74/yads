@@ -652,6 +652,42 @@ def migrate():
         except Exception as e:
             print(f"   Error creating securityauditlog table: {e}")
 
+        # 32. Create AIAnalysisResult Table (v1.19.0)
+        print(">> Creating aianalysisresult table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS aianalysisresult (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER REFERENCES tenant(id),
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    risk_rating VARCHAR NOT NULL,
+                    risk_score INTEGER NOT NULL,
+                    executive_summary TEXT NOT NULL,
+                    key_findings TEXT DEFAULT '[]',
+                    recommendations TEXT DEFAULT '[]',
+                    llm_provider VARCHAR,
+                    llm_model VARCHAR
+                );
+                CREATE INDEX IF NOT EXISTS ix_aianalysisresult_tenant_id ON aianalysisresult (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_aianalysisresult_created_at ON aianalysisresult (created_at);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating aianalysisresult table: {e}")
+
+        # LLM / AI Report Analysis columns (v1.19.0)
+        print(">> Checking Tenant table: LLM/AI settings...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS llm_provider VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS llm_api_url VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS llm_api_key VARCHAR;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS llm_model VARCHAR;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 
