@@ -4,9 +4,55 @@
 <div class="space-y-6">
 
     <!-- Header -->
-    <div>
-        <h1 class="text-2xl font-bold text-white tracking-tight">Reports & Exports</h1>
-        <p class="text-sm text-slate-400">Download system data, compliance reports, and scan summaries.</p>
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Reports & Exports</h1>
+            <p class="text-sm text-slate-400">Download system data, compliance reports, and scan summaries.</p>
+        </div>
+        <button onclick="document.getElementById('bulk-export-modal').classList.remove('hidden')"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-lg shadow-lg ring-1 ring-indigo-500/40 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Download All Reports
+        </button>
+    </div>
+
+    <!-- Bulk Export Modal -->
+    <div id="bulk-export-modal" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-gray-950/80 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+                <div>
+                    <h3 class="text-white font-bold text-base">Download All Reports</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">All report types packaged into a single ZIP file.</p>
+                </div>
+                <button onclick="document.getElementById('bulk-export-modal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <!-- Content -->
+            <div class="px-6 py-5">
+                <ul class="text-xs text-gray-400 space-y-1.5 mb-5">
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>Infrastructure Executive PDF</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>External Links PDF</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>Target List (CSV + Excel)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0"></span>Port Exposure (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"></span>Email Security (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></span>Technology Drift (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0"></span>Certificate Timeline (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-pink-400 shrink-0"></span>Cloud Assets (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>Attack Surface Reduction (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>Sensitive Data / Secrets (Excel + PDF)</li>
+                    <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0"></span>HTTP Traffic (Excel + PDF)</li>
+                </ul>
+                <a href="/reports/export-all-zip"
+                    onclick="document.getElementById('bulk-export-modal').classList.add('hidden')"
+                    class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-semibold rounded-lg transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download ZIP
+                </a>
+            </div>
+        </div>
     </div>
 
     <!-- Reports Grid -->
@@ -280,16 +326,24 @@
                 </div>
                 <div>
                     <h3 class="font-bold text-white">Broken Link Hijacking</h3>
-                    <span class="text-xs text-amber-400 font-medium">Web View</span>
+                    <span class="text-xs text-amber-400 font-medium">Excel & PDF</span>
                 </div>
             </div>
             <p class="text-xs text-slate-400 mb-6 h-10 overflow-hidden">
                 Identify broken external links that can be hijacked by attackers to take over resources.
             </p>
-            <div class="flex gap-2">
-                <a href="/analytics/hijacking" class="flex-1 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg text-center transition-colors">
+            <div class="space-y-2">
+                <a href="/analytics/hijacking" class="block w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg text-center transition-colors">
                     View Report
                 </a>
+                <div class="flex gap-2">
+                    <a href="/analytics/hijacking/export/excel" class="flex-1 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg text-center transition-colors">
+                        Excel
+                    </a>
+                    <a href="/analytics/hijacking/export/pdf" class="flex-1 py-2 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg text-center transition-colors">
+                        PDF
+                    </a>
+                </div>
             </div>
         </div>
 

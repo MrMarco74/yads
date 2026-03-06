@@ -3,46 +3,112 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Infrastructure Analytics</h1>
-            <div class="text-sm text-gray-500 dark:text-gray-400">
-                Real-time analysis of collected target data.
+    <div class="space-y-3">
+        <!-- Row 1: Title + Filters -->
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Infrastructure Analytics</h1>
+                <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Real-time analysis of collected target data.
+                </div>
+            </div>
+            <!-- Filters -->
+            <div class="flex items-center gap-4 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <label for="tag-select" class="text-sm font-medium text-gray-400">Filter by Tag:</label>
+                    <select id="tag-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
+                        <option value="">All Tags</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="target-select" class="text-sm font-medium text-gray-400">Filter by Target:</label>
+                    <select id="target-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
+                        <option value="">All Targets</option>
+                        {% for t in targets %}
+                            <option value="{{ t.id }}">{{ t.domain }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
         </div>
-        
-        <!-- Actions -->
-        <div class="flex items-center gap-4">
-            <button onclick="runBestEntrypointAnalysis()" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-900 shadow-lg flex items-center gap-2">
+        <!-- Row 2: Action Buttons -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <button onclick="runBestEntrypointAnalysis()"
+                class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 Find Best Entrypoint
             </button>
-            <a href="/analytics/export-pdf" class="px-3 py-2 text-sm font-medium text-white bg-gray-700 rounded-lg hover:bg-gray-600 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600 shadow-lg flex items-center gap-2">
+            <button onclick="generateAIAnalysis()"
+                class="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 rounded-lg shadow-lg shadow-violet-900/40 flex items-center gap-2 ring-1 ring-violet-500/50 transition-all duration-150"
+                title="Generate AI management summary and display below">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                <span>Create Management Summary</span>
+                <span class="text-[10px] font-normal opacity-70 bg-white/10 px-1.5 py-0.5 rounded">AI</span>
+            </button>
+            <div class="h-6 w-px bg-gray-600"></div>
+            <a href="/analytics/export-pdf"
+                class="px-3 py-2 text-sm font-medium text-white bg-gray-700 rounded-lg hover:bg-gray-600 shadow-lg flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Export PDF
             </a>
         </div>
+    </div>
 
-        <!-- Target Filter -->
-        <div class="flex items-center gap-4">
-            <!-- Filter: Tag -->
-            <div class="flex items-center gap-2">
-                <label for="tag-select" class="text-sm font-medium text-gray-400">Filter by Tag:</label>
-                <select id="tag-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-40 p-2.5">
-                    <option value="">All Tags</option>
-                    <!-- Populated dynamically via API if desired, but passing from backend is cleaner -->
-                </select>
+    <!-- AI Executive Summary -->
+    <div id="ai-executive-summary" class="hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-3 bg-slate-950 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Executive Summary</span>
+                    <span id="ai-meta" class="text-[10px] text-slate-600 ml-2"></span>
+                </div>
+                <button onclick="generateAIAnalysis()" id="ai-gen-btn"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh Analysis
+                </button>
             </div>
-
-            <!-- Filter: Target -->
-            <div class="flex items-center gap-2">
-                <label for="target-select" class="text-sm font-medium text-gray-400">Filter by Target:</label>
-                <select id="target-select" class="bg-gray-800 border border-gray-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
-                    <option value="">All Targets</option>
-                    {% for t in targets %}
-                        <option value="{{ t.id }}">{{ t.domain }}</option>
-                    {% endfor %}
-                </select>
+            <!-- Content -->
+            <div class="p-5 flex flex-col lg:flex-row gap-6">
+                <!-- Risk Rating (fixed width column) -->
+                <div class="flex flex-col gap-3 lg:w-44 shrink-0">
+                    <div id="ai-rating-badge" class="px-4 py-2 rounded-lg font-bold text-sm text-center">
+                        <span id="ai-rating-text">—</span>
+                    </div>
+                    <!-- Score bar -->
+                    <div>
+                        <div class="flex justify-between text-[10px] text-slate-500 mb-1">
+                            <span>Risk Score</span>
+                            <span id="ai-score-label">0 / 100</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2.5">
+                            <div id="ai-score-bar" class="h-2.5 rounded-full transition-all duration-700" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Divider -->
+                <div class="hidden lg:block w-px bg-slate-800 shrink-0"></div>
+                <!-- Summary text -->
+                <div class="flex-1 min-w-0">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Executive Summary</p>
+                    <p id="ai-summary-text" class="text-sm text-slate-300 leading-relaxed"></p>
+                </div>
+            </div>
+            <!-- Findings + Recommendations -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-0 border-t border-slate-800">
+                <div class="p-5 border-r border-slate-800">
+                    <p class="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-3">Key Findings</p>
+                    <ul id="ai-findings" class="space-y-2 text-sm text-slate-300"></ul>
+                </div>
+                <div class="p-5">
+                    <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-3">Recommendations</p>
+                    <ol id="ai-recommendations" class="space-y-2 text-sm text-slate-300 list-decimal list-inside"></ol>
+                </div>
+            </div>
+            <div class="px-5 py-2 border-t border-slate-800 text-[10px] text-slate-600 italic">
+                AI-generated assessment — review by a qualified security professional recommended.
             </div>
         </div>
     </div>
@@ -174,7 +240,7 @@
                         SSL Expiry Timeline
                         <button onclick="showInfo('ssl_expiry')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
-                    <div class="relative h-64">
+                    <div class="relative h-64" id="sslChartContainer">
                         <canvas id="sslChart"></canvas>
                     </div>
                 </div>
@@ -186,7 +252,7 @@
                         Reputation Monitor
                         <button onclick="showInfo('reputation')" class="text-gray-500 hover:text-gray-300 ml-2 focus:outline-none" title="More Info"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
                     </h3>
-                    <div id="reputation-list" class="h-64 overflow-y-auto pr-2 space-y-3">
+                    <div id="reputation-list" class="overflow-y-auto pr-2 space-y-3" style="height:16rem">
                         <!-- Populated by JS -->
                         <div class="text-gray-500 text-sm text-center py-12">No blacklisted IPs found.</div>
                     </div>
@@ -198,9 +264,35 @@
                         <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
                         Open Bucket Alerts
                     </h3>
-                    <div id="buckets-list" class="h-64 overflow-y-auto pr-2 space-y-3">
+                    <div id="buckets-list" class="overflow-y-auto pr-2 space-y-3" style="height:16rem">
                         <!-- Populated by JS -->
                         <div class="text-gray-500 text-sm text-center py-12">No public buckets detected.</div>
+                    </div>
+                </div>
+
+                <!-- Broken Link Hijacking — full-width row -->
+                <div class="col-span-1 md:col-span-3 bg-gray-800/50 border border-amber-500/20 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            Broken Link Hijacking
+                            <span id="hijacking-badge" class="hidden text-xs font-bold px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300 border border-amber-500/30"></span>
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <a href="/analytics/hijacking" class="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700">View Full Report →</a>
+                            <a href="/analytics/hijacking/export/excel" class="flex items-center gap-1 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-600 px-2.5 py-1 rounded transition-colors">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Excel
+                            </a>
+                            <a href="/analytics/hijacking/export/pdf" class="flex items-center gap-1 text-xs font-semibold text-white bg-red-700 hover:bg-red-600 px-2.5 py-1 rounded transition-colors">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>PDF
+                            </a>
+                        </div>
+                    </div>
+                    <div id="hijacking-list" class="overflow-x-auto">
+                        <div class="text-gray-500 text-sm text-center py-8 flex flex-col items-center">
+                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 mb-2"></div>
+                            Loading...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -540,6 +632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Load Security Data concurrently
             loadSecurityRisks();
+            loadHijackingData();
             
         } catch (error) {
             console.error("Failed to fetch analytics:", error);
@@ -572,13 +665,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // const topSSL = sslData.slice(0, 10); 
         const topSSL = sslData;
 
-        // Dynamic Height Adjustment
-        if (topSSL.length > 10) {
-            const newHeight = topSSL.length * 30; // 30px per bar
-            document.getElementById('sslChart').parentElement.style.height = `${newHeight}px`;
-        } else {
-             document.getElementById('sslChart').parentElement.style.height = '16rem'; // default h-64
-        }
+        // Dynamic Height Adjustment — sync sidebar lists to chart height
+        const chartHeight = topSSL.length > 10 ? `${topSSL.length * 30}px` : '16rem';
+        document.getElementById('sslChart').parentElement.style.height = chartHeight;
+        document.getElementById('reputation-list').style.height = chartHeight;
+        document.getElementById('buckets-list').style.height = chartHeight;
         
         const labels = topSSL.map(i => i.target);
         const values = topSSL.map(i => i.days_left);
@@ -783,6 +874,51 @@ document.addEventListener('DOMContentLoaded', async () => {
              vulnContainer.classList.remove('hidden');
              vulnBody.innerHTML = '';
              noVulnMsg.classList.remove('hidden');
+        }
+    }
+
+    async function loadHijackingData() {
+        const container = document.getElementById('hijacking-list');
+        const badge = document.getElementById('hijacking-badge');
+        try {
+            const resp = await fetch('/api/analytics/hijacking');
+            if (!resp.ok) throw new Error('fetch failed');
+            const items = await resp.json();
+
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-sm text-center py-6 flex flex-col items-center"><svg class="w-7 h-7 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>No hijackable broken links detected.</div>';
+                return;
+            }
+
+            badge.textContent = `${items.length} found`;
+            badge.classList.remove('hidden');
+
+            let rows = '';
+            items.forEach(item => {
+                rows += `<tr class="border-b border-gray-800 hover:bg-white/5 transition">
+                    <td class="px-4 py-2.5 font-medium text-white text-sm">${item.target_domain}</td>
+                    <td class="px-4 py-2.5 text-amber-300 text-xs break-all max-w-xs">${item.broken_link}</td>
+                    <td class="px-4 py-2.5 text-gray-400 text-xs whitespace-nowrap">${item.detected_at}</td>
+                    <td class="px-4 py-2.5 text-right">
+                        <a href="/targets/${item.target_id}" class="text-indigo-400 hover:text-indigo-300 text-xs hover:underline">Details →</a>
+                    </td>
+                </tr>`;
+            });
+
+            container.innerHTML = `
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="text-xs uppercase bg-gray-900/50 text-gray-500">
+                        <tr>
+                            <th class="px-4 py-2">Target Domain</th>
+                            <th class="px-4 py-2">Broken Link (Hijackable)</th>
+                            <th class="px-4 py-2">Detected</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            container.innerHTML = '<div class="text-gray-600 text-sm text-center py-6">Failed to load hijacking data.</div>';
         }
     }
 
@@ -1452,6 +1588,127 @@ document.addEventListener('DOMContentLoaded', async () => {
             title: "Global Server Map",
             source: "Module: <code>infrastructure_scanner</code> (GeoIP)",
             desc: "Maps the physical location of your servers based on their IP addresses. Useful for understanding geographic distribution and compliance."
+        }
+    };
+
+    // -----------------------------------------------------------------------
+    // AI Executive Summary
+    // -----------------------------------------------------------------------
+    const RATING_STYLES = {
+        'CRITICAL': { bg: 'bg-red-900/60', border: 'border-red-500', text: 'text-red-300', bar: 'bg-red-500' },
+        'HIGH':     { bg: 'bg-orange-900/60', border: 'border-orange-500', text: 'text-orange-300', bar: 'bg-orange-500' },
+        'MEDIUM':   { bg: 'bg-yellow-900/60', border: 'border-yellow-500', text: 'text-yellow-300', bar: 'bg-yellow-400' },
+        'LOW':      { bg: 'bg-emerald-900/60', border: 'border-emerald-500', text: 'text-emerald-300', bar: 'bg-emerald-500' },
+    };
+
+    function renderAIAnalysis(result) {
+        const widget = document.getElementById('ai-executive-summary');
+        if (!result) { widget.classList.add('hidden'); return; }
+
+        const rating = (result.risk_rating || 'MEDIUM').toUpperCase();
+        const score  = result.risk_score ?? 0;
+        const style  = RATING_STYLES[rating] || RATING_STYLES['MEDIUM'];
+
+        // Badge
+        const badge = document.getElementById('ai-rating-badge');
+        badge.className = `block px-4 py-2 rounded-lg font-bold text-sm text-center border ${style.bg} ${style.border} ${style.text}`;
+        document.getElementById('ai-rating-text').textContent = rating;
+
+        // Score bar
+        document.getElementById('ai-score-label').textContent = `${score} / 100`;
+        const bar = document.getElementById('ai-score-bar');
+        bar.className = `h-2 rounded-full transition-all duration-700 ${style.bar}`;
+        bar.style.width = `${score}%`;
+
+        // Summary text
+        document.getElementById('ai-summary-text').textContent = result.executive_summary || '';
+
+        // Findings
+        const findings = document.getElementById('ai-findings');
+        findings.innerHTML = '';
+        (result.key_findings || []).forEach(f => {
+            const li = document.createElement('li');
+            li.className = 'flex items-start gap-2';
+            li.innerHTML = `<svg class="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><span>${f}</span>`;
+            findings.appendChild(li);
+        });
+
+        // Recommendations
+        const recs = document.getElementById('ai-recommendations');
+        recs.innerHTML = '';
+        (result.recommendations || []).forEach(r => {
+            const li = document.createElement('li');
+            li.className = 'flex items-start gap-2';
+            li.innerHTML = `<svg class="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>${r}</span>`;
+            recs.appendChild(li);
+        });
+
+        // Meta (model + timestamp)
+        const meta = document.getElementById('ai-meta');
+        const parts = [];
+        if (result.llm_provider) parts.push(result.llm_provider);
+        if (result.llm_model)    parts.push(result.llm_model);
+        if (result.created_at)   parts.push(new Date(result.created_at).toLocaleString());
+        meta.textContent = parts.join(' · ');
+
+        widget.classList.remove('hidden');
+    }
+
+    // Load stored analysis on page init
+    async function loadAIAnalysis() {
+        try {
+            const resp = await fetch('/api/analytics/ai-analysis');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.available !== false) renderAIAnalysis(data);
+            }
+        } catch(e) { /* no stored analysis — widget stays hidden */ }
+    }
+    loadAIAnalysis();
+
+    // Generate fresh analysis on button press
+    window.generateAIAnalysis = async function() {
+        const btn = document.getElementById('ai-gen-btn');
+        const widget = document.getElementById('ai-executive-summary');
+        const overlay = document.getElementById('export-loading-overlay');
+        widget.classList.remove('hidden');
+
+        // Show global overlay + button spinner
+        if (overlay) {
+            const t = document.getElementById('export-overlay-title');
+            const s = document.getElementById('export-overlay-subtitle');
+            if (t) t.textContent = 'KI-Analyse wird erstellt';
+            if (s) s.textContent = 'Bitte warten, dies kann etwas dauern…';
+            overlay.classList.remove('hidden');
+        }
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Generating...`;
+
+        try {
+            const resp = await fetch('/api/analytics/ai-analysis/generate', { method: 'POST' });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                alert('AI analysis failed: ' + (err.detail || resp.statusText));
+                return;
+            }
+            const data = await resp.json();
+            if (data.success === false) {
+                alert('AI analysis failed: ' + (data.error || 'Unknown error. Check LLM configuration in Tenant Settings.'));
+                return;
+            }
+            renderAIAnalysis(data);
+        } catch(e) {
+            alert('AI analysis failed: ' + e.message);
+        } finally {
+            if (overlay) {
+                overlay.classList.add('hidden');
+                const t = document.getElementById('export-overlay-title');
+                const s = document.getElementById('export-overlay-subtitle');
+                if (t) t.textContent = 'Generating Report';
+                if (s) s.textContent = 'Please wait, this may take a moment…';
+            }
+            btn.disabled = false;
+            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Refresh Analysis`;
         }
     };
 

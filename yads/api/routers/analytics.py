@@ -261,9 +261,10 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
                 
         # --- Port Scanner ---
         elif mod == 'port_scanner':
-            http_open = (data.get("http") or {}).get("open", False)
-            https_open = (data.get("https") or {}).get("open", False)
-            
+            open_ports = {p["port"] for p in (data.get("open_ports") or []) if "port" in p}
+            http_open = bool(open_ports & {80, 8080, 8000, 8008, 8888})
+            https_open = bool(open_ports & {443, 8443})
+
             if http_open and https_open:
                 service_distribution_stats["Both"] += 1
             elif http_open:
@@ -904,6 +905,36 @@ async def view_hijacking(
         "date_range_display": date_range_display
     })
 
+@ui_router.get("/hijacking/export/excel")
+async def export_hijacking_excel(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from yads.utils.export import generate_excel
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    items = _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt)
+    export_data = [{"Target Domain": i["target_domain"], "Broken Link": i["broken_link"], "Detected At": i["detected_at"]} for i in items]
+    return generate_excel(export_data, "broken_link_hijacking_report")
+
+
+@ui_router.get("/hijacking/export/pdf")
+async def export_hijacking_pdf(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all")
+):
+    from yads.utils.export import generate_pdf
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    items = _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt)
+    export_data = [{"Target Domain": i["target_domain"], "Broken Link": i["broken_link"], "Detected At": i["detected_at"]} for i in items]
+    return generate_pdf(export_data, "Broken Link Hijacking Report", "broken_link_hijacking_report")
+
+
 @ui_router.get("/tech-radar", response_class=HTMLResponse)
 async def view_tech_radar(
     request: Request,
@@ -1458,7 +1489,8 @@ async def export_infrastructure_pdf(
     user: User = Depends(get_current_active_user),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    preset: Optional[str] = Query("all")
+    preset: Optional[str] = Query("all"),
+    ai: Optional[str] = Query(None),  # ?ai=1 to trigger LLM analysis
 ):
     """
     Exports the Analytics Infrastructure report to PDF.
@@ -1469,13 +1501,66 @@ async def export_infrastructure_pdf(
 
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
     data = _get_infrastructure_data(session, user, date_from=from_dt, date_to=to_dt)
-    
+
+    # Fetch security-risks data (SSL, reputation, buckets, secrets)
+    try:
+        security_data = await get_security_risks(session=session, user=user)
+        data["ssl_timeline"] = security_data.get("ssl_timeline", [])
+        data["reputation_issues"] = security_data.get("reputation_issues", [])
+        data["open_buckets"] = security_data.get("open_buckets", [])
+        data["secrets_leaks"] = security_data.get("secrets_leaks", [])
+    except Exception:
+        data.setdefault("ssl_timeline", [])
+        data.setdefault("reputation_issues", [])
+        data.setdefault("open_buckets", [])
+        data.setdefault("secrets_leaks", [])
+    data["hijacking_items"] = _get_hijacking_data(session, user)
+
     tenant_name = "Global"
     if user.tenant_id:
          t = session.get(Tenant, user.tenant_id)
          if t: tenant_name = t.name
-         
-    pdf_bytes = generate_infrastructure_report(data, tenant_name)
+
+    # AI risk analysis — use stored result, or generate+store if ?ai=1
+    ai_analysis = None
+    from yads.models import AIAnalysisResult
+    stored = session.exec(
+        select(AIAnalysisResult)
+        .where(AIAnalysisResult.tenant_id == user.tenant_id)
+        .order_by(AIAnalysisResult.created_at.desc())
+    ).first()
+    if stored:
+        ai_analysis = {
+            "risk_rating": stored.risk_rating,
+            "risk_score": stored.risk_score,
+            "executive_summary": stored.executive_summary,
+            "key_findings": json.loads(stored.key_findings or "[]"),
+            "recommendations": json.loads(stored.recommendations or "[]"),
+        }
+    if ai == "1":
+        try:
+            from yads.core.llm_service import get_report_analysis, load_llm_config
+            llm_config = load_llm_config(session, tenant_id=user.tenant_id)
+            fresh = await get_report_analysis(data, llm_config)
+            if fresh:
+                row = AIAnalysisResult(
+                    tenant_id=user.tenant_id,
+                    risk_rating=fresh.get("risk_rating", "UNKNOWN"),
+                    risk_score=int(fresh.get("risk_score", 0)),
+                    executive_summary=fresh.get("executive_summary", ""),
+                    key_findings=json.dumps(fresh.get("key_findings", [])),
+                    recommendations=json.dumps(fresh.get("recommendations", [])),
+                    llm_provider=llm_config.get("LLM_PROVIDER"),
+                    llm_model=llm_config.get("LLM_MODEL"),
+                )
+                session.add(row)
+                session.commit()
+                ai_analysis = fresh
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning(f"LLM analysis skipped: {exc}")
+
+    pdf_bytes = generate_infrastructure_report(data, tenant_name, ai_analysis=ai_analysis)
     
     filename = f"analytics_report_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     
@@ -1483,6 +1568,80 @@ async def export_infrastructure_pdf(
     return Response(content=bytes(pdf_bytes), media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="{filename}"'
     })
+
+@router.get("/ai-analysis")
+async def get_ai_analysis(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+):
+    """Returns the latest stored AI analysis for the current tenant."""
+    from yads.models import AIAnalysisResult
+    row = session.exec(
+        select(AIAnalysisResult)
+        .where(AIAnalysisResult.tenant_id == user.tenant_id)
+        .order_by(AIAnalysisResult.created_at.desc())
+    ).first()
+    if not row:
+        return {"available": False}
+    return {
+        "available": True,
+        "risk_rating": row.risk_rating,
+        "risk_score": row.risk_score,
+        "executive_summary": row.executive_summary,
+        "key_findings": json.loads(row.key_findings or "[]"),
+        "recommendations": json.loads(row.recommendations or "[]"),
+        "llm_provider": row.llm_provider,
+        "llm_model": row.llm_model,
+        "created_at": row.created_at.isoformat(),
+    }
+
+
+@router.post("/ai-analysis/generate")
+async def generate_ai_analysis(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    preset: Optional[str] = Query("all"),
+):
+    """Generate a new AI risk analysis, store it, and return the result."""
+    from yads.models import AIAnalysisResult
+    from yads.core.llm_service import get_report_analysis, load_llm_config
+
+    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
+    data = _get_infrastructure_data(session, user, date_from=from_dt, date_to=to_dt)
+    try:
+        security_data = await get_security_risks(session=session, user=user)
+        data.update({
+            "ssl_timeline": security_data.get("ssl_timeline", []),
+            "reputation_issues": security_data.get("reputation_issues", []),
+            "open_buckets": security_data.get("open_buckets", []),
+            "secrets_leaks": security_data.get("secrets_leaks", []),
+        })
+    except Exception:
+        pass
+    data["hijacking_items"] = _get_hijacking_data(session, user)
+
+    llm_config = load_llm_config(session, tenant_id=user.tenant_id)
+    result = await get_report_analysis(data, llm_config)
+    if not result:
+        return {"success": False, "error": "LLM not configured or analysis failed."}
+
+    row = AIAnalysisResult(
+        tenant_id=user.tenant_id,
+        risk_rating=result.get("risk_rating", "UNKNOWN"),
+        risk_score=int(result.get("risk_score", 0)),
+        executive_summary=result.get("executive_summary", ""),
+        key_findings=json.dumps(result.get("key_findings", [])),
+        recommendations=json.dumps(result.get("recommendations", [])),
+        llm_provider=llm_config.get("LLM_PROVIDER"),
+        llm_model=llm_config.get("LLM_MODEL"),
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return {"success": True, "id": row.id, **result, "created_at": row.created_at.isoformat()}
+
 
 from fastapi import Form
 from yads.auth.deps import RoleChecker
