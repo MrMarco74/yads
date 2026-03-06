@@ -239,4 +239,40 @@
     <!-- RECENT CHANGES MODAL (Removed in favor of /changelog page) -->
     
     {% include 'components/modals.html' %}
+    {% block scripts %}{% endblock %}
+
+    <!-- Global PDF/Export loading overlay -->
+    <div id="export-loading-overlay" class="hidden fixed inset-0 z-[200] flex flex-col items-center justify-center bg-gray-950/80 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl px-10 py-8 flex flex-col items-center gap-5 shadow-2xl">
+            <svg class="w-10 h-10 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <div class="text-center">
+                <p id="export-overlay-title" class="text-white font-semibold text-lg">Generating Report</p>
+                <p id="export-overlay-subtitle" class="text-gray-400 text-sm mt-1">Please wait, this may take a moment…</p>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const overlay = document.getElementById('export-loading-overlay');
+        const exportPattern = /\/(export(-pdf)?|export\/(pdf|excel|csv))/i;
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a[href]');
+            if (!link) return;
+            const href = link.getAttribute('href') || '';
+            if (exportPattern.test(href) && !href.startsWith('#')) {
+                overlay.classList.remove('hidden');
+                // Hide overlay once the browser starts receiving the file (focus returns)
+                window.addEventListener('focus', function hide() {
+                    setTimeout(() => overlay.classList.add('hidden'), 800);
+                    window.removeEventListener('focus', hide);
+                }, { once: true });
+                // Fallback: hide after 60s
+                setTimeout(() => overlay.classList.add('hidden'), 60000);
+            }
+        });
+    })();
+    </script>
 </html>

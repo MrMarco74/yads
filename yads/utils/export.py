@@ -1,5 +1,6 @@
 
 import io
+import json
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
@@ -204,15 +205,23 @@ def generate_pdf(data: List[Dict[str, Any]], title: str, filename_prefix: str, o
             # Reset to the start of the next row
             pdf.set_xy(x_start, max_y)
 
-    output = pdf.output() 
-    
+    output = bytes(pdf.output())
+
     filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
-    
+
     return Response(
         content=output,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+def _safe_cell(value: Any, max_len: int = 500) -> str:
+    """Sanitize a value for Excel: printable ASCII only, truncated."""
+    s = json.dumps(value) if isinstance(value, dict) else str(value) if value is not None else ""
+    # Strip non-printable / non-ASCII characters
+    s = "".join(c for c in s if c.isprintable() and ord(c) < 128)
+    return s[:max_len]
+
 
 def generate_traffic_excel(data: List[Any], filename_prefix: str) -> Response:
     """
@@ -226,11 +235,11 @@ def generate_traffic_excel(data: List[Any], filename_prefix: str) -> Response:
             "URL": t.url,
             "Status": t.status_code,
             "Duration (s)": t.duration,
-            "Request Headers": json.dumps(t.request_headers) if isinstance(t.request_headers, dict) else str(t.request_headers),
-            "Response Headers": json.dumps(t.response_headers) if isinstance(t.response_headers, dict) else str(t.response_headers),
-            "Body Snippet": t.response_body_snippet
+            "Request Headers": _safe_cell(t.request_headers),
+            "Response Headers": _safe_cell(t.response_headers),
+            "Body Snippet": _safe_cell(t.response_body_snippet),
         })
-    
+
     return generate_excel(rows, filename_prefix)
 
 def generate_traffic_pdf(data: List[Any], target_domain: str, filename_prefix: str) -> Response:
@@ -276,9 +285,9 @@ def generate_traffic_pdf(data: List[Any], target_domain: str, filename_prefix: s
             pdf.cell(190, 8, url_display, 1, 0, 'L')
             pdf.ln()
 
-    output = pdf.output()
+    output = bytes(pdf.output())
     filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
-    
+
     return Response(
         content=output,
         media_type="application/pdf",
