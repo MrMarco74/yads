@@ -1309,6 +1309,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     subdomain_takeover_result = next((r for r in current_results if r.module_name == 'subdomain_takeover'), None)
     git_exposure_result = next((r for r in current_results if r.module_name == 'git_exposure'), None)
     js_secrets_result = next((r for r in current_results if r.module_name == 'js_secrets'), None)
+    external_resources_result = next((r for r in current_results if r.module_name == 'external_resources'), None)
+    metadata_scanner_result = next((r for r in current_results if r.module_name == 'metadata_scanner'), None)
 
     # -- Compliance & Grading --
     comp_input = {
@@ -1380,6 +1382,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "subdomain_takeover_result": subdomain_takeover_result,
         "git_exposure_result": git_exposure_result,
         "js_secrets_result": js_secrets_result,
+        "external_resources_result": external_resources_result,
+        "metadata_scanner_result": metadata_scanner_result,
         "security_grade": security_grade,
         "compliance_report": compliance_report,
         "history_entries": history_entries, # Pass full history

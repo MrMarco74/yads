@@ -157,7 +157,9 @@
     "subdomain_takeover": "Subdomain Takeover Check",
     "git_exposure": "Exposed .git / Sensitive Files",
     "js_secrets": "JavaScript Secrets & Endpoints",
-    "wayback_scanner": "Wayback Machine (Historical Exposure)"
+    "wayback_scanner": "Wayback Machine (Historical Exposure)",
+    "external_resources": "External Resource Analysis (3rd-Party JS/CSS)",
+    "metadata_scanner": "Document Metadata (PDF/Word/Excel)"
   },
   "report": {
     "generate": "Generate Report",
