@@ -166,7 +166,7 @@ class SocialMediaScanner(BaseScannerModule):
         name_variations = [brand.lower(), brand_clean.lower()]
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 YADS/1.19"
         }
 
         for platform, url_pattern in self.PLATFORM_PATTERNS.items():

@@ -210,7 +210,7 @@ class TarpitDetector:
                 timeout=self.timeout,
                 verify=False,  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 stream=True,
-                headers={"User-Agent": "YADS-Security-Scanner/1.15.0"}
+                headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"}
             ) as response:
                 # Time to first byte
                 first_chunk = next(response.iter_content(chunk_size=1), None)

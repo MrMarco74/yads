@@ -13,7 +13,7 @@ class BrandMonitor:
         try:
             # Fake user agent to avoid blocking
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 YADS/1.19"
             }
             resp = requests.get(url, headers=headers, timeout=5, stream=True)
             if resp.status_code == 200:

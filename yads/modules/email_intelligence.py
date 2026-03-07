@@ -367,7 +367,7 @@ class EmailIntelligenceScanner(BaseScannerModule):
         ]
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 YADS/1.19"
         }
 
         for url in pages_to_check:
@@ -476,7 +476,7 @@ class EmailIntelligenceScanner(BaseScannerModule):
         results = []
         headers = {
             "hibp-api-key": api_key,
-            "user-agent": "YADS-Security-Scanner-v1.15"
+            "user-agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"
         }
 
         for email in emails:

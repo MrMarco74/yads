@@ -171,7 +171,7 @@ class CSPScanner(BaseScannerModule):
             response = requests.head(
                 url,
                 timeout=self.timeout,
-                headers={"User-Agent": "YADS Security Scanner"},
+                headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"},
                 allow_redirects=True,
                 verify=True
             )
@@ -181,7 +181,7 @@ class CSPScanner(BaseScannerModule):
                 response = requests.head(
                     url,
                     timeout=self.timeout,
-                    headers={"User-Agent": "YADS Security Scanner"},
+                    headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"},
                     allow_redirects=True,
                     verify=False  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                 )

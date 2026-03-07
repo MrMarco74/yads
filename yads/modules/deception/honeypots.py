@@ -52,7 +52,7 @@ class HoneypotDetector:
         self.timeout = timeout
         self._session = requests.Session()
         self._session.headers.update({
-            "User-Agent": "YADS-Security-Scanner/1.15.0"
+            "User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"
         })
 
     def detect_all(self, host: str, ports: List[int] = None) -> List[HoneypotDetection]:

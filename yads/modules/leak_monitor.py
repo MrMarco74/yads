@@ -81,7 +81,7 @@ class LeakMonitor(BaseScannerModule):
         
         headers = {
             "hibp-api-key": api_key,
-            "user-agent": "YADS-Security-Scanner-v1.9"
+            "user-agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"
         }
 
         found_leaks = False

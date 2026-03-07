@@ -512,7 +512,7 @@ class WebAnalyzer(BaseScannerModule):
                 browser = p.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"])
                 context = browser.new_context(ignore_https_errors=True)
                 page = context.new_page()
-                page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"})
+                page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 YADS/1.19"})
                 
                 try:
                     self.limiter.wait(url.split("//")[-1].split("/")[0])
