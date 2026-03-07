@@ -308,6 +308,10 @@
                                 <input type="checkbox" name="scan_types" value="subdomain_takeover" class="form-checkbox text-violet-500 rounded bg-gray-900 border-violet-600">
                                 <span class="text-sm font-medium text-violet-400">Subdomain Takeover Check</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-cyan-900/20 rounded border border-cyan-900/50 hover:bg-cyan-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="git_exposure" class="form-checkbox text-cyan-500 rounded bg-gray-900 border-cyan-600">
+                                <span class="text-sm font-medium text-cyan-400">Exposed .git / Files</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -3055,6 +3059,50 @@
 
                 {% else %}
                 <p class="text-gray-500 italic text-sm">No data. Run "Subdomain Takeover Check" scan module.</p>
+                {% endif %}
+            </div>
+
+            <!-- GIT / FILE EXPOSURE CARD -->
+            {% set ge = git_exposure_result.data if git_exposure_result and git_exposure_result.data else none %}
+            <div class="bg-gray-800/50 border {% if ge and ge.summary.exposed_count > 0 %}border-red-500/40{% else %}border-cyan-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">Exposed Files / .git</h2>
+                            <p class="text-xs text-gray-400">Sensitive files, config leaks, exposed version control.</p>
+                        </div>
+                    </div>
+                    {% if ge %}
+                    <div class="text-right">
+                        <div class="text-xs text-gray-500">Exposed / Checked</div>
+                        <div class="text-sm font-bold {% if ge.summary.exposed_count > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ ge.summary.exposed_count }} / {{ ge.summary.total_checked }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if ge %}
+                {% if ge.findings %}
+                <div class="space-y-2">
+                    {% for f in ge.findings %}
+                    <div class="p-2.5 bg-gray-900/50 rounded border {% if f.severity == 'critical' %}border-red-500/30{% elif f.severity == 'high' %}border-orange-500/30{% else %}border-gray-700/30{% endif %}">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                            <span class="text-xs text-gray-200">{{ f.title }}</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-1 font-mono truncate">{{ f.url }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ No exposed sensitive files or .git directories detected.</p>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Exposed .git / Sensitive Files" scan.</p>
                 {% endif %}
             </div>
 
