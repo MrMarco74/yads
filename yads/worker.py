@@ -26,17 +26,35 @@ _worker_client = None
 # Initialize Celery
 celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 celery_app.conf.worker_hijack_root_logger = False
-celery_app.conf.task_time_limit = 600        # hard kill after 10 min
-celery_app.conf.task_soft_time_limit = 540   # SIGTERM after 9 min (allows graceful finish)
+celery_app.conf.task_time_limit = 3600       # hard kill after 60 min
+celery_app.conf.task_soft_time_limit = 3480  # soft signal after 58 min (allows graceful cleanup)
 
-from celery.signals import worker_ready, worker_process_init
+from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked
 
 @worker_ready.connect
 def on_worker_ready(sender=None, **kwargs):
     """
-    On Startup: Check DB and pause consumer if needed.
+    On Startup: reset any targets stuck in 'running' (leftover from a crash/kill),
+    then check DB and pause consumer if needed.
     """
     logger.info("[Worker] Signal: Worker Ready. Checking Queue State...")
+
+    # ── Crash recovery: reset orphaned running targets ────────────────────
+    try:
+        with Session(engine) as session:
+            from yads.models import Target
+            stuck = session.exec(select(Target).where(Target.scan_status == "running")).all()
+            if stuck:
+                for t in stuck:
+                    t.scan_status = "idle"
+                    t.scan_progress = "Reset on worker startup (previous run was interrupted)"
+                    session.add(t)
+                session.commit()
+                logger.warning(f"[Worker] startup: Reset {len(stuck)} stuck target(s) to idle")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to reset stuck targets on startup: {e}")
+
+    # ── Queue pause check ─────────────────────────────────────────────────
     try:
         with Session(engine) as session:
             from yads.models import SystemConfig
@@ -48,6 +66,43 @@ def on_worker_ready(sender=None, **kwargs):
                 logger.info("[Worker] startup: Queue is ACTIVE.")
     except Exception as e:
         logger.error(f"[Worker] Failed to check queue state on startup: {e}")
+
+def _reset_target_status(target_id: int, reason: str):
+    """Helper: reset a target's scan_status to idle. Called from failure signals."""
+    try:
+        from yads.database import engine
+        with Session(engine) as s:
+            t = s.get(Target, target_id)
+            if t and t.scan_status == "running":
+                t.scan_status = "idle"
+                t.scan_progress = reason
+                s.add(t)
+                s.commit()
+                logger.warning(f"[Worker] Reset target {target_id} to idle: {reason}")
+    except Exception as e:
+        logger.error(f"[Worker] Failed to reset target {target_id} status: {e}")
+
+
+@task_failure.connect(sender="yads.worker.run_all_scans")
+def on_task_failure(task_id, exception, args, kwargs, traceback, einfo, **kw):
+    """Reset target status when a task fails (incl. SoftTimeLimitExceeded)."""
+    target_id = args[0] if args else kwargs.get("target_id")
+    if target_id:
+        from celery.exceptions import SoftTimeLimitExceeded
+        if isinstance(exception, SoftTimeLimitExceeded):
+            reason = "Scan interrupted (soft time limit exceeded)"
+        else:
+            reason = f"Scan failed: {type(exception).__name__}"
+        _reset_target_status(target_id, reason)
+
+
+@task_revoked.connect(sender="yads.worker.run_all_scans")
+def on_task_revoked(request, terminated, signum, expired, **kw):
+    """Reset target status when a task is revoked or killed by hard time limit."""
+    target_id = request.args[0] if request.args else (request.kwargs or {}).get("target_id")
+    if target_id:
+        _reset_target_status(target_id, "Scan interrupted (task revoked or hard time limit)")
+
 
 @worker_process_init.connect
 def on_worker_process_init(**kwargs):
@@ -1573,6 +1628,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 prom_metrics.record_scan_finished(tenant_id=parent_tenant_id)
             except Exception as e:
                 logger.debug(f"[Worker] Failed to record scan_finished metric: {e}")
+
 
         logger.info(f"[Worker] Finished scan for {domain}")
 
