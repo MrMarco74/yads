@@ -267,6 +267,18 @@
                                 <input type="checkbox" name="scan_types" value="csp_scanner" {% if 'csp_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-emerald-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-emerald-400">CSP Scanner (External Domains)</span>
                             </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="email_security" {% if 'email_security' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-blue-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-blue-400">Email Security (SPF/DKIM/DMARC)</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="axfr_scanner" {% if 'axfr_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-red-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-red-400">DNS Zone Transfer (AXFR)</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="security_txt" {% if 'security_txt' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-slate-400 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-slate-400">Security.txt (RFC 9116)</span>
+                            </label>
                         </div>
                     </div>
                 </div>

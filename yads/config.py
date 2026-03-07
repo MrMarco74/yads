@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     SETUP_TOKEN: Optional[str] = None
     CONFIG_PATH: str = os.getenv("CONFIG_PATH", "/app/data/config.env")
 
+    # Phase 4 Threat Intelligence API Keys
+    ABUSEIPDB_API_KEY: Optional[str] = None
+    OTX_API_KEY: Optional[str] = None
+    VIRUSTOTAL_API_KEY: Optional[str] = None
+    CENSYS_API_ID: Optional[str] = None
+    SHODAN_API_KEY: Optional[str] = None
+
     # Prometheus Metrics
     METRICS_ENABLED: bool = os.getenv("METRICS_ENABLED", "false").lower() == "true"
     METRICS_AUTH_MODE: str = os.getenv("METRICS_AUTH_MODE", "token")  # none, token, user
