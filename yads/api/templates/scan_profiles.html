@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Scan Profiles — YADS{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 px-4">
+
+    {% set _colors = {
+        "blue":    "text-blue-400 bg-blue-900/20 border-blue-700/40",
+        "sky":     "text-sky-400 bg-sky-900/20 border-sky-700/40",
+        "indigo":  "text-indigo-400 bg-indigo-900/20 border-indigo-700/40",
+        "emerald": "text-emerald-400 bg-emerald-900/20 border-emerald-700/40",
+        "rose":    "text-rose-400 bg-rose-900/20 border-rose-700/40",
+        "amber":   "text-amber-400 bg-amber-900/20 border-amber-700/40",
+        "gray":    "text-gray-400 bg-gray-800/30 border-gray-700/40",
+    } %}
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-xl font-bold text-white">Scan Profiles</h1>
+            <p class="text-sm text-gray-400 mt-1">Save and apply named scan configurations. Apply a profile when starting a scan to pre-select modules.</p>
+        </div>
+        <button onclick="document.getElementById('createModal').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">
+            + New Profile
+        </button>
+    </div>
+
+    {% if request.query_params.get('msg') %}
+    <div class="bg-green-900/30 border border-green-700/40 rounded-lg p-3 mb-4 text-sm text-green-300">
+        {{ request.query_params.get('msg') }}
+    </div>
+    {% endif %}
+
+    <!-- Built-in Profiles -->
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Built-in Profiles</h2>
+    <div class="grid grid-cols-2 gap-3 mb-8">
+        {% for p in builtin_profiles %}
+        {% set color_cls = _colors.get(p.color, _colors.gray) %}
+        <div class="border {{ color_cls }} rounded-xl p-4 flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-lg">{{ p.icon }}</span>
+                    <span class="text-sm font-bold text-white">{{ p.name }}</span>
+                </div>
+                <p class="text-xs text-gray-400 mb-2">{{ p.description }}</p>
+                <div class="flex flex-wrap gap-1">
+                    {% for t in p.scan_types[:5] %}
+                    <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">{{ t }}</span>
+                    {% endfor %}
+                    {% if p.scan_types|length > 5 %}
+                    <span class="text-[10px] text-gray-600">+{{ p.scan_types|length - 5 }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+            <button onclick="applyBuiltinProfile('{{ p.name | e }}')"
+                class="ml-3 shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1.5 rounded font-medium transition-colors">
+                Apply
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- User Profiles -->
+    {% if profiles %}
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Saved Profiles</h2>
+    <div class="space-y-2">
+        {% for p in profiles %}
+        {% set color_cls = _colors.get(p.color, _colors.gray) %}
+        <div class="border {{ color_cls }} rounded-xl p-4 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    {% if p.icon %}<span>{{ p.icon }}</span>{% endif %}
+                    <span class="text-sm font-bold text-white">{{ p.name }}</span>
+                    {% if p.is_default %}<span class="text-[10px] bg-blue-600/30 text-blue-300 px-2 py-0.5 rounded-full">Default</span>{% endif %}
+                    {% if p.is_public %}<span class="text-[10px] bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">Shared</span>{% endif %}
+                </div>
+                {% if p.description %}<p class="text-xs text-gray-400 mt-0.5">{{ p.description }}</p>{% endif %}
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                    {% for t in p.scan_types[:6] %}
+                    <span class="text-[10px] bg-gray-900 text-gray-400 px-1.5 py-0.5 rounded font-mono">{{ t }}</span>
+                    {% endfor %}
+                    {% if p.scan_types|length > 6 %}
+                    <span class="text-[10px] text-gray-600">+{{ p.scan_types|length - 6 }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="applyProfile({{ p.id }})"
+                    class="text-xs bg-blue-700/40 hover:bg-blue-600/60 text-blue-300 px-3 py-1.5 rounded font-medium transition-colors">
+                    Apply
+                </button>
+                {% if not p.is_default and user.role in ('admin', 'tenant_admin') %}
+                <form action="/scan-profiles/{{ p.id }}/set-default" method="POST" class="inline">
+                    <button type="submit" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1.5 rounded transition-colors">Set Default</button>
+                </form>
+                {% endif %}
+                {% if p.tenant_id == user.tenant_id %}
+                <form action="/scan-profiles/{{ p.id }}/delete" method="POST" class="inline"
+                    onsubmit="return confirm('Delete this profile?')">
+                    <button type="submit" class="text-xs bg-red-900/30 hover:bg-red-800/40 text-red-400 px-2 py-1.5 rounded transition-colors">Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-600 text-sm">
+        No saved profiles yet. Create one above or use a built-in profile.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create Profile Modal -->
+<div id="createModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+        <h2 class="text-base font-bold text-white mb-4">Create Scan Profile</h2>
+        <form action="/scan-profiles/create" method="POST" class="space-y-4">
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wider">Name *</label>
+                    <input type="text" name="name" required maxlength="80"
+                        class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+                        placeholder="e.g. Weekly Web Audit">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wider">Color</label>
+                    <select name="color" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none">
+                        <option value="blue">Blue</option>
+                        <option value="sky">Sky</option>
+                        <option value="indigo">Indigo</option>
+                        <option value="emerald">Emerald</option>
+                        <option value="rose">Rose</option>
+                        <option value="amber">Amber</option>
+                        <option value="gray">Gray</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wider">Description</label>
+                <input type="text" name="description" maxlength="300"
+                    class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+                    placeholder="Optional description">
+            </div>
+
+            <!-- Module selection -->
+            <div>
+                <label class="block text-xs text-gray-400 mb-2 uppercase tracking-wider">Modules</label>
+                <div class="bg-gray-900/50 border border-gray-700/40 rounded-lg p-3 max-h-60 overflow-y-auto space-y-3">
+                    {% set _sc_colors = {
+                        "indigo":  "text-indigo-400",
+                        "sky":     "text-sky-400",
+                        "emerald": "text-emerald-400",
+                        "amber":   "text-amber-400",
+                        "rose":    "text-rose-400",
+                        "orange":  "text-orange-400",
+                    } %}
+                    {% for cat in scan_categories %}
+                    {% set _cc = _sc_colors.get(cat.color, "text-gray-400") %}
+                    <div>
+                        <div class="text-[10px] font-bold {{ _cc }} uppercase tracking-wider mb-1">{{ cat.label }}</div>
+                        <div class="space-y-0.5 pl-2">
+                            {% for mod in cat.modules %}
+                            <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-700/20 rounded px-1 py-0.5">
+                                <input type="checkbox" name="scan_types" value="{{ mod.name }}"
+                                    class="rounded bg-gray-900 border-gray-600 {{ _cc }} focus:ring-0 w-3 h-3">
+                                <span class="text-xs text-gray-300">{{ mod.label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="is_default" value="1" class="rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-0">
+                    <span class="text-xs text-gray-300">Set as default</span>
+                </label>
+                {% if user.role in ('admin', 'tenant_admin') %}
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="is_public" value="1" class="rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-0">
+                    <span class="text-xs text-gray-300">Share with all tenant users</span>
+                </label>
+                {% endif %}
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 rounded-lg transition-colors">Create Profile</button>
+                <button type="button" onclick="document.getElementById('createModal').classList.add('hidden')"
+                    class="px-4 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-bold py-2 rounded-lg transition-colors">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+async function applyProfile(profileId) {
+    try {
+        const resp = await fetch(`/api/scan-profiles/${profileId}`);
+        const data = await resp.json();
+        applyModuleSelection(data.scan_types, data.name);
+    } catch (e) {
+        alert('Failed to load profile');
+    }
+}
+
+async function applyBuiltinProfile(name) {
+    try {
+        const resp = await fetch(`/api/scan-profiles/builtin/${encodeURIComponent(name)}`);
+        const data = await resp.json();
+        applyModuleSelection(data.scan_types, data.name);
+    } catch (e) {
+        alert('Failed to load built-in profile');
+    }
+}
+
+function applyModuleSelection(scanTypes, profileName) {
+    // Navigate to targets table with profile pre-selected
+    // Or if we're on a target detail page, trigger the scan panel
+    const isFullScan = scanTypes.includes('full_scan');
+    const params = new URLSearchParams();
+    if (isFullScan) {
+        params.set('profile_types', 'full_scan');
+    } else {
+        scanTypes.forEach(t => params.append('profile_types', t));
+    }
+    params.set('profile_name', profileName);
+    window.location.href = `/targets/table?${params.toString()}`;
+}
+</script>
+{% endblock %}

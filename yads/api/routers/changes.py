@@ -19,42 +19,13 @@ from yads.models import ChangeEvent, ScanResult, Target, User
 
 router = APIRouter(prefix="/changes", tags=["changes"])
 
+from yads.core.module_registry import get_module_labels as _get_module_labels
+
 MODULE_LABELS = {
-    "email_security": "Email Security",
-    "axfr_scanner": "DNS Zone Transfer",
-    "security_txt": "Security.txt",
-    "http_headers": "HTTP Headers",
-    "cookie_scanner": "Cookie Security",
-    "cors_scanner": "CORS",
-    "cert_mismatch": "Cert Mismatch",
-    "shodan_censys": "Shodan / Censys",
-    "threat_intel": "Threat Intel",
-    "subdomain_takeover": "Subdomain Takeover",
-    "git_exposure": "Git Exposure",
-    "js_secrets": "JS Secrets",
-    "wayback_scanner": "Wayback Machine",
-    "external_resources": "External Resources",
-    "metadata_scanner": "Document Metadata",
-    "rpki_scanner": "RPKI / BGP",
-    "dsgvo_scanner": "Privacy / DSGVO",
-    "dns_scanner": "DNS Scanner",
-    "subdomain_scanner": "Subdomain Recon",
-    "ssl_scanner": "SSL Scanner",
-    "web_analyzer": "Web Analyzer",
-    "nuclei_scanner": "Nuclei",
-    "infrastructure_scanner": "Infrastructure",
-    "nmap_scanner": "Nmap",
-    "cve_scanner": "CVE Scanner",
-    "visual_osint": "Visual OSINT",
-    "crawler": "Site Crawler",
-    "content_discovery": "Content Discovery",
-    "csp_scanner": "CSP Scanner",
-    "seed_files_scanner": "Seed Files",
-    "form_discovery": "Form Discovery",
-    "typosquat_scanner": "Typosquatting",
-    "tld_scanner": "TLD Scanner",
-    "deception_detector": "Deception Detector",
+    **_get_module_labels(),
+    # Modules not in main registry but may appear in change events
     "dns_cleanup": "DNS Health Check",
+    "cve_scanner": "CVE Scanner",
 }
 
 

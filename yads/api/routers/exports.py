@@ -189,7 +189,7 @@ async def execute_restore(
         logger.error(f"Restore Error: {e}")
         return RedirectResponse(url=f"/settings?error=Restore+Failed:+{str(e)}", status_code=303)
 @router.get("/targets/export/excel")
-async def export_targets_excel(session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
+async def export_targets_excel(lang: str = "en", session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Generates an Excel report of all targets and their latest scan results.
     """
@@ -288,31 +288,36 @@ async def export_targets_excel(session: Session = Depends(get_session), user: Us
         tld_free = tld_scan.data.get("free_count", 0) if tld_scan and tld_scan.data else 0
         tld_diff = tld_scan.data.get("registered_count_diff_owner", 0) if tld_scan and tld_scan.data else 0
 
+        from yads.core.report_translations import get_t
+        tr = get_t(lang)
+        _yes = tr["label_yes"]
+        _no = tr["label_no"]
+
         row = {
             "ID": t.id,
-            "Domain": t.domain,
-            "Online": is_online,
+            tr["col_domain"]: t.domain,
+            tr["col_status"]: is_online,
             "Probe": "Active" if (port_scan and port_scan.data and port_scan.data.get("is_active")) else ("Inactive" if port_scan else "-"),
             "HTTP": web.data.get("http_status") if web and web.data else "-",
             "HTTPS": web.data.get("https_status") if web and web.data else "-",
-            "HTTPS_Redirect": "Yes" if (web and web.data and web.data.get("https_redirect")) else "No",
-            "Wildcard": "Yes" if (dns and dns.data and dns.data.get("wildcard_detected")) else "No",
-            "Login_Detected": "Yes" if (web and web.data and web.data.get("is_login_page")) else "No",
-            "IP": dns_ip,
-            "Subdomain_Count": len(dns.data.get("subdomains", [])) if (dns and dns.data) else 0,
+            "HTTPS_Redirect": _yes if (web and web.data and web.data.get("https_redirect")) else _no,
+            "Wildcard": _yes if (dns and dns.data and dns.data.get("wildcard_detected")) else _no,
+            "Login_Detected": _yes if (web and web.data and web.data.get("is_login_page")) else _no,
+            tr["col_ip"]: dns_ip,
+            tr["col_subdomains"]: len(dns.data.get("subdomains", [])) if (dns and dns.data) else 0,
             "Scan_Status": t.scan_status,
-            "Last_Scan": results[0].scanned_at.strftime("%Y-%m-%d %H:%M") if results else "-",
+            tr["col_last_scan"]: results[0].scanned_at.strftime("%Y-%m-%d %H:%M") if results else "-",
             "SSL_Issuer": ssl.data.get("issuer", {}).get("commonName", "") if (ssl and ssl.data and not ssl.data.get("error")) else "",
-            "SSL_Expiry": ssl.data.get("notAfter", "") if (ssl and ssl.data and not ssl.data.get("error")) else "",
-            "Cipher_Compliant": compliant,
-            "Cipher_NonCompliant": non_compliant,
+            tr["col_ssl_expiry"]: ssl.data.get("notAfter", "") if (ssl and ssl.data and not ssl.data.get("error")) else "",
+            tr["col_compliance"]: compliant,
+            tr["col_non_compliance"]: non_compliant,
             "Web_Server": web.data.get("server_header", "") if web and web.data else "",
             "ASN": infra.data.get("asn", {}).get("asn", "") if infra and infra.data else "",
             "ISP": infra.data.get("asn", {}).get("asn_description", "") if infra and infra.data else "",
             "Secrets_Count": len(web.data.get("secrets", [])) if (web and web.data) else 0,
-            "CVE_Critical": cve_stats["critical"],
-            "CVE_High": cve_stats["high"],
-            "CVE_Med": cve_stats["medium"],
+            tr["col_critical"]: cve_stats["critical"],
+            tr["col_high"]: cve_stats["high"],
+            tr["col_medium"]: cve_stats["medium"],
             "Takeover_Risks": len(dns.data.get("takeover_risks", [])) if (dns and dns.data) else 0,
             "TLD_Free": tld_free,
             "TLD_Suspect": tld_diff,
@@ -321,26 +326,27 @@ async def export_targets_excel(session: Session = Depends(get_session), user: Us
         data.append(row)
 
     df = pd.DataFrame(data)
-    
+
     output = BytesIO()
+    sheet_name = "Ziele" if lang.lower().startswith("de") else "Targets"
+    fname = f"yads_targets_export_{lang}.xlsx"
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Targets')
-        # Auto-adjust column width? Openpyxl can do this but requires more code.
-        # Pandas default is fine for MVP.
-        
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+
     output.seek(0)
-    
+
     headers = {
-        'Content-Disposition': 'attachment; filename="yads_targets_export.xlsx"'
+        'Content-Disposition': f'attachment; filename="{fname}"'
     }
     return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @router.get("/targets/{target_id}/export")
-async def export_target_pdf(target_id: int, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
+async def export_target_pdf(target_id: int, lang: str = "en", session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Generates a COMPREHENSIVE PDF report for a single target using FPDF.
     Includes full details from all scan modules.
+    Supports lang=en (default) and lang=de for German output.
     """
     from fpdf import FPDF
     from io import BytesIO
@@ -352,7 +358,10 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         raise HTTPException(status_code=403, detail="Access denied")
 
     results = session.exec(select(ScanResult).where(ScanResult.target_id == target_id).order_by(ScanResult.scanned_at.desc())).all()
-    
+
+    from yads.core.report_translations import get_t
+    tr = get_t(lang)
+
     # Extract Data
     dns = next((r for r in results if r.module_name == 'dns_scanner'), None)
     web = next((r for r in results if r.module_name == 'web_analyzer'), None)
@@ -361,16 +370,20 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     typosquat = next((r for r in results if r.module_name == 'typosquat_scanner'), None)
     visual = next((r for r in results if r.module_name == 'visual_osint'), None)
 
+    _report_title = f'{tr["label_security_report"]}: {target.domain}'
+    _page_label = tr["label_page"]
+    _confidential = tr["label_confidential"]
+
     class PDF(FPDF):
         def header(self):
             self.set_font('Helvetica', 'B', 15)
-            self.cell(0, 10, f'YADS Security Report: {target.domain}', align='C')
+            self.cell(0, 10, _report_title, align='C')
             self.ln(12)
 
         def footer(self):
             self.set_y(-15)
             self.set_font('Helvetica', 'I', 8)
-            self.cell(0, 10, f'Page {self.page_no()}', align='C')
+            self.cell(0, 10, f'{_page_label} {self.page_no()}', align='C')
 
         def chapter_title(self, label):
             self.ln(5)
@@ -432,8 +445,23 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
             logger.debug(f"Error getting keys: {e}")
             return default
 
+    _titles = {
+        "overview": {"en": "Target Overview", "de": "Zielübersicht"},
+        "dns": {"en": "DNS Analysis", "de": "DNS-Analyse"},
+        "web": {"en": "Web Analysis", "de": "Web-Analyse"},
+        "ssl": {"en": "SSL Configuration", "de": "SSL-Konfiguration"},
+        "infra": {"en": "Infrastructure", "de": "Infrastruktur"},
+        "typosquat": {"en": "Typosquatting", "de": "Typosquatting"},
+        "visual": {"en": "Visual OSINT", "de": "Visuelles OSINT"},
+        "findings": {"en": "Security Findings", "de": "Sicherheitsbefunde"},
+    }
+    _lang_key = "de" if lang.lower().startswith("de") else "en"
+
+    def _title(key):
+        return _titles.get(key, {}).get(_lang_key, key)
+
     # 1. Overview
-    pdf.chapter_title('Target Overview')
+    pdf.chapter_title(_title("overview"))
     pdf.section_kv("Domain", target.domain)
     pdf.section_kv("Target ID", target.id)
     pdf.section_kv("Scan Status", target.scan_status)
@@ -441,7 +469,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
     pdf.section_kv("Created At", target.created_at.strftime("%Y-%m-%d %H:%M:%S") if target.created_at else "N/A")
 
     # 2. DNS Analysis
-    pdf.chapter_title('DNS Analysis')
+    pdf.chapter_title(_title("dns"))
     if dns and dns.data:
         ip_records = dns.data.get("a_records", [])
         mx_records = dns.data.get("mx_records", [])
@@ -478,7 +506,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         pdf.content_text("No DNS data available.")
     
     # 3. Web Analysis
-    pdf.chapter_title('Web Analysis')
+    pdf.chapter_title(_title("web"))
     if web and web.data:
         pdf.section_kv("Title", web.data.get("title", "No Title"))
         pdf.section_kv("Server", web.data.get("server_header", "Unknown"))
@@ -520,7 +548,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         pdf.content_text("No Web analysis data available.")
     
     # 4. SSL Configuration
-    pdf.chapter_title('SSL Configuration')
+    pdf.chapter_title(_title("ssl"))
     if ssl and ssl.data:
         if ssl.data.get("error"):
             pdf.set_text_color(200, 50, 50)
@@ -550,7 +578,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         pdf.content_text("No SSL data available.")
 
     # 5. Infrastructure
-    pdf.chapter_title('Infrastructure')
+    pdf.chapter_title(_title("infra"))
     if infra and infra.data:
         asn = safe_get(infra.data, "asn", "asn")
         org = safe_get(infra.data, "asn", "asn_description")
@@ -576,7 +604,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         pdf.content_text("No Infrastructure data available.")
 
     # 6. Typosquatting
-    pdf.chapter_title('Typosquatting')
+    pdf.chapter_title(_title("typosquat"))
     if typosquat and typosquat.data:
         found = typosquat.data.get("found", [])
         scanned = typosquat.data.get("scanned_count", 0)
@@ -611,7 +639,7 @@ async def export_target_pdf(target_id: int, session: Session = Depends(get_sessi
         pdf.chapter_body("No Typosquatting data available.")
 
     # 7. Visual OSINT
-    pdf.chapter_title('Visual OSINT')
+    pdf.chapter_title(_title("visual"))
     if visual and visual.data:
         logos = visual.data.get("logos", [])
         if logos:

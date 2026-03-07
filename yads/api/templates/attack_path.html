@@ -1,0 +1,760 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-5" x-data="attackPathApp()" x-init="init()">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Attack Path Visualizer</h1>
+            <p class="text-slate-400 text-sm mt-1">Graph-based view of potential attack chains across assets, services, and findings.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <select
+                x-model="selectedTargetId"
+                @change="loadGraph()"
+                class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[220px]"
+            >
+                <option value="">-- Select a target --</option>
+                {% for t in targets %}
+                <option value="{{ t.id }}">{{ t.domain }}</option>
+                {% endfor %}
+            </select>
+            <button
+                @click="resetZoom()"
+                x-show="graphLoaded"
+                class="text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg px-3 py-2 transition-colors"
+                title="Reset zoom"
+            >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading / Empty States -->
+    <div x-show="loading" class="flex items-center justify-center py-24">
+        <div class="flex flex-col items-center gap-3 text-slate-500">
+            <svg class="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span class="text-sm">Building attack graph...</span>
+        </div>
+    </div>
+
+    <div x-show="!selectedTargetId && !loading" class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+        <svg class="w-12 h-12 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+        <p class="text-slate-400 text-sm">Select a target to visualize its attack paths.</p>
+    </div>
+
+    <div x-show="error" class="bg-red-950 border border-red-800 rounded-xl p-4 text-red-300 text-sm" x-text="error"></div>
+
+    <!-- Main Layout -->
+    <div x-show="graphLoaded && !loading" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
+
+        <!-- Left Panel: Summary Stats -->
+        <div class="xl:col-span-1 space-y-4">
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-2 xl:grid-cols-1 gap-3">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Total Nodes</p>
+                    <p class="text-2xl font-bold text-white" x-text="summary.total_nodes || 0"></p>
+                </div>
+                <div class="bg-slate-900 border border-red-900/40 rounded-xl p-4">
+                    <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Critical Paths</p>
+                    <p class="text-2xl font-bold text-red-400" x-text="summary.critical_paths || 0"></p>
+                </div>
+                <div class="bg-slate-900 border border-orange-900/40 rounded-xl p-4">
+                    <p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Max Risk Score</p>
+                    <p class="text-2xl font-bold text-orange-400" x-text="summary.max_risk_score || 0"></p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                    <p class="text-xs text-slate-500 uppercase tracking-wide mb-2">Node Types</p>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-blue-400">Target</span>
+                            <span class="text-slate-300" x-text="(summary.node_type_counts || {}).target || 0"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Ports</span>
+                            <span class="text-slate-300" x-text="(summary.node_type_counts || {}).port || 0"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yellow-400">Services</span>
+                            <span class="text-slate-300" x-text="(summary.node_type_counts || {}).service || 0"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400">Findings</span>
+                            <span class="text-slate-300" x-text="(summary.node_type_counts || {}).finding || 0"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Node Types</p>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-blue-500 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Target (domain)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-slate-500 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Port (open port)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-yellow-500 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Service (technology)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-red-500 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Finding (critical/high)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-orange-400 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Finding (medium)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-yellow-600 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Finding (low/info)</span>
+                    </div>
+                </div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-4 mb-2">Interactions</p>
+                <ul class="space-y-1 text-xs text-slate-500">
+                    <li>Click node → details</li>
+                    <li>Drag nodes to reposition</li>
+                    <li>Scroll to zoom</li>
+                    <li>Drag background to pan</li>
+                </ul>
+            </div>
+
+            <!-- Top Attack Paths -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-sm font-semibold text-white">Top Attack Paths</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Highest-risk finding chains</p>
+                </div>
+                <div class="divide-y divide-slate-800 max-h-64 overflow-y-auto">
+                    <template x-if="topPaths.length === 0">
+                        <div class="px-4 py-6 text-center text-slate-600 text-xs">No critical findings detected.</div>
+                    </template>
+                    <template x-for="(path, idx) in topPaths" :key="idx">
+                        <div
+                            class="px-4 py-2.5 hover:bg-slate-800/50 cursor-pointer transition-colors"
+                            @click="highlightNode(path.id)"
+                        >
+                            <div class="flex items-start gap-2">
+                                <span
+                                    class="shrink-0 mt-0.5 w-2 h-2 rounded-full inline-block"
+                                    :class="riskDotClass(path.risk)"
+                                ></span>
+                                <div class="min-w-0">
+                                    <p class="text-xs text-slate-200 truncate" x-text="path.label"></p>
+                                    <p class="text-[10px] text-slate-500" x-text="(path.metadata && path.metadata.module) ? path.metadata.module.replace('_', ' ') : path.type"></p>
+                                </div>
+                                <span class="ml-auto shrink-0 text-xs font-bold" :class="riskTextClass(path.risk)" x-text="path.risk"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Center: D3 Graph -->
+        <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style="min-height: 600px; position: relative;">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-white">Attack Graph</h2>
+                <div class="flex items-center gap-3 text-xs text-slate-500">
+                    <span x-text="`${nodes.length} nodes`"></span>
+                    <span x-text="`${edges.length} edges`"></span>
+                </div>
+            </div>
+            <div id="graph-container" style="width: 100%; height: 560px; background: #0b0f19; position: relative;">
+                <svg id="attack-graph-svg" style="width: 100%; height: 100%;"></svg>
+            </div>
+        </div>
+
+        <!-- Right Panel: Node Details -->
+        <div class="xl:col-span-1 space-y-4">
+
+            <!-- Selected Node Details -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-sm font-semibold text-white">Node Details</h2>
+                </div>
+                <div x-show="!selectedNode" class="px-4 py-8 text-center text-slate-600 text-xs">
+                    Click a node to see details.
+                </div>
+                <div x-show="selectedNode" class="p-4 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full shrink-0" :class="selectedNode && nodeColorClass(selectedNode)"></span>
+                        <span class="text-sm font-semibold text-white truncate" x-text="selectedNode && selectedNode.label"></span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-slate-800 rounded-lg p-2">
+                            <p class="text-slate-500">Type</p>
+                            <p class="text-slate-200 font-medium capitalize mt-0.5" x-text="selectedNode && selectedNode.type"></p>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-2">
+                            <p class="text-slate-500">Risk Score</p>
+                            <p class="font-bold mt-0.5" :class="selectedNode && riskTextClass(selectedNode.risk)" x-text="selectedNode && selectedNode.risk"></p>
+                        </div>
+                    </div>
+
+                    <!-- Finding-specific fields -->
+                    <template x-if="selectedNode && selectedNode.type === 'finding'">
+                        <div class="space-y-2 text-xs">
+                            <div class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500">Severity</p>
+                                <p class="font-semibold mt-0.5 capitalize"
+                                   :class="severityTextClass(selectedNode.metadata && selectedNode.metadata.severity)"
+                                   x-text="selectedNode.metadata && selectedNode.metadata.severity"></p>
+                            </div>
+                            <div class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500">Scanner Module</p>
+                                <p class="text-slate-300 mt-0.5" x-text="selectedNode.metadata && (selectedNode.metadata.module || '').replace(/_/g, ' ')"></p>
+                            </div>
+                            <div x-show="selectedNode.metadata && selectedNode.metadata.description" class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500 mb-1">Description</p>
+                                <p class="text-slate-400 leading-relaxed" x-text="selectedNode.metadata && selectedNode.metadata.description"></p>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Port-specific fields -->
+                    <template x-if="selectedNode && selectedNode.type === 'port'">
+                        <div class="space-y-2 text-xs">
+                            <div class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500">Port Number</p>
+                                <p class="text-slate-200 font-mono font-bold mt-0.5" x-text="selectedNode.metadata && selectedNode.metadata.port"></p>
+                            </div>
+                            <div class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500">Service</p>
+                                <p class="text-slate-300 mt-0.5" x-text="selectedNode.metadata && selectedNode.metadata.service"></p>
+                            </div>
+                            <template x-if="selectedNode.metadata && selectedNode.metadata.banner">
+                                <div class="bg-slate-800 rounded-lg p-2">
+                                    <p class="text-slate-500">Banner</p>
+                                    <p class="text-slate-400 font-mono text-[10px] mt-0.5" x-text="selectedNode.metadata.banner"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Service-specific fields -->
+                    <template x-if="selectedNode && selectedNode.type === 'service'">
+                        <div class="space-y-2 text-xs">
+                            <div class="bg-slate-800 rounded-lg p-2">
+                                <p class="text-slate-500">Technology</p>
+                                <p class="text-slate-200 font-medium mt-0.5" x-text="selectedNode.metadata && selectedNode.metadata.name"></p>
+                            </div>
+                            <template x-if="selectedNode.metadata && selectedNode.metadata.version">
+                                <div class="bg-slate-800 rounded-lg p-2">
+                                    <p class="text-slate-500">Version</p>
+                                    <p class="text-slate-300 font-mono mt-0.5" x-text="selectedNode.metadata.version"></p>
+                                </div>
+                            </template>
+                            <template x-if="selectedNode.metadata && selectedNode.metadata.cves && selectedNode.metadata.cves.length > 0">
+                                <div class="bg-slate-800 rounded-lg p-2">
+                                    <p class="text-slate-500 mb-1">Known CVEs</p>
+                                    <template x-for="cve in selectedNode.metadata.cves" :key="cve.id || cve">
+                                        <div class="text-[10px] text-orange-400 font-mono" x-text="typeof cve === 'string' ? cve : (cve.id || 'CVE')"></div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Connected nodes -->
+                    <div x-show="connectedNodes.length > 0" class="text-xs">
+                        <p class="text-slate-500 mb-1">Connected Nodes (<span x-text="connectedNodes.length"></span>)</p>
+                        <div class="space-y-1 max-h-32 overflow-y-auto">
+                            <template x-for="cn in connectedNodes" :key="cn.id">
+                                <div
+                                    class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-800 cursor-pointer transition-colors"
+                                    @click="highlightNode(cn.id)"
+                                >
+                                    <span class="w-2 h-2 rounded-full shrink-0" :class="nodeColorClass(cn)"></span>
+                                    <span class="text-slate-300 truncate" x-text="cn.label"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Filter Graph</p>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input type="checkbox" x-model="showTargets" @change="applyFilters()" class="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+                        Targets
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input type="checkbox" x-model="showPorts" @change="applyFilters()" class="rounded border-slate-600 bg-slate-800 text-slate-400 focus:ring-slate-400">
+                        <span class="w-2 h-2 rounded-full bg-slate-500 inline-block"></span>
+                        Ports
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input type="checkbox" x-model="showServices" @change="applyFilters()" class="rounded border-slate-600 bg-slate-800 text-yellow-500 focus:ring-yellow-500">
+                        <span class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
+                        Services
+                    </label>
+                    <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input type="checkbox" x-model="showFindings" @change="applyFilters()" class="rounded border-slate-600 bg-slate-800 text-red-500 focus:ring-red-500">
+                        <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                        Findings
+                    </label>
+                    <div class="pt-1">
+                        <label class="text-xs text-slate-500 mb-1 block">Min risk score: <span class="text-slate-300" x-text="minRisk"></span></label>
+                        <input type="range" min="1" max="10" x-model="minRisk" @input="applyFilters()"
+                               class="w-full accent-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<!-- D3.js from CDN -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+function attackPathApp() {
+    return {
+        // State
+        selectedTargetId: '',
+        loading: false,
+        error: null,
+        graphLoaded: false,
+
+        // Graph data
+        nodes: [],
+        edges: [],
+        summary: {},
+        topPaths: [],
+
+        // Filters
+        showTargets: true,
+        showPorts: true,
+        showServices: true,
+        showFindings: true,
+        minRisk: 1,
+
+        // Selection
+        selectedNode: null,
+        connectedNodes: [],
+
+        // D3 internals
+        _simulation: null,
+        _svg: null,
+        _zoom: null,
+        _g: null,
+
+        init() {
+            // Nothing needed on init — user selects target
+        },
+
+        async loadGraph() {
+            if (!this.selectedTargetId) return;
+
+            this.loading = true;
+            this.error = null;
+            this.graphLoaded = false;
+            this.selectedNode = null;
+            this.connectedNodes = [];
+
+            try {
+                const resp = await fetch(`/api/attack-path/${this.selectedTargetId}`);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+                    throw new Error(err.detail || 'Failed to load graph data');
+                }
+                const data = await resp.json();
+                this.nodes = data.nodes || [];
+                this.edges = data.edges || [];
+                this.summary = data.summary || {};
+                this.topPaths = [...this.nodes]
+                    .filter(n => n.type === 'finding')
+                    .sort((a, b) => b.risk - a.risk)
+                    .slice(0, 15);
+                this.graphLoaded = true;
+
+                // Render after DOM update
+                await this.$nextTick();
+                this.renderGraph();
+            } catch (e) {
+                this.error = e.message || 'An error occurred loading the attack graph.';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        applyFilters() {
+            if (this._simulation) this.renderGraph();
+        },
+
+        filteredNodes() {
+            return this.nodes.filter(n => {
+                if (n.risk < this.minRisk) return false;
+                if (n.type === 'target' && !this.showTargets) return false;
+                if (n.type === 'port' && !this.showPorts) return false;
+                if (n.type === 'service' && !this.showServices) return false;
+                if (n.type === 'finding' && !this.showFindings) return false;
+                return true;
+            });
+        },
+
+        filteredEdges(visibleIds) {
+            return this.edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
+        },
+
+        nodeColor(node) {
+            if (node.type === 'target') return '#3b82f6';     // blue-500
+            if (node.type === 'port') return '#6b7280';       // gray-500
+            if (node.type === 'service') return '#eab308';    // yellow-500
+            if (node.type === 'finding') {
+                if (node.risk >= 8) return '#ef4444';         // red-500
+                if (node.risk >= 5) return '#f97316';         // orange-500
+                return '#ca8a04';                             // yellow-600
+            }
+            return '#8b5cf6';
+        },
+
+        nodeRadius(node) {
+            if (node.type === 'target') return 18;
+            if (node.type === 'service') return 12;
+            if (node.type === 'finding') return Math.max(8, node.risk * 1.5);
+            return 9; // port
+        },
+
+        nodeColorClass(node) {
+            if (!node) return '';
+            if (node.type === 'target') return 'bg-blue-500';
+            if (node.type === 'port') return 'bg-slate-500';
+            if (node.type === 'service') return 'bg-yellow-500';
+            if (node.type === 'finding') {
+                if (node.risk >= 8) return 'bg-red-500';
+                if (node.risk >= 5) return 'bg-orange-400';
+                return 'bg-yellow-600';
+            }
+            return 'bg-purple-500';
+        },
+
+        riskDotClass(risk) {
+            if (risk >= 8) return 'bg-red-500';
+            if (risk >= 5) return 'bg-orange-400';
+            return 'bg-yellow-600';
+        },
+
+        riskTextClass(risk) {
+            if (risk >= 8) return 'text-red-400';
+            if (risk >= 5) return 'text-orange-400';
+            return 'text-yellow-400';
+        },
+
+        severityTextClass(sev) {
+            if (!sev) return 'text-slate-400';
+            const s = sev.toLowerCase();
+            if (s === 'critical') return 'text-red-400';
+            if (s === 'high') return 'text-orange-400';
+            if (s === 'medium') return 'text-yellow-400';
+            if (s === 'low') return 'text-blue-400';
+            return 'text-slate-400';
+        },
+
+        highlightNode(nodeId) {
+            const node = this.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            this.selectNode(node);
+
+            // Pan to node in graph
+            if (this._svg && this._g && node.x !== undefined) {
+                const container = document.getElementById('graph-container');
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                const transform = d3.zoomIdentity
+                    .translate(w / 2 - node.x, h / 2 - node.y)
+                    .scale(1.2);
+                this._svg.transition().duration(600).call(this._zoom.transform, transform);
+            }
+        },
+
+        selectNode(node) {
+            this.selectedNode = node;
+            // Find connected nodes
+            const connIds = new Set();
+            this.edges.forEach(e => {
+                const src = typeof e.source === 'object' ? e.source.id : e.source;
+                const tgt = typeof e.target === 'object' ? e.target.id : e.target;
+                if (src === node.id) connIds.add(tgt);
+                if (tgt === node.id) connIds.add(src);
+            });
+            this.connectedNodes = this.nodes.filter(n => connIds.has(n.id));
+
+            // Update visual highlight
+            if (this._g) {
+                this._g.selectAll('circle')
+                    .attr('stroke', d => d.id === node.id ? '#ffffff' : 'rgba(0,0,0,0.3)')
+                    .attr('stroke-width', d => d.id === node.id ? 3 : 1);
+            }
+        },
+
+        resetZoom() {
+            if (this._svg && this._zoom) {
+                this._svg.transition().duration(400).call(this._zoom.transform, d3.zoomIdentity);
+            }
+        },
+
+        renderGraph() {
+            const container = document.getElementById('graph-container');
+            const svgEl = document.getElementById('attack-graph-svg');
+            if (!container || !svgEl) return;
+
+            // Clear previous
+            d3.select(svgEl).selectAll('*').remove();
+            if (this._simulation) this._simulation.stop();
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            const visibleNodes = this.filteredNodes();
+            const visibleIds = new Set(visibleNodes.map(n => n.id));
+            const visibleEdges = this.filteredEdges(visibleIds);
+
+            // Deep copy to avoid mutating source data
+            const nodesData = visibleNodes.map(n => ({ ...n }));
+            const edgesData = visibleEdges.map(e => ({ ...e }));
+
+            const svg = d3.select(svgEl)
+                .attr('viewBox', `0 0 ${width} ${height}`)
+                .attr('width', width)
+                .attr('height', height);
+
+            this._svg = svg;
+
+            // Zoom/pan
+            const zoom = d3.zoom()
+                .scaleExtent([0.15, 4])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            svg.call(zoom);
+            this._zoom = zoom;
+
+            const g = svg.append('g');
+            this._g = g;
+
+            // Arrow markers
+            const defs = svg.append('defs');
+            const markerTypes = [
+                { id: 'arrow-normal', color: '#475569' },
+                { id: 'arrow-critical', color: '#ef4444' },
+                { id: 'arrow-high', color: '#f97316' },
+            ];
+            markerTypes.forEach(m => {
+                defs.append('marker')
+                    .attr('id', m.id)
+                    .attr('viewBox', '0 -5 10 10')
+                    .attr('refX', 20)
+                    .attr('refY', 0)
+                    .attr('markerWidth', 6)
+                    .attr('markerHeight', 6)
+                    .attr('orient', 'auto')
+                    .append('path')
+                    .attr('d', 'M0,-5L10,0L0,5')
+                    .attr('fill', m.color);
+            });
+
+            // Edges
+            const edgeGroup = g.append('g').attr('class', 'edges');
+            const link = edgeGroup.selectAll('g.link')
+                .data(edgesData)
+                .join('g')
+                .attr('class', 'link');
+
+            const path = link.append('line')
+                .attr('stroke', d => {
+                    // Color edge by target node risk
+                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    if (!tgtNode) return '#334155';
+                    if (tgtNode.risk >= 8) return 'rgba(239,68,68,0.5)';
+                    if (tgtNode.risk >= 5) return 'rgba(249,115,22,0.4)';
+                    return 'rgba(71,85,105,0.5)';
+                })
+                .attr('stroke-width', d => {
+                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    if (!tgtNode) return 1;
+                    return tgtNode.risk >= 8 ? 2 : 1;
+                })
+                .attr('marker-end', d => {
+                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    if (!tgtNode) return 'url(#arrow-normal)';
+                    if (tgtNode.risk >= 8) return 'url(#arrow-critical)';
+                    if (tgtNode.risk >= 5) return 'url(#arrow-high)';
+                    return 'url(#arrow-normal)';
+                });
+
+            // Edge labels (only on hover group hover)
+            const edgeLabel = link.append('text')
+                .attr('class', 'edge-label')
+                .attr('text-anchor', 'middle')
+                .attr('font-size', '9px')
+                .attr('fill', '#475569')
+                .attr('dy', '-4')
+                .text(d => d.label || '');
+
+            // Nodes
+            const nodeGroup = g.append('g').attr('class', 'nodes');
+            const node = nodeGroup.selectAll('g.node')
+                .data(nodesData)
+                .join('g')
+                .attr('class', 'node')
+                .style('cursor', 'pointer')
+                .call(
+                    d3.drag()
+                        .on('start', (event, d) => {
+                            if (!event.active) simulation.alphaTarget(0.3).restart();
+                            d.fx = d.x;
+                            d.fy = d.y;
+                        })
+                        .on('drag', (event, d) => {
+                            d.fx = event.x;
+                            d.fy = event.y;
+                        })
+                        .on('end', (event, d) => {
+                            if (!event.active) simulation.alphaTarget(0);
+                            d.fx = null;
+                            d.fy = null;
+                        })
+                )
+                .on('click', (event, d) => {
+                    event.stopPropagation();
+                    this.selectNode(d);
+                });
+
+            // Glow effect for high-risk nodes
+            node.append('circle')
+                .attr('r', d => this.nodeRadius(d) + 4)
+                .attr('fill', d => {
+                    if (d.risk >= 8) return 'rgba(239,68,68,0.15)';
+                    if (d.risk >= 5) return 'rgba(249,115,22,0.1)';
+                    return 'transparent';
+                });
+
+            node.append('circle')
+                .attr('r', d => this.nodeRadius(d))
+                .attr('fill', d => this.nodeColor(d))
+                .attr('stroke', 'rgba(0,0,0,0.3)')
+                .attr('stroke-width', 1);
+
+            // Icon text inside node
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'central')
+                .attr('font-size', d => {
+                    if (d.type === 'target') return '10px';
+                    return '8px';
+                })
+                .attr('fill', 'rgba(255,255,255,0.9)')
+                .attr('pointer-events', 'none')
+                .text(d => {
+                    if (d.type === 'target') return 'T';
+                    if (d.type === 'port') return 'P';
+                    if (d.type === 'service') return 'S';
+                    if (d.type === 'finding') return '!';
+                    return '?';
+                });
+
+            // Labels below node
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('y', d => this.nodeRadius(d) + 12)
+                .attr('font-size', '9px')
+                .attr('fill', '#94a3b8')
+                .attr('pointer-events', 'none')
+                .text(d => {
+                    const maxLen = 20;
+                    return d.label.length > maxLen ? d.label.slice(0, maxLen) + '…' : d.label;
+                });
+
+            // Tooltip on hover
+            node.append('title').text(d => `${d.label}\nType: ${d.type}\nRisk: ${d.risk}`);
+
+            // Click on SVG background to deselect
+            svg.on('click', () => {
+                this.selectedNode = null;
+                this.connectedNodes = [];
+                nodeGroup.selectAll('circle:nth-child(2)')
+                    .attr('stroke', 'rgba(0,0,0,0.3)')
+                    .attr('stroke-width', 1);
+            });
+
+            // Force simulation
+            const simulation = d3.forceSimulation(nodesData)
+                .force('link', d3.forceLink(edgesData)
+                    .id(d => d.id)
+                    .distance(d => {
+                        // Longer distance for less related nodes
+                        const src = typeof d.source === 'object' ? d.source : nodesData.find(n => n.id === d.source);
+                        const tgt = typeof d.target === 'object' ? d.target : nodesData.find(n => n.id === d.target);
+                        if (!src || !tgt) return 80;
+                        if (src.type === 'target' || tgt.type === 'target') return 90;
+                        if (tgt.type === 'finding' && tgt.risk >= 8) return 60;
+                        return 75;
+                    })
+                    .strength(0.6)
+                )
+                .force('charge', d3.forceManyBody()
+                    .strength(d => {
+                        if (d.type === 'target') return -300;
+                        if (d.type === 'finding' && d.risk >= 8) return -200;
+                        return -120;
+                    })
+                )
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(d => this.nodeRadius(d) + 15))
+                .on('tick', () => {
+                    path
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+
+                    edgeLabel
+                        .attr('x', d => ((d.source.x || 0) + (d.target.x || 0)) / 2)
+                        .attr('y', d => ((d.source.y || 0) + (d.target.y || 0)) / 2);
+
+                    node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`);
+                });
+
+            this._simulation = simulation;
+
+            // If no nodes — show a message
+            if (nodesData.length === 0) {
+                g.append('text')
+                    .attr('x', width / 2)
+                    .attr('y', height / 2)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#475569')
+                    .attr('font-size', '14px')
+                    .text('No scan data available for this target.');
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

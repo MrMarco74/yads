@@ -86,7 +86,10 @@ class Target(SQLModel, table=True):
     
     # Tagging
     tags: List[str] = Field(default=[], sa_column=Column(JSONB))
-    
+
+    # Scan Queue Priority (1=low, 5=normal, 9=high, 10=critical)
+    scan_priority: int = Field(default=5)
+
     # Justification
     discovery_reason: Optional[str] = Field(default=None)
     
@@ -539,3 +542,79 @@ class APIKey(SQLModel, table=True):
 
     # Relationships
     tenant: Tenant = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+
+
+class TenantModuleConfig(SQLModel, table=True):
+    """Per-tenant module enable/disable override. Absent row = enabled (default)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    module_name: str = Field(index=True)
+    enabled: bool = Field(default=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_by: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class InstalledModule(SQLModel, table=True):
+    """Dynamically installed scanner modules (uploaded as ZIP packages by admin)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    module_name: str = Field(unique=True, index=True)
+    label: str
+    label_de: str = Field(default="")
+    category: str = Field(default="active")
+    version: str = Field(default="1.0.0")
+    author: str = Field(default="")
+    description: str = Field(default="")
+    module_path: str  # "yads.modules.custom.xxx:ClassName"
+    requires_http: bool = Field(default=False)
+    requires_https: bool = Field(default=False)
+    default_on: bool = Field(default=False)
+    finding_module: bool = Field(default=True)
+    extractor: str = Field(default="generic")
+    installed_at: datetime = Field(default_factory=datetime.utcnow)
+    installed_by: Optional[int] = Field(default=None, foreign_key="user.id")
+    is_active: bool = Field(default=True)
+    setup_log: Optional[str] = Field(default=None, sa_column=Column(String))
+
+
+class ScanProfile(SQLModel, table=True):
+    """
+    Saved scan configuration profile — a named set of scanner modules + settings.
+    Allows users to save commonly used scan configurations and apply them quickly.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")
+
+    name: str = Field(index=True)
+    description: Optional[str] = Field(default=None)
+
+    # List of module names to enable in this profile
+    scan_types: List[str] = Field(default=[], sa_column=Column(JSONB))
+
+    # Metadata
+    is_default: bool = Field(default=False)  # Shown as default selection for tenant
+    is_public: bool = Field(default=False)   # Visible to all tenant users (not just creator)
+    icon: Optional[str] = Field(default=None)  # emoji or icon name
+    color: str = Field(default="blue")       # UI accent color
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class IntegrationConfig(SQLModel, table=True):
+    """
+    Stores configuration for external integrations (Jira, GitHub Issues, SIEM, etc.).
+    One row per integration type per tenant.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+
+    integration_type: str = Field(index=True)  # "jira", "github", "siem_syslog", "siem_http", "slack"
+
+    # Connection details (encrypted at rest ideally, stored as JSONB for flexibility)
+    config: dict = Field(default={}, sa_column=Column(JSONB))
+
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")

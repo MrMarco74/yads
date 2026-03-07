@@ -152,6 +152,88 @@
     <div class="container">
 
         <div class="timeline">
+
+        <!-- Version 1.20.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 0.5rem; color: #fff;">KI-Intelligence-Suite &amp; Erweiterte Analysen</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">Ein großes Funktions-Release mit KI-gestützter Sicherheitsanalyse, interaktiver Angriffspfad-Visualisierung, Executive-Reporting und umfassendem Befundmanagement für die YADS-Plattform.</p>
+
+                <h3>🤖 KI-Assistent (Neues Modul)</h3>
+                <ul>
+                    <li><strong>KI-Befundpriorisierung</strong> — Ordnet alle Befunde eines Ziels automatisch nach kombinierter Ausnutzbarkeit und Geschäftsauswirkung. Nutzt OpenAI (gpt-4o-mini) oder Anthropic (claude-haiku) bei Konfiguration (BYOK); fällt anderenfalls auf regelbasierte Bewertung mit Keyword-Boosting zurück.</li>
+                    <li><strong>KI-Maßnahmenassistent</strong> — Erzeugt schrittweise, umsetzbare Behebungsanleitungen für jeden ausgewählten Befund, mit Aufwandsschätzung (gering/mittel/hoch) und kuratierten Referenzlinks. Regelbasierter Fallback deckt CORS, XSS, SQL-Injection, SSL/TLS, HTTP-Header, AXFR, Cookie-Sicherheit, CSRF, RCE und offene Weiterleitungen ab.</li>
+                    <li><strong>Natürlichsprachige Suche</strong> — Durchsucht die gesamte Befunddatenbank in natürlicher Sprache auf Deutsch oder Englisch (z.B. "zeige alle kritischen SSL-Probleme auf api.example.com"). Live-Suche mit gedrosseltem Debounce und KI-interpretierten oder Regex-extrahierten Filterchips für Schweregrad, Modul und Domain.</li>
+                    <li><strong>KI-Mehrsprachigkeit</strong> — Alle KI-generierten Ausgaben (Begründungen, Maßnahmenempfehlungen, Suchinterpretationen) können durch Übergabe von <code>lang=de</code> auf Deutsch ausgegeben werden. Regelbasierte Fallbacks sind ebenfalls vollständig übersetzt.</li>
+                </ul>
+
+                <h3>📊 Executive Report (C-Level-Dashboard)</h3>
+                <ul>
+                    <li>Nicht-technische Sicherheitszusammenfassung für Management und C-Level-Stakeholder.</li>
+                    <li>Großer Bewertungskreis (A–F) mit numerischem Score (0–100), Risikotrend-Indikator (verbessert / stabil / verschlechtert) und farbcodierten KPI-Karten (Gesamtassets, kritische Probleme, Hochrisiko-Probleme).</li>
+                    <li>Segmentierter Risikoverteilungsbalken (kritisch → Info), Top 5 Risikotypen mit Schweregraden, Top 5 gefährdetste Assets und priorisierte Handlungsempfehlungen in verständlicher Sprache.</li>
+                    <li>Eingebautes Druckstylessheet für saubere PDF-Ausgabe direkt aus dem Browser.</li>
+                </ul>
+
+                <h3>🗺️ Angriffspfad-Visualisierer</h3>
+                <ul>
+                    <li>Interaktiver D3.js-Kraftgerichteter-Graph, der die vollständige Angriffsfläche eines gescannten Ziels zeigt.</li>
+                    <li>Knoten repräsentieren: den Root-Host, entdeckte offene Ports (farbcodiert nach Risiko), identifizierte Dienste und Technologien (mit CVE-Anzahl) und individuelle Sicherheitsbefunde.</li>
+                    <li>Gerichtete Kanten zeigen Ausnutzungsketten: Hoch- und Kritisch-Befunde werden mit "ermöglicht"-Kanten verknüpft, um mehrstufige Angriffspfade zu modellieren.</li>
+                    <li>Knotendetailpanel mit typspezifischen Feldern, Liste verbundener Knoten und Filtersteuerungen (Knotentypen umschalten, Mindestrisiko-Slider). Top-Angriffspfadliste ermöglicht Ein-Klick-Schwenk auf jeden Knoten.</li>
+                </ul>
+
+                <h3>📁 Befundmanagement &amp; Schwachstellenverfolgung</h3>
+                <ul>
+                    <li>Verfolgen Sie den Lebenszyklus jedes Befunds mit Statusmarkierungen: <strong>Offen</strong>, <strong>Bestätigt</strong>, <strong>Falsch-Positiv</strong>, <strong>Behoben</strong>.</li>
+                    <li>Notizen zu jedem Befund hinzufügen für Analytikerkommentare, Behebungszeitpläne oder Ticketreferenzen.</li>
+                    <li>Statusfilter auf der Sicherheitsbefunde-Seite — filtern nach offen, bestätigt, Falsch-Positiv oder behoben.</li>
+                    <li>CSV-Export mit allen aktiven Filtern (Schweregrad, Status, Modul, Domain, Datumsbereich).</li>
+                    <li>Befundstatus wird mandantenspezifisch gespeichert, übersteht Neuüberprüfungen und wird durch einen deterministischen SHA-256-Hash von domain|modul|problem identifiziert.</li>
+                </ul>
+
+                <h3>🏷️ Asset-Tagging &amp; Gruppierung</h3>
+                <ul>
+                    <li>Einem oder mehreren benutzerdefinierten Tags (z.B. <code>produktion</code>, <code>kritisch</code>, <code>im-scope</code>, <code>cloud</code>) zu jedem Ziel zuweisen.</li>
+                    <li>Interaktive Tag-Wolke auf der Tags-Seite — klicken Sie auf ein Tag, um die Zielliste auf passende Assets zu filtern.</li>
+                    <li>Massen-Tag-Operationen: mehrere Ziele auswählen und Tags in einer Aktion hinzufügen, entfernen oder ersetzen.</li>
+                    <li>Inline-Bearbeitung: Tags direkt in der Ziellistenzeile hinzufügen oder entfernen, ohne die Seite zu verlassen.</li>
+                    <li>Zentrale Tag-Verwaltung: ein Tag mit einem Klick von allen Zielen des Mandanten löschen.</li>
+                </ul>
+
+                <h3>🌐 Multi-Domain-Portfolio-Ansicht (Plattformadmin)</h3>
+                <ul>
+                    <li>Plattformadministratoren erhalten eine einheitliche mandantenübergreifende Übersichtstabelle mit mandantenspezifischen Statistiken: Domain-Anzahl, kritische Befunde, hohe Befunde, durchschnittlicher Sicherheitsscore, Plantier und letzter Scan-Zeitstempel.</li>
+                    <li>Score als farbcodiertes Notiz-Badge (A–F). Erweiterbare Unterzeilen zeigen die Top 3 gefährdetsten Domains pro Mandant.</li>
+                    <li>Inline-Suche/Filter, "Als Mandant anzeigen"-Imitationslink und globale KPI-Karten (Gesamtmandanten, Gesamtdomains, kritische Befunde plattformweit).</li>
+                </ul>
+
+                <h3>☁️ Erweiterter Cloud-Scanner</h3>
+                <ul>
+                    <li><strong>DigitalOcean Spaces</strong> (NYC3 + AMS3), <strong>Cloudflare R2</strong> Storage-Enumeration hinzugefügt.</li>
+                    <li>Neue <strong>Shadow-IT-Erkennung</strong>: prüft <strong>GitHub Pages</strong>, <strong>Netlify</strong>, <strong>Vercel</strong>, <strong>Heroku</strong>, <strong>Firebase Hosting</strong>, <strong>Render</strong>, <strong>Railway</strong> und <strong>Fly.io</strong> auf aktive Deployments, die mit der Zieldomain assoziiert sind.</li>
+                    <li>Standardseiten-Erkennung filtert Falsch-Positive heraus (Netlify "nicht gefunden"-Seiten, Heroku-Standard-Apps).</li>
+                    <li>Cloud-Scanner erzeugt jetzt strukturierte <code>findings[]</code> mit Schweregradwertungen — Hoch für offene Buckets, Niedrig für Shadow-IT — kompatibel mit allen Berichte- und KI-Analysemodulen.</li>
+                </ul>
+
+                <h3>🌍 Mehrsprachige Exporte (EN/DE)</h3>
+                <ul>
+                    <li>Alle PDF- und Excel-Berichtexporte akzeptieren jetzt einen <code>?lang=en</code>- oder <code>?lang=de</code>-Abfrageparameter.</li>
+                    <li>Deutsche Exporte übersetzen Spaltenüberschriften, Abschnittstitel, Befundbezeichnungen, Statustexte und alle festen Strings in beiden Berichtstypen.</li>
+                    <li>KI-generierte Berichtsinhalte (Executive Summaries, Maßnahmenempfehlungen) reagieren ebenfalls auf den Sprachparameter.</li>
+                </ul>
+
+                <h3>⚡ Parallele Scan-Ausführung</h3>
+                <ul>
+                    <li>Alle unabhängigen Scanner-Module (ohne benutzerdefinierte Dispatch-Logik) laufen jetzt gleichzeitig mit einem <code>ThreadPoolExecutor</code> mit bis zu 6 Worker-Threads pro Scan.</li>
+                    <li>Jedes parallele Modul erstellt eine eigene Datenbankverbindung, um Lock-Konflikte zu vermeiden.</li>
+                    <li>Gesamtlaufzeit für vollständige Multi-Modul-Scans auf leistungsfähiger Hardware erheblich reduziert.</li>
+                    <li>Sequentielle Module (Web-Analyzer, Nuclei, Crawler), die von der Reihenfolge abhängen, bleiben unverändert.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.19.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.19.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

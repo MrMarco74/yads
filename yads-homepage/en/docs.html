@@ -637,6 +637,171 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 </ul>
 <p>A pre-built YADS dashboard is automatically provisioned in Grafana.</p>
 <hr />
+<h2>13. AI Intelligence Assistant</h2>
+<p>The AI Assistant module provides three AI-powered analysis tools accessible from <strong>Intelligence → AI Assistant</strong> in the sidebar. All features support OpenAI and Anthropic (BYOK) and include rule-based fallbacks when no AI key is configured.</p>
+
+<h3>13.1 Configuring AI Providers</h3>
+<p>AI features require an API key from OpenAI or Anthropic. Keys can be set at two levels:</p>
+<ul>
+    <li><strong>Platform-level</strong>: Navigate to <strong>Settings → System Config</strong> and set <code>OPENAI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code>. This applies to all tenants that have not set their own key.</li>
+    <li><strong>Per-Tenant (BYOK)</strong>: Tenant administrators can set their own <code>llm_provider</code>, <code>llm_api_key</code>, and <code>llm_model</code> in <strong>Tenant Settings → AI Configuration</strong>. Tenant keys take priority over platform-level keys.</li>
+</ul>
+<blockquote>
+    <p><strong>💡 Rule-Based Fallback</strong>: When no API key is configured, all three AI features automatically fall back to sophisticated rule-based logic. The results will be labelled "Rule-based analysis" instead of "AI-generated".</p>
+</blockquote>
+
+<h3>13.2 Finding Prioritization</h3>
+<p>Automatically ranks all security findings for a selected target by combined exploitability and business impact.</p>
+<ol>
+    <li>Open <strong>Intelligence → AI Assistant</strong>.</li>
+    <li>Select the <strong>Prioritization</strong> tab.</li>
+    <li>Choose a target from the dropdown and click <strong>Analyze</strong>.</li>
+    <li>Results show each finding with: priority rank, severity badge, exploitability score (1–10), business impact score (1–10), and a one-sentence rationale.</li>
+</ol>
+<p><strong>Language:</strong> Pass <code>lang=de</code> in the API call body to receive rationale and labels in German.</p>
+
+<h3>13.3 Remediation Assistant</h3>
+<p>Generates step-by-step, actionable remediation guidance for any specific finding.</p>
+<ol>
+    <li>Open the <strong>Remediation</strong> tab in the AI Assistant.</li>
+    <li>Either fill in the finding details manually (title, description, severity, domain), or use the quick-select flow: pick a target, load its findings from the Prioritization endpoint, and click any finding to auto-fill the form.</li>
+    <li>Click <strong>Get Remediation Steps</strong>.</li>
+    <li>The result card shows: numbered steps, effort badge (Low / Medium / High), and reference links.</li>
+    <li>Use the <strong>Copy</strong> button to paste the steps into a ticket or report.</li>
+</ol>
+<p>The rule-based fallback provides built-in remediation guides for: CORS, XSS, SQL injection, SSL/TLS, HTTP security headers, DNS zone transfer (AXFR), cookie security, CSRF, RCE, and open redirect.</p>
+
+<h3>13.4 Natural Language Search</h3>
+<p>Query your entire findings database across all targets using plain English (or German).</p>
+<p><strong>Example queries:</strong></p>
+<ul>
+    <li><code>show me all critical nuclei findings on api.example.com</code></li>
+    <li><code>high severity SSL issues across all domains</code></li>
+    <li><code>email security problems</code></li>
+    <li><code>DNS findings on staging environments</code></li>
+    <li><code>zeige alle kritischen Befunde auf api.example.com</code> (German)</li>
+</ul>
+<p>The search uses 500ms debouncing. Parsed filters are shown as chips below the search box (severity, module, domain fragment). Results are sorted by severity and capped at 200 entries. Click any result to navigate directly to the target detail page.</p>
+
+<h3>13.5 Multilanguage AI Output</h3>
+<p>All three AI endpoints accept a <code>lang</code> parameter (<code>en</code> or <code>de</code>). When <code>lang=de</code> is passed:</p>
+<ul>
+    <li>AI system prompts append "Antworte auf Deutsch." — the model responds in German.</li>
+    <li>Rule-based rationale strings, effort labels ("Geringer/Mittlerer/Hoher Aufwand"), and search interpretation text are all returned in German.</li>
+    <li>The UI passes this parameter automatically based on the browser's preferred language settings.</li>
+</ul>
+
+<hr />
+<h2>14. Finding Management &amp; Vulnerability Tracking</h2>
+<p>Beyond detecting vulnerabilities, YADS now lets you track the remediation lifecycle of each finding. Access this feature via <strong>Security → Findings</strong>.</p>
+
+<h3>14.1 Finding Status</h3>
+<p>Each finding can be assigned one of four statuses:</p>
+<table>
+    <tr><th>Status</th><th>Meaning</th><th>Badge Color</th></tr>
+    <tr><td>Open</td><td>Newly detected, not yet addressed</td><td>Slate</td></tr>
+    <tr><td>Acknowledged</td><td>Team is aware and is working on it</td><td>Blue</td></tr>
+    <tr><td>False Positive</td><td>Verified non-issue, excluded from counts</td><td>Gray (strikethrough)</td></tr>
+    <tr><td>Fixed</td><td>Remediation confirmed</td><td>Green (emerald)</td></tr>
+</table>
+<p>To update a finding's status: click the <strong>Edit</strong> button on any finding row. A modal opens with a status dropdown and an optional notes field. Click <strong>Save</strong> to persist the change.</p>
+<blockquote>
+    <p><strong>Technical note</strong>: Status is stored per-tenant and identified by a deterministic SHA-256 hash of <code>domain|module|issue_title</code>. This means the status survives re-scans — a finding marked "Fixed" retains that status even after the next scan run, until the finding actually disappears from results.</p>
+</blockquote>
+
+<h3>14.2 Filtering by Status</h3>
+<p>A <strong>Status</strong> dropdown filter on the Security Findings page lets you focus on what matters:</p>
+<ul>
+    <li>View only <em>Open</em> findings to see unaddressed issues</li>
+    <li>View <em>Acknowledged</em> to see work-in-progress items</li>
+    <li>View <em>False Positive</em> to review your exclusions</li>
+    <li>View <em>Fixed</em> to verify completed remediation work</li>
+</ul>
+
+<h3>14.3 CSV Export</h3>
+<p>The <strong>Export CSV</strong> button (toolbar, top-right of the findings table) exports the currently filtered view. All active filters are applied — severity, status, module, domain, and date range. The CSV columns are:</p>
+<ul>
+    <li><code>domain</code>, <code>title</code>, <code>severity</code>, <code>module</code>, <code>status</code>, <code>found_at</code>, <code>notes</code></li>
+</ul>
+<p>This export is suitable for importing into ticketing systems (Jira, ServiceNow) or compliance documentation tools.</p>
+
+<hr />
+<h2>15. Asset Tagging &amp; Organization</h2>
+<p>Tags let you organize targets into logical groups without the constraints of tenant boundaries. Navigate to <strong>Targets → Tags</strong> to manage your tag taxonomy.</p>
+
+<h3>15.1 Assigning Tags</h3>
+<p>Tags can be assigned in multiple ways:</p>
+<ul>
+    <li><strong>Inline editing</strong>: From the Targets table, click the <strong>+ add tag</strong> link in any row. Type the tag name and press Enter. Click the <strong>×</strong> on an existing chip to remove it.</li>
+    <li><strong>Tags page</strong>: Click on a target row in the Tags page to open an edit panel. Add or remove tags and click Save.</li>
+    <li><strong>Bulk operations</strong>: On the Tags page, select multiple targets using checkboxes, then use the <strong>Bulk Tag</strong> panel to add, remove, or replace tags across all selected targets at once.</li>
+</ul>
+
+<h3>15.2 Filtering by Tag</h3>
+<p>On the Tags page, an interactive <strong>Tag Cloud</strong> displays all tags in use. The chip size scales with usage frequency. Click any tag to filter the target list below to only show targets with that tag. Click the same tag again to clear the filter.</p>
+
+<h3>15.3 Managing the Tag Taxonomy</h3>
+<p>The <strong>Manage Tags</strong> section on the Tags page shows a horizontal bar chart of the most-used tags. Each tag has a <strong>Delete</strong> button that removes that tag from all targets in the tenant — useful for cleaning up obsolete or misspelled tags.</p>
+
+<h3>15.4 Suggested Tag Conventions</h3>
+<p>A consistent tagging strategy makes filtering and reporting much more powerful. Suggested conventions:</p>
+<table>
+    <tr><th>Category</th><th>Example Tags</th><th>Purpose</th></tr>
+    <tr><td>Environment</td><td><code>production</code>, <code>staging</code>, <code>dev</code>, <code>test</code></td><td>Separate prod from non-prod</td></tr>
+    <tr><td>Criticality</td><td><code>critical</code>, <code>high-value</code>, <code>internal</code></td><td>Prioritize scanning focus</td></tr>
+    <tr><td>Scope</td><td><code>in-scope</code>, <code>out-of-scope</code>, <code>third-party</code></td><td>Pentest and bug bounty scoping</td></tr>
+    <tr><td>Infrastructure</td><td><code>cloud</code>, <code>aws</code>, <code>azure</code>, <code>on-prem</code></td><td>Infrastructure type</td></tr>
+    <tr><td>Team</td><td><code>team-backend</code>, <code>team-frontend</code></td><td>Ownership mapping</td></tr>
+    <tr><td>Compliance</td><td><code>gdpr</code>, <code>pci</code>, <code>sox</code></td><td>Regulatory scope</td></tr>
+</table>
+
+<hr />
+<h2>16. Executive Report &amp; Portfolio View</h2>
+
+<h3>16.1 Executive Security Report</h3>
+<p>Navigate to <strong>Intelligence → Executive Report</strong>. This page provides a non-technical, C-level-friendly security overview — suitable for management presentations, board reports, and stakeholder updates.</p>
+<p><strong>What it shows:</strong></p>
+<ul>
+    <li><strong>Security Grade</strong>: A single letter grade (A–F) with numeric score (0–100), computed from finding severity distribution across all active targets in your tenant.</li>
+    <li><strong>Risk Trend</strong>: Improving, Stable, or Deteriorating — derived from the last 10 SecurityTrend records. An improvement of ≥5 points over recent scans marks the trend as improving.</li>
+    <li><strong>KPI Cards</strong>: Total assets monitored, critical issues count, high-risk issues count, and overall security score.</li>
+    <li><strong>Risk Distribution Bar</strong>: A segmented horizontal bar showing the proportion of critical → info findings at a glance.</li>
+    <li><strong>Top 5 Risk Types</strong>: Most frequent finding categories across all targets, ranked by occurrence.</li>
+    <li><strong>Top 5 Vulnerable Assets</strong>: Domains with the highest finding count, with per-severity breakdown.</li>
+    <li><strong>Recommended Actions</strong>: Up to 5 prioritized, plain-language action items derived from actual findings (e.g. "Patch 3 critical CVEs on example.com", "Fix SSL configuration on 2 domains").</li>
+</ul>
+<p><strong>Print to PDF:</strong> Click the <strong>Print Report</strong> button. A print stylesheet hides the navigation and renders the report in white-background format, ready for printing or saving as PDF from the browser.</p>
+
+<h3>16.2 Attack Path Visualizer</h3>
+<p>Navigate to <strong>Intelligence → Attack Path</strong> (or from any target detail page). This interactive graph shows how an attacker could move from initial access to deeper compromise on a specific target.</p>
+<p><strong>How to use it:</strong></p>
+<ol>
+    <li>Select a target from the dropdown.</li>
+    <li>The graph loads with a force-directed layout. Drag nodes to rearrange; scroll to zoom.</li>
+    <li>Click any node to open the <strong>Node Details</strong> panel on the right, showing type-specific information (port number and banner, service version and CVEs, finding description).</li>
+    <li>Use the <strong>Top Attack Paths</strong> list to jump to the highest-risk findings.</li>
+    <li>Filter the graph using the checkboxes (show/hide host, port, service, or finding nodes) and the minimum risk score slider.</li>
+</ol>
+<p><strong>Color coding:</strong></p>
+<ul>
+    <li>🔴 Red nodes/edges: Critical risk (score ≥ 9)</li>
+    <li>🟠 Orange: High risk (score ≥ 7)</li>
+    <li>🟡 Yellow: Medium risk (score ≥ 4)</li>
+    <li>🟢 Green: Low / Info (score &lt; 4)</li>
+</ul>
+<p>Edges pointing to critical/high nodes have glow rings and directional arrows showing exploitation direction. "Enables" edges between high/critical findings model multi-step attack chains.</p>
+
+<h3>16.3 Portfolio View (Platform Administrators)</h3>
+<p>Platform administrators (users with <code>role=admin</code> and no tenant assignment) can access <strong>Admin → Portfolio View</strong>. This cross-tenant overview shows:</p>
+<ul>
+    <li>Per-tenant statistics: domain count, critical findings, high findings, average security score (A–F grade badge), plan tier, and last scan timestamp.</li>
+    <li>Global KPI cards: total tenant count, total domains platform-wide, total critical findings.</li>
+    <li>Expandable rows: click the chevron on any tenant row to reveal its top 3 most vulnerable domains with finding counts.</li>
+    <li><strong>View as Tenant</strong>: A quick impersonation link that switches your context to that tenant's dashboard for deeper investigation.</li>
+    <li>Inline search: filter the tenant list by name in real-time.</li>
+</ul>
+
+<hr />
 <h2>13. Best Practices</h2>
 <p>To get the most out of YADS, consider these tips:</p>
 <blockquote>
@@ -733,7 +898,7 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <h2>15. Support</h2>
 <p>For technical support or to report bugs: support@yads-security.com</p>
 <hr />
-<p><em>Verified for YADS v1.19.2</em></p>
+<p><em>Verified for YADS v1.20.0</em></p>
         </main>
     </div>
     

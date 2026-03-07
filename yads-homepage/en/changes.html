@@ -152,6 +152,88 @@
     <div class="container">
 
         <div class="timeline">
+
+        <!-- Version 1.20.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 0.5rem; color: #fff;">AI Intelligence Suite &amp; Advanced Analytics</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">A major capability release bringing AI-powered security analysis, interactive attack path visualization, executive reporting, and comprehensive finding management to the YADS platform.</p>
+
+                <h3>🤖 AI Assistant (New Module)</h3>
+                <ul>
+                    <li><strong>AI Finding Prioritization</strong> — Automatically ranks all findings for a target by combined exploitability and business impact. Uses OpenAI (gpt-4o-mini) or Anthropic (claude-haiku) when configured (BYOK); falls back to rule-based scoring with keyword boosting otherwise.</li>
+                    <li><strong>AI Remediation Assistant</strong> — Generates step-by-step, actionable remediation guidance for any selected finding, with effort rating (low/medium/high) and curated reference links. Rule-based fallback covers CORS, XSS, SQL injection, SSL/TLS, HTTP headers, AXFR, cookie security, CSRF, RCE, and open redirect.</li>
+                    <li><strong>Natural Language Search</strong> — Query your entire findings database in plain English or German (e.g. "show me all high severity SSL issues on api.example.com"). Debounced live search with AI-interpreted or regex-extracted filter chips for severity, module, and domain.</li>
+                    <li><strong>AI Multilanguage</strong> — All AI-generated outputs (rationale, remediation steps, search interpretation) can be returned in German by passing <code>lang=de</code>. Rule-based fallbacks are fully translated as well.</li>
+                </ul>
+
+                <h3>📊 Executive Report (C-Level Dashboard)</h3>
+                <ul>
+                    <li>Non-technical security summary designed for management and C-level stakeholders.</li>
+                    <li>Large grade circle (A–F) with numeric score (0–100), risk trend indicator (improving / stable / deteriorating), and color-coded KPI cards (total assets, critical issues, high-risk issues).</li>
+                    <li>Segmented risk distribution bar (critical → info), top 5 risk types with severity badges, top 5 most vulnerable assets, and prioritized recommended actions with plain-language descriptions.</li>
+                    <li>Built-in print stylesheet for clean PDF output directly from the browser.</li>
+                </ul>
+
+                <h3>🗺️ Attack Path Visualizer</h3>
+                <ul>
+                    <li>Interactive D3.js force-directed graph showing the full attack surface of any scanned target.</li>
+                    <li>Nodes represent: the root host, discovered open ports (color-coded by risk), identified services and technologies (with CVE count), and individual security findings.</li>
+                    <li>Directional edges show exploitation chains: high + critical findings are linked with "enables" edges to model multi-step attack paths.</li>
+                    <li>Node details panel with type-specific fields, connected nodes list, and filter controls (toggle node types, minimum risk score slider). Top attack paths list allows one-click pan-and-zoom to any node.</li>
+                </ul>
+
+                <h3>📁 Finding Management &amp; Vulnerability Tracking</h3>
+                <ul>
+                    <li>Track the lifecycle of every finding with status labels: <strong>Open</strong>, <strong>Acknowledged</strong>, <strong>False Positive</strong>, <strong>Fixed</strong>.</li>
+                    <li>Add notes to any finding for analyst commentary, remediation timeline, or ticket references.</li>
+                    <li>Status filter on the Security Findings page — filter by open, acknowledged, false positive, or fixed.</li>
+                    <li>CSV export with all active filters applied (severity, status, module, domain, date range).</li>
+                    <li>Finding status is persisted per-tenant, survives re-scans, and is identified by a deterministic SHA-256 hash of domain|module|issue.</li>
+                </ul>
+
+                <h3>🏷️ Asset Tagging &amp; Grouping</h3>
+                <ul>
+                    <li>Assign one or more custom tags to any target (e.g. <code>production</code>, <code>critical</code>, <code>in-scope</code>, <code>cloud</code>).</li>
+                    <li>Interactive tag cloud on the Tags page — click any tag to filter the target list to matching assets.</li>
+                    <li>Bulk tag operations: select multiple targets and add, remove, or replace their tags in one action.</li>
+                    <li>Inline editing: add or remove tags directly from the target list row without navigating away.</li>
+                    <li>Manage tags centrally: delete a tag from all targets across the tenant in a single click.</li>
+                </ul>
+
+                <h3>🌐 Multi-Domain Portfolio View (Platform Admin)</h3>
+                <ul>
+                    <li>Platform administrators gain a unified cross-tenant overview table showing per-tenant stats: domain count, critical findings, high findings, average security score, plan tier, and last scan timestamp.</li>
+                    <li>Score displayed as a color-coded grade badge (A–F). Expandable sub-rows show the top 3 most vulnerable domains per tenant.</li>
+                    <li>Inline search/filter, "View as Tenant" impersonation link, and global KPI cards (total tenants, total domains, critical findings platform-wide).</li>
+                </ul>
+
+                <h3>☁️ Extended Cloud Scanner</h3>
+                <ul>
+                    <li>Added <strong>DigitalOcean Spaces</strong> (NYC3 + AMS3), <strong>Cloudflare R2</strong> storage enumeration.</li>
+                    <li>New <strong>Shadow IT Detection</strong>: probes <strong>GitHub Pages</strong>, <strong>Netlify</strong>, <strong>Vercel</strong>, <strong>Heroku</strong>, <strong>Firebase Hosting</strong>, <strong>Render</strong>, <strong>Railway</strong>, and <strong>Fly.io</strong> for active deployments associated with the target domain.</li>
+                    <li>Default-page detection filters out false positives (Netlify "not found" pages, Heroku default apps).</li>
+                    <li>Cloud scanner now produces structured <code>findings[]</code> with severity ratings — high for open buckets, low for shadow IT — compatible with all reporting and AI analysis modules.</li>
+                </ul>
+
+                <h3>🌍 Multilanguage Exports (EN/DE)</h3>
+                <ul>
+                    <li>All PDF and Excel report exports now accept a <code>?lang=en</code> or <code>?lang=de</code> query parameter.</li>
+                    <li>German exports translate column headers, section titles, finding labels, status text, and all fixed strings throughout both report types.</li>
+                    <li>AI-generated report content (executive summaries, remediation steps) also responds to the language parameter.</li>
+                </ul>
+
+                <h3>⚡ Parallel Scan Execution</h3>
+                <ul>
+                    <li>All independent scanner modules (those without custom dispatch logic) now run concurrently using a <code>ThreadPoolExecutor</code> with up to 6 worker threads per scan.</li>
+                    <li>Each parallel module creates its own database session to avoid lock contention.</li>
+                    <li>Scan wall-clock time for full multi-module scans significantly reduced on capable hardware.</li>
+                    <li>Sequential modules (web analyzer, nuclei, crawler) that depend on ordering are unchanged.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.19.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.19.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
