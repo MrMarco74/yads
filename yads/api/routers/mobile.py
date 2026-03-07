@@ -15,10 +15,9 @@ from yads.database import get_session
 from yads.auth.deps import get_current_user, RoleChecker
 from yads.models import User, Target, SystemConfig, Notification
 from yads.worker import celery_app
-from fastapi.templating import Jinja2Templates
 from yads.config import settings
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 templates.env.globals['settings'] = settings
 
 import json

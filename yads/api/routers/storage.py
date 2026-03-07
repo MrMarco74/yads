@@ -21,12 +21,11 @@ from yads.database import get_session, engine
 from yads.auth.deps import PlatformAdminChecker
 from yads.models import User, ScanResult, Target, Tenant
 from yads.config import settings
-from fastapi.templating import Jinja2Templates
 
 logger = logging.getLogger("yads.storage")
 
 router = APIRouter(prefix="/storage", tags=["storage"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 templates.env.globals['settings'] = settings
 
 

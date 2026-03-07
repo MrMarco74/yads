@@ -15,12 +15,11 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# The Key Provided by User
-TEST_LICENSE_KEY = "eyJzdWIiOiAiTWFyY28gQURNSU4iLCAibWF4X3RhcmdldHMiOiA1MDAwMDAwLCAiZXhwIjogMTgwMDQ3ODQ0NCwgImlhdCI6IDE3Njg5NDI0NDQsICJmZWF0dXJlcyI6IFsicmVwb3J0cyIsICJhcGkiLCAic2NoZWR1bGVkX3NjYW5zIiwgIm9zaW50IiwgIndlYmhvb2tzIl19.t5yLGUpUTO0REUsJXyVqM0bSTAM7KBwgFHePNTF9NyBVjtUMdQJWS_dBlQzaB8fl0JTlcNu-1abpbpB0gTq9Dw"
+# Paste your license key here for testing (do not commit real keys)
+TEST_LICENSE_KEY = os.environ.get("TEST_LICENSE_KEY", "YOUR_LICENSE_KEY_HERE")
 
-# The Public Key currently in config.py (Decoded from my previous step)
-# "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQUlERXowK3pCRFd1OHNTSzJPMnNyR1A3WHVBVTR3MFhRL0c0WGhQWkFVNk09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
-CONFIG_PUBLIC_KEY_B64 = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQUlERXowK3pCRFd1OHNTSzJPMnNyR1A3WHVBVTR3MFhRL0c0WGhQWkFVNk09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
+# Public key from config.py — replace with your own for testing
+CONFIG_PUBLIC_KEY_B64 = os.environ.get("LICENSE_PUBLIC_KEY", "YOUR_PUBLIC_KEY_BASE64_HERE")
 
 def test_verify():
     print("--- Debugging License Verification ---")

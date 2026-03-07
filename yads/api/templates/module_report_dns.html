@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ module_def.label }} — Report{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <a href="/reports" class="text-xs text-slate-500 hover:text-slate-300">Reports</a>
+                <span class="text-xs text-slate-600">/</span>
+                <span class="text-xs text-slate-400">{{ module_def.label }}</span>
+            </div>
+            <h1 class="text-2xl font-bold text-white">{{ module_def.label }}</h1>
+        </div>
+        <div class="flex gap-2">
+            <a href="/reports/module/{{ module_name }}/export/excel" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors">Excel</a>
+            <a href="/reports/module/{{ module_name }}/export/pdf" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors">PDF</a>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    {% set total_subs = namespace(n=0) %}{% set total_dangling = namespace(n=0) %}{% set total_takeover = namespace(n=0) %}
+    {% for row in rows %}
+        {% set total_subs.n = total_subs.n + (row.kpi.subdomains or 0) %}
+        {% set total_dangling.n = total_dangling.n + (row.kpi.dangling or 0) %}
+        {% set total_takeover.n = total_takeover.n + (row.kpi.takeover_risks or 0) %}
+    {% endfor %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-white">{{ targets_scanned }}</div>
+            <div class="text-xs text-slate-500 mt-1">Targets Scanned</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-indigo-400">{{ total_subs.n }}</div>
+            <div class="text-xs text-slate-500 mt-1">Subdomains Found</div>
+        </div>
+        <div class="bg-amber-900/20 border border-amber-700/30 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-amber-400">{{ total_dangling.n }}</div>
+            <div class="text-xs text-slate-500 mt-1">Dangling CNAMEs</div>
+        </div>
+        <div class="bg-red-900/20 border border-red-700/30 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-red-400">{{ total_takeover.n }}</div>
+            <div class="text-xs text-slate-500 mt-1">Takeover Risks</div>
+        </div>
+    </div>
+
+    <!-- Per-Target Table -->
+    <div class="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700/50 bg-slate-800/50">
+            <h2 class="text-sm font-semibold text-white">DNS / Subdomain Results per Target</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-700/50 bg-slate-800/30">
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Domain</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Subdomains</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-amber-400 uppercase tracking-wider">Dangling CNAMEs</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-red-400 uppercase tracking-wider">Takeover Risks</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Scanned</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700/30">
+                {% for row in rows %}
+                <tr class="hover:bg-slate-800/30 transition-colors {% if not row.result %}opacity-40{% endif %}">
+                    <td class="px-4 py-3">
+                        <a href="/targets/{{ row.target.id }}" class="font-medium text-white hover:text-indigo-400 transition-colors">{{ row.target.domain }}</a>
+                    </td>
+                    <td class="px-3 py-3 text-center text-slate-300">{{ row.kpi.subdomains or '—' }}</td>
+                    <td class="px-3 py-3 text-center">
+                        {% if row.kpi.dangling %}<span class="text-amber-400 font-bold">{{ row.kpi.dangling }}</span>{% else %}<span class="text-slate-600">0</span>{% endif %}
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        {% if row.kpi.takeover_risks %}<span class="text-red-400 font-bold">{{ row.kpi.takeover_risks }}</span>{% else %}<span class="text-slate-600">0</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-xs text-slate-500">{{ row.scanned_at.strftime('%Y-%m-%d %H:%M') if row.scanned_at else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="px-4 py-8 text-center text-slate-500">No data yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Subdomain + Takeover detail -->
+    {% for row in rows if row.result and row.data %}
+    {% set subs = row.data.get('subdomains') or row.data.get('records', {}) %}
+    {% set takeovers = row.data.get('takeover_risks') or [] %}
+    {% set danglings = row.data.get('dangling_cnames') or [] %}
+    {% if subs or takeovers or danglings %}
+    <details class="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
+        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-800/40 transition-colors">
+            <span class="font-medium text-white text-sm">{{ row.target.domain }}</span>
+            <div class="flex gap-2 text-xs">
+                {% if takeovers %}<span class="px-1.5 py-0.5 bg-red-900/40 text-red-400 border border-red-700/40 rounded">{{ takeovers|length }} takeover risk{{ 's' if takeovers|length != 1 }}</span>{% endif %}
+                {% if danglings %}<span class="px-1.5 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-700/40 rounded">{{ danglings|length }} dangling</span>{% endif %}
+            </div>
+        </summary>
+        <div class="border-t border-slate-700/50 p-4 space-y-4">
+            {% if takeovers %}
+            <div>
+                <h3 class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Takeover Risks</h3>
+                <div class="space-y-1">
+                {% for t in takeovers %}
+                <div class="flex items-center gap-3 px-3 py-2 bg-red-900/10 border border-red-800/30 rounded-lg text-xs">
+                    <span class="text-white font-mono">{{ t.subdomain or t.domain or t }}</span>
+                    {% if t.provider %}<span class="text-slate-400">→ {{ t.provider }}</span>{% endif %}
+                    {% if t.confidence %}<span class="text-red-400">{{ t.confidence }}% confidence</span>{% endif %}
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if danglings %}
+            <div>
+                <h3 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Dangling CNAMEs</h3>
+                <div class="space-y-1">
+                {% for d in danglings %}
+                <div class="px-3 py-2 bg-amber-900/10 border border-amber-800/30 rounded-lg text-xs text-slate-300 font-mono">
+                    {{ d.subdomain or d.name or d }} {% if d.cname %}→ {{ d.cname }}{% endif %}
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if subs and subs is iterable and subs is not mapping %}
+            <div>
+                <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">Subdomains ({{ subs|length }})</h3>
+                <div class="flex flex-wrap gap-1">
+                {% for s in subs[:50] %}
+                <span class="text-xs px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-400 font-mono">{{ s if s is string else s.subdomain or s.name or s }}</span>
+                {% endfor %}
+                {% if subs|length > 50 %}<span class="text-xs text-slate-600 px-2 py-0.5">+{{ subs|length - 50 }} more</span>{% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </details>
+    {% endif %}
+    {% endfor %}
+
+</div>
+{% endblock %}

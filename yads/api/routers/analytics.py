@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Request, Query
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select, func, text
 from typing import Dict, List, Any, Optional
@@ -378,7 +377,7 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         SELECT s.target_id, s.module_name, s.data 
         FROM scanresult s
         JOIN target t ON s.target_id = t.id
-        WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer')
+        WHERE s.module_name IN ('ssl_scanner', 'infrastructure_scanner', 'web_analyzer', 'threat_intel', 'nuclei_scanner', 'port_scanner', 'nmap_scanner')
         """
     if tenant_clause:
         query_str += " " + tenant_clause
@@ -399,7 +398,10 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
     open_buckets = []
     secrets_leaks = []
     vulnerabilities = []
-    
+    threat_intel_items = []
+    nuclei_findings = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "targets": []}
+    port_exposure = []
+
     seen_results = set()
 
     for res in results:
@@ -508,15 +510,67 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                     "product": cve.get("package_name")
                  })
     
+        elif mod == 'threat_intel':
+            summary = data.get("summary") or {}
+            score = summary.get("score")
+            flagged_by = summary.get("flagged_by", 0)
+            if score is not None or flagged_by:
+                threat_intel_items.append({
+                    "target": t_name,
+                    "target_id": tid,
+                    "ip": summary.get("ip") or data.get("ip") or "—",
+                    "score": score,
+                    "flagged_by": flagged_by,
+                    "status": "flagged" if flagged_by else "clean",
+                })
+
+        elif mod == 'nuclei_scanner':
+            findings = data.get("findings") or []
+            if findings:
+                sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+                for f in findings:
+                    s = f.get("severity", "info")
+                    sev_counts[s] = sev_counts.get(s, 0) + 1
+                nuclei_findings["critical"] += sev_counts["critical"]
+                nuclei_findings["high"] += sev_counts["high"]
+                nuclei_findings["medium"] += sev_counts["medium"]
+                nuclei_findings["low"] += sev_counts["low"]
+                nuclei_findings["info"] += sev_counts.get("info", 0)
+                if sev_counts["critical"] or sev_counts["high"]:
+                    nuclei_findings["targets"].append({
+                        "target": t_name,
+                        "target_id": tid,
+                        "critical": sev_counts["critical"],
+                        "high": sev_counts["high"],
+                        "medium": sev_counts["medium"],
+                        "low": sev_counts["low"],
+                    })
+
+        elif mod in ('port_scanner', 'nmap_scanner'):
+            ports = data.get("open_ports") or []
+            if ports:
+                port_exposure.append({
+                    "target": t_name,
+                    "target_id": tid,
+                    "count": len(ports),
+                    "ports": [p.get("port") if isinstance(p, dict) else p for p in ports[:20]],
+                })
+
     # Sort
     ssl_timeline.sort(key=lambda x: x["days_left"])
-    
+    threat_intel_items.sort(key=lambda x: -(x.get("score") or 0))
+    nuclei_findings["targets"].sort(key=lambda x: -(x["critical"] * 100 + x["high"]))
+    port_exposure.sort(key=lambda x: -x["count"])
+
     return {
         "ssl_timeline": ssl_timeline,
         "reputation_issues": reputation_issues,
         "open_buckets": open_buckets,
         "secrets_leaks": secrets_leaks,
-        "vulnerabilities": vulnerabilities
+        "vulnerabilities": vulnerabilities,
+        "threat_intel": threat_intel_items,
+        "nuclei_findings": nuclei_findings,
+        "port_exposure": port_exposure,
     }
 
 def _get_hijacking_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None) -> List[Dict[str, Any]]:
@@ -851,7 +905,7 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
     }
 
 # -- UI Router --
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals
 templates.env.globals['settings'] = settings
@@ -1617,6 +1671,9 @@ async def generate_ai_analysis(
             "reputation_issues": security_data.get("reputation_issues", []),
             "open_buckets": security_data.get("open_buckets", []),
             "secrets_leaks": security_data.get("secrets_leaks", []),
+            "threat_intel": security_data.get("threat_intel", []),
+            "nuclei_findings": security_data.get("nuclei_findings", {}),
+            "port_exposure": security_data.get("port_exposure", []),
         })
     except Exception:
         pass

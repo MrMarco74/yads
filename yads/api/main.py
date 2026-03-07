@@ -158,6 +158,13 @@ async def lifespan(app: FastAPI):
 
                     session.commit()
 
+                # Target scan_priority (v1.20.0)
+                target_columns = [c["name"] for c in inspector.get_columns("target")]
+                if "scan_priority" not in target_columns:
+                    logger.info("Migrating schema: Adding scan_priority to target table")
+                    session.exec(text("ALTER TABLE target ADD COLUMN scan_priority INTEGER DEFAULT 5"))
+                    session.commit()
+
                 # User language preference (i18n v1.20.0)
                 user_columns = [c["name"] for c in inspector.get_columns("user")]
                 if "language" not in user_columns:
@@ -330,6 +337,8 @@ from yads.api.templating import templates
 templates.env.globals['settings'] = settings
 from datetime import datetime
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+from yads.core.i18n import t as _translate
+templates.env.globals['_'] = _translate
 
 # Custom Filters
 def timestamp_to_time(value):
@@ -468,7 +477,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -492,6 +501,7 @@ app.include_router(tenant_settings.router)
 app.include_router(compliance.router)
 app.include_router(archived.router)
 app.include_router(reports.router)
+app.include_router(module_reports.router)
 app.include_router(executive_report.router)
 app.include_router(report_builder.router)
 app.include_router(ports.router)

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime
@@ -17,7 +16,7 @@ router = APIRouter(
     tags=["changelog"]
 )
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 def get_all_tenants():
     from sqlmodel import Session, select

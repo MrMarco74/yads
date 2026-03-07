@@ -112,10 +112,22 @@ async def scan_modules_view(
     if category:
         modules = [m for m in modules if m["category"] == category]
 
+    # Group by category in defined order
+    cat_order = [c["id"] for c in CATEGORIES]
+    grouped: list = []
+    for cat in CATEGORIES:
+        cat_modules = [m for m in modules if m["category"] == cat["id"]]
+        if cat_modules:
+            grouped.append({"cat": cat, "modules": cat_modules})
+    other = [m for m in modules if m["category"] not in set(cat_order)]
+    if other:
+        grouped.append({"cat": {"id": "other", "label": "Other", "color": "gray"}, "modules": other})
+
     return templates.TemplateResponse("scan_modules.html", {
         "request": request,
         "user": user,
         "modules": modules,
+        "grouped_modules": grouped,
         "tenants": tenants,
         "active_tenant_id": active_tenant_id,
         "selected_category": category,

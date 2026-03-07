@@ -61,7 +61,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=yadsLocal2026
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
       - POSTGRES_DB=yads
     ports:
       - "5432:5432"

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from typing import Optional
 
@@ -11,7 +10,7 @@ from yads.config import settings
 from yads.utils.license_deps import require_feature
 
 router = APIRouter(prefix="/tenant-settings", tags=["tenant-settings"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals (similar to other routers)
 from datetime import datetime

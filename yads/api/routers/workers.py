@@ -31,10 +31,9 @@ router = APIRouter(prefix="/api/workers", tags=["workers"])
 ui_router = APIRouter(prefix="/workers", tags=["workers-ui"])
 
 # Templates for HTML fragments
-from fastapi.templating import Jinja2Templates
 from yads.config import settings
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 templates.env.globals['settings'] = settings
 
 def get_all_tenants():

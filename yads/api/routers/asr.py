@@ -4,13 +4,12 @@ from sqlmodel import Session, select
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, get_current_active_user
 from yads.models import User, Target, ScanResult
-from fastapi.templating import Jinja2Templates
 from datetime import datetime
 import dateutil.parser
 from yads.utils.export import generate_excel, generate_pdf
 
 router = APIRouter(prefix="/asr", tags=["reports"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals
 from yads.config import settings

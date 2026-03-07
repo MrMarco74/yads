@@ -5,14 +5,13 @@ from yads.database import get_session
 from yads.auth.deps import get_current_user_html
 from yads.models import User, Target, ScanResult
 from yads.utils.export import generate_excel
-from fastapi.templating import Jinja2Templates
 from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pqc", tags=["reports"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals
 from yads.config import settings

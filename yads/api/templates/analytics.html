@@ -270,6 +270,20 @@
                     </div>
                 </div>
 
+                <!-- Threat Intelligence -->
+                <div class="col-span-1 md:col-span-3 bg-gray-800/50 border border-rose-700/20 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            Threat Intelligence (IP Reputation)
+                        </h3>
+                        <a href="/reports/module/threat_intel" class="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700">View Report →</a>
+                    </div>
+                    <div id="threat-intel-list" class="overflow-x-auto">
+                        <div class="text-gray-500 text-sm text-center py-8">No threat intelligence data yet.</div>
+                    </div>
+                </div>
+
                 <!-- Broken Link Hijacking — full-width row -->
                 <div class="col-span-1 md:col-span-3 bg-gray-800/50 border border-amber-500/20 rounded-xl p-6 shadow-lg">
                     <div class="flex items-center justify-between mb-4">
@@ -289,8 +303,8 @@
                         </div>
                     </div>
                     <div id="hijacking-list" class="overflow-x-auto">
-                        <div class="text-gray-500 text-sm text-center py-8 flex flex-col items-center">
-                            <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 mb-2"></div>
+                        <div class="text-gray-500 text-xs text-center py-3 flex items-center justify-center gap-2">
+                            <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600"></div>
                             Loading...
                         </div>
                     </div>
@@ -377,6 +391,38 @@
                     No known vulnerabilities detected (Clean).
                 </div>
             </div>
+
+            <!-- Nuclei Findings -->
+            <div id="nuclei-container" class="bg-gray-800/50 border border-red-700/20 rounded-xl p-6 shadow-lg mt-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        Nuclei Vulnerability Scan
+                    </h3>
+                    <a href="/reports/module/nuclei_scanner" class="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700">View Report →</a>
+                </div>
+                <div class="grid grid-cols-4 gap-3 mb-4">
+                    <div class="bg-red-900/20 border border-red-700/30 rounded-lg p-3 text-center">
+                        <div class="text-xl font-bold text-red-400" id="nuclei-critical">0</div>
+                        <div class="text-xs text-gray-500 mt-0.5">Critical</div>
+                    </div>
+                    <div class="bg-orange-900/20 border border-orange-700/30 rounded-lg p-3 text-center">
+                        <div class="text-xl font-bold text-orange-400" id="nuclei-high">0</div>
+                        <div class="text-xs text-gray-500 mt-0.5">High</div>
+                    </div>
+                    <div class="bg-amber-900/20 border border-amber-700/30 rounded-lg p-3 text-center">
+                        <div class="text-xl font-bold text-amber-400" id="nuclei-medium">0</div>
+                        <div class="text-xs text-gray-500 mt-0.5">Medium</div>
+                    </div>
+                    <div class="bg-sky-900/20 border border-sky-700/30 rounded-lg p-3 text-center">
+                        <div class="text-xl font-bold text-sky-400" id="nuclei-low">0</div>
+                        <div class="text-xs text-gray-500 mt-0.5">Low</div>
+                    </div>
+                </div>
+                <div id="nuclei-targets" class="overflow-x-auto">
+                    <div class="text-gray-500 text-sm text-center py-4">No Nuclei findings yet.</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -442,6 +488,20 @@
                             <!-- Populated by JS -->
                          </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Port Exposure -->
+            <div id="port-exposure-container" class="bg-gray-800/50 border border-amber-700/20 rounded-xl p-6 shadow-lg hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Port Exposure
+                    </h3>
+                    <a href="/ports" class="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700">Full Port View →</a>
+                </div>
+                <div id="port-exposure-list" class="overflow-x-auto">
+                    <div class="text-gray-500 text-sm text-center py-4">No port scan data yet.</div>
                 </div>
             </div>
         </div>
@@ -875,6 +935,72 @@ document.addEventListener('DOMContentLoaded', async () => {
              vulnBody.innerHTML = '';
              noVulnMsg.classList.remove('hidden');
         }
+
+        // --- Threat Intelligence ---
+        const tiList = document.getElementById('threat-intel-list');
+        if (data.threat_intel && data.threat_intel.length > 0) {
+            let rows = '<table class="w-full text-left text-sm text-gray-400"><thead class="text-xs uppercase bg-gray-900/50 text-gray-500"><tr><th class="px-4 py-2">Target</th><th class="px-4 py-2">IP</th><th class="px-4 py-2">Score</th><th class="px-4 py-2">Flagged By</th><th class="px-4 py-2">Status</th></tr></thead><tbody class="divide-y divide-gray-800">';
+            data.threat_intel.forEach(item => {
+                const scoreColor = item.score >= 70 ? 'text-red-400' : item.score >= 40 ? 'text-amber-400' : 'text-emerald-400';
+                const statusBadge = item.flagged_by > 0
+                    ? `<span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/40 text-red-300 border border-red-700/30">${item.flagged_by} source${item.flagged_by > 1 ? 's' : ''}</span>`
+                    : '<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/30 text-emerald-400 border border-emerald-700/30">Clean</span>';
+                rows += `<tr class="border-b border-gray-800 hover:bg-white/5 transition">
+                    <td class="px-4 py-2.5 font-medium text-white">${item.target}</td>
+                    <td class="px-4 py-2.5 text-xs font-mono text-gray-400">${item.ip}</td>
+                    <td class="px-4 py-2.5 text-xs font-bold ${scoreColor}">${item.score !== null && item.score !== undefined ? item.score : '—'}</td>
+                    <td class="px-4 py-2.5">${statusBadge}</td>
+                    <td class="px-4 py-2.5 text-right"><a href="/targets/${item.target_id}" class="text-rose-400 hover:text-rose-300 text-xs">Details →</a></td>
+                </tr>`;
+            });
+            rows += '</tbody></table>';
+            tiList.innerHTML = rows;
+        }
+
+        // --- Nuclei Findings ---
+        const nucleiContainer = document.getElementById('nuclei-container');
+        const nf = data.nuclei_findings;
+        if (nf && (nf.critical + nf.high + nf.medium + nf.low + nf.info) > 0) {
+            nucleiContainer.classList.remove('hidden');
+            document.getElementById('nuclei-critical').textContent = nf.critical || 0;
+            document.getElementById('nuclei-high').textContent = nf.high || 0;
+            document.getElementById('nuclei-medium').textContent = nf.medium || 0;
+            document.getElementById('nuclei-low').textContent = nf.low || 0;
+            const targetsEl = document.getElementById('nuclei-targets');
+            if (nf.targets && nf.targets.length > 0) {
+                let rows = '<table class="w-full text-left text-sm text-gray-400 mt-2"><thead class="text-xs uppercase bg-gray-900/50 text-gray-500"><tr><th class="px-4 py-2">Target</th><th class="px-4 py-2 text-center">Critical</th><th class="px-4 py-2 text-center">High</th><th class="px-4 py-2 text-center">Medium</th><th class="px-4 py-2 text-center">Low</th></tr></thead><tbody class="divide-y divide-gray-800">';
+                nf.targets.forEach(t => {
+                    rows += `<tr class="hover:bg-white/5 transition">
+                        <td class="px-4 py-2 font-medium text-white"><a href="/targets/${t.target_id}" class="hover:text-indigo-400">${t.target}</a></td>
+                        <td class="px-4 py-2 text-center text-xs font-bold ${t.critical ? 'text-red-400' : 'text-gray-600'}">${t.critical || '—'}</td>
+                        <td class="px-4 py-2 text-center text-xs font-bold ${t.high ? 'text-orange-400' : 'text-gray-600'}">${t.high || '—'}</td>
+                        <td class="px-4 py-2 text-center text-xs font-bold ${t.medium ? 'text-amber-400' : 'text-gray-600'}">${t.medium || '—'}</td>
+                        <td class="px-4 py-2 text-center text-xs font-bold ${t.low ? 'text-sky-400' : 'text-gray-600'}">${t.low || '—'}</td>
+                    </tr>`;
+                });
+                rows += '</tbody></table>';
+                targetsEl.innerHTML = rows;
+            }
+        }
+
+        // --- Port Exposure ---
+        const portContainer = document.getElementById('port-exposure-container');
+        const portList = document.getElementById('port-exposure-list');
+        if (data.port_exposure && data.port_exposure.length > 0) {
+            portContainer.classList.remove('hidden');
+            let rows = '<table class="w-full text-left text-sm text-gray-400"><thead class="text-xs uppercase bg-gray-900/50 text-gray-500"><tr><th class="px-4 py-2">Target</th><th class="px-4 py-2 text-center">Open Ports</th><th class="px-4 py-2">Ports</th></tr></thead><tbody class="divide-y divide-gray-800">';
+            data.port_exposure.forEach(item => {
+                const portChips = item.ports.slice(0, 15).map(p => `<span class="text-xs px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded font-mono text-slate-400">${p}</span>`).join(' ');
+                const moreTag = item.ports.length > 15 ? `<span class="text-xs text-gray-600">+${item.count - 15}</span>` : '';
+                rows += `<tr class="hover:bg-white/5 transition">
+                    <td class="px-4 py-2.5 font-medium text-white"><a href="/targets/${item.target_id}" class="hover:text-indigo-400">${item.target}</a></td>
+                    <td class="px-4 py-2.5 text-center text-xs font-bold text-amber-400">${item.count}</td>
+                    <td class="px-4 py-2.5"><div class="flex flex-wrap gap-1">${portChips}${moreTag}</div></td>
+                </tr>`;
+            });
+            rows += '</tbody></table>';
+            portList.innerHTML = rows;
+        }
     }
 
     async function loadHijackingData() {
@@ -886,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const items = await resp.json();
 
             if (!items || items.length === 0) {
-                container.innerHTML = '<div class="text-gray-500 text-sm text-center py-6 flex flex-col items-center"><svg class="w-7 h-7 opacity-20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>No hijackable broken links detected.</div>';
+                container.innerHTML = '<div class="text-gray-500 text-xs text-center py-3 flex items-center justify-center gap-2"><svg class="w-4 h-4 opacity-30 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>No hijackable broken links detected.</div>';
                 return;
             }
 

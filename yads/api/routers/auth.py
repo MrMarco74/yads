@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, Response, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from datetime import timedelta
 from typing import Optional
@@ -17,7 +16,7 @@ from yads.core.security_audit import (
 import pyotp
 
 router = APIRouter()
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 def get_all_tenants():
     from sqlmodel import Session, select
@@ -276,10 +275,18 @@ async def change_password_action(
 
     return RedirectResponse(url="/?msg=Password+Updated", status_code=303)
 
+@router.get("/auth/switch-tenant")
+async def switch_tenant_get(
+    next_url: Optional[str] = Query(None, alias="next"),
+):
+    """GET fallback — redirect to next or home (avoids JSON 422 on direct navigation)."""
+    return RedirectResponse(url=next_url or "/", status_code=303)
+
+
 @router.post("/auth/switch-tenant")
 async def switch_tenant(
     request: Request,
-    tenant_id: str = Form(...), # str because it needs parsing to int or checking for empty
+    tenant_id: str = Form(default=""),  # empty string = switch to Platform Admin (no tenant)
     next_url: Optional[str] = Query(None, alias="next"),
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)

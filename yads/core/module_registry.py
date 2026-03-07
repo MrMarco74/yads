@@ -34,7 +34,7 @@ class ModuleDef:
     __slots__ = (
         "name", "label", "label_de", "category", "module_path",
         "worker_note", "requires_http", "requires_https", "default_on",
-        "finding_module", "extractor", "custom_dispatch",
+        "finding_module", "extractor", "custom_dispatch", "report_view",
     )
 
     def __init__(
@@ -51,6 +51,7 @@ class ModuleDef:
         finding_module: bool = False,
         extractor: str = "generic",
         custom_dispatch: bool = False,
+        report_view: Optional[str] = None,
     ):
         self.name = name
         self.label = label
@@ -64,6 +65,12 @@ class ModuleDef:
         self.finding_module = finding_module
         self.extractor = extractor
         self.custom_dispatch = custom_dispatch
+        # Explicit report page URL. None → auto-resolves to /reports/module/{name}
+        self.report_view = report_view
+
+    def get_report_url(self) -> str:
+        """Return the report URL — explicit override or auto-generated generic."""
+        return self.report_view or f"/reports/module/{self.name}"
 
     def load_class(self):
         """Lazy-load and return the module class."""
@@ -180,6 +187,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         default_on=True,
         finding_module=False,
         custom_dispatch=True,  # post-processes extracted domains
+        report_view="/cert-timeline",
     )),
     ("http_headers", ModuleDef(
         name="http_headers",
@@ -255,6 +263,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Checking SPF/DKIM/DMARC...",
         finding_module=True,
         extractor="email_security",
+        report_view="/email-security",
     )),
     ("dsgvo_scanner", ModuleDef(
         name="dsgvo_scanner",
@@ -321,6 +330,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        report_view="/secrets",
     )),
     ("wayback_scanner", ModuleDef(
         name="wayback_scanner",
@@ -351,6 +361,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         module_path="yads.modules.cloud_scanner:CloudScanner",
         worker_note="Scanning for cloud asset exposure...",
         finding_module=False,
+        report_view="/cloud-assets",
     )),
 
     # ── Threat Intel ────────────────────────────────────────────────────────
@@ -406,6 +417,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Running port scan...",
         finding_module=False,
         custom_dispatch=True,
+        report_view="/ports",
     )),
     ("nmap_scanner", ModuleDef(
         name="nmap_scanner",
@@ -415,6 +427,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         module_path="yads.modules.nmap_scanner:NmapScanner",
         worker_note="Running stealth Nmap scan...",
         finding_module=False,
+        report_view="/ports",
     )),
     ("crawler", ModuleDef(
         name="crawler",
@@ -468,6 +481,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Scanning infrastructure...",
         finding_module=False,
         custom_dispatch=True,
+        report_view="/ports",
     )),
 
     ("waf_detector", ModuleDef(
@@ -553,6 +567,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_https=True,
         finding_module=True,
         extractor="generic",
+        report_view="/cert-timeline",
     )),
     ("ct_monitor", ModuleDef(
         name="ct_monitor",

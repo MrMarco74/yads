@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Deception Detector — Report{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <a href="/reports" class="text-xs text-slate-500 hover:text-slate-300">Reports</a>
+                <span class="text-xs text-slate-600">/</span>
+                <span class="text-xs text-slate-400">Deception Detector</span>
+            </div>
+            <h1 class="text-2xl font-bold text-white">Deception Detector Report</h1>
+            <p class="text-sm text-slate-400 mt-1">Honeypots, DNS sinkholes, tarpits with confidence scoring</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/reports/module/deception_detector/export/excel" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg">Excel</a>
+            <a href="/reports/module/deception_detector/export/pdf" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg">PDF</a>
+        </div>
+    </div>
+
+    <!-- KPI -->
+    {% set ns = namespace(honeypots=0, sinkholes=0, tarpits=0) %}
+    {% for row in rows if row.result %}
+        {% set ns.honeypots = ns.honeypots + (row.kpi.honeypots or 0) %}
+        {% set ns.sinkholes = ns.sinkholes + (row.kpi.sinkholes or 0) %}
+        {% set ns.tarpits = ns.tarpits + (row.kpi.tarpits or 0) %}
+    {% endfor %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-white">{{ targets_scanned }}</div>
+            <div class="text-xs text-slate-500 mt-1">Targets Scanned</div>
+        </div>
+        <div class="bg-rose-900/20 border border-rose-700/30 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-rose-400">{{ ns.honeypots }}</div>
+            <div class="text-xs text-slate-500 mt-1">Honeypots</div>
+        </div>
+        <div class="bg-amber-900/20 border border-amber-700/30 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-amber-400">{{ ns.sinkholes }}</div>
+            <div class="text-xs text-slate-500 mt-1">Sinkholes</div>
+        </div>
+        <div class="bg-orange-900/20 border border-orange-700/30 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-orange-400">{{ ns.tarpits }}</div>
+            <div class="text-xs text-slate-500 mt-1">Tarpits</div>
+        </div>
+    </div>
+
+    <!-- Per-target table -->
+    <div class="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700/50 bg-slate-800/50">
+            <h2 class="text-sm font-semibold text-white">Deception Detection per Target</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-700/50 bg-slate-800/30">
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Domain</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-rose-400 uppercase tracking-wider">Honeypots</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-amber-400 uppercase tracking-wider">Sinkholes</th>
+                    <th class="text-center px-3 py-2.5 text-xs font-semibold text-orange-400 uppercase tracking-wider">Tarpits</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Summary</th>
+                    <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Scanned</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700/30">
+                {% for row in rows %}
+                {% set d = row.data %}
+                <tr class="hover:bg-slate-800/30 transition-colors {% if not row.result %}opacity-40{% endif %}">
+                    <td class="px-4 py-3">
+                        <a href="/targets/{{ row.target.id }}" class="font-medium text-white hover:text-indigo-400">{{ row.target.domain }}</a>
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        {% set hp = (d.get('honeypots') or []) | length %}
+                        {% if hp %}<span class="text-rose-400 font-bold text-xs">{{ hp }}</span>{% else %}<span class="text-emerald-400 text-xs">✓</span>{% endif %}
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        {% set sk = (d.get('sinkholes') or []) | length %}
+                        {% if sk %}<span class="text-amber-400 font-bold text-xs">{{ sk }}</span>{% else %}<span class="text-emerald-400 text-xs">✓</span>{% endif %}
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        {% set tp = (d.get('tarpits') or []) | length %}
+                        {% if tp %}<span class="text-orange-400 font-bold text-xs">{{ tp }}</span>{% else %}<span class="text-emerald-400 text-xs">✓</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-xs text-slate-400">
+                        {% set summ = d.get('summary') or {} %}
+                        {{ summ.get('verdict') or summ.get('status') or '—' }}
+                    </td>
+                    <td class="px-4 py-3 text-xs text-slate-500">{{ row.scanned_at.strftime('%Y-%m-%d') if row.scanned_at else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No data yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Detail blocks for targets with detections -->
+    {% for row in rows if row.result and row.data %}
+    {% set honeypots = row.data.get('honeypots') or [] %}
+    {% set sinkholes = row.data.get('sinkholes') or [] %}
+    {% set tarpits = row.data.get('tarpits') or [] %}
+    {% if honeypots or sinkholes or tarpits %}
+    <details class="bg-slate-900 border border-rose-700/30 rounded-xl overflow-hidden" open>
+        <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/40 bg-rose-900/10">
+            <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span class="font-medium text-white text-sm">{{ row.target.domain }} — Detections</span>
+        </summary>
+        <div class="border-t border-slate-700/50 p-4 space-y-4">
+            {% for group_name, items, color in [('Honeypots', honeypots, 'rose'), ('Sinkholes', sinkholes, 'amber'), ('Tarpits', tarpits, 'orange')] %}
+            {% if items %}
+            <div>
+                <h3 class="text-xs font-semibold text-{{ color }}-400 uppercase tracking-wider mb-2">{{ group_name }}</h3>
+                <div class="space-y-1.5">
+                {% for item in items %}
+                <div class="flex items-start gap-3 px-3 py-2 bg-{{ color }}-900/10 border border-{{ color }}-800/30 rounded-lg text-xs">
+                    <div class="flex-1">
+                        <span class="text-white font-medium">{{ item.get('type') or item.get('service') or 'Unknown' }}</span>
+                        {% if item.get('confidence') %}
+                        <span class="ml-2 text-{{ color }}-400">{{ item.confidence }}% confidence</span>
+                        {% endif %}
+                    </div>
+                    {% if item.get('details') or item.get('reason') %}
+                    <span class="text-slate-500">{{ item.get('details') or item.get('reason') }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+    {% endfor %}
+
+</div>
+{% endblock %}
