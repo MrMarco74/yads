@@ -38,52 +38,61 @@ def _get_email_security_data(session: Session, user: User, for_export: bool = Fa
     if not targets:
         return [], {}
 
-    # 2. Fetch Latest DNS Results
+    # 2. Fetch Latest email_security and dns_scanner results
     target_ids = tuple(t.id for t in targets)
 
-    statement = select(ScanResult).where(
-        ScanResult.module_name == "dns_scanner",
-        ScanResult.target_id.in_(target_ids)
-    )
+    def _fetch_latest(module: str):
+        stmt = select(ScanResult).where(
+            ScanResult.module_name == module,
+            ScanResult.target_id.in_(target_ids)
+        )
+        if date_from:
+            stmt = stmt.where(ScanResult.scanned_at >= date_from)
+        if date_to:
+            stmt = stmt.where(ScanResult.scanned_at <= date_to)
+        stmt = stmt.order_by(ScanResult.scanned_at.desc())
+        latest = {}
+        for r in session.exec(stmt).all():
+            if r.target_id not in latest:
+                latest[r.target_id] = r
+        return latest
 
-    # Apply date filtering
-    if date_from:
-        statement = statement.where(ScanResult.scanned_at >= date_from)
-    if date_to:
-        statement = statement.where(ScanResult.scanned_at <= date_to)
+    # Prefer dedicated email_security module; fall back to dns_scanner
+    es_results = _fetch_latest("email_security")
+    dns_results = _fetch_latest("dns_scanner")
 
-    statement = statement.order_by(ScanResult.scanned_at.desc())
-
-    results = session.exec(statement).all()
-    
-    latest_results = {}
-    for r in results:
-        if r.target_id not in latest_results:
-            latest_results[r.target_id] = r
-            
     # 3. Analyze Data
     rows = []
-    
+
     secure_count = 0
     monitoring_count = 0
     vulnerable_count = 0
-    
+
     for t_id, t in target_map.items():
-        res = latest_results.get(t_id)
-        
+        es_res = es_results.get(t_id)
+        dns_res = dns_results.get(t_id)
+
         spf_data = {"present": False, "status": "unknown"}
         dmarc_data = {"present": False, "status": "unknown", "policy": "?"}
-        overall_status = "Vulnerable" # Default
-        
-        if res and res.data:
-            # Check for new 'email_security' key from updated scanner
-            es = res.data.get("email_security")
+        dkim_data = {"count": 0, "selectors_found": []}
+        score = None
+        overall_status = "Vulnerable"
+
+        if es_res and es_res.data:
+            # Use dedicated email_security scanner results (new format)
+            d = es_res.data
+            spf_data = d.get("spf", spf_data)
+            dmarc_data = d.get("dmarc", dmarc_data)
+            dkim_data = d.get("dkim", dkim_data)
+            score = d.get("score")
+        elif dns_res and dns_res.data:
+            # Fallback: legacy dns_scanner with embedded email_security sub-key
+            es = dns_res.data.get("email_security")
             if es:
                 spf_data = es.get("spf", spf_data)
                 dmarc_data = es.get("dmarc", dmarc_data)
             else:
-                # Fallback
-                records = res.data.get("records", {})
+                records = dns_res.data.get("records", {})
                 txts = records.get("TXT", [])
                 for r in txts:
                     if "v=spf1" in r:
@@ -117,7 +126,9 @@ def _get_email_security_data(session: Session, user: User, for_export: bool = Fa
             "domain": t.domain,
             "overall_status": overall_status,
             "spf": spf_data,
-            "dmarc": dmarc_data
+            "dmarc": dmarc_data,
+            "dkim": dkim_data,
+            "score": score,
         })
         
     # Sort: Vulnerable first
