@@ -1560,6 +1560,14 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 from yads.modules.metadata_scanner import MetadataScanner
                 _run_simple_module(MetadataScanner, target_id, domain, session, "Extracting document metadata...")
 
+            if "rpki_scanner" in scan_types:
+                from yads.modules.rpki_scanner import RpkiScanner
+                _run_simple_module(RpkiScanner, target_id, domain, session, "Validating RPKI route origin authorizations...")
+
+            if "dsgvo_scanner" in scan_types and (has_http or has_https):
+                from yads.modules.dsgvo_scanner import DsgvoScanner
+                _run_simple_module(DsgvoScanner, target_id, domain, session, "Scanning GDPR/DSGVO compliance indicators...")
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             

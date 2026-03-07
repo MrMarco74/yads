@@ -159,7 +159,9 @@
     "js_secrets": "JavaScript-Secrets & Endpunkte",
     "wayback_scanner": "Wayback Machine (Historische Exposition)",
     "external_resources": "Externe Ressourcenanalyse (Drittanbieter JS/CSS)",
-    "metadata_scanner": "Dokument-Metadaten (PDF/Word/Excel)"
+    "metadata_scanner": "Dokument-Metadaten (PDF/Word/Excel)",
+    "rpki_scanner": "RPKI / BGP-Routen-Validierung",
+    "dsgvo_scanner": "Datenschutz / DSGVO-Compliance-Check"
   },
   "report": {
     "generate": "Bericht erstellen",

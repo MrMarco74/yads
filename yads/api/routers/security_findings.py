@@ -35,6 +35,8 @@ FINDING_MODULES = [
     "wayback_scanner",
     "external_resources",
     "metadata_scanner",
+    "rpki_scanner",
+    "dsgvo_scanner",
 ]
 
 
@@ -182,6 +184,22 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
             })
 
     elif module == "metadata_scanner":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "medium"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
+            })
+
+    elif module == "rpki_scanner":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "medium"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
+            })
+
+    elif module == "dsgvo_scanner":
         for f in data.get("findings", []):
             findings.append({
                 "severity": f.get("severity", "medium"),
