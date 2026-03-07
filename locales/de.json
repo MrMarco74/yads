@@ -148,7 +148,9 @@
     "axfr_scanner": "DNS-Zonentransfer (AXFR)",
     "security_txt": "Security.txt (RFC 9116)",
     "http_headers": "HTTP-Sicherheitsheader",
-    "cookie_scanner": "Cookie-Sicherheitsanalyse"
+    "cookie_scanner": "Cookie-Sicherheitsanalyse",
+    "cors_scanner": "CORS-Fehlkonfigurationsprüfung",
+    "cert_mismatch": "Zertifikat-/Domain-Abweichung"
   },
   "report": {
     "generate": "Bericht erstellen",

@@ -287,6 +287,14 @@
                                 <input type="checkbox" name="scan_types" value="cookie_scanner" {% if 'cookie_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-orange-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-orange-400">Cookie Security</span>
                             </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cors_scanner" {% if 'cors_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-yellow-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-yellow-400">CORS Misconfiguration</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cert_mismatch" {% if 'cert_mismatch' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-teal-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-teal-400">Cert/Domain Mismatch</span>
+                            </label>
                         </div>
                     </div>
                 </div>

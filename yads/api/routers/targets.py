@@ -1302,6 +1302,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     security_txt_result = next((r for r in current_results if r.module_name == 'security_txt'), None)
     http_headers_result = next((r for r in current_results if r.module_name == 'http_headers'), None)
     cookie_result = next((r for r in current_results if r.module_name == 'cookie_scanner'), None)
+    cors_result = next((r for r in current_results if r.module_name == 'cors_scanner'), None)
+    cert_mismatch_result = next((r for r in current_results if r.module_name == 'cert_mismatch'), None)
 
     # -- Compliance & Grading --
     comp_input = {
@@ -1366,6 +1368,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "security_txt_result": security_txt_result,
         "http_headers_result": http_headers_result,
         "cookie_result": cookie_result,
+        "cors_result": cors_result,
+        "cert_mismatch_result": cert_mismatch_result,
         "security_grade": security_grade,
         "compliance_report": compliance_report,
         "history_entries": history_entries, # Pass full history
