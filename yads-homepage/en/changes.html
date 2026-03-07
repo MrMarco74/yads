@@ -153,6 +153,65 @@
 
         <div class="timeline">
 
+        <!-- Version 1.20.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 0.5rem; color: #fff;">PQC Report, 12 New Scanner Modules, Module Report Center &amp; AI Analytics</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">A major capability expansion on the path to v2.0. Adds Post-Quantum Cryptography readiness reporting, 12 new security scanner modules, a centralized module report center with per-module PDF/Excel exports, AI-enriched analytics, and significant bug fixes.</p>
+
+                <h3>🔐 Post-Quantum Cryptography (PQC) Report</h3>
+                <ul>
+                    <li>Dedicated PQC readiness report analyzing all certificates, TLS configurations, and cryptographic primitives across scanned infrastructure.</li>
+                    <li>Algorithm classification: quantum-safe (AES-256, SHA-3), quantum-vulnerable (RSA, ECDSA, DH), and transitional status.</li>
+                    <li>Per-asset migration risk scoring (Low/Medium/High/Critical) based on algorithm strength, key length, and certificate validity.</li>
+                    <li>Aggregate quantum readiness grade (A–F) with executive summary.</li>
+                    <li>CBOM (Cryptography Bill of Materials) export in CycloneDX JSON format for NIS2/DORA supply chain compliance.</li>
+                    <li>Recommended PQC alternatives per algorithm: CRYSTALS-Kyber, CRYSTALS-Dilithium, SPHINCS+, FALCON.</li>
+                </ul>
+
+                <h3>🔬 12 New Scanner Modules</h3>
+                <ul>
+                    <li><strong>Email Security</strong> — SPF, DKIM, DMARC, BIMI analysis with 0–100 score. Detects spoofing-vulnerable and missing enforcement policies.</li>
+                    <li><strong>HTTP Security Headers</strong> — OWASP-aligned analysis of CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy. Per-header scoring with recommendations.</li>
+                    <li><strong>Cookie Security Analyzer</strong> — Checks Secure, HttpOnly, SameSite flags on all cookies. Detects XSS/CSRF-enabling misconfigurations.</li>
+                    <li><strong>CORS Misconfiguration</strong> — Tests 4 origin patterns. Identifies permissive cross-origin policies exposing APIs to unauthorized requests.</li>
+                    <li><strong>Certificate Domain Mismatch</strong> — TLS cert subject/SAN validation against actual domain. Detects mismatch, expired, and self-signed certificates.</li>
+                    <li><strong>Threat Intelligence (AbuseIPDB/OTX/VirusTotal)</strong> — IP reputation enrichment for all discovered hosts. Aggregate threat score visible in analytics and AI risk scoring.</li>
+                    <li><strong>Shodan &amp; Censys Intelligence</strong> — Passive host intelligence (ports, banners, CVEs, ASN) without active scanning.</li>
+                    <li><strong>JS Secrets Scanner</strong> — 25+ secret patterns in JavaScript files: AWS keys, Google API keys, JWTs, Stripe tokens, private keys, and database credentials.</li>
+                    <li><strong>Git Exposure Scanner</strong> — 49 sensitive path probes (/.git/, /.env, /config.yml, /backup.sql) to detect accidentally exposed repositories and configuration files.</li>
+                    <li><strong>Subdomain Takeover Detection</strong> — CNAME fingerprinting against 30+ providers (GitHub Pages, Netlify, Vercel, AWS S3, Heroku, Azure, Shopify) to detect dangling DNS records.</li>
+                    <li><strong>DNS Zone Transfer (AXFR)</strong> — Tests all authoritative nameservers for zone transfer vulnerabilities.</li>
+                    <li><strong>Security.txt Validator</strong> — RFC 9116 compliant discovery and field validation.</li>
+                </ul>
+
+                <h3>📁 Module Report Center</h3>
+                <ul>
+                    <li>Every scanner module now has a dedicated report page at <code>/reports/module/{name}</code> with configurable columns, PDF export, and Excel export.</li>
+                    <li>Specialized templates for DNS, Web Analyzer, Nuclei, Threat Intel, Ports, Deception Detection, and Infrastructure modules.</li>
+                    <li>Generic fallback template for all other modules — zero configuration needed for new modules.</li>
+                    <li>The central Reports page now shows View, PDF, and Excel buttons for every module in the system.</li>
+                </ul>
+
+                <h3>📊 AI-Enriched Analytics</h3>
+                <ul>
+                    <li>Analytics security-risks endpoint extended to include Threat Intelligence, Nuclei findings, and Port Exposure data.</li>
+                    <li>New analytics cards: Threat Intelligence (flagged IPs with scores), Nuclei Findings (critical/high/medium/low distribution + per-target breakdown), Port Exposure (open ports per target).</li>
+                    <li>LLM prompt enriched with threat intel flagged IPs, nuclei top targets, and port exposure data for more accurate AI risk assessments.</li>
+                    <li>AI risk score now factors in: HTTPS coverage, SSL certificates, open buckets, secrets leaked, hijackable domains, threat intel flags, nuclei findings, and exposed ports.</li>
+                </ul>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed tenant switch to Platform Admin (no tenant) returning HTTP 422 due to required <code>Form(...)</code> field. Changed to <code>Form(default="")</code>.</li>
+                    <li>Fixed Broken Link Hijacking empty-state icon being excessively large when no results were found.</li>
+                    <li>Removed hardcoded license key from debug script in version control. Replaced with environment variable lookups.</li>
+                    <li>Replaced hardcoded dev database password in docker-compose.yml with environment variable substitution.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.20.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

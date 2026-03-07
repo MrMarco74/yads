@@ -194,6 +194,41 @@
     <div class="container">
         <div class="roadmap-container">
 
+            <!-- Post-Quanten-Kryptographie -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🔐</span>
+                    <h2 class="section-title">Post-Quanten-Kryptographie (PQC) <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Ein dedizierter PQC-Bereitschaftsbericht, der alle kryptografischen Assets in Ihrer Infrastruktur analysiert und den Quantensicherheits-Migrationsstatus bewertet. Generiert ein Cryptography Bill of Materials (CBOM) im CycloneDX-Format – abgestimmt auf NIS2, DORA und BSI TR-02102.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>PQC-Bereitschaftsbericht <span class="status-badge available">Verfügbar</span></td>
+                                <td>Scannt alle Zertifikate, TLS-Konfigurationen und kryptografischen Primitive. Klassifiziert Algorithmen als quantensicher, quantenanfällig oder in Übergang. Priorisierte Migrationsliste mit Algorithmusdetails (RSA, ECDSA, AES usw.) und empfohlenen PQC-Alternativen (CRYSTALS-Kyber, CRYSTALS-Dilithium, SPHINCS+).</td>
+                            </tr>
+                            <tr>
+                                <td>CBOM (CycloneDX) Export <span class="status-badge available">Verfügbar</span></td>
+                                <td>Erstellt ein Cryptography Bill of Materials im CycloneDX-JSON-Format. Listet alle kryptografischen Komponenten mit Algorithmus, Schlüssellänge, Verwendungskontext und Quantenvulnerabilitätsbewertung auf. Erforderlich für NIS2/DORA-Lieferkettensicherheitsberichte.</td>
+                            </tr>
+                            <tr>
+                                <td>Migrations-Risikobewertung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Jedes Asset erhält einen Quanten-Migrationsrisiko-Score (Gering/Mittel/Hoch/Kritisch) basierend auf Algorithmusstärke, Schlüssellänge, Zertifikatsgültigkeitsdauer und Exponierungsgrad. Executive Summary mit aggregierter Quantenbereitschaftsnote (A–F).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- KI-Intelligence-Suite -->
             <div class="roadmap-section">
                 <div class="section-header">
@@ -315,28 +350,68 @@
             <div class="roadmap-section">
                 <div class="section-header">
                     <span class="section-icon">🔬</span>
-                    <h2 class="section-title">Neue Scanner-Module</h2>
+                    <h2 class="section-title">Neue Scanner-Module <span class="status-badge available">Verfügbar</span></h2>
                 </div>
                 <div class="roadmap-card">
                     <table class="feature-table">
                         <thead>
                             <tr>
-                                <th>Feature</th>
+                                <th>Modul</th>
                                 <th>Beschreibung</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Erweiterte OSINT & Brand Intelligence <span class="status-badge available">Verfügbar</span></td>
+                                <td>E-Mail-Sicherheit <span class="status-badge available">Verfügbar</span></td>
+                                <td>SPF, DKIM, DMARC und BIMI-Analyse. Prüft die E-Mail-Authentifizierungskonfiguration und bewertet die E-Mail-Sicherheit der Domain (0–100). Erkennt Spoofing-anfällige Konfigurationen und fehlende DMARC-Durchsetzungsrichtlinien.</td>
+                            </tr>
+                            <tr>
+                                <td>HTTP-Sicherheits-Header <span class="status-badge available">Verfügbar</span></td>
+                                <td>OWASP-orientierte Analyse aller Sicherheits-Response-Header: Content-Security-Policy, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy. Per-Header-Bewertung mit Maßnahmenempfehlungen.</td>
+                            </tr>
+                            <tr>
+                                <td>Cookie-Sicherheitsanalyse <span class="status-badge available">Verfügbar</span></td>
+                                <td>Prüft alle Cookies auf Secure-, HttpOnly- und SameSite-Flags. Erkennt Session-Cookie-Fehlkonfigurationen, zu weit gefasste Domain-Scopes und fehlende Attribute, die XSS- oder CSRF-Angriffe ermöglichen könnten.</td>
+                            </tr>
+                            <tr>
+                                <td>CORS-Fehlkonfiguration <span class="status-badge available">Verfügbar</span></td>
+                                <td>Testet 4 CORS-Origin-Muster (null, Wildcard, Subdomain, beliebig). Erkennt permissive Cross-Origin-Richtlinien, die APIs unbefugten Cross-Site-Anfragen aussetzen.</td>
+                            </tr>
+                            <tr>
+                                <td>Zertifikat-Domain-Mismatch <span class="status-badge available">Verfügbar</span></td>
+                                <td>Überprüft TLS-Zertifikat-Subject/SAN-Felder auf Übereinstimmung mit der tatsächlichen Domain. Erkennt Mismatch, abgelaufene oder selbstsignierte Zertifikate.</td>
+                            </tr>
+                            <tr>
+                                <td>Threat Intelligence (AbuseIPDB/OTX/VT) <span class="status-badge available">Verfügbar</span></td>
+                                <td>Reichert alle entdeckten IPs mit Reputationsdaten aus AbuseIPDB, AlienVault OTX und VirusTotal an. Aggregierter Bedrohungs-Score, Flagging-Zähler und Malware/Phishing/Botnet-Klassifizierung. Erscheint in Analytics und KI-Risiko-Scoring.</td>
+                            </tr>
+                            <tr>
+                                <td>Shodan &amp; Censys Intelligence <span class="status-badge available">Verfügbar</span></td>
+                                <td>Host-Intelligence aus Shodan und Censys – offene Ports, Banner, CVEs und ASN-Daten ohne aktives Scanning. Liefert passive Aufklärungsdaten für alle Ziele.</td>
+                            </tr>
+                            <tr>
+                                <td>JS-Secrets-Scanner <span class="status-badge available">Verfügbar</span></td>
+                                <td>Durchsucht alle vom Ziel geladenen JavaScript-Dateien nach 25+ Secret-Mustern: API-Keys (AWS, Google, Stripe, Twilio), JWTs, Private Keys, Datenbankzugangsdaten und benutzerdefinierte Regex-Muster.</td>
+                            </tr>
+                            <tr>
+                                <td>Git-Exposure-Scanner <span class="status-badge available">Verfügbar</span></td>
+                                <td>Prüft 49 sensible Pfade inkl. /.git/, /.env, /config.yml, /backup.sql u.ä. Erkennt versehentlich exponierte Quellcode-Repositories, Konfigurationsdateien und Backup-Archive.</td>
+                            </tr>
+                            <tr>
+                                <td>Subdomain-Takeover-Erkennung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Prüft CNAME-Ketten gegen 30+ Provider-Fingerprints (GitHub Pages, Netlify, Vercel, AWS S3, Heroku, Azure, Shopify usw.). Identifiziert hängende DNS-Einträge, die gekapert werden könnten.</td>
+                            </tr>
+                            <tr>
+                                <td>DNS-Zonentransfer (AXFR) <span class="status-badge available">Verfügbar</span></td>
+                                <td>Testet alle autoritativen Nameserver auf Zonentransfer-Schwachstellen. Ein erfolgreicher AXFR legt die gesamte DNS-Zone offen – ein kritischer Informationsverlust-Befund.</td>
+                            </tr>
+                            <tr>
+                                <td>Security.txt-Validator <span class="status-badge available">Verfügbar</span></td>
+                                <td>RFC 9116-konforme security.txt-Erkennung und -Validierung. Prüft erforderliche Felder (Contact, Expires), optionale Felder (Encryption, Policy) und korrekte Dateipositionierung unter /.well-known/security.txt.</td>
+                            </tr>
+                            <tr>
+                                <td>Erweiterte OSINT &amp; Brand Intelligence <span class="status-badge available">Verfügbar</span></td>
                                 <td>Verbessertes Markenmonitoring mit tiefgreifenden Web-Suchen, Lookalike-Domain-Erkennung (Homoglyphen, Bitsquatting, Combosquatting), PhishTank/URLhaus-Integration und Reputations-Scoring über mehrere Datenquellen.</td>
-                            </tr>
-                            <tr>
-                                <td>E-Mail Intelligence Gatherer <span class="status-badge available">Verfügbar</span></td>
-                                <td>Ermittlung von E-Mail-Adressen über Hunter.io API, GitHub-Commit-Extraktion, Website-Scraping und Musteranalyse. Inklusive HIBP-Breach-Prüfung und E-Mail-Pattern-Erkennung.</td>
-                            </tr>
-                            <tr>
-                                <td>Social Media Reconnaissance <span class="status-badge available">Verfügbar</span></td>
-                                <td>GitHub-Organisation/Repo-Erkennung mit Secrets-Detection, Twitter/X API-Integration, YouTube-Kanal-Erkennung und URL-Existenzprüfung für LinkedIn/Facebook/Instagram.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -394,6 +469,18 @@
                         </thead>
                         <tbody>
                             <tr>
+                                <td>Mehrsprachige Plattform (DE/EN) <span class="status-badge available">Verfügbar</span></td>
+                                <td>Vollständige deutsch- und englischsprachige Oberfläche. Alle UI-Elemente, Navigation, Scan-Ergebnisbeschriftungen, PDF-Berichte, Excel-Exporte und KI-generierte Ausgaben sind in beiden Sprachen verfügbar. Sprachpräferenz ist pro Benutzerprofil konfigurierbar.</td>
+                            </tr>
+                            <tr>
+                                <td>Modulare Scanner-Architektur &amp; Profile <span class="status-badge available">Verfügbar</span></td>
+                                <td>Alle 19+ Scanner-Module sind pro Scan individuell auswählbar. Konfigurierbare Scan-Profile ermöglichen das Speichern von Modulkombinationen (z.B. "Schnellcheck", "Vollaudit", "Compliance-Scan") zur Wiederverwendung über Ziele hinweg.</td>
+                            </tr>
+                            <tr>
+                                <td>Modul-Report-Center <span class="status-badge available">Verfügbar</span></td>
+                                <td>Jedes Scanner-Modul hat jetzt eine eigene Report-Seite mit konfigurierbaren Spalten, PDF-Export und Excel-Export. Die zentrale Reports-Seite listet alle verfügbaren Modul-Reports mit Ein-Klick-Zugriff für jedes Modul.</td>
+                            </tr>
+                            <tr>
                                 <td>Proxy-Unterstützung (Zscaler, etc.)</td>
                                 <td>Konfigurierbare HTTP/HTTPS-Proxy-Einstellungen für alle Scanner-Module (außer Nmap). Unverzichtbar für Enterprise-Umgebungen mit Security-Gateways wie Zscaler, Netskope oder Firmen-Proxies.</td>
                             </tr>
@@ -432,6 +519,45 @@
                             <tr>
                                 <td>Software- & Krypto-BOM <span class="status-badge available">Verfügbar</span></td>
                                 <td>Software Bill of Materials (SBOM) und Cryptography Bill of Materials (CBOM) im CycloneDX-Format für Lieferketten-Sicherheit, NIS2/DORA-Compliance und Post-Quantum-Bereitschaftsbewertung.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Identity Provider & SSO -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🔑</span>
+                    <h2 class="section-title">Identity Provider &amp; SSO-Integration <span class="status-badge planned">Geplant</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Unternehmensweite Authentifizierung über externe Identity Provider. Ermöglicht Organisationen, ihre bestehende Unternehmensidentitätsinfrastruktur für die YADS-Anmeldung zu nutzen – ohne separates Benutzermanagement und mit zentraler Zugriffskontrolle.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Azure AD / Entra ID <span class="status-badge planned">Geplant</span></td>
+                                <td>OAuth2/OIDC-Integration mit Microsoft Azure Active Directory (jetzt Entra ID). Benutzer melden sich mit ihrem Microsoft-Unternehmenskonto an. Unterstützt mandantenspezifische App-Registrierungen, gruppenbasiertes Rollen-Mapping (admin/scanner/auditor) und Richtlinien für bedingten Zugriff.</td>
+                            </tr>
+                            <tr>
+                                <td>SAML 2.0 (Generisch) <span class="status-badge planned">Geplant</span></td>
+                                <td>SAML 2.0 Service Provider-Unterstützung für Kompatibilität mit Okta, Ping Identity, ADFS, Keycloak und anderen Enterprise-IdPs. Konfigurierbares Attribut-Mapping für Benutzername, E-Mail und Rollenansprüche.</td>
+                            </tr>
+                            <tr>
+                                <td>OIDC (Generisch) <span class="status-badge planned">Geplant</span></td>
+                                <td>Generische OpenID Connect-Providerunterstützung. Funktioniert mit Google Workspace, GitHub Enterprise, GitLab und allen standardkonformen IdPs. Pro-Mandant-IdP-Konfiguration für Multi-Tenant-Deployments.</td>
+                            </tr>
+                            <tr>
+                                <td>Gruppenbasiertes Rollen-Mapping <span class="status-badge planned">Geplant</span></td>
+                                <td>Automatische Zuweisung von YADS-Rollen (admin, tenant_admin, scanner, auditor) auf Basis von IdP-Gruppenmitgliedschaften. Keine manuelle Benutzerbereitstellung erforderlich – der Zugriff wird vollständig durch Unternehmensverzeichnisgruppen gesteuert.</td>
                             </tr>
                         </tbody>
                     </table>

@@ -279,6 +279,89 @@
                 <img src="./images/scan-queue.png" alt="Scan Queue">
             </div>
         </section>
+        <!-- AI Intelligence Suite -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">New Feature</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">AI Intelligence Suite</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    An AI-powered security analysis layer built directly into YADS. Supports OpenAI, Anthropic, and Ollama (BYOK) with intelligent rule-based fallbacks — no AI key required to get value.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">🤖 Finding prioritization ranked by exploitability &amp; business impact</li>
+                    <li style="margin-bottom: 0.5rem;">🔧 Step-by-step remediation guidance with effort estimation</li>
+                    <li style="margin-bottom: 0.5rem;">🔍 Natural language search across all findings</li>
+                    <li style="margin-bottom: 0.5rem;">📊 AI risk scoring in the Analytics view (0–100 + rating)</li>
+                    <li style="margin-bottom: 0.5rem;">🌐 All outputs available in English and German</li>
+                </ul>
+            </div>
+            <div class="feature-image">
+                <img src="./images/ai-assistant.png" alt="AI Intelligence Suite">
+            </div>
+        </section>
+
+        <!-- PQC Readiness -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">New Feature</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">PQC Readiness Report</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    A dedicated Post-Quantum Cryptography assessment that analyzes all cryptographic assets across your infrastructure. Essential for NIS2, DORA, and BSI TR-02102 compliance planning.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">🔐 Algorithm classification: quantum-safe, vulnerable, transitional</li>
+                    <li style="margin-bottom: 0.5rem;">📋 CBOM export in CycloneDX JSON format</li>
+                    <li style="margin-bottom: 0.5rem;">⚠️ Migration risk scoring per asset (Low/Medium/High/Critical)</li>
+                    <li style="margin-bottom: 0.5rem;">📊 Aggregate quantum readiness grade (A–F)</li>
+                    <li style="margin-bottom: 0.5rem;">🔗 Recommended PQC alternatives (Kyber, Dilithium, SPHINCS+)</li>
+                </ul>
+            </div>
+            <div class="feature-image">
+                <img src="./images/pqc.png" alt="PQC Readiness Report">
+            </div>
+        </section>
+
+        <!-- Security Findings -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">New Feature</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Security Findings Overview</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    Aggregated findings from all 19+ scanner modules in a single, filterable view. Track every finding through its complete remediation lifecycle.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">📋 Status tracking: Open → Acknowledged → Fixed / False Positive</li>
+                    <li style="margin-bottom: 0.5rem;">🔍 Filter by severity, module, domain, status, date range</li>
+                    <li style="margin-bottom: 0.5rem;">📝 Analyst notes per finding with remediation timeline</li>
+                    <li style="margin-bottom: 0.5rem;">💾 CSV and Excel export with full filter support</li>
+                    <li style="margin-bottom: 0.5rem;">🔁 Status survives re-scans via deterministic hashing</li>
+                </ul>
+            </div>
+            <div class="feature-image">
+                <img src="./images/security-findings.png" alt="Security Findings Overview">
+            </div>
+        </section>
+
+        <!-- Scan Profiles -->
+        <section class="feature-section">
+            <div class="feature-text">
+                <span class="feature-tag" style="color: var(--accent-tertiary);">New Feature</span>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Scan Profiles &amp; Module Selection</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+                    Complete control over which scanner modules run on each target. Save named profiles for repeatable scan workflows.
+                </p>
+                <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
+                    <li style="margin-bottom: 0.5rem;">⚙️ 19+ individually selectable scanner modules</li>
+                    <li style="margin-bottom: 0.5rem;">💾 Named scan profiles: Quick Check, Full Audit, Compliance, etc.</li>
+                    <li style="margin-bottom: 0.5rem;">🔄 Profiles apply to scheduled and on-demand scans</li>
+                    <li style="margin-bottom: 0.5rem;">📊 Per-target module override for fine-grained control</li>
+                </ul>
+            </div>
+            <div class="feature-image">
+                <img src="./images/scan-modules.png" alt="Scan Profiles and Modules">
+            </div>
+        </section>
+
         <!-- Deep Scan Modules Section -->
         <section class="feature-section" style="display: block; padding-top: 2rem;">
             <div class="container text-center">
@@ -330,6 +413,42 @@
                         <li style="margin-bottom:0.5rem"><strong>Dead Links:</strong> Detection of Broken Link Hijacking.</li>
                         <li style="margin-bottom:0.5rem"><strong>Brand Monitor:</strong> Identifies brand mentions on the web.</li>
                         <li style="margin-bottom:0.5rem"><strong>Email Security:</strong> SPF, DMARC & Spoofing Protection Analysis.</li>
+                    </ul>
+                </div>
+
+                <!-- Security Headers & Application Security -->
+                <div class="feature-card">
+                    <h4 style="color:var(--accent-primary); margin-bottom:0.5rem;">🛡️ Application Security</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-secondary);">
+                        <li style="margin-bottom:0.5rem"><strong>HTTP Headers:</strong> OWASP security header analysis (CSP, HSTS, X-Frame-Options).</li>
+                        <li style="margin-bottom:0.5rem"><strong>Cookie Security:</strong> Secure / HttpOnly / SameSite flag validation.</li>
+                        <li style="margin-bottom:0.5rem"><strong>CORS Check:</strong> Cross-origin policy misconfiguration detection.</li>
+                        <li style="margin-bottom:0.5rem"><strong>Cert Mismatch:</strong> TLS certificate / domain name validation.</li>
+                        <li style="margin-bottom:0.5rem"><strong>Security.txt:</strong> RFC 9116 compliance validator.</li>
+                    </ul>
+                </div>
+
+                <!-- Threat Intelligence & Secrets -->
+                <div class="feature-card">
+                    <h4 style="color:var(--accent-secondary); margin-bottom:0.5rem;">🔎 Threat Intel & Secrets</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-secondary);">
+                        <li style="margin-bottom:0.5rem"><strong>Threat Intel:</strong> AbuseIPDB, AlienVault OTX, VirusTotal IP reputation.</li>
+                        <li style="margin-bottom:0.5rem"><strong>Shodan/Censys:</strong> Passive host intelligence — ports, banners, CVEs.</li>
+                        <li style="margin-bottom:0.5rem"><strong>JS Secrets:</strong> 25+ secret patterns in JavaScript files (API keys, JWTs).</li>
+                        <li style="margin-bottom:0.5rem"><strong>Git Exposure:</strong> 49 sensitive path probes (/.git/, /.env, /backup.sql).</li>
+                        <li style="margin-bottom:0.5rem"><strong>Subdomain Takeover:</strong> 30+ CNAME fingerprints for hijackable DNS.</li>
+                    </ul>
+                </div>
+
+                <!-- PQC & BOM -->
+                <div class="feature-card">
+                    <h4 style="color:#10b981; margin-bottom:0.5rem;">🔐 PQC & Compliance</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-secondary);">
+                        <li style="margin-bottom:0.5rem"><strong>PQC Report:</strong> Quantum migration readiness grade (A–F) per domain.</li>
+                        <li style="margin-bottom:0.5rem"><strong>CBOM Export:</strong> CycloneDX cryptography bill of materials.</li>
+                        <li style="margin-bottom:0.5rem"><strong>SBOM Export:</strong> CycloneDX software bill of materials.</li>
+                        <li style="margin-bottom:0.5rem"><strong>NIS2/DORA:</strong> Compliance readiness indicators and gap analysis.</li>
+                        <li style="margin-bottom:0.5rem"><strong>AXFR Check:</strong> DNS zone transfer vulnerability detection.</li>
                     </ul>
                 </div>
             </div>
