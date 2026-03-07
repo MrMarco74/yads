@@ -152,6 +152,31 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.19.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.19.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Stabilität & Funktionserweiterungen</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Ein Problem wurde behoben, bei dem Scanner-Module im Celery-Worker stumm fehlschlugen, wodurch sichergestellt wird, dass alle Scanner-Module jetzt korrekt ausgeführt werden.</li>
+                    <li>Ein Problem wurde behoben, bei dem Subdomains unabhängig vom DNS-Auflösungsstatus als Ziele hinzugefügt wurden. Das System überprüft nun die DNS-Auflösung, bevor neue Ziele hinzugefügt werden.</li>
+                    <li>Archivierte Ziele werden nun korrekt aus dem Netzwerkdiagramm und den Spiderweb-Visualisierungen gefiltert, wobei der Tenant-Kontext berücksichtigt wird.</li>
+                    <li>Alle aufgelösten IP-Adressen werden vor der Erstellung von Ziel-Datensätzen geprüft.</li>
+                </ul>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Eine Massenaktion zum Archivieren von Zielen mit nicht aufgelösten DNS-Einträgen wurde hinzugefügt. Eine Schaltfläche wurde zur Symbolleiste der Zieltabell hinzugefügt.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Vereinheitlichte User-Agent-Identifizierung über alle Scanner-Module hinweg für konsistente Verfolgung und Identifizierung unter Verwendung von 'YADS-Security-Scanner/1.19' für HTTP-Anfragen und einem benutzerdefinierten Chrome User-Agent für Browserkontexte.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 8dede864e9c928e45bf6714af378301e3b6bc8e72dfa7a7c286c5c18b5c98a75</p>
+            </div>
+        </div>
+
         <!-- Version 1.19.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.19.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
