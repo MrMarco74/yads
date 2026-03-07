@@ -1588,6 +1588,10 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 from yads.modules.subdomain_takeover_scanner import SubdomainTakeoverScanner
                 _run_simple_module(SubdomainTakeoverScanner, target_id, domain, session, "Checking for subdomain takeover risks...")
 
+            if "git_exposure" in scan_types and (has_http or has_https):
+                from yads.modules.git_exposure_scanner import GitExposureScanner
+                _run_simple_module(GitExposureScanner, target_id, domain, session, "Scanning for exposed .git and sensitive files...")
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             

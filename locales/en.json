@@ -154,7 +154,8 @@
     "cert_mismatch": "Certificate / Domain Mismatch",
     "shodan_censys": "Shodan / Censys (Internet Exposure)",
     "threat_intel": "Threat Intelligence (AbuseIPDB / OTX / VirusTotal)",
-    "subdomain_takeover": "Subdomain Takeover Check"
+    "subdomain_takeover": "Subdomain Takeover Check",
+    "git_exposure": "Exposed .git / Sensitive Files"
   },
   "report": {
     "generate": "Generate Report",
