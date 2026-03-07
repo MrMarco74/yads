@@ -152,6 +152,56 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.20.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">AI, Attack Surface, and Scanners!</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Introduced AI Intelligence Suite: AI Assistant for finding prioritization and remediation, Executive Report for C-Level insights, Attack Path Visualizer for exploitation chain mapping, and Multi-Domain Portfolio View.</li>
+                    <li>Added Finding Management features: Status lifecycle tracking, analyst notes, and CSV export.</li>
+                    <li>Implemented Asset Tagging UI with tag cloud, bulk operations, and inline editing.</li>
+                    <li>Extended Cloud Scanner with DigitalOcean Spaces, Cloudflare R2, and Shadow IT detection.</li>
+                    <li>Enabled Multilanguage exports (PDF + Excel) with EN/DE support.</li>
+                    <li>Implemented Scan Comparison / Baseline Diff to compare scan results.</li>
+                    <li>Implemented Attack Surface Dashboard for risk heatmap visualization.</li>
+                    <li>Implemented Attack Surface Change Feed for tracking security changes over time.</li>
+                    <li>Added 19 new scanner modules: ASN, Banner Grabber, CT Monitor, API Security, Dependency Confusion, DNS History, Email Harvester, GraphQL, IPv6, Leaked Credentials, Login Scanner, Mobile App Discovery, Open Redirect, Password Spray Mapper, Phishing, TLS Deep, WAF Detector, WebSocket, RPKI/BGP Route Validation, Privacy/DSGVO, External Resources, Document Metadata, JavaScript Secrets & Endpoints, Git/File Exposure, Subdomain Takeover, Threat Intelligence, Shodan/Censys.</li>
+                    <li>Added Security Findings Overview page (ASM aggregation) for Phase 1 scanners.</li>
+                    <li>Implemented multilanguage EN/DE framework with user language settings.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Enhanced scan execution with parallel processing (ThreadPoolExecutor).</li>
+                    <li>Upgraded Wayback Machine scanner with secrets detection.</li>
+                    <li>Grouped scan types into categories with select-all toggle in the scan modal.</li>
+                    <li>Improved scan module reporting with generic module report views, analytics extension, and security fixes.</li>
+                    <li>Updated homepage (EN+DE) with v1.20 features, showcasing new capabilities like PQC, 12 new scanner modules, and module report center.</li>
+                    <li>Improved analytics to include threat_intel, nuclei_scanner, and port_scanner.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed homepage image paths for DE pages to use relative paths.</li>
+                    <li>Aligned feature sections to top edge on the homepage.</li>
+                    <li>Fixed switch-tenant to Platform Admin functionality.</li>
+                    <li>Fixed scan_priority migration.</li>
+                </ul>
+                <h3>🔒 Security</h3>
+                <ul>
+                    <li>Removed real license key from debug scripts.</li>
+                    <li>Replaced hardcoded Postgres password with an environment variable.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Refactored worker to add _run_simple_module helper for scanners.</li>
+                    <li>Centralized Jinja2 templates instance across all routers.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 1cd5db5d053c03841b8f9de212361c4b741e31d9077bb64e3b693ef55e8f6457</p>
+            </div>
+        </div>
+
 
         <!-- Version 1.20.3 (beta) -->
         <div class="change-entry">

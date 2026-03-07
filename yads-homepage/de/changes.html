@@ -152,6 +152,56 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.20.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">KI, Angriffsfläche und Scanner!</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Einführung der KI Intelligence Suite: KI-Assistent zur Priorisierung und Behebung von Schwachstellen, Executive Report für C-Level-Einblicke, Attack Path Visualizer zur Abbildung von Exploitation-Ketten und Multi-Domain Portfolio View.</li>
+                    <li>Hinzugefügt: Funktionen zur Verwaltung von Findings: Statusverfolgung, Analystennotizen und CSV-Export.</li>
+                    <li>Implementierung der Asset-Tagging-UI mit Tag-Cloud, Massenoperationen und Inline-Bearbeitung.</li>
+                    <li>Erweiterung des Cloud Scanners mit DigitalOcean Spaces, Cloudflare R2 und Shadow IT-Erkennung.</li>
+                    <li>Aktivierung von mehrsprachigen Exporten (PDF + Excel) mit EN/DE-Unterstützung.</li>
+                    <li>Implementierung von Scan-Vergleich / Baseline-Diff zum Vergleich von Scan-Ergebnissen.</li>
+                    <li>Implementierung des Attack Surface Dashboards zur Visualisierung von Risiko-Heatmaps.</li>
+                    <li>Implementierung des Attack Surface Change Feeds zur Verfolgung von Sicherheitsänderungen im Zeitverlauf.</li>
+                    <li>Hinzugefügt: 19 neue Scanner-Module: ASN, Banner Grabber, CT Monitor, API Security, Dependency Confusion, DNS History, Email Harvester, GraphQL, IPv6, Leaked Credentials, Login Scanner, Mobile App Discovery, Open Redirect, Password Spray Mapper, Phishing, TLS Deep, WAF Detector, WebSocket, RPKI/BGP Route Validation, Privacy/DSGVO, External Resources, Document Metadata, JavaScript Secrets & Endpoints, Git/File Exposure, Subdomain Takeover, Threat Intelligence, Shodan/Censys.</li>
+                    <li>Hinzugefügt: Security Findings Overview-Seite (ASM-Aggregation) für Phase-1-Scanner.</li>
+                    <li>Implementierung eines mehrsprachigen EN/DE-Frameworks mit Benutzerspracheinstellungen.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte Scan-Ausführung mit paralleler Verarbeitung (ThreadPoolExecutor).</li>
+                    <li>Aktualisierung des Wayback Machine-Scanners mit Secrets-Erkennung.</li>
+                    <li>Gruppierung von Scan-Typen in Kategorien mit Select-All-Toggle im Scan-Modal.</li>
+                    <li>Verbesserte Scan-Modul-Berichterstellung mit generischen Modulberichtsansichten, Analytics-Erweiterung und Sicherheitskorrekturen.</li>
+                    <li>Aktualisierung der Homepage (EN+DE) mit v1.20-Funktionen, mit Darstellung neuer Funktionen wie PQC, 12 neuen Scanner-Modulen und Modulberichtszentrale.</li>
+                    <li>Verbesserte Analytik zur Einbeziehung von threat_intel, nuclei_scanner und port_scanner.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung von Homepage-Bildpfaden für DE-Seiten zur Verwendung relativer Pfade.</li>
+                    <li>Ausrichtung der Feature-Bereiche am oberen Rand der Homepage.</li>
+                    <li>Behebung der Switch-Tenant-Funktionalität zu Platform Admin.</li>
+                    <li>Behebung der scan_priority-Migration.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Entfernung des echten Lizenzschlüssels aus Debug-Skripten.</li>
+                    <li>Ersetzung des fest codierten Postgres-Passworts durch eine Umgebungsvariable.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Refaktorierung des Workers zur Hinzufügung des _run_simple_module-Helpers für Scanner.</li>
+                    <li>Zentralisierung der Jinja2-Template-Instanz über alle Router hinweg.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 1cd5db5d053c03841b8f9de212361c4b741e31d9077bb64e3b693ef55e8f6457</p>
+            </div>
+        </div>
+
 
         <!-- Version 1.20.3 (beta) -->
         <div class="change-entry">
