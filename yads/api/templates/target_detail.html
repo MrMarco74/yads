@@ -304,6 +304,10 @@
                                 <input type="checkbox" name="scan_types" value="threat_intel" class="form-checkbox text-rose-500 rounded bg-gray-900 border-rose-600">
                                 <span class="text-sm font-medium text-rose-400">Threat Intelligence</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-violet-900/20 rounded border border-violet-900/50 hover:bg-violet-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="subdomain_takeover" class="form-checkbox text-violet-500 rounded bg-gray-900 border-violet-600">
+                                <span class="text-sm font-medium text-violet-400">Subdomain Takeover Check</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -2988,6 +2992,69 @@
 
                 {% else %}
                 <p class="text-gray-500 italic text-sm">No data. Run "Threat Intelligence" scan module.</p>
+                {% endif %}
+            </div>
+
+            <!-- SUBDOMAIN TAKEOVER CARD -->
+            {% set sto = subdomain_takeover_result.data if subdomain_takeover_result and subdomain_takeover_result.data else none %}
+            <div class="bg-gray-800/50 border {% if sto and sto.summary.vulnerable_count > 0 %}border-red-500/50{% elif sto and sto.summary.potentially_vulnerable_count > 0 %}border-amber-500/30{% else %}border-violet-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-violet-500/10 rounded-lg text-violet-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">Subdomain Takeover</h2>
+                            <p class="text-xs text-gray-400">Dangling CNAME / NS records pointing to unclaimed services.</p>
+                        </div>
+                    </div>
+                    {% if sto %}
+                    <div class="text-right">
+                        <div class="text-xs text-gray-500">Checked</div>
+                        <div class="text-lg font-bold text-gray-300">{{ sto.summary.total_checked }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if sto %}
+                <!-- KPI row -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Vulnerable</div>
+                        <div class="text-xl font-bold {% if sto.summary.vulnerable_count > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ sto.summary.vulnerable_count }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Potentially</div>
+                        <div class="text-xl font-bold {% if sto.summary.potentially_vulnerable_count > 0 %}text-amber-400{% else %}text-emerald-400{% endif %}">{{ sto.summary.potentially_vulnerable_count }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Score</div>
+                        <div class="text-xl font-bold {% if sto.summary.score >= 80 %}text-emerald-400{% elif sto.summary.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ sto.summary.score }}</div>
+                    </div>
+                </div>
+
+                <!-- Findings -->
+                {% if sto.findings %}
+                <div class="space-y-2">
+                    {% for f in sto.findings %}
+                    <div class="p-3 bg-gray-900/50 rounded border {% if f.severity == 'critical' %}border-red-500/30{% elif f.severity == 'high' %}border-orange-500/30{% else %}border-amber-500/20{% endif %}">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% else %}bg-amber-900/60 text-amber-300{% endif %}">{{ f.severity }}</span>
+                            <span class="text-xs font-mono text-white">{{ f.subdomain }}</span>
+                            {% if f.service %}<span class="text-xs text-gray-500">→ {{ f.service }}</span>{% endif %}
+                        </div>
+                        <p class="text-[11px] text-gray-400">{{ f.detail }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ No subdomain takeover vulnerabilities detected.</p>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Subdomain Takeover Check" scan module.</p>
                 {% endif %}
             </div>
 

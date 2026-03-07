@@ -1584,6 +1584,10 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 from yads.modules.threat_intel_scanner import ThreatIntelScanner
                 _run_simple_module(ThreatIntelScanner, target_id, domain, session, "Querying threat intelligence feeds...")
 
+            if "subdomain_takeover" in scan_types:
+                from yads.modules.subdomain_takeover_scanner import SubdomainTakeoverScanner
+                _run_simple_module(SubdomainTakeoverScanner, target_id, domain, session, "Checking for subdomain takeover risks...")
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             
