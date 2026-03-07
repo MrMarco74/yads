@@ -155,7 +155,8 @@
     "shodan_censys": "Shodan / Censys (Internet-Exposition)",
     "threat_intel": "Bedrohungsintelligenz (AbuseIPDB / OTX / VirusTotal)",
     "subdomain_takeover": "Subdomain-Takeover-Prüfung",
-    "git_exposure": "Exponiertes .git / Sensible Dateien"
+    "git_exposure": "Exponiertes .git / Sensible Dateien",
+    "js_secrets": "JavaScript-Secrets & Endpunkte"
   },
   "report": {
     "generate": "Bericht erstellen",

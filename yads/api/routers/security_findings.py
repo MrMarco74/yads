@@ -31,6 +31,7 @@ FINDING_MODULES = [
     "threat_intel",
     "subdomain_takeover",
     "git_exposure",
+    "js_secrets",
 ]
 
 
@@ -146,6 +147,14 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
             })
 
     elif module == "git_exposure":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "high"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
+            })
+
+    elif module == "js_secrets":
         for f in data.get("findings", []):
             findings.append({
                 "severity": f.get("severity", "high"),
