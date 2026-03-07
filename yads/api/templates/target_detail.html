@@ -288,6 +288,14 @@
                                 <input type="checkbox" name="scan_types" value="cookie_scanner" checked class="form-checkbox text-orange-500 rounded bg-gray-900 border-orange-600">
                                 <span class="text-sm font-medium text-orange-400">Cookie Security Analyzer</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-yellow-900/20 rounded border border-yellow-900/50 hover:bg-yellow-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cors_scanner" checked class="form-checkbox text-yellow-500 rounded bg-gray-900 border-yellow-600">
+                                <span class="text-sm font-medium text-yellow-400">CORS Misconfiguration Scanner</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 bg-teal-900/20 rounded border border-teal-900/50 hover:bg-teal-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="cert_mismatch" checked class="form-checkbox text-teal-500 rounded bg-gray-900 border-teal-600">
+                                <span class="text-sm font-medium text-teal-400">Certificate / Domain Mismatch</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -2660,6 +2668,104 @@
             </div>
 
             </div><!-- end HTTP Headers+Cookies grid -->
+
+            <!-- CORS + CERT MISMATCH ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- CORS CARD -->
+            <div class="bg-gray-800/50 border {% if cors_result and cors_result.data and cors_result.data.findings %}border-yellow-500/40{% else %}border-slate-700/30{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-yellow-500/10 rounded-lg text-yellow-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">CORS Policy</h2>
+                        <p class="text-xs text-gray-400">Cross-Origin Resource Sharing misconfiguration check.</p>
+                    </div>
+                </div>
+                {% if cors_result and cors_result.data %}
+                {% set cors = cors_result.data %}
+                {% if cors.findings %}
+                <div class="space-y-2">
+                    {% for f in cors.findings %}
+                    <div class="bg-red-900/20 border border-red-500/20 rounded p-2">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'critical' %}bg-red-900/70 text-red-200{% elif f.severity == 'high' %}bg-red-900/50 text-red-300{% else %}bg-amber-900/50 text-amber-300{% endif %}">{{ f.severity }}</span>
+                        <p class="text-xs text-gray-300 mt-1">{{ f.issue }}</p>
+                        <p class="text-[10px] text-gray-500 mt-0.5">Origin: {{ f.origin }}, ACAO: {{ f.acao_value }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-3">
+                    <p class="text-emerald-400 text-sm">✓ No CORS misconfigurations detected.</p>
+                </div>
+                <div class="mt-2 space-y-1">
+                    {% for ep in cors.tested_endpoints %}
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-gray-500 font-mono text-[10px]">{{ ep.origin_tested }}</span>
+                        <span class="text-gray-500">ACAO: {{ ep.acao or 'none' }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "CORS Misconfiguration Scanner".</p>
+                {% endif %}
+            </div>
+
+            <!-- CERT MISMATCH CARD -->
+            <div class="bg-gray-800/50 border {% if cert_mismatch_result and cert_mismatch_result.data and not cert_mismatch_result.data.valid %}border-red-500/40{% else %}border-teal-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Cert / Domain Match</h2>
+                        <p class="text-xs text-gray-400">TLS certificate vs. domain validation.</p>
+                    </div>
+                </div>
+                {% if cert_mismatch_result and cert_mismatch_result.data %}
+                {% set cm = cert_mismatch_result.data %}
+                {% if not cm.reachable %}
+                <p class="text-gray-500 italic text-sm">Port 443 not reachable.</p>
+                {% else %}
+                <div class="space-y-2 mb-3">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">CN</span>
+                        <span class="text-white font-mono">{{ cm.cert_info.get('subject_cn', 'N/A') }}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Issuer</span>
+                        <span class="text-gray-300">{{ cm.cert_info.get('issuer', 'N/A') }}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Expires</span>
+                        <span class="{% if cm.cert_info.get('days_until_expiry', 999) < 30 %}text-red-400{% else %}text-gray-300{% endif %}">
+                            {{ cm.cert_info.get('days_until_expiry', '?') }} days
+                        </span>
+                    </div>
+                </div>
+                {% if cm.findings %}
+                <div class="space-y-1">
+                    {% for f in cm.findings %}
+                    <div class="flex items-start gap-2 p-1.5 bg-gray-900/40 rounded">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity in ('critical','high') %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">{{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ Certificate matches domain and is valid.</p>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Certificate / Domain Mismatch" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end CORS+CertMismatch grid -->
 
             <!-- DECEPTION DETECTION CARD -->
             <div class="bg-gray-800/50 border border-amber-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">

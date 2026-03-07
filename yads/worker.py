@@ -1621,6 +1621,48 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Cookie Scanner: {e}")
                     session.rollback()
 
+            if "cors_scanner" in scan_types and (has_http or has_https):
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Testing CORS policy..."
+                        session.add(t); session.commit()
+                    from yads.modules.cors_scanner import CORSScanner
+                    cors_scan = CORSScanner(db_session=session)
+                    logger.info(f"[Worker] Running {cors_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {cors_scan.module_name} for {domain}")
+                        result = cors_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {cors_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in CORS Scanner: {e}")
+                    session.rollback()
+
+            if "cert_mismatch" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Checking certificate/domain match..."
+                        session.add(t); session.commit()
+                    from yads.modules.cert_mismatch_scanner import CertMismatchScanner
+                    cm_scan = CertMismatchScanner(db_session=session)
+                    logger.info(f"[Worker] Running {cm_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {cm_scan.module_name} for {domain}")
+                        result = cm_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {cm_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Cert Mismatch Scanner: {e}")
+                    session.rollback()
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             
