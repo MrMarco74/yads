@@ -194,6 +194,9 @@ class User(SQLModel, table=True):
     # Authorized Tenants (M:N)
     allowed_tenants: List[Tenant] = Relationship(back_populates="allowed_users", link_model=UserTenantLink, sa_relationship_kwargs={"lazy": "selectin"})
 
+    # UI Language preference (EN/DE)
+    language: str = Field(default="en")
+
     # Changelog Tracking
     last_seen_changelog_id: Optional[int] = Field(default=0)
 

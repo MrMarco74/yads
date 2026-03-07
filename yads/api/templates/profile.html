@@ -108,6 +108,35 @@
 
         </div>
 
+        <!-- Language Settings -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-white mb-1 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
+                {{ _('profile.language_settings') }}
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">{{ _('profile.language_hint') }}</p>
+            <form action="/profile/language" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">{{ _('profile.language_label') }}</label>
+                    <div class="flex gap-3">
+                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2.5 rounded-lg border transition-all {% if user.language == 'en' or not user.language %}border-indigo-500 bg-indigo-500/10 text-white{% else %}border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600{% endif %}">
+                            <input type="radio" name="language" value="en" class="sr-only" {% if user.language == 'en' or not user.language %}checked{% endif %}>
+                            <span class="text-lg">🇬🇧</span>
+                            <span class="text-sm font-medium">English</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2.5 rounded-lg border transition-all {% if user.language == 'de' %}border-indigo-500 bg-indigo-500/10 text-white{% else %}border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600{% endif %}">
+                            <input type="radio" name="language" value="de" class="sr-only" {% if user.language == 'de' %}checked{% endif %}>
+                            <span class="text-lg">🇩🇪</span>
+                            <span class="text-sm font-medium">Deutsch</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg transition-all">
+                    {{ _('profile.update_language') }}
+                </button>
+            </form>
+        </div>
+
         {% if user.role == 'admin' %}
         <!-- Session Settings (Admin Only) -->
         <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">

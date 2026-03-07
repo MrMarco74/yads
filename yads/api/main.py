@@ -158,6 +158,13 @@ async def lifespan(app: FastAPI):
 
                     session.commit()
 
+                # User language preference (i18n v1.20.0)
+                user_columns = [c["name"] for c in inspector.get_columns("user")]
+                if "language" not in user_columns:
+                    logger.info("Migrating schema: Adding language to user table")
+                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN language VARCHAR DEFAULT 'en'"))
+                    session.commit()
+
                 # Check WorkerNode Columns
                 if inspector.has_table("workernode"):
                     columns = [c["name"] for c in inspector.get_columns("workernode")]
@@ -373,6 +380,16 @@ async def tls_enforcement_middleware(request: Request, call_next):
                              status_code=403
                          )
     
+    return await call_next(request)
+
+# -- Language Middleware (i18n) --
+from yads.core.i18n import set_lang, normalize_lang
+
+@app.middleware("http")
+async def language_middleware(request: Request, call_next):
+    """Set request-scoped language from yads_lang cookie."""
+    lang = request.cookies.get("yads_lang", "en")
+    set_lang(normalize_lang(lang))
     return await call_next(request)
 
 # -- Prometheus Metrics Middleware --
