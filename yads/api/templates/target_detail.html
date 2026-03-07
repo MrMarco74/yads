@@ -180,151 +180,141 @@
                     New Scan
                 </button>
 
-                <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 p-4 max-h-[80vh] overflow-y-auto" style="display: none;">
+                <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 p-4 max-h-[80vh] overflow-y-auto" style="display: none;">
                     <form action="/targets/{{ target.id }}/scan" method="POST">
                         <h4 class="text-sm font-bold text-white mb-3">Select Scanners</h4>
-                        <div class="space-y-2 mb-4">
-                            <!-- Full Scan Option (Moved to Top for Visibility) -->
-                            <label class="flex items-center gap-2 cursor-pointer bg-red-900/20 p-2 rounded border border-red-900/50 hover:bg-red-900/30 transition-colors mb-3">
-                                <input type="checkbox" name="scan_types" value="full_scan" class="rounded bg-gray-900 border-red-500 text-red-500 focus:ring-red-500 focus:ring-offset-gray-900">
+                        <div class="space-y-1 mb-3">
+                            <!-- Full Scan -->
+                            <label class="flex items-center gap-2 cursor-pointer bg-red-900/20 p-2 rounded border border-red-900/50 hover:bg-red-900/30 transition-colors mb-2">
+                                <input type="checkbox" name="scan_types" value="full_scan" class="rounded bg-gray-900 border-red-500 text-red-500 focus:ring-0">
                                 <span class="text-sm font-bold text-red-400">FULL SCAN (Run Everything)</span>
                             </label>
-                            
-                            <hr class="border-gray-700 mb-3">
-                            
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="subdomain_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Subdomain Recon</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="dns_scanner" class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">DNS Records (Domain Only)</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="web_analyzer" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Web Analyzer</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="typosquat_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Typosquat Scanner</span>
-                            </label>
-                             <label class="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" name="scan_types" value="cve_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                 <span class="text-sm text-gray-300">CVE Scanner (Passive)</span>
-                             </label>
-                             <label class="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" name="scan_types" value="nuclei_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                 <span class="text-sm font-bold text-indigo-400">Nuclei Vulnerability Scan (Active)</span>
-                             </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="infrastructure_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Infrastructure</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" name="scan_types" value="ssl_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                 <span class="text-sm text-gray-300">SSL</span>
-                             </label>
-                             <label class="flex items-center gap-2 cursor-pointer">
-                                 <input type="checkbox" name="scan_types" value="visual_osint" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                 <span class="text-sm text-gray-300">Visual OSINT</span>
-                             </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="wayback_scanner" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Wayback Machine</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="crawler" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Site Crawler</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="content_discovery" checked class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">Content Discovery (Fuzzing)</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="tld_scanner" class="rounded bg-gray-900 border-gray-700 text-indigo-500 focus:ring-offset-gray-900">
-                                <span class="text-sm text-gray-300">TLD Scanner</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-800 rounded hover:bg-gray-700 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="quick_web_probe" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-gray-600">
-                                <span class="text-sm font-medium text-gray-300">Quick Web Probe (80/443)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-800 rounded hover:bg-gray-700 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="nmap_scanner" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-gray-600">
-                                <span class="text-sm font-medium text-gray-300">Stealth Nmap Scan (Slow)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-800 rounded hover:bg-gray-700 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="form_discovery" checked class="form-checkbox text-indigo-500 rounded bg-gray-900 border-gray-600">
-                                <span class="text-sm font-medium text-gray-300">Form Discovery (Passive)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-amber-900/20 rounded border border-amber-900/50 hover:bg-amber-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="deception_detector" class="form-checkbox text-amber-500 rounded bg-gray-900 border-amber-600">
-                                <span class="text-sm font-medium text-amber-400">Deception Detector (Honeypot/Sinkhole)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-cyan-900/20 rounded border border-cyan-900/50 hover:bg-cyan-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="seed_files_scanner" checked class="form-checkbox text-cyan-500 rounded bg-gray-900 border-cyan-600">
-                                <span class="text-sm font-medium text-cyan-400">Seed Files (robots.txt & sitemap.xml)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-emerald-900/20 rounded border border-emerald-900/50 hover:bg-emerald-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="csp_scanner" checked class="form-checkbox text-emerald-500 rounded bg-gray-900 border-emerald-600">
-                                <span class="text-sm font-medium text-emerald-400">CSP Scanner (External Domain Discovery)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-blue-900/20 rounded border border-blue-900/50 hover:bg-blue-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="email_security" checked class="form-checkbox text-blue-500 rounded bg-gray-900 border-blue-600">
-                                <span class="text-sm font-medium text-blue-400">Email Security (SPF / DKIM / DMARC)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-red-900/20 rounded border border-red-900/50 hover:bg-red-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="axfr_scanner" checked class="form-checkbox text-red-500 rounded bg-gray-900 border-red-600">
-                                <span class="text-sm font-medium text-red-400">DNS Zone Transfer (AXFR)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-slate-900/40 rounded border border-slate-700/50 hover:bg-slate-800/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="security_txt" checked class="form-checkbox text-slate-400 rounded bg-gray-900 border-slate-600">
-                                <span class="text-sm font-medium text-slate-400">Security.txt (RFC 9116)</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-violet-900/20 rounded border border-violet-900/50 hover:bg-violet-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="http_headers" checked class="form-checkbox text-violet-500 rounded bg-gray-900 border-violet-600">
-                                <span class="text-sm font-medium text-violet-400">HTTP Security Headers</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-orange-900/20 rounded border border-orange-900/50 hover:bg-orange-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="cookie_scanner" checked class="form-checkbox text-orange-500 rounded bg-gray-900 border-orange-600">
-                                <span class="text-sm font-medium text-orange-400">Cookie Security Analyzer</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-yellow-900/20 rounded border border-yellow-900/50 hover:bg-yellow-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="cors_scanner" checked class="form-checkbox text-yellow-500 rounded bg-gray-900 border-yellow-600">
-                                <span class="text-sm font-medium text-yellow-400">CORS Misconfiguration Scanner</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-teal-900/20 rounded border border-teal-900/50 hover:bg-teal-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="cert_mismatch" checked class="form-checkbox text-teal-500 rounded bg-gray-900 border-teal-600">
-                                <span class="text-sm font-medium text-teal-400">Certificate / Domain Mismatch</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-indigo-900/20 rounded border border-indigo-900/50 hover:bg-indigo-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="shodan_censys" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-indigo-600">
-                                <span class="text-sm font-medium text-indigo-400">Shodan / Censys</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-rose-900/20 rounded border border-rose-900/50 hover:bg-rose-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="threat_intel" class="form-checkbox text-rose-500 rounded bg-gray-900 border-rose-600">
-                                <span class="text-sm font-medium text-rose-400">Threat Intelligence</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-violet-900/20 rounded border border-violet-900/50 hover:bg-violet-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="subdomain_takeover" class="form-checkbox text-violet-500 rounded bg-gray-900 border-violet-600">
-                                <span class="text-sm font-medium text-violet-400">Subdomain Takeover Check</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-cyan-900/20 rounded border border-cyan-900/50 hover:bg-cyan-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="git_exposure" class="form-checkbox text-cyan-500 rounded bg-gray-900 border-cyan-600">
-                                <span class="text-sm font-medium text-cyan-400">Exposed .git / Files</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-yellow-900/20 rounded border border-yellow-900/50 hover:bg-yellow-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="js_secrets" class="form-checkbox text-yellow-500 rounded bg-gray-900 border-yellow-600">
-                                <span class="text-sm font-medium text-yellow-400">JS Secrets & Endpoints</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-sky-900/20 rounded border border-sky-900/50 hover:bg-sky-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="external_resources" class="form-checkbox text-sky-500 rounded bg-gray-900 border-sky-600">
-                                <span class="text-sm font-medium text-sky-400">External Resources</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-sky-900/20 rounded border border-sky-900/50 hover:bg-sky-900/30 cursor-pointer">
-                                <input type="checkbox" name="scan_types" value="metadata_scanner" class="form-checkbox text-sky-500 rounded bg-gray-900 border-sky-600">
-                                <span class="text-sm font-medium text-sky-400">Document Metadata</span>
-                            </label>
+
+                            <!-- CAT: Reconnaissance -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-recon" onchange="yadsScanToggleGroup('sc-recon',this.checked)" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-indigo-300 uppercase tracking-wider select-none">Reconnaissance</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-recon-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-recon-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="subdomain_scanner" checked data-group="sc-recon" onchange="yadsScanUpdateGroup('sc-recon')" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Subdomain Recon</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="dns_scanner" data-group="sc-recon" onchange="yadsScanUpdateGroup('sc-recon')" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">DNS Records</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="tld_scanner" data-group="sc-recon" onchange="yadsScanUpdateGroup('sc-recon')" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">TLD Scanner</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="typosquat_scanner" checked data-group="sc-recon" onchange="yadsScanUpdateGroup('sc-recon')" class="rounded bg-gray-900 border-gray-600 text-indigo-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Typosquatting</span></label>
+                                </div>
+                            </div>
+
+                            <!-- CAT: Web Analysis -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-web" onchange="yadsScanToggleGroup('sc-web',this.checked)" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-sky-300 uppercase tracking-wider select-none">Web Analysis</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-web-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-web-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="web_analyzer" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Web Analyzer</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="crawler" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Site Crawler</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="content_discovery" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Content Discovery</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="quick_web_probe" data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Quick Web Probe</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="form_discovery" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Form Discovery</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="seed_files_scanner" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Seed Files (robots.txt)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="visual_osint" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Visual OSINT</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="wayback_scanner" checked data-group="sc-web" onchange="yadsScanUpdateGroup('sc-web')" class="rounded bg-gray-900 border-gray-600 text-sky-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Wayback Machine</span></label>
+                                </div>
+                            </div>
+
+                            <!-- CAT: Security Config -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-config" onchange="yadsScanToggleGroup('sc-config',this.checked)" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-emerald-300 uppercase tracking-wider select-none">Security Config</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-config-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-config-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="ssl_scanner" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">SSL Scanner</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="http_headers" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">HTTP Security Headers</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="cookie_scanner" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Cookie Security</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="cors_scanner" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">CORS Misconfiguration</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="csp_scanner" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">CSP Scanner</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="cert_mismatch" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Certificate Mismatch</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="security_txt" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Security.txt</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="email_security" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Email Security (SPF/DKIM/DMARC)</span></label>
+                                </div>
+                            </div>
+
+                            <!-- CAT: Exposure & Secrets -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-exposure" onchange="yadsScanToggleGroup('sc-exposure',this.checked)" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-amber-300 uppercase tracking-wider select-none">Exposure &amp; Secrets</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-exposure-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-exposure-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="axfr_scanner" checked data-group="sc-exposure" onchange="yadsScanUpdateGroup('sc-exposure')" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">DNS Zone Transfer (AXFR)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="git_exposure" data-group="sc-exposure" onchange="yadsScanUpdateGroup('sc-exposure')" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Git / File Exposure</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="js_secrets" data-group="sc-exposure" onchange="yadsScanUpdateGroup('sc-exposure')" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">JS Secrets &amp; Endpoints</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="external_resources" data-group="sc-exposure" onchange="yadsScanUpdateGroup('sc-exposure')" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">External Resources</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="metadata_scanner" data-group="sc-exposure" onchange="yadsScanUpdateGroup('sc-exposure')" class="rounded bg-gray-900 border-gray-600 text-amber-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Document Metadata</span></label>
+                                </div>
+                            </div>
+
+                            <!-- CAT: Threat Intelligence -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-threat" onchange="yadsScanToggleGroup('sc-threat',this.checked)" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-rose-300 uppercase tracking-wider select-none">Threat Intelligence</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-threat-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-threat-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="shodan_censys" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Shodan / Censys</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="threat_intel" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Threat Intel (AbuseIPDB/OTX/VT)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="subdomain_takeover" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Subdomain Takeover</span></label>
+                                </div>
+                            </div>
+
+                            <!-- CAT: Active Scanning -->
+                            <div>
+                                <div class="flex items-center gap-1.5 px-1 py-1 rounded hover:bg-gray-700/20">
+                                    <input type="checkbox" data-group-toggle="sc-active" onchange="yadsScanToggleGroup('sc-active',this.checked)" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3.5 h-3.5">
+                                    <span class="flex-1 text-[11px] font-bold text-orange-300 uppercase tracking-wider select-none">Active Scanning</span>
+                                    <button type="button" onclick="yadsScanCollapse('sc-active-body')" class="text-gray-600 hover:text-gray-300 text-xs px-1 leading-none">▾</button>
+                                </div>
+                                <div id="sc-active-body" class="pl-3 border-l border-gray-700/30 ml-2 mt-0.5 space-y-0.5 mb-1">
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="cve_scanner" checked data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">CVE Scanner (Passive)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="nuclei_scanner" checked data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs font-semibold text-orange-400">Nuclei (Active)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="infrastructure_scanner" checked data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Infrastructure</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="nmap_scanner" data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Nmap Port Scan (Slow)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="deception_detector" data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Deception Detector</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="dns_cleanup" data-group="sc-active" onchange="yadsScanUpdateGroup('sc-active')" class="rounded bg-gray-900 border-gray-600 text-orange-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">DNS Health Check</span></label>
+                                </div>
+                            </div>
                         </div>
+                        <script>
+                        (function(){
+                            if(window._yadsScanGroups) return;
+                            window._yadsScanGroups = true;
+                            window.yadsScanToggleGroup = function(name, checked) {
+                                document.querySelectorAll('[data-group="'+name+'"]').forEach(function(cb){ cb.checked = checked; });
+                                yadsScanUpdateGroup(name);
+                            };
+                            window.yadsScanUpdateGroup = function(name) {
+                                var cbs = Array.from(document.querySelectorAll('[data-group="'+name+'"]'));
+                                var t = document.querySelector('[data-group-toggle="'+name+'"]');
+                                if (!t || !cbs.length) return;
+                                var n = cbs.filter(function(c){ return c.checked; }).length;
+                                if (n === 0) { t.checked = false; t.indeterminate = false; }
+                                else if (n === cbs.length) { t.checked = true; t.indeterminate = false; }
+                                else { t.checked = false; t.indeterminate = true; }
+                            };
+                            window.yadsScanCollapse = function(id) {
+                                var el = document.getElementById(id);
+                                if (!el) return;
+                                el.style.display = el.style.display === 'none' ? '' : 'none';
+                            };
+                            ['sc-recon','sc-web','sc-config','sc-exposure','sc-threat','sc-active'].forEach(function(n){ yadsScanUpdateGroup(n); });
+                        })();
+                        </script>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
                         </button>
