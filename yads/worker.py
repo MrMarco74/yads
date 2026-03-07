@@ -1600,6 +1600,27 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in HTTP Headers Scanner: {e}")
                     session.rollback()
 
+            if "cookie_scanner" in scan_types and (has_http or has_https):
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Analyzing cookie security..."
+                        session.add(t); session.commit()
+                    from yads.modules.cookie_scanner import CookieScanner
+                    ck_scan = CookieScanner(db_session=session)
+                    logger.info(f"[Worker] Running {ck_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ck_scan.module_name} for {domain}")
+                        result = ck_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {ck_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Cookie Scanner: {e}")
+                    session.rollback()
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             

@@ -147,7 +147,8 @@
     "email_security": "E-Mail-Sicherheit (SPF / DKIM / DMARC)",
     "axfr_scanner": "DNS-Zonentransfer (AXFR)",
     "security_txt": "Security.txt (RFC 9116)",
-    "http_headers": "HTTP-Sicherheitsheader"
+    "http_headers": "HTTP-Sicherheitsheader",
+    "cookie_scanner": "Cookie-Sicherheitsanalyse"
   },
   "report": {
     "generate": "Bericht erstellen",
