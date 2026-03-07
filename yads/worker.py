@@ -1049,29 +1049,8 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
             # 5b. Run Wayback Scanner (Archive)
             if "wayback_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Checking Wayback Machine..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.wayback_scanner import WaybackScanner
-                    wb = WaybackScanner(db_session=session)
-                    logger.info(f"[Worker] Step 5b: Running {wb.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {wb.module_name} for {domain}")
-                        result = wb.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                         result.log_content = sanitize_null_bytes(captured_logs)
-                         session.add(result)
-                         session.commit()
-                         print(f"[Worker] {wb.module_name} found changes/new data.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Wayback Scanner: {e}")
-                    session.rollback()
+                from yads.modules.wayback_scanner import WaybackScanner
+                _run_simple_module(WaybackScanner, target_id, domain, session, "Checking Wayback Machine for historical exposures...")
         
             # 6. Wait for remaining Group A (deception_detector only now)
             if _group_a_futures:
@@ -1156,31 +1135,8 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
 
             # 8. Run Wayback Scanner
             if "wayback_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Wayback Machine..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.wayback_scanner import WaybackScanner
-                    wb_scan = WaybackScanner(db_session=session)
-                    logger.info(f"[Worker] Step 8: Running {wb_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {wb_scan.module_name} for {domain}")
-                        result = wb_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result: 
-                        # Note: process() now returns result even if unchanged, so we can save logs
-                        if isinstance(result, object) and hasattr(result, 'log_content'):
-                             result.log_content = sanitize_null_bytes(captured_logs)
-                             session.add(result)
-                             session.commit()
-                        print(f"[Worker] {wb_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Wayback Scanner: {e}")
-                    session.rollback()
+                from yads.modules.wayback_scanner import WaybackScanner
+                _run_simple_module(WaybackScanner, target_id, domain, session, "Checking Wayback Machine for historical exposures...")
 
             # 7+9. Run Crawler and Content Discovery in parallel (Group B)
             _group_b_classes = []

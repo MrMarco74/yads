@@ -156,7 +156,8 @@
     "threat_intel": "Bedrohungsintelligenz (AbuseIPDB / OTX / VirusTotal)",
     "subdomain_takeover": "Subdomain-Takeover-Prüfung",
     "git_exposure": "Exponiertes .git / Sensible Dateien",
-    "js_secrets": "JavaScript-Secrets & Endpunkte"
+    "js_secrets": "JavaScript-Secrets & Endpunkte",
+    "wayback_scanner": "Wayback Machine (Historische Exposition)"
   },
   "report": {
     "generate": "Bericht erstellen",

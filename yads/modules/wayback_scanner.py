@@ -1,77 +1,169 @@
-import requests
+"""
+Wayback Machine Secrets Scanner (Task #18)
+
+Queries the Internet Archive CDX API for historically captured URLs
+and identifies sensitive historical exposures: config files, backups,
+.env files, API keys in query params, old admin paths, and more.
+
+Uses the free Wayback CDX API — no API key required.
+"""
+
 import logging
-from typing import Any, Dict, List, Optional
-import datetime
+import re
+from typing import Any, Dict, List, Optional, Set
+
+import requests
+
 from yads.core.base import BaseScannerModule
 
+logger = logging.getLogger(__name__)
+
+CDX_API = "https://web.archive.org/cdx/search/cdx"
+REQUEST_TIMEOUT = 20
+
+# (regex_pattern, severity, category, description)
+SENSITIVE_URL_PATTERNS = [
+    (r"\.env($|\?|&|#)", "critical", "env_file", ".env file captured in Wayback Machine"),
+    (r"\.env\.(local|production|staging|backup|old)($|\?)", "critical", "env_file", ".env variant captured"),
+    (r"wp-config\.php", "critical", "config_file", "WordPress config file captured"),
+    (r"config\.php($|\?)", "high", "config_file", "PHP config file captured"),
+    (r"database\.yml($|\?)", "high", "config_file", "Database config (Rails) captured"),
+    (r"secrets\.yml($|\?)", "critical", "config_file", "Rails secrets.yml captured"),
+    (r"application\.yml($|\?)", "high", "config_file", "Application config captured"),
+    (r"appsettings\.json($|\?)", "high", "config_file", "ASP.NET appsettings captured"),
+    (r"local_settings\.py($|\?)", "high", "config_file", "Django local settings captured"),
+    (r"\.(sql|dump)($|\?)", "critical", "backup", "SQL backup/dump captured"),
+    (r"backup\.(zip|tar\.gz|tar|gz)($|\?)", "high", "archive", "Backup archive captured"),
+    (r"www\.(zip|tar\.gz)($|\?)", "high", "archive", "Web root archive captured"),
+    (r"\.(log|err)($|\?)", "medium", "log_file", "Log file captured"),
+    (r"/\.git/", "critical", "vcs", ".git directory captured"),
+    (r"/\.svn/", "high", "vcs", ".svn directory captured"),
+    (r"phpinfo\.php", "high", "info_disclosure", "phpinfo() captured"),
+    (r"info\.php($|\?)", "high", "info_disclosure", "PHP info page captured"),
+    (r"[?&](api[_\-]?key|apikey|access[_\-]?token|secret|token|key)=[^&\s]{8,}", "high", "api_key_param", "API key/token in URL parameters"),
+    (r"[?&](aws[_\-]?key|aws[_\-]?secret|aws[_\-]?access)=[^&\s]+", "critical", "aws_key_param", "AWS credentials in URL"),
+    (r"/phpmyadmin", "high", "admin", "phpMyAdmin captured"),
+    (r"/(staging|test|dev|debug|beta)($|/)", "low", "dev_path", "Dev/staging path captured"),
+    (r"/(admin|administrator)($|/)", "medium", "admin", "Admin path captured"),
+]
+
+_COMPILED = [
+    (re.compile(pat, re.IGNORECASE), sev, cat, desc)
+    for pat, sev, cat, desc in SENSITIVE_URL_PATTERNS
+]
+
+
 class WaybackScanner(BaseScannerModule):
+    """Scan Wayback Machine archive for historically exposed sensitive URLs."""
+
+    MAX_CDX_RESULTS = 5000
+
     @property
     def module_name(self) -> str:
         return "wayback_scanner"
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
-        logger = logging.getLogger("yads.modules.wayback")
-        logger.info(f"Wayback Scan started for {target}")
-        
-        results = {
-            "snapshots_found": False,
-            "total_snapshots": 0, # Note: Standard API doesn't give total count easily without pagination, we might just check availability
-            "earliest": None,
-            "latest": None,
-            "link": None
+        domain = target.lower().strip().removeprefix("https://").removeprefix("http://").split("/")[0]
+
+        result: Dict[str, Any] = {
+            "domain": domain,
+            "total_urls_checked": 0,
+            "findings": [],
+            "interesting_urls": [],
+            "wayback_link": f"https://web.archive.org/web/*/{domain}",
+            "summary": {
+                "score": 100,
+                "findings_count": 0,
+                "earliest_capture": None,
+                "latest_capture": None,
+                "total_captures": 0,
+            },
         }
 
-        # 1. Availability API (Latest)
-        # https://archive.org/wayback/available?url=example.com
+        entries = self._query_cdx(domain)
+        result["summary"]["total_captures"] = len(entries)
+
+        if not entries:
+            logger.info(f"[Wayback] No CDX captures found for {domain}")
+            return result
+
+        # Extract timestamps
+        timestamps = [e.get("timestamp", "") for e in entries if e.get("timestamp")]
+        if timestamps:
+            result["summary"]["earliest_capture"] = min(timestamps)[:8]
+            result["summary"]["latest_capture"] = max(timestamps)[:8]
+
+        # Scan for sensitive patterns
+        seen: Set[str] = set()
+        findings: List[Dict] = []
+        interesting: List[Dict] = []
+
+        for entry in entries:
+            url = entry.get("original", "")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+
+            for regex, sev, cat, desc in _COMPILED:
+                if regex.search(url):
+                    findings.append({
+                        "severity": sev,
+                        "title": desc,
+                        "detail": url[:200],
+                        "url": url,
+                        "category": cat,
+                        "timestamp": entry.get("timestamp", "")[:8],
+                        "wayback_url": f"https://web.archive.org/web/{entry.get('timestamp','*')}/{url}",
+                    })
+                    break
+
+        result["total_urls_checked"] = len(seen)
+        result["findings"] = findings
+
+        # Interesting URLs (API endpoints seen historically)
+        for entry in entries[:500]:
+            url = entry.get("original", "")
+            if any(kw in url.lower() for kw in ["/api/", "swagger", "openapi", "/graphql", "/v1/", "/v2/"]):
+                if url not in [x["url"] for x in interesting]:
+                    interesting.append({
+                        "url": url[:200],
+                        "timestamp": entry.get("timestamp", "")[:8],
+                    })
+        result["interesting_urls"] = interesting[:20]
+
+        score = 100
+        for f in findings:
+            if f["severity"] == "critical":
+                score -= 15
+            elif f["severity"] == "high":
+                score -= 10
+            elif f["severity"] == "medium":
+                score -= 5
+            elif f["severity"] == "low":
+                score -= 2
+
+        result["summary"]["score"] = max(0, score)
+        result["summary"]["findings_count"] = len(findings)
+
+        return result
+
+    def _query_cdx(self, domain: str) -> List[Dict]:
         try:
-            url = f"https://archive.org/wayback/available?url={target}"
-            logger.info(f"Querying Wayback Availability: {url}")
-            resp = requests.get(url, timeout=10)
-            logger.debug(f"Wayback Availability Status: {resp.status_code}")
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                snapshots = data.get("archived_snapshots", {})
-                closest = snapshots.get("closest", {})
-                
-                if closest and closest.get("available"):
-                    results["snapshots_found"] = True
-                    results["latest"] = {
-                        "url": closest.get("url"),
-                        "timestamp": closest.get("timestamp"), # Format: YYYYMMDDhhmmss
-                        "status": closest.get("status")
-                    }
-                    results["link"] = f"https://web.archive.org/web/*/{target}"
-                    logger.info(f"Wayback Snapshot Found: {closest.get('url')}")
-                else:
-                    logger.info("Wayback: No available snapshots returned by API.")
-            else:
-                logger.warning(f"Wayback API returned non-200 status: {resp.status_code} - {resp.text}")
-                
+            params = {
+                "url": f"*.{domain}/*",
+                "output": "json",
+                "fl": "original,timestamp,statuscode,mimetype",
+                "collapse": "urlkey",
+                "limit": self.MAX_CDX_RESULTS,
+                "filter": "statuscode:200",
+            }
+            resp = requests.get(CDX_API, params=params, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            rows = resp.json()
+            if not rows or len(rows) < 2:
+                return []
+            header = rows[0]
+            return [dict(zip(header, row)) for row in rows[1:]]
         except Exception as e:
-            logger.error(f"Wayback API error: {e}")
-            results["error"] = str(e)
-
-        # 2. CDX API for First snapshot (optional but nice)
-        if results["snapshots_found"]:
-            try:
-                # Limit 1, sort by date ascending
-                cdx_url = f"https://web.archive.org/cdx/search/cdx?url={target}&output=json&limit=1&sort=original&filter=statuscode:200"
-                # This might be slow/rate-limited, so use short timeout and permissive failure
-                resp_cdx = requests.get(cdx_url, timeout=5)
-                if resp_cdx.status_code == 200:
-                    cdx_data = resp_cdx.json()
-                    # cdx_data is list of lists, first is header
-                    if len(cdx_data) > 1:
-                        # header: urlkey, timestamp, original, mimetype, statuscode, digest, length
-                        # finding timestamp index
-                        # typically ["urlkey", "timestamp", "original", ...]
-                        row = cdx_data[1]
-                        results["earliest"] = {
-                            "timestamp": row[1],
-                            "url": f"https://web.archive.org/web/{row[1]}/{target}"
-                        }
-            except Exception as e:
-                logger.warning(f"Wayback CDX query failed: {e}")
-
-        return results
+            logger.warning(f"[Wayback] CDX query failed: {e}")
+            return []
