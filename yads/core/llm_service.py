@@ -87,9 +87,25 @@ def _build_prompt(data: Dict[str, Any]) -> str:
             "open_cloud_buckets":      len(data.get("open_buckets", [])),
             "secrets_leaked_targets":  secrets_count,
             "hijackable_broken_links": len(data.get("hijacking_items", [])),
+            "threat_intel_flagged":    sum(1 for t in data.get("threat_intel", []) if t.get("flagged_by", 0) > 0),
+            "nuclei_critical":         (data.get("nuclei_findings") or {}).get("critical", 0),
+            "nuclei_high":             (data.get("nuclei_findings") or {}).get("high", 0),
+            "exposed_port_targets":    len(data.get("port_exposure", [])),
         },
         "http_status_distribution": status_codes,
         "top_risks": top_risks,
+        "threat_intel_flagged_ips": [
+            f"{t['target']} ({t['ip']}): score={t['score']}, flagged_by={t['flagged_by']}"
+            for t in data.get("threat_intel", []) if t.get("flagged_by", 0) > 0
+        ][:10],
+        "nuclei_top_targets": [
+            f"{t['target']}: {t['critical']} critical, {t['high']} high"
+            for t in (data.get("nuclei_findings") or {}).get("targets", [])
+        ][:10],
+        "top_port_exposed": [
+            f"{p['target']}: {p['count']} open ports ({', '.join(str(x) for x in p['ports'][:5])}...)"
+            for p in data.get("port_exposure", [])
+        ][:10],
         "blacklisted_ips": [
             "{target} ({ip}): {flags}".format(
                 target=i.get("target", ""),

@@ -1,7 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from datetime import datetime
 
@@ -12,7 +11,7 @@ from yads.config import settings
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 templates.env.globals['settings'] = settings
 
 def get_all_tenants():

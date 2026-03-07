@@ -54,9 +54,41 @@ def _get_targets_data(session: Session, user: User, for_export: bool = False):
 
 @router.get("/", response_class=HTMLResponse)
 async def reports_index(request: Request, user: User = Depends(get_current_user_html)):
+    from yads.core.module_registry import REGISTRY, CATEGORIES
+
+    # Modules with dedicated view/export pages
+    DEDICATED = {
+        "email_security":    {"view": "/email-security",  "excel": "/email-security/export/excel",  "pdf": "/email-security/export/pdf"},
+        "cloud_scanner":     {"view": "/cloud-assets",    "excel": "/cloud-assets/export/excel",    "pdf": "/cloud-assets/export/pdf"},
+        "port_scanner":      {"view": "/ports",           "excel": "/ports/export/excel",           "pdf": "/ports/export/pdf"},
+        "nmap_scanner":      {"view": "/ports",           "excel": "/ports/export/excel",           "pdf": "/ports/export/pdf"},
+        "js_secrets":        {"view": "/secrets",         "excel": "/secrets/export/excel",         "pdf": "/secrets/export/pdf"},
+        "ssl_scanner":       {"view": "/cert-timeline",   "excel": "/cert-timeline/export/excel",   "pdf": "/cert-timeline/export/pdf"},
+        "tls_deep_scanner":  {"view": "/cert-timeline",   "excel": "/cert-timeline/export/excel",   "pdf": "/cert-timeline/export/pdf"},
+        "infrastructure_scanner": {"view": "/ports",      "excel": "/ports/export/excel",           "pdf": "/ports/export/pdf"},
+        "threat_intel":      {"view": "/security-findings?module=threat_intel"},
+    }
+
+    # Build grouped structure following CATEGORIES order
+    grouped = []
+    for cat in CATEGORIES:
+        mods = [
+            {
+                "name": defn.label,
+                "name_de": defn.label_de,
+                "module": name,
+                "dedicated": DEDICATED.get(name),
+            }
+            for name, defn in REGISTRY.items()
+            if defn.category == cat["id"] and defn.finding_module
+        ]
+        if mods:
+            grouped.append({"cat": cat, "modules": mods})
+
     return templates.TemplateResponse("reports.html", {
         "request": request,
-        "user": user
+        "user": user,
+        "grouped": grouped,
     })
 
 @router.get("/targets/csv")

@@ -17,11 +17,10 @@ from yads.modules.compliance import ComplianceScorer
 from yads.modules.compliance_frameworks import (
     get_framework_scorer, get_all_frameworks, FRAMEWORKS
 )
-from fastapi.templating import Jinja2Templates
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/compliance", tags=["compliance"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals
 from yads.config import settings

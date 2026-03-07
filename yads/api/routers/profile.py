@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from typing import Optional
 
@@ -17,7 +16,7 @@ router = APIRouter(
     tags=["profile"]
 )
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 def get_all_tenants():
     from sqlmodel import Session, select

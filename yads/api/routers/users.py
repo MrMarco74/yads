@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from typing import Optional, List
 
@@ -15,7 +14,7 @@ from yads.core.security_audit import (
 )
 
 router = APIRouter(prefix="/users")
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 # Inject Globals
 templates.env.globals['settings'] = settings
 from datetime import datetime

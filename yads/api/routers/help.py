@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 import markdown
 import os
 import aiofiles
@@ -13,7 +12,7 @@ router = APIRouter(
     tags=["help"]
 )
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 def get_all_tenants():
     from sqlmodel import Session, select

@@ -2,7 +2,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, func, text
 
@@ -11,7 +10,7 @@ from yads.models import Tenant, User, Target
 from yads.auth.deps import PlatformAdminChecker, get_current_user_html, RoleChecker
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals from main setup usually, but we need settings
 from yads.config import settings

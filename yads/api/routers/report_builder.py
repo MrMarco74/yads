@@ -7,7 +7,6 @@ and exporting to PDF with tenant-specific branding.
 
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select, or_
 from datetime import datetime
 from typing import Optional, List
@@ -29,7 +28,7 @@ router = APIRouter(
     tags=["reports"]
 )
 
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Helper to get all tenants for template context
 def get_all_tenants():

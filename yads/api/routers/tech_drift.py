@@ -5,13 +5,12 @@ from typing import Optional
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, get_current_active_user
 from yads.models import User, Target, ScanResult
-from fastapi.templating import Jinja2Templates
 from datetime import datetime
 from yads.utils.export import generate_excel, generate_pdf
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/tech-drift", tags=["reports"])
-templates = Jinja2Templates(directory="yads/api/templates")
+from yads.api.templating import templates
 
 # Inject Globals
 from yads.config import settings
