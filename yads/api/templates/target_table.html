@@ -315,6 +315,14 @@
                                 <input type="checkbox" name="scan_types" value="js_secrets" {% if 'js_secrets' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-yellow-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-yellow-400">JS Secrets</span>
                             </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="external_resources" {% if 'external_resources' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-sky-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-sky-400">External Resources</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="metadata_scanner" {% if 'metadata_scanner' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-sky-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-sky-400">Document Metadata</span>
+                            </label>
                         </div>
                     </div>
                 </div>

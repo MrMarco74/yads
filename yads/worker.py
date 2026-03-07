@@ -1552,6 +1552,14 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 from yads.modules.js_secrets_scanner import JsSecretsScanner
                 _run_simple_module(JsSecretsScanner, target_id, domain, session, "Scanning JavaScript files for secrets...")
 
+            if "external_resources" in scan_types and (has_http or has_https):
+                from yads.modules.external_resources_scanner import ExternalResourcesScanner
+                _run_simple_module(ExternalResourcesScanner, target_id, domain, session, "Analyzing external resource loading...")
+
+            if "metadata_scanner" in scan_types and (has_http or has_https):
+                from yads.modules.metadata_scanner import MetadataScanner
+                _run_simple_module(MetadataScanner, target_id, domain, session, "Extracting document metadata...")
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             
