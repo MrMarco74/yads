@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-white">Scan Comparison</h1>
+        <p class="text-slate-400 text-sm mt-1">Compare two scan results for the same target and module to see what changed.</p>
+    </div>
+
+    <!-- Selector Form -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="compare-form">
+            <!-- Target -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Target</label>
+                <select name="target_id" onchange="this.form.submit()" class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="">Select target…</option>
+                    {% for t in targets %}
+                    <option value="{{ t.id }}" {% if target_id == t.id %}selected{% endif %}>{{ t.domain }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Module -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Module</label>
+                <select name="module" onchange="this.form.submit()" class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" {% if not available_modules %}disabled{% endif %}>
+                    <option value="">Select module…</option>
+                    {% for m in available_modules %}
+                    <option value="{{ m }}" {% if module == m %}selected{% endif %}>{{ module_labels.get(m, m) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Result A (older baseline) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Baseline (older)</label>
+                <select name="a" class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" {% if not history %}disabled{% endif %}>
+                    <option value="">Select scan…</option>
+                    {% for r in history %}
+                    <option value="{{ r.id }}" {% if result_a and result_a.id == r.id %}selected{% endif %}>
+                        {{ r.scanned_at.strftime('%Y-%m-%d %H:%M') if r.scanned_at else r.id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Result B (newer) -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Compare to (newer)</label>
+                <select name="b" class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" {% if not history %}disabled{% endif %}>
+                    <option value="">Select scan…</option>
+                    {% for r in history %}
+                    <option value="{{ r.id }}" {% if result_b and result_b.id == r.id %}selected{% endif %}>
+                        {{ r.scanned_at.strftime('%Y-%m-%d %H:%M') if r.scanned_at else r.id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="sm:col-span-2 lg:col-span-4 flex gap-2">
+                <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors">
+                    Compare
+                </button>
+                {% if result_a or result_b %}
+                <a href="/scan-compare/" class="px-4 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg transition-colors">Reset</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Error -->
+    {% if error_msg %}
+    <div class="bg-red-900/30 border border-red-800 rounded-xl px-4 py-3 text-sm text-red-300">{{ error_msg }}</div>
+    {% endif %}
+
+    <!-- Diff results -->
+    {% if diff and result_a and result_b %}
+
+    <!-- Meta bar -->
+    <div class="flex flex-wrap gap-4 items-center text-xs text-slate-400 bg-slate-900 border border-slate-800 rounded-xl px-5 py-3">
+        <div>
+            <span class="text-slate-500">Target</span>
+            <span class="ml-1 text-white font-medium">{{ selected_target.domain if selected_target else '?' }}</span>
+        </div>
+        <div>
+            <span class="text-slate-500">Module</span>
+            <span class="ml-1 text-white font-medium">{{ module_labels.get(module, module) if module else '?' }}</span>
+        </div>
+        <div>
+            <span class="text-slate-500">Baseline</span>
+            <span class="ml-1 text-slate-300">{{ result_a.scanned_at.strftime('%Y-%m-%d %H:%M') if result_a.scanned_at else result_a.id }}</span>
+        </div>
+        <svg class="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+        </svg>
+        <div>
+            <span class="text-slate-500">Compare to</span>
+            <span class="ml-1 text-slate-300">{{ result_b.scanned_at.strftime('%Y-%m-%d %H:%M') if result_b.scanned_at else result_b.id }}</span>
+        </div>
+        <div class="ml-auto">
+            {% if diff.hash_changed %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/30">
+                Data changed
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/40 text-green-300 border border-green-700/30">
+                No change
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- KPI row -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-lg font-bold text-white">{{ diff.findings_count_a }}</p>
+            <p class="text-xs text-slate-400 mt-1">Findings (baseline)</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-lg font-bold text-white">{{ diff.findings_count_b }}</p>
+            <p class="text-xs text-slate-400 mt-1">Findings (current)</p>
+        </div>
+        <div class="bg-slate-900 border {% if diff.findings.added|length > 0 %}border-red-900/50{% else %}border-slate-800{% endif %} rounded-xl p-4 text-center">
+            <p class="text-lg font-bold {% if diff.findings.added|length > 0 %}text-red-400{% else %}text-slate-500{% endif %}">+{{ diff.findings.added|length }}</p>
+            <p class="text-xs text-slate-400 mt-1">New findings</p>
+        </div>
+        <div class="bg-slate-900 border {% if diff.findings.removed|length > 0 %}border-green-900/50{% else %}border-slate-800{% endif %} rounded-xl p-4 text-center">
+            <p class="text-lg font-bold {% if diff.findings.removed|length > 0 %}text-green-400{% else %}text-slate-500{% endif %}">-{{ diff.findings.removed|length }}</p>
+            <p class="text-xs text-slate-400 mt-1">Resolved findings</p>
+        </div>
+    </div>
+
+    <!-- Summary changes -->
+    {% if diff.summary %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-800">
+            <h2 class="text-sm font-semibold text-white">Summary Changes</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-800 text-left">
+                    <th class="px-4 py-2 text-xs font-medium text-slate-400">Key</th>
+                    <th class="px-4 py-2 text-xs font-medium text-slate-400">Baseline</th>
+                    <th class="px-4 py-2 text-xs font-medium text-slate-400">Current</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+                {% for ch in diff.summary %}
+                <tr class="hover:bg-slate-800/30">
+                    <td class="px-4 py-2 text-xs text-slate-300 font-mono">{{ ch.key }}</td>
+                    <td class="px-4 py-2 text-xs text-slate-400">{{ ch.old }}</td>
+                    <td class="px-4 py-2 text-xs {% if ch.new != ch.old %}text-yellow-300 font-medium{% else %}text-slate-300{% endif %}">{{ ch.new }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- New findings -->
+    {% if diff.findings.added %}
+    <div class="bg-slate-900 border border-red-900/40 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-red-900/30 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+            <h2 class="text-sm font-semibold text-white">New Findings ({{ diff.findings.added|length }})</h2>
+            <span class="text-xs text-slate-500 ml-1">— appeared since baseline</span>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for f in diff.findings.added %}
+            <div class="px-4 py-3 flex items-start gap-3">
+                {% set sev = f.get('severity', 'info') %}
+                <span class="shrink-0 mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+                    {% if sev == 'critical' %}bg-red-900/60 text-red-300
+                    {% elif sev == 'high' %}bg-orange-900/60 text-orange-300
+                    {% elif sev == 'medium' %}bg-yellow-900/60 text-yellow-300
+                    {% elif sev == 'low' %}bg-blue-900/60 text-blue-300
+                    {% else %}bg-slate-700 text-slate-300{% endif %}">{{ sev }}</span>
+                <div class="min-w-0">
+                    <p class="text-xs text-slate-200 font-medium">{{ f.get('title') or f.get('issue') or f.get('id') or '(unnamed finding)' }}</p>
+                    {% if f.get('description') %}
+                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ f.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Resolved findings -->
+    {% if diff.findings.removed %}
+    <div class="bg-slate-900 border border-green-900/40 rounded-xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-green-900/30 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+            <h2 class="text-sm font-semibold text-white">Resolved Findings ({{ diff.findings.removed|length }})</h2>
+            <span class="text-xs text-slate-500 ml-1">— no longer present in current scan</span>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for f in diff.findings.removed %}
+            <div class="px-4 py-3 flex items-start gap-3 opacity-60">
+                {% set sev = f.get('severity', 'info') %}
+                <span class="shrink-0 mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+                    {% if sev == 'critical' %}bg-red-900/60 text-red-300
+                    {% elif sev == 'high' %}bg-orange-900/60 text-orange-300
+                    {% elif sev == 'medium' %}bg-yellow-900/60 text-yellow-300
+                    {% elif sev == 'low' %}bg-blue-900/60 text-blue-300
+                    {% else %}bg-slate-700 text-slate-300{% endif %}">{{ sev }}</span>
+                <div class="min-w-0">
+                    <p class="text-xs text-slate-400 font-medium line-through">{{ f.get('title') or f.get('issue') or f.get('id') or '(unnamed finding)' }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Unchanged findings (collapsed) -->
+    {% if diff.findings.kept %}
+    <details class="bg-slate-900 border border-slate-800 rounded-xl">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-slate-400 hover:text-white list-none flex items-center gap-2">
+            <svg class="w-4 h-4 transition-transform open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+            Unchanged Findings ({{ diff.findings.kept|length }})
+        </summary>
+        <div class="divide-y divide-slate-800 border-t border-slate-800">
+            {% for f in diff.findings.kept %}
+            <div class="px-4 py-2 flex items-center gap-3 opacity-50">
+                {% set sev = f.get('severity', 'info') %}
+                <span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+                    {% if sev == 'critical' %}bg-red-900/60 text-red-300
+                    {% elif sev == 'high' %}bg-orange-900/60 text-orange-300
+                    {% elif sev == 'medium' %}bg-yellow-900/60 text-yellow-300
+                    {% elif sev == 'low' %}bg-blue-900/60 text-blue-300
+                    {% else %}bg-slate-700 text-slate-300{% endif %}">{{ sev }}</span>
+                <p class="text-xs text-slate-400">{{ f.get('title') or f.get('issue') or f.get('id') or '(unnamed finding)' }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- No changes at all -->
+    {% if not diff.findings.added and not diff.findings.removed and not diff.summary %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+        <svg class="w-8 h-8 text-green-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <p class="text-slate-300 text-sm font-medium">No changes detected</p>
+        <p class="text-slate-500 text-xs mt-1">Both scan results are identical.</p>
+    </div>
+    {% endif %}
+
+    {% elif not diff and result_a is none and history and module and target_id %}
+    <!-- Prompt to select two results -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+        <p class="text-slate-400 text-sm">Select a baseline and a comparison result above to see the diff.</p>
+        <p class="text-slate-500 text-xs mt-1">{{ history|length }} scan result(s) available for {{ module_labels.get(module, module) if module else module }}.</p>
+    </div>
+    {% elif not result_a and not result_b %}
+    <!-- Initial state -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+        <svg class="w-10 h-10 text-slate-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+        <p class="text-slate-400 text-sm">Select a target and module to begin.</p>
+        <p class="text-slate-500 text-xs mt-1">You need at least two scan results for the same target+module to compare.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

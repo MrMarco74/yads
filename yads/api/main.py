@@ -459,7 +459,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -487,6 +487,7 @@ app.include_router(email_security.router)
 app.include_router(security_findings.router)
 app.include_router(changes.router)
 app.include_router(attack_surface.router)
+app.include_router(scan_compare.router)
 app.include_router(secrets.router)
 app.include_router(tech_drift.router)
 app.include_router(cert_timeline.router)

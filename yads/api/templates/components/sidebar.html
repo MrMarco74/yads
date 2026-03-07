@@ -271,11 +271,19 @@
              </summary>
              <ul class="space-y-1">
                  <li>
-                    <a href="/changes/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors">
+                    <a href="/changes/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/changes' in request.path %}bg-slate-800 text-white{% endif %}">
                         <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span class="ml-3 text-sm font-medium">{{ _('nav.recent_changes') }}</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/scan-compare/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/scan-compare' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">{{ _('nav.scan_compare') }}</span>
                     </a>
                 </li>
                 <li>
