@@ -1,6 +1,7 @@
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
 from yads.config import settings
+from yads.core.i18n import t as _translate, get_lang, SUPPORTED_LANGS
 
 # Shared Templates Instance
 templates = Jinja2Templates(directory="yads/api/templates")
@@ -25,6 +26,9 @@ def get_all_tenants():
 templates.env.globals['get_available_tenants'] = get_all_tenants
 templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+templates.env.globals['_'] = _translate
+templates.env.globals['get_lang'] = get_lang
+templates.env.globals['SUPPORTED_LANGS'] = SUPPORTED_LANGS
 
 
 # --- Filters ---

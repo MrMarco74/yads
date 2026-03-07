@@ -240,6 +240,32 @@ scanner_only = RoleChecker(["admin", "tenant_admin", "scanner"])
 
 
 
+def _widget_context(request, session, user, queue_active: bool) -> dict:
+    """Build context dict for queue_widget.html including live counts."""
+    from yads.models import Target
+    from sqlmodel import func
+    queue_length = 0
+    active_count = 0
+    try:
+        queue_length = redis_client.llen("celery")
+    except Exception:
+        pass
+    try:
+        where_clause = [Target.scan_status == "running"]
+        if user.tenant_id:
+            where_clause.append(Target.tenant_id == user.tenant_id)
+        stmt = select(func.count()).select_from(Target).where(*where_clause)
+        active_count = session.exec(stmt).one()
+    except Exception:
+        pass
+    return {
+        "request": request,
+        "queue_active": queue_active,
+        "queue_length": queue_length,
+        "active_count": active_count,
+    }
+
+
 @router.get("/widget", response_class=HTMLResponse)
 async def get_queue_widget(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_html)):
     """
@@ -254,22 +280,22 @@ async def get_queue_widget(request: Request, session: Session = Depends(get_sess
     if conf and conf.value.lower() == "false":
         queue_active = False
 
-    return templates.TemplateResponse("components/queue_widget.html", {
-        "request": request,
-        "queue_active": queue_active
-    })
+    return templates.TemplateResponse("components/queue_widget.html",
+        _widget_context(request, session, user, queue_active)
+    )
 
 @router.post("/control", dependencies=[Depends(scanner_only)])
 async def control_queue(
     request: Request,
     action: str = Form(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html),
 ):
     conf = session.get(SystemConfig, "QUEUE_ACTIVE")
     if not conf:
         conf = SystemConfig(key="QUEUE_ACTIVE", value="true")
         session.add(conf)
-    
+
     # Connect to Celery for Control
     celery_app = Celery("yads_control", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
@@ -279,16 +305,15 @@ async def control_queue(
     elif action == "resume":
         conf.value = "true"
         celery_app.control.add_consumer('celery', reply=True)
-        
+
     session.add(conf)
     session.commit()
-    
+
     # HTMX Support: Return updated widget if requested
     if request.headers.get("HX-Request"):
-        return templates.TemplateResponse("components/queue_widget.html", {
-            "request": request,
-            "queue_active": action == "resume"
-        })
+        return templates.TemplateResponse("components/queue_widget.html",
+            _widget_context(request, session, user, action == "resume")
+        )
 
     return RedirectResponse(url="/queue", status_code=303)
 
@@ -574,28 +599,19 @@ async def purge_queue(
         scan_logger.error(f"Failed to purge queue: {e}")
         if request.headers.get("HX-Request"):
             conf = session.get(SystemConfig, "QUEUE_ACTIVE")
-            queue_active = True
-            if conf and conf.value.lower() == "false":
-                queue_active = False
-                 
-            return templates.TemplateResponse("components/queue_widget.html", {
-                "request": request,
-                "queue_active": queue_active
-            })
-
+            queue_active = not (conf and conf.value.lower() == "false")
+            return templates.TemplateResponse("components/queue_widget.html",
+                _widget_context(request, session, user, queue_active)
+            )
         return RedirectResponse(url=f"/queue?error=Purge+Failed:+{e}", status_code=303)
 
     # HTMX Support: Return updated widget
     if request.headers.get("HX-Request"):
         conf = session.get(SystemConfig, "QUEUE_ACTIVE")
-        queue_active = True
-        if conf and conf.value.lower() == "false":
-            queue_active = False
-             
-        return templates.TemplateResponse("components/queue_widget.html", {
-            "request": request,
-            "queue_active": queue_active
-        })
+        queue_active = not (conf and conf.value.lower() == "false")
+        return templates.TemplateResponse("components/queue_widget.html",
+            _widget_context(request, session, user, queue_active)
+        )
 
     return RedirectResponse(url="/queue?msg=Queue+Cleared", status_code=303)
 
