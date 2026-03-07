@@ -28,6 +28,7 @@ FINDING_MODULES = [
     "cors_scanner",
     "cert_mismatch",
     "shodan_censys",
+    "threat_intel",
 ]
 
 
@@ -119,6 +120,14 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
             })
 
     elif module == "shodan_censys":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "medium"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
+            })
+
+    elif module == "threat_intel":
         for f in data.get("findings", []):
             findings.append({
                 "severity": f.get("severity", "medium"),

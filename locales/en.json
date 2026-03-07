@@ -152,7 +152,8 @@
     "cookie_scanner": "Cookie Security Analyzer",
     "cors_scanner": "CORS Misconfiguration Scanner",
     "cert_mismatch": "Certificate / Domain Mismatch",
-    "shodan_censys": "Shodan / Censys (Internet Exposure)"
+    "shodan_censys": "Shodan / Censys (Internet Exposure)",
+    "threat_intel": "Threat Intelligence (AbuseIPDB / OTX / VirusTotal)"
   },
   "report": {
     "generate": "Generate Report",
