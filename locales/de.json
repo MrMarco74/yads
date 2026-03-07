@@ -146,7 +146,8 @@
     "modules": "Module",
     "email_security": "E-Mail-Sicherheit (SPF / DKIM / DMARC)",
     "axfr_scanner": "DNS-Zonentransfer (AXFR)",
-    "security_txt": "Security.txt (RFC 9116)"
+    "security_txt": "Security.txt (RFC 9116)",
+    "http_headers": "HTTP-Sicherheitsheader"
   },
   "report": {
     "generate": "Bericht erstellen",
