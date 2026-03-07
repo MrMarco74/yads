@@ -26,6 +26,7 @@
     "compliance": "Compliance",
     "port_exposure": "Port-Exposition",
     "email_security": "E-Mail-Sicherheit",
+    "security_findings": "Sicherheitsbefunde",
     "sensitive_data": "Sensible Daten",
     "tech_drift": "Tech-Drift",
     "cert_timeline": "Zertifikat-Timeline",
