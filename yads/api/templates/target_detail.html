@@ -300,6 +300,10 @@
                                 <input type="checkbox" name="scan_types" value="shodan_censys" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-indigo-600">
                                 <span class="text-sm font-medium text-indigo-400">Shodan / Censys</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-rose-900/20 rounded border border-rose-900/50 hover:bg-rose-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="threat_intel" class="form-checkbox text-rose-500 rounded bg-gray-900 border-rose-600">
+                                <span class="text-sm font-medium text-rose-400">Threat Intelligence</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -2865,6 +2869,125 @@
 
                 {% else %}
                 <p class="text-gray-500 italic text-sm">No data. Run "Shodan / Censys" scan module.</p>
+                {% endif %}
+            </div>
+
+            <!-- THREAT INTELLIGENCE CARD -->
+            {% set ti = threat_intel_result.data if threat_intel_result and threat_intel_result.data else none %}
+            <div class="bg-gray-800/50 border {% if ti and ti.summary.threat_level in ('critical','high') %}border-rose-500/40{% elif ti and ti.summary.threat_level == 'medium' %}border-amber-500/30{% else %}border-rose-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-rose-500/10 rounded-lg text-rose-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">Threat Intelligence</h2>
+                            <p class="text-xs text-gray-400">AbuseIPDB · OTX AlienVault · VirusTotal</p>
+                        </div>
+                    </div>
+                    {% if ti %}
+                    <div class="text-right">
+                        <span class="text-xs text-gray-500">Threat Level</span>
+                        <div class="text-sm font-bold uppercase tracking-wider {% if ti.summary.threat_level == 'critical' %}text-red-400{% elif ti.summary.threat_level == 'high' %}text-orange-400{% elif ti.summary.threat_level == 'medium' %}text-amber-400{% elif ti.summary.threat_level == 'low' %}text-yellow-400{% else %}text-emerald-400{% endif %}">{{ ti.summary.threat_level }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if ti %}
+                <!-- Source badges -->
+                <div class="flex gap-2 mb-4">
+                    {% for src in ti.summary.sources_checked %}
+                    <span class="px-2 py-0.5 bg-gray-900/60 border border-gray-600 rounded text-xs text-gray-300">{{ src }}</span>
+                    {% endfor %}
+                    {% if not ti.summary.sources_checked %}
+                    <span class="text-xs text-gray-500 italic">No API keys configured.</span>
+                    {% endif %}
+                </div>
+
+                <!-- AbuseIPDB details -->
+                {% if ti.abuseipdb and ti.abuseipdb.status == 'ok' %}
+                <div class="bg-gray-900/40 rounded p-3 mb-3 border border-gray-700/30">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">AbuseIPDB</span>
+                        <span class="text-xs font-bold {% if ti.abuseipdb.abuse_confidence_score >= 75 %}text-red-400{% elif ti.abuseipdb.abuse_confidence_score >= 25 %}text-orange-400{% else %}text-emerald-400{% endif %}">{{ ti.abuseipdb.abuse_confidence_score }}% confidence</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div><div class="text-xs text-gray-500">Reports</div><div class="text-sm font-bold text-white">{{ ti.abuseipdb.total_reports }}</div></div>
+                        <div><div class="text-xs text-gray-500">Users</div><div class="text-sm font-bold text-white">{{ ti.abuseipdb.num_distinct_users }}</div></div>
+                        <div><div class="text-xs text-gray-500">Country</div><div class="text-sm font-bold text-white">{{ ti.abuseipdb.country_code or '?' }}</div></div>
+                    </div>
+                    {% if ti.abuseipdb.categories %}
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        {% for cat in ti.abuseipdb.categories[:6] %}
+                        <span class="px-1.5 py-0.5 bg-red-900/30 border border-red-700/30 rounded text-[10px] text-red-300">{{ cat }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- OTX -->
+                {% if ti.otx and ti.otx.status == 'ok' %}
+                <div class="bg-gray-900/40 rounded p-3 mb-3 border border-gray-700/30">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">OTX AlienVault</span>
+                        <span class="text-xs font-bold {% if ti.otx.domain.pulse_count > 0 %}text-orange-400{% else %}text-emerald-400{% endif %}">{{ ti.otx.domain.pulse_count }} pulse(s)</span>
+                    </div>
+                    {% if ti.otx.domain.pulses %}
+                    <div class="space-y-1">
+                        {% for p in ti.otx.domain.pulses[:3] %}
+                        <div class="text-[11px] text-gray-400">
+                            <span class="text-gray-200">{{ p.name }}</span>
+                            {% if p.adversary %}<span class="text-red-400 ml-2">↳ {{ p.adversary }}</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% elif ti.otx.domain.pulse_count == 0 %}
+                    <p class="text-xs text-emerald-400">✓ No threat pulses found</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- VirusTotal -->
+                {% if ti.virustotal and ti.virustotal.status == 'ok' %}
+                <div class="bg-gray-900/40 rounded p-3 mb-3 border border-gray-700/30">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">VirusTotal</span>
+                        <span class="text-xs font-bold {% if ti.virustotal.malicious > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ ti.virustotal.malicious }}/{{ ti.virustotal.total_engines }} malicious</span>
+                    </div>
+                    {% if ti.virustotal.malicious_engines %}
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        {% for e in ti.virustotal.malicious_engines[:5] %}
+                        <span class="px-1.5 py-0.5 bg-red-900/30 border border-red-700/30 rounded text-[10px] text-red-300">{{ e.engine }}: {{ e.verdict }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-emerald-400">✓ No malicious detections</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Findings -->
+                {% if ti.findings %}
+                <div class="space-y-1.5 mt-3">
+                    {% for f in ti.findings %}
+                    <div class="flex items-start gap-2 p-2 bg-gray-900/40 rounded border border-gray-700/30">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <div>
+                            <p class="text-xs text-gray-200">{{ f.title }}</p>
+                            {% if f.detail %}<p class="text-[11px] text-gray-500 mt-0.5">{{ f.detail }}</p>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif ti.summary.sources_checked %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2 mt-2">
+                    <p class="text-emerald-400 text-sm">✓ No threat intelligence findings for this domain.</p>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Threat Intelligence" scan module.</p>
                 {% endif %}
             </div>
 
