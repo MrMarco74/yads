@@ -38,6 +38,7 @@
     "http_traffic": "HTTP-Verkehr",
     "archived_targets": "Archivierte Ziele",
     "recent_changes": "Letzte Änderungen",
+    "scan_compare": "Scan-Vergleich",
     "software_bom": "Software-Stückliste",
     "crypto_bom": "Kryptographie-Stückliste",
     "documentation": "Dokumentation",

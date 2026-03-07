@@ -38,6 +38,7 @@
     "http_traffic": "HTTP Traffic",
     "archived_targets": "Archived Targets",
     "recent_changes": "Recent Changes",
+    "scan_compare": "Scan Comparison",
     "software_bom": "Software BOM",
     "crypto_bom": "Cryptography BOM",
     "documentation": "Documentation",
