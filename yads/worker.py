@@ -747,43 +747,13 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             _group_a_futures = []
             _group_a_modules = []
             _group_a_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="scan-a")
-            if "ssl_scanner" in scan_types and has_https:
-                from yads.modules.ssl_scanner import SSLScanner
-                _group_a_modules.append("ssl_scanner")
-                _group_a_futures.append(
-                    _group_a_executor.submit(_run_parallel_module, SSLScanner, target_id, domain))
-            if "infrastructure_scanner" in scan_types:
-                from yads.modules.infrastructure_scanner import InfrastructureScanner
-                _group_a_modules.append("infrastructure_scanner")
-                _group_a_futures.append(
-                    _group_a_executor.submit(_run_parallel_module, InfrastructureScanner, target_id, domain))
+            # ssl_scanner and infrastructure_scanner run sequentially after web_analyzer.
+            # Parallel execution via ThreadPoolExecutor was unreliable in Celery worker
+            # context — silent failures with no logs or DB writes.
             # deception_detector is independent when port_scanner is not requested
             # (it falls back to default ports; no dependency on port_scanner results)
-            if "deception_detector" in scan_types and "port_scanner" not in scan_types:
-                from yads.modules.deception_detector import DeceptionDetector
-
-                def _run_deception_parallel(t_id, dom):
-                    from yads.utils.sanitize import sanitize_null_bytes
-                    import hashlib, json as _json
-                    try:
-                        dd = DeceptionDetector(timeout=30)
-                        scan_data = dd.run_scan(dom, ports=[22, 23, 21, 25, 80, 443, 8080])
-                        if scan_data:
-                            scan_data = sanitize_null_bytes(scan_data)
-                            data_hash = hashlib.sha256(_json.dumps(scan_data, sort_keys=True).encode()).hexdigest()
-                            with Session(engine) as _s:
-                                _s.add(ScanResult(
-                                    target_id=t_id, module_name=dd.module_name,
-                                    data=scan_data, result_hash=data_hash))
-                                _s.commit()
-                        logger.info(f"[Worker] Parallel: {dd.module_name} finished.")
-                    except Exception as e:
-                        logger.error(f"[Worker] Parallel deception_detector error: {e}")
-
-                _group_a_modules.append("deception_detector")
-                _group_a_futures.append(
-                    _group_a_executor.submit(_run_deception_parallel, target_id, domain))
-            _group_a_executor.shutdown(wait=False)  # threads keep running; we wait later
+            # deception_detector runs sequentially later (ThreadPoolExecutor unreliable in Celery)
+            _group_a_executor.shutdown(wait=False)
             if _group_a_modules:
                 logger.info(f"[Worker] Group A started in background: {_group_a_modules}")
 
@@ -838,7 +808,35 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             error_type=type(e).__name__
                         )
 
-            # 2b. Run Nuclei Vulnerability Scanner (Active)
+            # 2b. Run Infrastructure Scanner (sequential, runs after web_analyzer)
+            if "infrastructure_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Infrastructure Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.infrastructure_scanner import InfrastructureScanner
+                    infra = InfrastructureScanner(db_session=session)
+                    logger.info(f"[Worker] Step 2b: Running {infra.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {infra.module_name} for {domain}")
+                        result = infra.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {infra.module_name} found changes/new data.")
+                    else:
+                        print(f"[Worker] {infra.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
+                    session.rollback()
+
+            # 2c. Run Nuclei Vulnerability Scanner (Active)
             # (New in v1.5.0)
             if "nuclei_scanner" in scan_types:
                 # Removed optimization check (has_http/https) to allow scan on non-standard ports/internal IPs
@@ -1044,11 +1042,41 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Wayback Scanner: {e}")
                     session.rollback()
         
-            # 6. Wait for Group A (ssl_scanner + infrastructure_scanner) then post-process SSL
+            # 6. Wait for remaining Group A (deception_detector only now)
             if _group_a_futures:
                 logger.info(f"[Worker] Waiting for Group A background modules: {_group_a_modules}...")
                 _futures_wait(_group_a_futures, return_when=ALL_COMPLETED)
                 logger.info("[Worker] Group A completed.")
+
+            # 6b. Run SSL Scanner sequentially
+            if "ssl_scanner" in scan_types and has_https:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running SSL Scanner..."
+                        session.add(t)
+                        session.commit()
+
+                    from yads.modules.ssl_scanner import SSLScanner
+                    ssl = SSLScanner(db_session=session)
+                    logger.info(f"[Worker] Step 6b: Running {ssl.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {ssl.module_name} for {domain}")
+                        result = ssl.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                        print(f"[Worker] {ssl.module_name} found changes/new data.")
+                    else:
+                        print(f"[Worker] {ssl.module_name} no change.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in SSL Scanner: {e}")
+                    session.rollback()
+            elif "ssl_scanner" in scan_types and not has_https:
+                logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
 
             if "ssl_scanner" in scan_types and has_https:
                 # Post-process: auto-queue extracted domains from SSL cert (read from DB)
@@ -1093,9 +1121,6 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             print(f"[Worker] SSL Discovery added {new_found} new targets.")
                 except Exception as e:
                     logger.error(f"[Worker] SSL domain extraction error: {e}")
-            elif "ssl_scanner" in scan_types and not has_https:
-                logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
-
             # 7. Crawler queued for parallel execution with content_discovery (see step 9 below)
 
             # 8. Run Wayback Scanner
@@ -1140,17 +1165,50 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
             elif "content_discovery" in scan_types:
                 logger.info("[Worker] Skipping Content Discovery: Port 80/443 closed.")
 
-            if _group_b_classes:
-                logger.info(f"[Worker] Group B: running {[c.__name__ for c in _group_b_classes]} in parallel...")
-                t = session.get(Target, target_id)
-                if t:
-                    t.scan_progress = "Running Crawler & Content Discovery..."
-                    session.add(t)
-                    session.commit()
-                with ThreadPoolExecutor(max_workers=len(_group_b_classes), thread_name_prefix="scan-b") as _ex_b:
-                    for _cls in _group_b_classes:
-                        _ex_b.submit(_run_parallel_module, _cls, target_id, domain)
-                logger.info("[Worker] Group B completed.")
+            for _cls in _group_b_classes:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = f"Running {_cls.__name__}..."
+                        session.add(t)
+                        session.commit()
+                    _mod = _cls(db_session=session)
+                    logger.info(f"[Worker] Running {_mod.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {_mod.module_name} for {domain}")
+                        result = _mod.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result)
+                        session.commit()
+                    print(f"[Worker] {_mod.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in {_cls.__name__}: {e}")
+                    session.rollback()
+
+            # Deception detector (sequential, was previously in broken ThreadPoolExecutor)
+            if "deception_detector" in scan_types and "port_scanner" not in scan_types:
+                try:
+                    import hashlib, json as _json
+                    from yads.modules.deception_detector import DeceptionDetector
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Running Deception Detector..."
+                        session.add(t)
+                        session.commit()
+                    dd = DeceptionDetector(timeout=30)
+                    logger.info(f"[Worker] Running {dd.module_name}...")
+                    scan_data = dd.run_scan(domain, ports=[22, 23, 21, 25, 80, 443, 8080])
+                    if scan_data:
+                        scan_data = sanitize_null_bytes(scan_data)
+                        data_hash = hashlib.sha256(_json.dumps(scan_data, sort_keys=True).encode()).hexdigest()
+                        session.add(ScanResult(target_id=target_id, module_name=dd.module_name, data=scan_data, result_hash=data_hash))
+                        session.commit()
+                    print(f"[Worker] {dd.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Deception Detector: {e}")
+                    session.rollback()
 
             # 10. Run TLD Scanner
             if "tld_scanner" in scan_types:

@@ -24,11 +24,11 @@ async def view_graph_page(request: Request, session: Session = Depends(get_sessi
     """
     Renders the Graph View page.
     """
-    # Filter by user's tenant
+    # Filter by user's tenant and exclude archived targets
     if user.role == "admin" and not user.tenant_id:
-        targets = session.exec(select(Target)).all()
+        targets = session.exec(select(Target).where(Target.is_archived == False)).all()
     else:
-        targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id)).all()
+        targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False)).all()
         
     return templates.TemplateResponse("graph.html", {"request": request, "targets": targets, "user": user})
 
@@ -395,12 +395,12 @@ async def get_network_graph(
     from sqlmodel import or_, and_, text
     from urllib.parse import urlparse
     
-    # Filter by user's tenant
+    # Filter by user's tenant and exclude archived targets
     if user.role == "admin" and not user.tenant_id:
-        query = select(Target)
+        query = select(Target).where(Target.is_archived == False)
     else:
-        query = select(Target).where(Target.tenant_id == user.tenant_id)
-    
+        query = select(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False)
+
     # 1. Online/Offline Filter (using subquery to filter Targets)
     if filter_online != "all":
         online_criteria = or_(
@@ -1034,7 +1034,10 @@ async def view_redirect_graph(request: Request, session: Session = Depends(get_s
 
 @router.get("/visualizations/network-graph", response_class=HTMLResponse)
 async def view_network_graph(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
-    targets = session.exec(select(Target).order_by(Target.domain)).all()
+    if user.role == "admin" and not user.tenant_id:
+        targets = session.exec(select(Target).where(Target.is_archived == False).order_by(Target.domain)).all()
+    else:
+        targets = session.exec(select(Target).where(Target.tenant_id == user.tenant_id, Target.is_archived == False).order_by(Target.domain)).all()
     return templates.TemplateResponse("network_graph.html", {"request": request, "domains": targets, "user": user})
 
 
