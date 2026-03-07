@@ -153,6 +153,64 @@
 
         <div class="timeline">
 
+        <!-- Version 1.20.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 0.5rem; color: #fff;">PQC-Bericht, 12 neue Scanner-Module, Modul-Report-Center &amp; KI-Analyse</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">Eine umfangreiche Erweiterung auf dem Weg zu v2.0. Neue Post-Quanten-Kryptographie-Berichte, 12 neue Sicherheits-Scanner-Module, ein zentrales Modul-Report-Center mit PDF/Excel-Export pro Modul, KI-angereicherte Analysen und wichtige Fehlerbehebungen.</p>
+
+                <h3>🔐 Post-Quanten-Kryptographie (PQC) Bericht</h3>
+                <ul>
+                    <li>Dedizierter PQC-Bereitschaftsbericht analysiert alle Zertifikate, TLS-Konfigurationen und kryptografischen Primitive.</li>
+                    <li>Algorithmusklassifizierung: quantensicher (AES-256, SHA-3), quantenanfällig (RSA, ECDSA, DH) und Übergangsstatus.</li>
+                    <li>Pro-Asset-Migrationsrisiko-Scoring (Gering/Mittel/Hoch/Kritisch) basierend auf Algorithmusstärke, Schlüssellänge und Zertifikatsgültigkeit.</li>
+                    <li>Aggregierte Quantenbereitschaftsnote (A–F) mit Executive Summary.</li>
+                    <li>CBOM-Export (Cryptography Bill of Materials) im CycloneDX-JSON-Format für NIS2/DORA Supply-Chain-Compliance.</li>
+                    <li>Empfohlene PQC-Alternativen pro Algorithmus: CRYSTALS-Kyber, CRYSTALS-Dilithium, SPHINCS+, FALCON.</li>
+                </ul>
+
+                <h3>🔬 12 neue Scanner-Module</h3>
+                <ul>
+                    <li><strong>E-Mail-Sicherheit</strong> — SPF, DKIM, DMARC, BIMI-Analyse mit Score 0–100. Erkennt Spoofing-anfällige und fehlende Durchsetzungsrichtlinien.</li>
+                    <li><strong>HTTP-Sicherheits-Header</strong> — OWASP-orientierte Analyse von CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy. Per-Header-Bewertung mit Empfehlungen.</li>
+                    <li><strong>Cookie-Sicherheitsanalyse</strong> — Prüft Secure-, HttpOnly-, SameSite-Flags auf allen Cookies. Erkennt XSS/CSRF-ermöglichende Fehlkonfigurationen.</li>
+                    <li><strong>CORS-Fehlkonfiguration</strong> — Testet 4 Origin-Muster. Identifiziert permissive Cross-Origin-Richtlinien.</li>
+                    <li><strong>Zertifikat-Domain-Mismatch</strong> — TLS-Zertifikat Subject/SAN-Validierung gegen die tatsächliche Domain.</li>
+                    <li><strong>Threat Intelligence (AbuseIPDB/OTX/VirusTotal)</strong> — IP-Reputationsanreicherung für alle entdeckten Hosts. Aggregierter Bedrohungs-Score in Analytics und KI-Risiko-Scoring sichtbar.</li>
+                    <li><strong>Shodan &amp; Censys Intelligence</strong> — Passive Host-Intelligence (Ports, Banner, CVEs, ASN) ohne aktives Scanning.</li>
+                    <li><strong>JS-Secrets-Scanner</strong> — 25+ Secret-Muster in JavaScript-Dateien: AWS-Keys, Google-API-Keys, JWTs, Stripe-Tokens, Private Keys.</li>
+                    <li><strong>Git-Exposure-Scanner</strong> — 49 sensible Pfad-Probes (/.git/, /.env, /config.yml, /backup.sql) zur Erkennung versehentlich exponierter Repositories.</li>
+                    <li><strong>Subdomain-Takeover-Erkennung</strong> — CNAME-Fingerprinting gegen 30+ Provider (GitHub Pages, Netlify, Vercel, AWS S3, Heroku, Azure, Shopify).</li>
+                    <li><strong>DNS-Zonentransfer (AXFR)</strong> — Testet alle autoritativen Nameserver auf Zonentransfer-Schwachstellen.</li>
+                    <li><strong>Security.txt-Validator</strong> — RFC 9116-konforme Erkennung und Feldvalidierung.</li>
+                </ul>
+
+                <h3>📁 Modul-Report-Center</h3>
+                <ul>
+                    <li>Jedes Scanner-Modul hat jetzt eine eigene Report-Seite unter <code>/reports/module/{name}</code> mit PDF- und Excel-Export.</li>
+                    <li>Spezialisierte Templates für DNS, Web-Analyzer, Nuclei, Threat Intel, Ports, Deception Detection und Infrastruktur-Module.</li>
+                    <li>Generisches Fallback-Template für alle anderen Module – keine Konfiguration für neue Module nötig.</li>
+                    <li>Die zentrale Reports-Seite zeigt jetzt View-, PDF- und Excel-Buttons für jedes Modul im System.</li>
+                </ul>
+
+                <h3>📊 KI-angereicherte Analysen</h3>
+                <ul>
+                    <li>Analytics-Endpunkt um Threat Intelligence, Nuclei-Befunde und Port-Exposure-Daten erweitert.</li>
+                    <li>Neue Analytics-Karten: Threat Intelligence (geflaggte IPs mit Scores), Nuclei-Befunde (Kritisch/Hoch/Mittel/Gering + Pro-Ziel-Aufschlüsselung), Port-Exposure (offene Ports pro Ziel).</li>
+                    <li>LLM-Prompt um Threat-Intel-Daten, Nuclei-Top-Targets und Port-Exposure-Daten angereichert für präzisere KI-Risikobewertungen.</li>
+                </ul>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Tenant-Wechsel zu "Plattform Admin" (kein Tenant) lieferte HTTP 422 wegen Pflichtfeld. Behoben durch Änderung zu <code>Form(default="")</code>.</li>
+                    <li>Broken-Link-Hijacking-Leer-Zustand-Icon war bei fehlenden Treffern unverhältnismäßig groß. Behoben.</li>
+                    <li>Hartcodierten Lizenzschlüssel aus Debug-Script in der Versionsverwaltung entfernt. Durch Umgebungsvariablen-Abfragen ersetzt.</li>
+                    <li>Hartcodiertes Dev-Datenbankpasswort in docker-compose.yml durch Umgebungsvariablen-Substitution ersetzt.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.20.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
