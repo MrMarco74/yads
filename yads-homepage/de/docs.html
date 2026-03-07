@@ -77,20 +77,24 @@
         <li><a href="#prometheus-metriken">Prometheus Metriken</a></li>
     </ul>
 </li>
-<li><a href="#13-best-practices">13. Best Practices</a>
+<li><a href="#13-ki-intelligenz-assistent">13. KI-Intelligenz-Assistent</a></li>
+<li><a href="#14-finding-management--schwachstellen-tracking">14. Finding Management</a></li>
+<li><a href="#15-asset-tagging--organisation">15. Asset-Tagging</a></li>
+<li><a href="#16-executive-report--portfolio-ansicht">16. Executive Report & Portfolio</a></li>
+<li><a href="#17-best-practices">17. Best Practices</a>
     <ul>
         <li><a href="#empfohlene-scan-reihenfolge">Empfohlene Reihenfolge</a></li>
     </ul>
 </li>
-<li><a href="#14-troubleshooting">14. Fehlerbehebung</a></li>
-<li><a href="#15-support">15. Support</a></li>
+<li><a href="#18-fehlerbehebung">18. Fehlerbehebung</a></li>
+<li><a href="#19-support">19. Support</a></li>
 
             </ul>
         </aside>
         <main class="docs-content">
             <h1>YADS - Umfassendes Benutzerhandbuch</h1>
-<p><strong>Version:</strong> 1.18.5
-<strong>Letzte Aktualisierung:</strong> 2026-02-12</p>
+<p><strong>Version:</strong> 1.20.3
+<strong>Letzte Aktualisierung:</strong> 2026-03-07</p>
 <p>Willkommen zum <strong>YADS (Yet Another Domain Scanner)</strong> Handbuch. Diese Anleitung deckt alle Aspekte der Anwendung ab, vom ersten Scan bis zur erweiterten Konfiguration und Mandantenfähigkeit.</p>
 <hr />
 <h2>Inhaltsverzeichnis</h2>
@@ -114,6 +118,13 @@
 <li><a href="#10-user-management--security">Benutzerverwaltung &amp; Sicherheit</a></li>
 <li><a href="#11-multi-tenancy">Mandantenfähigkeit</a></li>
 <li><a href="#12-system-settings--queue">Systemeinstellungen &amp; Queue</a></li>
+<li><a href="#13-ki-intelligenz-assistent">KI-Intelligenz-Assistent</a></li>
+<li><a href="#14-finding-management--schwachstellen-tracking">Finding Management &amp; Schwachstellen-Tracking</a></li>
+<li><a href="#15-asset-tagging--organisation">Asset-Tagging &amp; Organisation</a></li>
+<li><a href="#16-executive-report--portfolio-ansicht">Executive Report &amp; Portfolio-Ansicht</a></li>
+<li><a href="#17-best-practices">Best Practices</a></li>
+<li><a href="#18-fehlerbehebung">Fehlerbehebung</a></li>
+<li><a href="#19-support">Support</a></li>
 </ol>
 <hr />
 <h2>1. Einführung</h2>
@@ -121,9 +132,14 @@
 <h3>Hauptfunktionen</h3>
 <ul>
 <li><strong>Asset-Erkennung</strong>: Subdomains und vergessene Infrastruktur finden.</li>
-<li><strong>Schwachstellen-Scanning</strong>: Veraltete Software (CVEs) und Fehlkonfigurationen erkennen.</li>
-<li><strong>Visuelle Intelligenz</strong>: Screenshots erfassen und Netzwerkbeziehungen visualisieren.</li>
-<li><strong>Kontinuierliche Überwachung</strong>: Änderungen im Zeitverlauf mit Änderungserkennung verfolgen.</li>
+<li><strong>19+ modulare Scanner</strong>: Einzelne Module wählen oder vordefinierte Scan-Profile für gezielte Analysen nutzen.</li>
+<li><strong>Schwachstellen-Scanning</strong>: Veraltete Software (CVEs), Fehlkonfigurationen und aktive Bedrohungen erkennen.</li>
+<li><strong>KI-Analyse-Suite</strong>: KI-gestützte Priorisierung, Behebungsanleitungen und natürlichsprachliche Suche über alle Befunde.</li>
+<li><strong>Post-Quanten-Kryptographie (PQC) Report</strong>: Kryptographische Posture gegen Quantenbedrohungen bewerten – NIS2/DORA-konform.</li>
+<li><strong>Modul-Report-Center</strong>: Jedes Scanner-Modul hat eine eigene Report-Seite mit PDF- und Excel-Export.</li>
+<li><strong>Visuelle Intelligenz</strong>: Screenshots erfassen und Netzwerkbeziehungen via Angriffspfad und Netzwerk-Graph visualisieren.</li>
+<li><strong>Kontinuierliche Überwachung</strong>: Änderungen im Zeitverlauf mit automatischer Änderungserkennung verfolgen.</li>
+<li><strong>Vollständig DE/EN</strong>: Oberfläche, PDFs, Excel-Exporte und KI-Ausgaben in Deutsch und Englisch verfügbar.</li>
 <li><strong>Multi-User &amp; Multi-Tenant</strong>: Mehrere Teams oder Kunden sicher in einer Instanz verwalten.</li>
 </ul>
 <hr />
@@ -181,12 +197,14 @@
 <h3 id="2-5-licensed-features">2.5 Lizenzierte Funktionen</h3>
 <p>YADS ist eine modulare Plattform. Während der Kern der Discovery- und Analyse-Engine Open-Source ist, erfordern mehrere fortgeschrittene Funktionen einen gültigen Lizenzschlüssel:</p>
 <ul>
-    <li><strong>reports</strong>: Erweitertes PDF- und CSV-Reporting für Management-Zusammenfassungen und Compliance.</li>
+    <li><strong>reports</strong>: Erweitertes PDF- und Excel-Reporting – Executive Summary, Modul-Reports, Compliance und Custom Builder.</li>
+    <li><strong>pqc_report</strong>: Post-Quanten-Kryptographie-Bereitschaftsreport mit CBOM-Export im CycloneDX-Format.</li>
     <li><strong>api</strong>: Voller REST-API-Zugriff für automatisierte Integrationen und benutzerdefinierte Pipelines.</li>
     <li><strong>scheduled_scans</strong>: Wiederkehrende automatisierte Reconnaissance-Missionen (Täglich/Wöchentlich).</li>
     <li><strong>osint</strong>: Markenüberwachung und Rückwärtssuche von Bildern über die Google Vision API.</li>
     <li><strong>webhooks</strong>: Echtzeit-Ereignisbenachrichtigungen für Slack, Discord oder benutzerdefinierte Endpunkte.</li>
     <li><strong>tenants</strong>: Mandantenfähigkeit und Kundenisolation für professionelle Dienstleister.</li>
+    <li><strong>multilanguage</strong>: Vollständige DE/EN-Plattform – Oberfläche, Reports, KI-Ausgaben und Excel-Exporte in beiden Sprachen.</li>
 </ul>
 <hr />
 <h2>3. Dashboard-Übersicht</h2>
@@ -238,6 +256,15 @@
 *   <strong>Port Scan</strong>: Testet gängige Ports (80, 443, 8080, etc.).
 *   <strong>Wayback Machine</strong>: Sucht nach historischen Dateien und Endpunkten.
 *   <strong>FULL SCAN</strong>: Führt alle verfügbaren Module aus.</p>
+<h3>Scan-Profile</h3>
+<p><strong>(Neu in v1.20)</strong>
+Scan-Profile ermöglichen die Definition wiederverwendbarer Scanner-Modul-Sets. Anstatt jedes Mal einzelne Module zu aktivieren, wählen Sie ein Profil und alle zugehörigen Module werden automatisch aktiviert.</p>
+<ul>
+    <li><strong>Profile erstellen</strong>: Navigieren Sie zu <strong>Scan-Profile</strong> in der Seitenleiste. Klicken Sie auf "Neues Profil", geben Sie einen Namen ein (z.B. "Quick Recon", "Vollständige Analyse") und wählen Sie die enthaltenen Module.</li>
+    <li><strong>Profile verwenden</strong>: Im "Neuer Scan"-Dialog wählen Sie ein Profil aus der Dropdown-Liste, um alle Modulauswahlen vorauszufüllen. Einzelne Module können vor dem Start noch angepasst werden.</li>
+    <li><strong>Standard-Profil</strong>: Ein Profil kann als Standard markiert werden – dieses wird beim Klick auf den Schnell-"Scan"-Button in der Target-Liste ausgeführt.</li>
+    <li><strong>Teilen</strong>: Profile sind mandantengebunden und für alle Benutzer im Mandanten sichtbar.</li>
+</ul>
 <h3>Geplante Scans</h3>
 <p><strong>(Neu in v1.19.2)</strong>
 Sie können Ihre Reconnaissance automatisieren, indem Sie wiederkehrende Zeitpläne einrichten.
@@ -307,6 +334,86 @@ Echtzeit-Bewertung der Compliance-Bereitschaft Ihrer Infrastruktur.
     *   <strong>Riskante Ports</strong>: -10 Pkt. (z.B. 21, 23, 3389 aus dem Internet erreichbar)
     *   <strong>Öffentliche Buckets</strong>: -25 Pkt.
 *   <strong>Einblicke</strong>: Bewegen Sie die Maus über das Score-Widget im Dashboard, um spezifische Mängel zu sehen.</p>
+
+<h3>E-Mail-Sicherheits-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Analysiert alle E-Mail-Authentifizierungs- und Anti-Spoofing-Mechanismen einer Domain.
+*   <strong>SPF</strong>: Validiert den Sender Policy Framework-Eintrag, berichtet über Strenge (<code>-all</code> vs. <code>~all</code>).
+*   <strong>DKIM</strong>: Prüft DKIM-Publikschlüssel auf gängigen Selektoren.
+*   <strong>DMARC</strong>: Bewertet die Policy (<code>none</code>, <code>quarantine</code>, <code>reject</code>) und Reporting-Adressen.
+*   <strong>BIMI</strong>: Erkennt Brand Indicator for Message Identification-Einträge.
+*   <strong>Score</strong>: 0–100 Kompositbewertung; Ergebnisse in der Analyseansicht <code>/email-security</code>.</p>
+
+<h3>HTTP-Sicherheits-Header</h3>
+<p><strong>(Neu in v1.20)</strong>
+Prüft alle OWASP-empfohlenen HTTP-Response-Header des Targets.
+*   Geprüfte Header: <code>Strict-Transport-Security</code>, <code>Content-Security-Policy</code>, <code>X-Frame-Options</code>, <code>X-Content-Type-Options</code>, <code>Referrer-Policy</code>, <code>Permissions-Policy</code>, <code>Cross-Origin-*</code>.
+*   Jeder Header wird bewertet: Vorhanden / Teilweise konfiguriert / Fehlend – mit Behebungshinweisen.</p>
+
+<h3>Cookie-Sicherheits-Analyzer</h3>
+<p><strong>(Neu in v1.20)</strong>
+Prüft alle vom Target gesetzten Cookies auf Sicherheitsattribute.
+*   Checks: <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite</code> (Strict/Lax/None), <code>__Host-</code>-Präfix-Verwendung.
+*   Session-Cookies ohne <code>Secure</code> oder <code>HttpOnly</code> werden als High-Severity-Befunde markiert.</p>
+
+<h3>CORS-Fehlkonfigurations-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Testet das Target mit vier verschiedenen <code>Origin</code>-Header-Mustern, um zu freizügige CORS-Richtlinien zu erkennen.
+*   <strong>Muster</strong>: Null-Origin, Subdomain-Wildcard, beliebige Domain und <code>evil.com</code>.
+*   Erkennt <code>Access-Control-Allow-Origin: *</code> und Credentials-aktiviertes CORS (<code>Allow-Credentials: true</code> mit reflektiertem Origin).</p>
+
+<h3>Zertifikat-Mismatch-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Verbindet sich über Pythons Standard-<code>ssl</code>-Bibliothek (keine externen Tools erforderlich), um zu prüfen ob das TLS-Zertifikat zur Domain passt.
+*   Erkennt: Hostname-Mismatches, abgelaufene Zertifikate, selbstsignierte Certs und fehlende SANs.
+*   Ergebnisse im SSL-Card auf der Target-Detailseite.</p>
+
+<h3>Threat-Intelligence-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Prüft alle aufgelösten IPs gegen drei Bedrohungsintelligenz-Feeds (BYOK API-Schlüssel erforderlich):
+*   <strong>AbuseIPDB</strong>: Abuse-Confidence-Score und Meldungsanzahl für jede IP.
+*   <strong>OTX AlienVault</strong>: Pulse-Anzahl und Reputationsindikatoren.
+*   <strong>VirusTotal</strong>: Schädliches/verdächtiges Stimmverhältnis von 90+ Engines.
+*   Ergebnisse werden zu einem Gesamt-Bedrohungsscore aggregiert und auf der Security-Findings-Seite angezeigt.</p>
+
+<h3>Shodan / Censys Host Intelligence</h3>
+<p><strong>(Neu in v1.20)</strong>
+Reichert Target-Daten mit passiven internetweiten Scan-Daten an (BYOK API-Schlüssel erforderlich):
+*   <strong>Shodan</strong>: Offene Ports, Banner, CVEs und Hostnamen aus Shodans Datenbank.
+*   <strong>Censys</strong>: Certificate Transparency, exponierte Dienste und Autonomous-System-Daten.
+*   Daten werden mit Nmap-Ergebnissen zusammengeführt für eine einheitliche Port/Service-Ansicht ohne aktives Scanning.</p>
+
+<h3>JavaScript-Secrets-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Lädt alle clientseitigen JavaScript-Dateien herunter und analysiert sie statisch auf eingebettete Secrets.
+*   <strong>25+ Regex-Muster</strong>: AWS-Schlüssel, GitHub-Tokens, Google-API-Schlüssel, Stripe-Secrets, Private Keys, JWTs und mehr.
+*   Jeder Fund enthält Dateiname, Zeilenkontext und Schweregradwertung.
+*   Befunde erscheinen im Sensible-Daten-Report (<code>/secrets</code>).</p>
+
+<h3>Git-Exposure-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Testet 49 sensible Pfade, die häufig auf Webservern exponiert sind.
+*   Checks: <code>/.git/config</code>, <code>/.git/HEAD</code>, <code>/Dockerfile</code>, <code>/.env</code>, <code>/wp-config.php</code>, Backup-Dateien und mehr.
+*   Eine 200-Antwort für einen dieser Pfade wird als High/Critical-Befund markiert.</p>
+
+<h3>Subdomain-Takeover-Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Erkennt verwaiste DNS-Einträge, die auf stillgelegte Cloud-Services zeigen.
+*   <strong>30+ Provider-Fingerprints</strong>: GitHub Pages, Heroku, Fastly, Azure, AWS S3, Shopify, Zendesk und viele mehr.
+*   Logik: Wenn ein CNAME auf die Domain eines Providers zeigt und eine bekannte "unclaimed"-Fehlerseite zurückgibt, wird es als High-Severity-Takeover-Risiko markiert.</p>
+
+<h3>DNS-Zonentransfer (AXFR) Scanner</h3>
+<p><strong>(Neu in v1.20)</strong>
+Versucht einen Zonentransfer gegen alle autoritativen Nameserver der Domain.
+*   Ein erfolgreicher Transfer enthüllt die vollständige interne DNS-Zone – eine kritische Fehlkonfiguration.
+*   Ergebnisse zeigen, welcher Nameserver den Transfer zugelassen hat und wie viele Einträge exponiert wurden.</p>
+
+<h3>Security.txt Validator</h3>
+<p><strong>(Neu in v1.20)</strong>
+Prüft das Vorhandensein und die Gültigkeit einer <code>security.txt</code>-Datei gemäß RFC 9116.
+*   Testet sowohl <code>/.well-known/security.txt</code> als auch <code>/security.txt</code>.
+*   Validiert: Pflichtfelder (<code>Contact</code>, <code>Expires</code>), Ablaufdatum (markiert abgelaufene Dateien) und optionale Felder (<code>Encryption</code>, <code>Policy</code>, <code>Preferred-Languages</code>).</p>
+
 <hr />
 <h2>7. OSINT Markenüberwachung</h2>
 <p><strong>(Neu in v1.19.2)</strong></p>
@@ -379,8 +486,21 @@ Identifizieren Sie Gesundheitsprobleme in Ihrem eigenen Inventar.
 - <strong>Verwaiste Targets</strong>: Listet Targets in Ihrem Inventar, die von keinem anderen Target in Ihrem Scope <strong>verlinkt werden</strong>. Nützlich zum Finden vergessener Assets.</p>
 <hr />
 <h2>9. Datenverwaltung &amp; Berichte</h2>
-<p><strong>(Zentralisiert in v1.19.2)</strong></p>
+<p><strong>(Erweitert in v1.20)</strong></p>
 <p>YADS bietet dedizierte Berichte, die Ihnen helfen, spezifische Datensätze und Risiken zu analysieren.</p>
+
+<h3>Modul-Report-Center</h3>
+<p><strong>(Neu in v1.20)</strong>
+Jedes Scanner-Modul hat jetzt eine eigene dedizierte Report-Seite, erreichbar über <strong>Berichte → Modul-Reports</strong>. Jeder Modul-Report bietet:</p>
+<ul>
+    <li><strong>Modulspezifische KPIs</strong>: Zusammenfassungsstatistiken und Trendindikatoren für die Befunde dieses Scanners.</li>
+    <li><strong>Detaillierte Befundtabelle</strong>: Alle Befunde des Moduls, filterbar nach Schweregrad, Domain und Zeitraum.</li>
+    <li><strong>PDF-Export</strong>: Professionell formatierter PDF-Report für das gewählte Modul und den Zeitraum.</li>
+    <li><strong>Excel-Export</strong>: Strukturierter Spreadsheet-Export mit allen Datenspalten für weitere Analysen.</li>
+    <li><strong>KI-Anreicherung</strong>: Modul-Reports können KI-generierte Executive Summaries und Behebungsempfehlungen enthalten.</li>
+</ul>
+<p>Module mit eigenen Report-Seiten: E-Mail-Sicherheit, HTTP-Header, Cookie-Sicherheit, CORS, SSL/TLS, Threat Intelligence, Subdomain-Takeover, Git-Exposure, JavaScript-Secrets, Nuclei, DNS und Port-Scan.</p>
+
 <h3>Sensible Daten</h3>
 <p><strong>Pfad:</strong> <code>/secrets</code>
 Aggregiert Funde von exponierten API-Schlüsseln, Anmeldedaten und Konfigurationsdateien (z.B. <code>.env</code>, Backups), die von Nuclei und Web Analyzer erkannt wurden.
@@ -792,7 +912,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 </ul>
 
 <hr />
-<h2>13. Best Practices</h2>
+<h2>17. Best Practices</h2>
 <p>Um das Beste aus YADS herauszuholen, beachten Sie diese Tipps:</p>
 <blockquote>
 <p><strong>💡 Profi-Tipp</strong>: Planen Sie regelmäßige Scans außerhalb der Spitzenzeiten, um die Netzwerkbelastung zu minimieren.</p>
@@ -867,7 +987,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 </ul>
 
 <hr />
-<h2>14. Fehlerbehebung</h2>
+<h2>18. Fehlerbehebung</h2>
 <h3>Häufige Probleme</h3>
 <h4>🛑 Scan bleibt in "Pending" hängen</h4>
 <ul>
@@ -885,10 +1005,10 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <li><strong>Lösung</strong>: Stellen Sie sicher, dass Ihre Serverzeit über NTP synchronisiert ist.</li>
 </ul>
 <hr />
-<h2>15. Support</h2>
+<h2>19. Support</h2>
 <p>Für technischen Support oder um Fehler zu melden: support@yads-security.com</p>
 <hr />
-<p><em>Verifiziert für YADS v1.20.0</em></p>
+<p><em>Verifiziert für YADS v1.20.3</em></p>
         </main>
     </div>
     
