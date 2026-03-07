@@ -1067,79 +1067,98 @@
             {% endif %}
 
             <!-- WAYBACK / HISTORY CARD -->
-            <div class="bg-gray-800/50 border border-gray-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
-                <div class="flex items-center gap-3 mb-6">
-                     <div class="p-2 bg-gray-500/10 rounded-lg text-gray-400">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                     </div>
-                     <h2 class="text-xl font-semibold text-white">Historical Intelligence</h2>
+            {% set wb = wayback_result.data if wayback_result and wayback_result.data else none %}
+            <div class="bg-gray-800/50 border {% if wb and wb.get('summary', {}).get('findings_count', 0) > 0 %}border-orange-500/30{% else %}border-gray-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-gray-500/10 rounded-lg text-gray-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-semibold text-white">Historical Intelligence</h2>
+                            <p class="text-xs text-gray-400">Wayback Machine — historically exposed files and secrets.</p>
+                        </div>
+                    </div>
+                    {% if wb and wb.get('summary') %}
+                    <a href="{{ wb.get('wayback_link', '#') }}" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300">View Archive ↗</a>
+                    {% endif %}
                 </div>
 
-                {% if wayback_result and wayback_result.data %}
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div class="bg-gray-900/40 rounded-lg p-5 border border-gray-700/30">
-                            <h3 class="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Wayback Machine</h3>
-                            {% if wayback_result.data.latest %}
-                                <div class="flex items-end gap-2 mb-2">
-                                    <p class="text-3xl font-bold text-white">
-                                        {% set ts = wayback_result.data.latest.timestamp %}
-                                        {% if ts and ts|length >= 8 %}
-                                            {{ ts[:4] }}-{{ ts[4:6] }}-{{ ts[6:8] }}
-                                        {% else %}
-                                            {{ ts }}
-                                        {% endif %}
-                                    </p>
-                                    <p class="text-xs text-gray-500 mb-1.5">Latest Snapshot</p>
-                                </div>
-                                <a href="{{ wayback_result.data.link }}" target="_blank" class="inline-flex items-center text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded transition-colors">
-                                    View Archive <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                </a>
-                            {% else %}
-                                <p class="text-gray-500 italic text-sm">No snapshots found.</p>
-                                {% if wayback_result.data.error %}
-                                    <div class="mt-2 bg-red-900/20 border border-red-500/50 rounded p-2">
-                                        <p class="text-xs text-red-300 break-all"><strong>Error:</strong> {{ wayback_result.data.error }}</p>
-                                    </div>
-                                {% endif %}
-                            {% endif %}
-                         </div>
-                         
-                         <div class="bg-gray-900/40 rounded-lg p-5 border border-gray-700/30">
-                             <h3 class="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Observation Start</h3>
-                              {% if wayback_result.data.earliest %}
-                                <div class="flex items-end gap-2">
-                                    <p class="text-3xl font-bold text-white">
-                                        {% set ts_early = wayback_result.data.earliest.timestamp %}
-                                        {% if ts_early and ts_early|length >= 8 %}
-                                            {{ ts_early[:4] }}-{{ ts_early[4:6] }}-{{ ts_early[6:8] }}
-                                        {% else %}
-                                            {{ ts_early }}
-                                        {% endif %}
-                                    </p>
-                                    <p class="text-xs text-gray-500 mb-1.5">First Seen</p>
-                                </div>
-                                <p class="text-xs text-gray-500 mt-2">First archived snapshot of this domain.</p>
-                            {% else %}
-                                <p class="text-gray-500 italic text-sm">-</p>
-                            {% endif %}
-                         </div>
+                {% if wb %}
+                <!-- Stats row -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Total Captures</div>
+                        <div class="text-lg font-bold text-gray-200">{{ wb.get('summary', {}).get('total_captures', 0) }}</div>
                     </div>
-                    
-                    {% if wayback_result.log_content %}
-                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
-                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
-                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                View Scan Logs
-                            </summary>
-                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
-<pre>{{ wayback_result.log_content }}</pre>
-                            </div>
-                        </details>
-                    {% endif %}
-                {% else %}
-                    <p class="text-gray-500 italic">No Wayback data available (Run Wayback Scanner).</p>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">URLs Checked</div>
+                        <div class="text-lg font-bold text-gray-200">{{ wb.get('total_urls_checked', 0) }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Findings</div>
+                        <div class="text-lg font-bold {% if wb.get('summary', {}).get('findings_count', 0) > 0 %}text-orange-400{% else %}text-emerald-400{% endif %}">{{ wb.get('summary', {}).get('findings_count', 0) }}</div>
+                    </div>
+                </div>
+
+                <!-- Date range -->
+                {% set earliest = wb.get('summary', {}).get('earliest_capture') %}
+                {% set latest = wb.get('summary', {}).get('latest_capture') %}
+                {% if earliest or latest %}
+                <div class="flex gap-4 text-xs text-gray-500 mb-4">
+                    {% if earliest %}<span>First seen: <span class="text-gray-300">{{ earliest[:4] }}-{{ earliest[4:6] }}-{{ earliest[6:8] }}</span></span>{% endif %}
+                    {% if latest %}<span>Latest: <span class="text-gray-300">{{ latest[:4] }}-{{ latest[4:6] }}-{{ latest[6:8] }}</span></span>{% endif %}
+                </div>
                 {% endif %}
 
+                <!-- Findings -->
+                {% if wb.get('findings') %}
+                <div class="space-y-1.5 mb-3">
+                    {% for f in wb.findings %}
+                    <div class="flex items-start gap-2 p-2 bg-gray-900/40 rounded border border-gray-700/30">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <div class="min-w-0">
+                            <p class="text-xs text-gray-200">{{ f.title }}</p>
+                            <a href="{{ f.wayback_url }}" target="_blank" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-mono truncate block">{{ f.detail[:100] }}</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ No sensitive historical exposures found in Wayback Machine.</p>
+                </div>
+                {% endif %}
+
+                <!-- Legacy format fallback (old stub data) -->
+                {% elif wb.get('snapshots_found') %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% if wb.latest %}<div class="bg-gray-900/40 rounded p-3 text-center">
+                        <div class="text-xs text-gray-500">Latest snapshot</div>
+                        <div class="text-gray-200 text-sm">{{ wb.latest.timestamp[:4] }}-{{ wb.latest.timestamp[4:6] }}-{{ wb.latest.timestamp[6:8] if wb.latest.timestamp|length >= 8 else wb.latest.timestamp }}</div>
+                    </div>{% endif %}
+                    {% if wb.earliest %}<div class="bg-gray-900/40 rounded p-3 text-center">
+                        <div class="text-xs text-gray-500">First seen</div>
+                        <div class="text-gray-200 text-sm">{{ wb.earliest.timestamp[:4] }}-{{ wb.earliest.timestamp[4:6] }}-{{ wb.earliest.timestamp[6:8] if wb.earliest.timestamp|length >= 8 else wb.earliest.timestamp }}</div>
+                    </div>{% endif %}
+                </div>
+                {% endif %}
+
+                {% if wayback_result.log_content %}
+                <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                    <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none text-xs">
+                        <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        View Scan Logs
+                    </summary>
+                    <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ wayback_result.log_content }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic">No Wayback data available (Run Wayback Scanner).</p>
+                {% endif %}
             </div>
 
             <!-- CRAWLER / SITE MAP ANALYSIS -->
