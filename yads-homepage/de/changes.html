@@ -152,6 +152,21 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.19.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.19.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserungen der Stabilität und des Timeouts</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung potenzieller Deadlocks und des Hängenbleibens von Zielen im Status 'running' mit einer dreischichtigen Verteidigung: Startup-Recovery zum Zurücksetzen von Zielen, Task-Failure-Signale zum Zurücksetzen des Zielstatus bei Celery-Task-Fehlern und einem Timeout für Nmap-Subprozesse.</li>
+                    <li>Erhöhte Celery-Zeitlimits auf 3600s/3480s (60/58 Minuten), um mehr Spielraum für vollständige Multi-Modul-Scans mit Stealth-Nmap zu schaffen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 8942779a0caa395f3ef196144f737899dbdaf2ad6dc7d92dc998ac7621bd5a5e</p>
+            </div>
+        </div>
+
         <!-- Version 1.19.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.19.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
