@@ -308,6 +308,46 @@ async def bulk_delete_targets(
         
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
+@router.post("/targets/bulk/archive-dead", response_class=HTMLResponse)
+async def bulk_archive_dead_targets(
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+):
+    """
+    Archives all targets in the current tenant that have been DNS-scanned
+    but returned empty records (unresolvable / dead domains).
+    """
+    from datetime import datetime
+    from sqlmodel import text as sql_text
+
+    subquery = sql_text("""
+        SELECT t.id FROM target t
+        JOIN LATERAL (
+            SELECT data FROM scanresult
+            WHERE target_id = t.id AND module_name = 'dns_scanner'
+            ORDER BY scanned_at DESC LIMIT 1
+        ) sr ON true
+        WHERE (sr.data->'records')::text = '{}'
+        AND t.is_archived = false
+        AND t.tenant_id = :tenant_id
+    """)
+
+    dead_ids = [row[0] for row in session.exec(subquery.bindparams(tenant_id=user.tenant_id)).all()]
+
+    count = 0
+    if dead_ids:
+        targets = session.exec(select(Target).where(Target.id.in_(dead_ids))).all()
+        for target in targets:
+            target.is_archived = True
+            target.archived_at = datetime.utcnow()
+            target.archived_reason = "DNS cleanup: empty records"
+            session.add(target)
+            count += 1
+        session.commit()
+
+    return RedirectResponse(url=f"/targets/table?msg=Archived+{count}+dead+domains", status_code=303)
+
+
 @router.post("/targets/bulk/archive", response_class=HTMLResponse)
 async def bulk_archive_targets(
     target_ids: List[int] = Form(...),
