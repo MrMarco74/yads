@@ -1494,9 +1494,13 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                      for entry in subs:
                          sub_domain = entry.get("subdomain")
                          if sub_domain and sub_domain != domain: # Avoid self-loop
-                             
-                             resolves = True
-                             
+
+                             # Only add subdomains that actually resolved to an IP
+                             ips = entry.get("ips") or []
+                             if not ips:
+                                 logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
+                                 continue
+
                              # Check existence
                              existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
                              if not existing:
