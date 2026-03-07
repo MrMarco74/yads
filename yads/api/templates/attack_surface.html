@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-white">{{ _('nav.attack_surface') }}</h1>
+            <p class="text-slate-400 text-sm mt-1">Risk coverage matrix across all targets and scanner modules.</p>
+        </div>
+        <a href="/security-findings/" class="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-800 rounded-lg px-3 py-2 transition-colors">
+            View All Findings →
+        </a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-white">{{ targets|length }}</p>
+            <p class="text-xs text-slate-400 mt-1">Targets</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-indigo-400">{{ coverage_pct }}%</p>
+            <p class="text-xs text-slate-400 mt-1">Coverage</p>
+        </div>
+        <div class="bg-slate-900 border border-red-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-red-400">{{ sev_counts.critical }}</p>
+            <p class="text-xs text-slate-400 mt-1">Critical</p>
+        </div>
+        <div class="bg-slate-900 border border-orange-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-orange-400">{{ sev_counts.high }}</p>
+            <p class="text-xs text-slate-400 mt-1">High</p>
+        </div>
+        <div class="bg-slate-900 border border-yellow-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-yellow-400">{{ sev_counts.medium }}</p>
+            <p class="text-xs text-slate-400 mt-1">Medium</p>
+        </div>
+        <div class="bg-slate-900 border border-blue-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-blue-400">{{ sev_counts.low }}</p>
+            <p class="text-xs text-slate-400 mt-1">Low</p>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-3 items-center text-xs text-slate-400">
+        <span class="font-medium text-slate-500 uppercase tracking-wide text-[10px]">Severity:</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-900/70 border border-red-800 inline-block"></span>Critical</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-orange-900/70 border border-orange-800 inline-block"></span>High</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-yellow-900/70 border border-yellow-800 inline-block"></span>Medium</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-900/60 border border-blue-800 inline-block"></span>Low</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-green-900/50 border border-green-800 inline-block"></span>Clean</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-700/60 border border-slate-600 inline-block"></span>Info</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-800/40 border border-slate-700 inline-block"></span>Not scanned</span>
+    </div>
+
+    {% if not targets %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+        <p class="text-slate-400 text-sm">No targets found. Add targets and run scans to populate this view.</p>
+    </div>
+    {% else %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Heatmap -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800">
+                <h2 class="text-sm font-semibold text-white">Risk Heatmap</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Worst finding severity per target × module (sorted by risk)</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800">
+                            <th class="px-3 py-2 text-left text-slate-400 font-medium sticky left-0 bg-slate-900 z-10 min-w-[140px]">Target</th>
+                            {% for mod, lbl in modules %}
+                            <th class="px-1 py-2 text-center text-slate-500 font-normal whitespace-nowrap" title="{{ mod }}">
+                                <span class="inline-block" style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px;">{{ lbl }}</span>
+                            </th>
+                            {% endfor %}
+                            <th class="px-2 py-2 text-center text-slate-400 font-medium">Issues</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        {% for row in rows %}
+                        <tr class="hover:bg-slate-800/20 transition-colors">
+                            <td class="px-3 py-1.5 sticky left-0 bg-slate-900 z-10 border-r border-slate-800">
+                                <a href="/targets/{{ row.target.id }}" class="text-indigo-400 hover:text-indigo-300 transition-colors font-medium truncate block max-w-[130px]" title="{{ row.target.domain }}">
+                                    {{ row.target.domain }}
+                                </a>
+                            </td>
+                            {% for cell in row.cells %}
+                            <td class="px-0.5 py-1 text-center" title="{{ cell.module }}: {{ cell.severity }}">
+                                <span class="inline-block w-5 h-5 rounded border {{ cell.css }}" title="{{ cell.severity }}"></span>
+                            </td>
+                            {% endfor %}
+                            <td class="px-2 py-1 text-center">
+                                {% if row.finding_count > 0 %}
+                                <span class="text-orange-400 font-semibold">{{ row.finding_count }}</span>
+                                {% else %}
+                                <span class="text-slate-600">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if targets|length == 0 %}
+            <div class="p-6 text-center text-slate-500 text-xs">No scan data available yet.</div>
+            {% endif %}
+        </div>
+
+        <!-- Right column -->
+        <div class="space-y-4">
+
+            <!-- Module Risk Ranking -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-sm font-semibold text-white">Module Risk Ranking</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Modules with the most affected targets</p>
+                </div>
+                <div class="divide-y divide-slate-800">
+                    {% for m in module_risk[:10] %}
+                    <div class="flex items-center gap-3 px-4 py-2">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs text-slate-300 truncate">{{ m.name }}</p>
+                        </div>
+                        {% if m.count > 0 %}
+                        <div class="flex items-center gap-2">
+                            <div class="w-20 bg-slate-800 rounded-full h-1.5">
+                                <div class="bg-orange-500 h-1.5 rounded-full" style="width: {{ [m.count * 100 // (targets|length), 100]|min }}%"></div>
+                            </div>
+                            <span class="text-xs text-orange-400 font-medium w-6 text-right">{{ m.count }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-slate-600">—</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Top Risky Targets -->
+            {% if top_targets %}
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-sm font-semibold text-white">Top Risky Targets</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Most findings across modules</p>
+                </div>
+                <div class="divide-y divide-slate-800">
+                    {% for row in top_targets %}
+                    <div class="flex items-center gap-3 px-4 py-2">
+                        <div class="flex-1 min-w-0">
+                            <a href="/targets/{{ row.target.id }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors truncate block" title="{{ row.target.domain }}">
+                                {{ row.target.domain }}
+                            </a>
+                        </div>
+                        <span class="text-xs text-orange-400 font-semibold shrink-0">{{ row.finding_count }} issues</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Coverage Summary -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <h2 class="text-sm font-semibold text-white mb-3">Coverage</h2>
+                <div class="space-y-2 text-xs text-slate-400">
+                    <div class="flex justify-between">
+                        <span>Targets</span>
+                        <span class="text-white font-medium">{{ targets|length }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Modules</span>
+                        <span class="text-white font-medium">{{ modules|length }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Scanned cells</span>
+                        <span class="text-white font-medium">{{ scanned_cells }} / {{ total_cells }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Coverage</span>
+                        <span class="text-indigo-400 font-semibold">{{ coverage_pct }}%</span>
+                    </div>
+                </div>
+                <div class="mt-3 bg-slate-800 rounded-full h-2">
+                    <div class="bg-indigo-500 h-2 rounded-full" style="width: {{ coverage_pct }}%"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
