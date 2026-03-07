@@ -152,6 +152,31 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.19.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.19.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Stability & Feature Enhancements</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Resolved an issue where scanner modules were failing silently within the Celery worker, ensuring all scanner modules now execute correctly.</li>
+                    <li>Fixed an issue where subdomains were being added as targets regardless of DNS resolution status; the system now verifies DNS resolution before adding new targets.</li>
+                    <li>Archived targets are now correctly filtered from the network graph and spiderweb visualizations, respecting tenant context.</li>
+                    <li>All resolved IP addresses are checked before the creation of target records.</li>
+                </ul>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added a bulk action to archive targets with unresolved DNS records. A button has been added to the target table toolbar.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Unified user-agent identification across all scanner modules for consistent tracking and identification using 'YADS-Security-Scanner/1.19' for HTTP requests and a custom Chrome User-Agent for browser contexts.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 8dede864e9c928e45bf6714af378301e3b6bc8e72dfa7a7c286c5c18b5c98a75</p>
+            </div>
+        </div>
+
         <!-- Version 1.19.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.19.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
