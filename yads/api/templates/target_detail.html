@@ -296,6 +296,10 @@
                                 <input type="checkbox" name="scan_types" value="cert_mismatch" checked class="form-checkbox text-teal-500 rounded bg-gray-900 border-teal-600">
                                 <span class="text-sm font-medium text-teal-400">Certificate / Domain Mismatch</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-indigo-900/20 rounded border border-indigo-900/50 hover:bg-indigo-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="shodan_censys" class="form-checkbox text-indigo-500 rounded bg-gray-900 border-indigo-600">
+                                <span class="text-sm font-medium text-indigo-400">Shodan / Censys</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -2766,6 +2770,103 @@
             </div>
 
             </div><!-- end CORS+CertMismatch grid -->
+
+            <!-- SHODAN / CENSYS CARD -->
+            {% set sc = shodan_censys_result.data if shodan_censys_result and shodan_censys_result.data else none %}
+            <div class="bg-gray-800/50 border {% if sc and sc.findings %}border-orange-500/30{% else %}border-indigo-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">Internet Exposure <span class="text-xs text-indigo-400 font-normal">(Shodan / Censys)</span></h2>
+                            <p class="text-xs text-gray-400">Open ports, exposed services, and known CVEs from internet scanners.</p>
+                        </div>
+                    </div>
+                    {% if sc %}
+                    <div class="text-right">
+                        <span class="text-xs text-gray-500">Score</span>
+                        <div class="text-xl font-bold {% if sc.summary.score >= 80 %}text-emerald-400{% elif sc.summary.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ sc.summary.score }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if sc %}
+                <!-- Host Info -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">IP</div>
+                        <div class="text-xs font-mono text-white">{{ sc.ip or 'N/A' }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Open Ports</div>
+                        <div class="text-sm font-bold text-indigo-300">{{ sc.summary.open_ports | length }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">CVEs</div>
+                        <div class="text-sm font-bold {% if sc.summary.cves %}text-red-400{% else %}text-emerald-400{% endif %}">{{ sc.summary.cves | length }}</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-1">Country / ASN</div>
+                        <div class="text-xs text-gray-300">{{ sc.summary.country or '?' }} / {{ sc.summary.asn or 'N/A' }}</div>
+                    </div>
+                </div>
+
+                <!-- Open Ports list -->
+                {% if sc.summary.open_ports %}
+                <div class="mb-4">
+                    <div class="text-xs text-gray-500 mb-2 uppercase tracking-wider">Open Ports</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        {% for port in sc.summary.open_ports %}
+                        <span class="px-2 py-0.5 bg-indigo-900/40 border border-indigo-500/30 rounded text-xs font-mono text-indigo-200">{{ port }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- CVEs -->
+                {% if sc.summary.cves %}
+                <div class="mb-4">
+                    <div class="text-xs text-gray-500 mb-2 uppercase tracking-wider">Known CVEs</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        {% for cve in sc.summary.cves[:10] %}
+                        <span class="px-2 py-0.5 bg-red-900/40 border border-red-500/30 rounded text-xs font-mono text-red-300">{{ cve }}</span>
+                        {% endfor %}
+                        {% if sc.summary.cves | length > 10 %}
+                        <span class="px-2 py-0.5 bg-gray-900/40 rounded text-xs text-gray-400">+{{ sc.summary.cves | length - 10 }} more</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Findings -->
+                {% if sc.findings %}
+                <div class="space-y-1.5">
+                    {% for f in sc.findings %}
+                    <div class="flex items-start gap-2 p-2 bg-gray-900/40 rounded border border-gray-700/30">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <div class="min-w-0">
+                            <p class="text-xs text-gray-200">{{ f.title }}</p>
+                            {% if f.detail %}<p class="text-[11px] text-gray-500 mt-0.5 truncate">{{ f.detail }}</p>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ No risky open ports or known CVEs detected.</p>
+                </div>
+                {% endif %}
+
+                {% if not sc.shodan and not sc.censys %}
+                <p class="text-xs text-gray-500 mt-3 italic">No Shodan/Censys API key configured — configure in Tenant Settings to enable enrichment.</p>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Shodan / Censys" scan module.</p>
+                {% endif %}
+            </div>
 
             <!-- DECEPTION DETECTION CARD -->
             <div class="bg-gray-800/50 border border-amber-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">

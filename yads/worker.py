@@ -1576,6 +1576,10 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 from yads.modules.cert_mismatch_scanner import CertMismatchScanner
                 _run_simple_module(CertMismatchScanner, target_id, domain, session, "Checking certificate/domain match...")
 
+            if "shodan_censys" in scan_types:
+                from yads.modules.shodan_censys_scanner import ShodanCensysScanner
+                _run_simple_module(ShodanCensysScanner, target_id, domain, session, "Querying Shodan/Censys...")
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             
