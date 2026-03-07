@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Security Findings</h1>
+            <p class="text-slate-400 text-sm mt-1">Aggregated findings from all Phase 1 security scanners across all targets.</p>
+        </div>
+        <!-- Filters -->
+        <form method="GET" class="flex flex-wrap gap-2">
+            <select name="module_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="">All Modules</option>
+                {% for m in finding_modules %}
+                <option value="{{ m }}" {% if module_filter == m %}selected{% endif %}>{{ m.replace('_', ' ').title() }}</option>
+                {% endfor %}
+            </select>
+            <select name="severity_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="">All Severities</option>
+                <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+                <option value="high" {% if severity_filter == 'high' %}selected{% endif %}>High</option>
+                <option value="medium" {% if severity_filter == 'medium' %}selected{% endif %}>Medium</option>
+                <option value="low" {% if severity_filter == 'low' %}selected{% endif %}>Low</option>
+            </select>
+            {% if module_filter or severity_filter %}
+            <a href="/security-findings/" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Summary KPIs -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-white">{{ summary.total }}</p>
+            <p class="text-xs text-slate-400 mt-1">Total Findings</p>
+        </div>
+        <div class="bg-slate-900 border border-red-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-red-400">{{ summary.critical }}</p>
+            <p class="text-xs text-slate-400 mt-1">Critical</p>
+        </div>
+        <div class="bg-slate-900 border border-orange-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-orange-400">{{ summary.high }}</p>
+            <p class="text-xs text-slate-400 mt-1">High</p>
+        </div>
+        <div class="bg-slate-900 border border-amber-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-amber-400">{{ summary.medium }}</p>
+            <p class="text-xs text-slate-400 mt-1">Medium</p>
+        </div>
+        <div class="bg-slate-900 border border-blue-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-blue-400">{{ summary.low }}</p>
+            <p class="text-xs text-slate-400 mt-1">Low</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-slate-300">{{ summary.targets_with_findings }}</p>
+            <p class="text-xs text-slate-400 mt-1">Affected Targets</p>
+        </div>
+    </div>
+
+    <!-- Findings Table -->
+    {% if target_findings %}
+    <div class="space-y-3">
+        {% for entry in target_findings %}
+        {% if entry.findings %}
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+            <!-- Target header -->
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/40">
+                <div class="flex items-center gap-3">
+                    {% if entry.highest_severity == 'critical' %}
+                    <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                    {% elif entry.highest_severity == 'high' %}
+                    <span class="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+                    {% elif entry.highest_severity == 'medium' %}
+                    <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                    {% else %}
+                    <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                    {% endif %}
+                    <a href="/targets/{{ entry.target.id }}" class="text-sm font-medium text-white hover:text-indigo-300 font-mono">{{ entry.target.domain }}</a>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500">{{ entry.findings|length }} finding{{ 's' if entry.findings|length != 1 else '' }}</span>
+                    <a href="/targets/{{ entry.target.id }}" class="text-xs text-slate-500 hover:text-indigo-400">View →</a>
+                </div>
+            </div>
+            <!-- Findings list -->
+            <div class="divide-y divide-slate-800/50">
+                {% for f in entry.findings %}
+                <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-800/20">
+                    <span class="shrink-0 mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
+                        {% if f.severity == 'critical' %}bg-red-900/60 text-red-200 border border-red-700/50
+                        {% elif f.severity == 'high' %}bg-orange-900/60 text-orange-200 border border-orange-700/50
+                        {% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-200 border border-amber-700/50
+                        {% elif f.severity == 'low' %}bg-blue-900/60 text-blue-200 border border-blue-700/50
+                        {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                        {{ f.severity }}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-slate-200">{{ f.issue }}</p>
+                    </div>
+                    <span class="shrink-0 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded">{{ f.module.replace('_scanner','').replace('_',' ') }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        {% if not target_findings|selectattr('findings')|list %}
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+            <svg class="w-12 h-12 text-emerald-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p class="text-white font-semibold">No findings match the current filter.</p>
+            <p class="text-slate-400 text-sm mt-1">Try adjusting the filters above.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+        <svg class="w-12 h-12 text-slate-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+        <p class="text-white font-semibold">No findings yet.</p>
+        <p class="text-slate-400 text-sm mt-1">Run Phase 1 scanners (Email Security, AXFR, HTTP Headers, etc.) on your targets first.</p>
+        <a href="/targets" class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg">Go to Targets</a>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
