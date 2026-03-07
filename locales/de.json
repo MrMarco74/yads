@@ -151,7 +151,8 @@
     "http_headers": "HTTP-Sicherheitsheader",
     "cookie_scanner": "Cookie-Sicherheitsanalyse",
     "cors_scanner": "CORS-Fehlkonfigurationsprüfung",
-    "cert_mismatch": "Zertifikat-/Domain-Abweichung"
+    "cert_mismatch": "Zertifikat-/Domain-Abweichung",
+    "shodan_censys": "Shodan / Censys (Internet-Exposition)"
   },
   "report": {
     "generate": "Bericht erstellen",

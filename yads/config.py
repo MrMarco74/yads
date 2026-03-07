@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     OTX_API_KEY: Optional[str] = None
     VIRUSTOTAL_API_KEY: Optional[str] = None
     CENSYS_API_ID: Optional[str] = None
+    CENSYS_API_SECRET: Optional[str] = None
     SHODAN_API_KEY: Optional[str] = None
 
     # Prometheus Metrics

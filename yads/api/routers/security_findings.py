@@ -27,6 +27,7 @@ FINDING_MODULES = [
     "cookie_scanner",
     "cors_scanner",
     "cert_mismatch",
+    "shodan_censys",
 ]
 
 
@@ -115,6 +116,14 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "medium"),
                 "issue": f.get("issue", ""),
                 "score": None,
+            })
+
+    elif module == "shodan_censys":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "medium"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
             })
 
     return findings

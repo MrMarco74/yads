@@ -295,6 +295,10 @@
                                 <input type="checkbox" name="scan_types" value="cert_mismatch" {% if 'cert_mismatch' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-teal-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-teal-400">Cert/Domain Mismatch</span>
                             </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="shodan_censys" {% if 'shodan_censys' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-indigo-400">Shodan / Censys</span>
+                            </label>
                         </div>
                     </div>
                 </div>
