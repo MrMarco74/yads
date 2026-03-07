@@ -99,11 +99,11 @@
         <section class="feature-section">
             <div class="feature-text">
                 <span class="feature-tag">Visualization</span>
-                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Spiderweb Intelligence</h2>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Attack Path Visualizer</h2>
                 <p style="color: var(--text-secondary); margin-bottom: 2rem;">
-                    Don't just list assets – understand them. Our interactive Spiderweb graph visualizes complex relationships between domains, DNS records, and hosting providers.
+                    Don't just list vulnerabilities – understand how they chain together. The interactive Attack Path graph shows how an attacker could move from initial access to deeper compromise, with risk-weighted edges and node details.
                 </p>
-                <p style="color: var(--text-secondary);">Identify clusters, discover third-party dependencies, and find hidden connections.</p>
+                <p style="color: var(--text-secondary);">Color-coded by risk severity. Click any node to inspect findings, CVEs, and open ports. Also includes the Spiderweb redirect graph for domain relationship mapping.</p>
             </div>
             <div class="feature-image">
                 <img src="./images/spiderweb_graph.png" alt="Network Graph">
@@ -265,14 +265,15 @@
         <section class="feature-section">
             <div class="feature-text">
                 <span class="feature-tag">Operations</span>
-                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Scan Queue</h2>
+                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Platform Settings & Control</h2>
                 <p style="color: var(--text-secondary); margin-bottom: 2rem;">
-                    Monitor and manage your scan operations in real-time. View running scans, queue status, and worker utilization from a centralized interface.
+                    Full operational control from a centralized settings interface. Manage the scan queue, configure API keys and integrations, control distributed workers, and monitor system health in real-time.
                 </p>
                 <ul style="list-style: none; margin-bottom: 1rem; color: var(--text-secondary);">
-                    <li style="margin-bottom: 0.5rem;">⚡ Real-time Progress Tracking</li>
-                    <li style="margin-bottom: 0.5rem;">⚡ Queue Management</li>
-                    <li style="margin-bottom: 0.5rem;">⚡ Worker Status Monitoring</li>
+                    <li style="margin-bottom: 0.5rem;">⚡ Real-time Scan Queue & Worker Management</li>
+                    <li style="margin-bottom: 0.5rem;">⚡ Distributed Worker Scaling (Docker Swarm)</li>
+                    <li style="margin-bottom: 0.5rem;">⚡ API Key Management (Shodan, VirusTotal, etc.)</li>
+                    <li style="margin-bottom: 0.5rem;">⚡ One-Click Updates & Prometheus Metrics</li>
                 </ul>
             </div>
             <div class="feature-image">
