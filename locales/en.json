@@ -11,6 +11,7 @@
     "dead_links": "Dead Links",
     "hijacking": "Hijacking Risks",
     "tech_radar": "Tech Radar",
+    "attack_surface": "Attack Surface",
     "targets": "Targets",
     "single_target_graph": "Single Target Graph",
     "spiderweb": "Spiderweb",
