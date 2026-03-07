@@ -2414,6 +2414,253 @@
 
             </div>
 
+            <!-- EMAIL SECURITY CARD (SPF/DKIM/DMARC) -->
+            <div class="bg-gray-800/50 border border-blue-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">Email Security</h2>
+                        <p class="text-xs text-gray-400">SPF, DKIM, DMARC, BIMI and MX record analysis.</p>
+                    </div>
+                    {% if email_security_result and email_security_result.data %}
+                    <div class="text-right">
+                        <span class="text-2xl font-bold {% if email_security_result.data.score >= 80 %}text-emerald-400{% elif email_security_result.data.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ email_security_result.data.score }}<span class="text-sm text-gray-400">/100</span></span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if email_security_result and email_security_result.data %}
+                {% set es = email_security_result.data %}
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">SPF</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.spf.present %}{% if es.spf.policy in ['fail','softfail'] %}bg-emerald-900/50 text-emerald-300{% else %}bg-amber-900/50 text-amber-300{% endif %}{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.spf.present %}{{ es.spf.policy or 'present' }}{% else %}Missing{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">DMARC</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.dmarc.present %}{% if es.dmarc.policy == 'reject' %}bg-emerald-900/50 text-emerald-300{% elif es.dmarc.policy == 'quarantine' %}bg-amber-900/50 text-amber-300{% else %}bg-yellow-900/50 text-yellow-300{% endif %}{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.dmarc.present %}{{ es.dmarc.policy }}{% else %}Missing{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">DKIM</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.dkim.count > 0 %}bg-emerald-900/50 text-emerald-300{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.dkim.count > 0 %}{{ es.dkim.count }} selector(s){% else %}None found{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">MX</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.mx.count > 0 %}bg-blue-900/50 text-blue-300{% else %}bg-gray-700 text-gray-400{% endif %}">
+                            {{ es.mx.count }} record(s)
+                        </span>
+                    </div>
+                </div>
+                {% if es.findings %}
+                <div class="space-y-2">
+                    {% for f in es.findings %}
+                    <div class="flex items-start gap-2 p-2 rounded bg-gray-900/40">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' or f.severity == 'critical' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">[{{ f.section }}] {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-emerald-400 text-sm">✓ No email security issues found.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Email Security (SPF/DKIM/DMARC)" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- AXFR + SECURITY.TXT COMBINED ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- AXFR CARD -->
+            <div class="bg-gray-800/50 border {% if axfr_result and axfr_result.data and axfr_result.data.vulnerable %}border-red-500/50{% else %}border-slate-700/30{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-red-500/10 rounded-lg text-red-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">DNS Zone Transfer (AXFR)</h2>
+                        <p class="text-xs text-gray-400">Checks if nameservers allow full zone transfer.</p>
+                    </div>
+                </div>
+                {% if axfr_result and axfr_result.data %}
+                {% set axfr = axfr_result.data %}
+                {% if axfr.vulnerable %}
+                <div class="bg-red-900/30 border border-red-500/40 rounded-lg p-3 mb-3">
+                    <p class="text-red-300 font-bold text-sm">⚠ CRITICAL: Zone transfer succeeded!</p>
+                    <p class="text-red-200 text-xs mt-1">{{ axfr.finding.issue }}</p>
+                    <p class="text-gray-400 text-xs mt-1">Fix: {{ axfr.finding.recommendation }}</p>
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-3 mb-3">
+                    <p class="text-emerald-400 text-sm">✓ Zone transfer refused by all nameservers.</p>
+                </div>
+                {% endif %}
+                <div class="space-y-1">
+                    {% for r in axfr.transfer_results %}
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-gray-400 font-mono">{{ r.nameserver }}</span>
+                        <span class="{% if r.success %}text-red-400 font-bold{% else %}text-emerald-400{% endif %}">{{ 'VULNERABLE' if r.success else r.reason }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "DNS Zone Transfer (AXFR)" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- SECURITY.TXT CARD -->
+            <div class="bg-gray-800/50 border border-slate-700/30 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-slate-500/10 rounded-lg text-slate-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">Security.txt (RFC 9116)</h2>
+                        <p class="text-xs text-gray-400">Vulnerability disclosure policy file.</p>
+                    </div>
+                    {% if security_txt_result and security_txt_result.data and security_txt_result.data.found %}
+                    <span class="text-lg font-bold {% if security_txt_result.data.score >= 70 %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ security_txt_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if security_txt_result and security_txt_result.data %}
+                {% set stxt = security_txt_result.data %}
+                {% if stxt.found %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-2 mb-3">
+                    <p class="text-emerald-400 text-xs font-mono">{{ stxt.url }}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mb-3 text-xs">
+                    {% for field, values in stxt.fields.items() %}
+                    <div class="bg-gray-900/40 rounded px-2 py-1">
+                        <span class="text-gray-400">{{ field }}:</span> <span class="text-white">{{ values[0][:40] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if stxt.issues %}
+                <div class="space-y-1">
+                    {% for issue in stxt.issues %}
+                    <p class="text-xs text-amber-300">⚠ {{ issue }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="bg-amber-900/20 border border-amber-500/20 rounded-lg p-3">
+                    <p class="text-amber-300 text-sm">Security.txt not found.</p>
+                    <p class="text-gray-400 text-xs mt-1">Create /.well-known/security.txt with Contact, Expires fields.</p>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Security.txt (RFC 9116)" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end AXFR+SecurityTxt grid -->
+
+            <!-- HTTP HEADERS + COOKIES COMBINED ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- HTTP HEADERS CARD -->
+            <div class="bg-gray-800/50 border border-violet-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-violet-500/10 rounded-lg text-violet-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">HTTP Security Headers</h2>
+                        <p class="text-xs text-gray-400">OWASP recommended response header analysis.</p>
+                    </div>
+                    {% if http_headers_result and http_headers_result.data and http_headers_result.data.reachable %}
+                    <span class="text-lg font-bold {% if http_headers_result.data.score >= 70 %}text-emerald-400{% elif http_headers_result.data.score >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ http_headers_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if http_headers_result and http_headers_result.data %}
+                {% set hh = http_headers_result.data %}
+                {% if hh.reachable %}
+                {% if hh.findings %}
+                <div class="space-y-1 max-h-64 overflow-y-auto">
+                    {% for f in hh.findings %}
+                    <div class="flex items-start gap-2 p-1.5 rounded bg-gray-900/40">
+                        <span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">{{ f.header }}: {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-emerald-400 text-sm">✓ All security headers present.</p>
+                {% endif %}
+                {% if hh.leaky_headers %}
+                <div class="mt-3 pt-3 border-t border-gray-700">
+                    <p class="text-xs text-amber-400 mb-1">⚠ Server info leaked:</p>
+                    {% for h, v in hh.leaky_headers.items() %}
+                    <p class="text-xs font-mono text-gray-300">{{ h }}: {{ v }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">Target not reachable over HTTP/HTTPS.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "HTTP Security Headers" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- COOKIE SECURITY CARD -->
+            <div class="bg-gray-800/50 border border-orange-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-orange-500/10 rounded-lg text-orange-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">Cookie Security</h2>
+                        <p class="text-xs text-gray-400">Secure, HttpOnly, SameSite and prefix analysis.</p>
+                    </div>
+                    {% if cookie_result and cookie_result.data and cookie_result.data.reachable %}
+                    <span class="text-lg font-bold {% if cookie_result.data.score >= 80 %}text-emerald-400{% elif cookie_result.data.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ cookie_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if cookie_result and cookie_result.data %}
+                {% set ck = cookie_result.data %}
+                {% if ck.reachable %}
+                {% if ck.summary.total == 0 %}
+                <p class="text-gray-400 text-sm">No cookies set on root path.</p>
+                {% else %}
+                <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                    <div class="bg-gray-900/60 rounded p-2 text-center">
+                        <p class="text-2xl font-bold text-white">{{ ck.summary.total }}</p>
+                        <p class="text-gray-400">Total</p>
+                    </div>
+                    <div class="bg-gray-900/60 rounded p-2 text-center">
+                        <p class="text-2xl font-bold {% if ck.summary.insecure > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ ck.summary.insecure }}</p>
+                        <p class="text-gray-400">No Secure flag</p>
+                    </div>
+                </div>
+                {% if ck.findings %}
+                <div class="space-y-1 max-h-48 overflow-y-auto">
+                    {% for f in ck.findings %}
+                    <div class="flex items-start gap-2 p-1.5 rounded bg-gray-900/40">
+                        <span class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300"><span class="font-mono text-orange-300">{{ f.cookie }}</span>: {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">Target not reachable over HTTP/HTTPS.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Cookie Security Analyzer" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end HTTP Headers+Cookies grid -->
+
             <!-- DECEPTION DETECTION CARD -->
             <div class="bg-gray-800/50 border border-amber-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
                 <div class="flex items-center gap-3 mb-6">
