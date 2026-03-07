@@ -240,6 +240,7 @@
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="cert_mismatch" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Certificate Mismatch</span></label>
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="security_txt" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Security.txt</span></label>
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="email_security" checked data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Email Security (SPF/DKIM/DMARC)</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="dsgvo_scanner" data-group="sc-config" onchange="yadsScanUpdateGroup('sc-config')" class="rounded bg-gray-900 border-gray-600 text-emerald-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Privacy / DSGVO</span></label>
                                 </div>
                             </div>
 
@@ -270,6 +271,7 @@
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="shodan_censys" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Shodan / Censys</span></label>
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="threat_intel" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Threat Intel (AbuseIPDB/OTX/VT)</span></label>
                                     <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="subdomain_takeover" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">Subdomain Takeover</span></label>
+                                    <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-gray-700/30 rounded cursor-pointer"><input type="checkbox" name="scan_types" value="rpki_scanner" data-group="sc-threat" onchange="yadsScanUpdateGroup('sc-threat')" class="rounded bg-gray-900 border-gray-600 text-rose-500 focus:ring-0 w-3 h-3"><span class="text-xs text-gray-300">RPKI / BGP Routing</span></label>
                                 </div>
                             </div>
 
@@ -3314,6 +3316,135 @@
 
                 {% else %}
                 <p class="text-gray-500 italic text-sm">No data. Run "Document Metadata" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- RPKI / BGP CARD -->
+            {% set rpki = rpki_scanner_result.data if rpki_scanner_result and rpki_scanner_result.data else none %}
+            <div class="bg-gray-800/50 border {% if rpki and rpki.summary.invalid > 0 %}border-red-500/40{% elif rpki and rpki.summary.not_found > 0 %}border-amber-500/30{% else %}border-sky-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">RPKI / BGP Routing</h2>
+                            <p class="text-xs text-gray-400">Route origin authorization — BGP hijacking protection.</p>
+                        </div>
+                    </div>
+                    {% if rpki %}
+                    <div class="text-right text-xs text-gray-500">
+                        <div class="{% if rpki.summary.invalid > 0 %}text-red-400{% elif rpki.summary.not_found > 0 %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                            {% if rpki.summary.invalid > 0 %}{{ rpki.summary.invalid }} invalid{% elif rpki.summary.not_found > 0 %}{{ rpki.summary.not_found }} unprotected{% else %}All valid{% endif %}
+                        </div>
+                        <div>{{ rpki.summary.asns | length }} ASN(s)</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if rpki %}
+                {% if rpki.findings %}
+                <div class="space-y-1.5 mb-3">
+                    {% for f in rpki.findings %}
+                    <div class="flex items-start gap-2 p-2 bg-gray-900/40 rounded border border-gray-700/30">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <div class="min-w-0">
+                            <p class="text-xs text-gray-200">{{ f.title }}</p>
+                            <p class="text-[11px] text-gray-500 mt-0.5">{{ f.detail }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2 mb-3">
+                    <p class="text-emerald-400 text-sm">✓ All routes have valid RPKI ROAs.</p>
+                </div>
+                {% endif %}
+
+                {% if rpki.routes %}
+                <div class="grid grid-cols-1 gap-1.5 mt-2">
+                    {% for r in rpki.routes %}
+                    <div class="flex items-center gap-3 p-2 bg-gray-900/30 rounded text-xs">
+                        <span class="font-mono text-gray-400 w-28 shrink-0">{{ r.prefix }}</span>
+                        <span class="text-gray-500">AS{{ r.asn }}</span>
+                        <span class="text-gray-500 flex-1 truncate">{{ r.org }}</span>
+                        <span class="shrink-0 font-bold {% if r.rpki_state == 'valid' %}text-emerald-400{% elif r.rpki_state == 'invalid' %}text-red-400{% else %}text-amber-400{% endif %}">{{ r.rpki_state | upper }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "RPKI / BGP Route Validation" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- DSGVO / PRIVACY CARD -->
+            {% set dsgvo = dsgvo_scanner_result.data if dsgvo_scanner_result and dsgvo_scanner_result.data else none %}
+            <div class="bg-gray-800/50 border {% if dsgvo and dsgvo.summary.findings_count > 0 %}border-violet-500/30{% else %}border-sky-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-violet-500/10 rounded-lg text-violet-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">Privacy / DSGVO</h2>
+                            <p class="text-xs text-gray-400">CMP, tracking pixels, privacy policy, data processors.</p>
+                        </div>
+                    </div>
+                    {% if dsgvo %}
+                    <div class="text-right text-xs text-gray-500">
+                        <div class="{% if dsgvo.cmp_detected %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ dsgvo.cmp_detected or 'No CMP' }}</div>
+                        <div class="{% if dsgvo.summary.findings_count > 0 %}text-orange-400{% else %}text-emerald-400{% endif %}">{{ dsgvo.summary.findings_count }} finding(s)</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if dsgvo %}
+                <!-- Status row -->
+                <div class="grid grid-cols-3 gap-2 mb-3 text-xs text-center">
+                    <div class="bg-gray-900/40 rounded p-2">
+                        <div class="{% if dsgvo.cmp_detected %}text-emerald-400{% else %}text-red-400{% endif %} font-bold">{% if dsgvo.cmp_detected %}✓{% else %}✗{% endif %}</div>
+                        <div class="text-gray-500 mt-0.5">CMP</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2">
+                        <div class="{% if dsgvo.privacy_policy_found %}text-emerald-400{% else %}text-red-400{% endif %} font-bold">{% if dsgvo.privacy_policy_found %}✓{% else %}✗{% endif %}</div>
+                        <div class="text-gray-500 mt-0.5">Privacy Policy</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2">
+                        <div class="{% if not dsgvo.google_fonts %}text-emerald-400{% else %}text-amber-400{% endif %} font-bold">{% if not dsgvo.google_fonts %}✓{% else %}⚠{% endif %}</div>
+                        <div class="text-gray-500 mt-0.5">Google Fonts</div>
+                    </div>
+                </div>
+
+                {% if dsgvo.findings %}
+                <div class="space-y-1.5 mb-3">
+                    {% for f in dsgvo.findings if f.severity != 'info' %}
+                    <div class="flex items-start gap-2 p-2 bg-gray-900/40 rounded border border-gray-700/30">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'high' %}bg-red-900/60 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <p class="text-xs text-gray-200 min-w-0">{{ f.title }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2 mb-3">
+                    <p class="text-emerald-400 text-sm">✓ No major GDPR compliance issues detected.</p>
+                </div>
+                {% endif %}
+
+                {% if dsgvo.processors %}
+                <details class="border border-gray-700/30 rounded mt-2">
+                    <summary class="cursor-pointer p-2 text-xs text-gray-400 hover:text-gray-200 select-none">{{ dsgvo.processors | length }} data processor(s) detected</summary>
+                    <div class="p-2 flex flex-wrap gap-1.5">
+                        {% for p in dsgvo.processors %}
+                        <span class="px-2 py-0.5 bg-gray-700/50 rounded text-[11px] text-gray-400">{{ p }}</span>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Privacy / GDPR Compliance Check" scan.</p>
                 {% endif %}
             </div>
 
