@@ -48,7 +48,7 @@ class AnalyticsCorrelator(BaseScannerModule):
         try:
             # Fake browser UA to avoid blocking
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 YADS/1.19"
             }
             resp = requests.get(url, timeout=10, headers=headers, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             content = resp.text

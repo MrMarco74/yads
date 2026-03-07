@@ -267,7 +267,7 @@ class RateLimitedClient:
 
         # Set default headers
         self._session.headers.update({
-            "User-Agent": "YADS-Security-Scanner/1.15.0"
+            "User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"
         })
 
         # Apply TLS configuration

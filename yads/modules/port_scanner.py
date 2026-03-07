@@ -124,7 +124,7 @@ class PortScanner(BaseScannerModule):
         url = f"{protocol}://{target}:{port}"
         
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; YADS/1.9; +http://yads.local)"
+            "User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"
         }
         
         try:
@@ -150,7 +150,7 @@ class PortScanner(BaseScannerModule):
             "scanned_ports": [80, 443],
             "quick": True,
         }
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; YADS/1.9; +http://yads.local)"}
+        headers = {"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"}
         for scheme, port in (("http", 80), ("https", 443)):
             try:
                 resp = requests.head(

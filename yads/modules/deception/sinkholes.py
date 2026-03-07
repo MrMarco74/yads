@@ -284,7 +284,7 @@ class SinkholeDetector:
                         timeout=self.timeout,
                         verify=False,  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
                         allow_redirects=True,
-                        headers={"User-Agent": "YADS-Security-Scanner/1.15.0"}
+                        headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"}
                     )
 
                     content = response.text.lower()
