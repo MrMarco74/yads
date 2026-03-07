@@ -303,6 +303,10 @@
                                 <input type="checkbox" name="scan_types" value="threat_intel" {% if 'threat_intel' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-rose-500 focus:ring-0 w-3.5 h-3.5">
                                 <span class="text-xs text-rose-400">Threat Intel</span>
                             </label>
+                            <label class="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="subdomain_takeover" {% if 'subdomain_takeover' in selected_scan_types %}checked{% endif %} class="rounded bg-slate-950 border-slate-600 text-violet-500 focus:ring-0 w-3.5 h-3.5">
+                                <span class="text-xs text-violet-400">Subdomain Takeover</span>
+                            </label>
                         </div>
                     </div>
                 </div>

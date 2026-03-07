@@ -153,7 +153,8 @@
     "cors_scanner": "CORS-Fehlkonfigurationsprüfung",
     "cert_mismatch": "Zertifikat-/Domain-Abweichung",
     "shodan_censys": "Shodan / Censys (Internet-Exposition)",
-    "threat_intel": "Bedrohungsintelligenz (AbuseIPDB / OTX / VirusTotal)"
+    "threat_intel": "Bedrohungsintelligenz (AbuseIPDB / OTX / VirusTotal)",
+    "subdomain_takeover": "Subdomain-Takeover-Prüfung"
   },
   "report": {
     "generate": "Bericht erstellen",

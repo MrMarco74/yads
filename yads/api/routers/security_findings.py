@@ -29,6 +29,7 @@ FINDING_MODULES = [
     "cert_mismatch",
     "shodan_censys",
     "threat_intel",
+    "subdomain_takeover",
 ]
 
 
@@ -131,6 +132,14 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
         for f in data.get("findings", []):
             findings.append({
                 "severity": f.get("severity", "medium"),
+                "issue": f.get("title", ""),
+                "score": data.get("summary", {}).get("score"),
+            })
+
+    elif module == "subdomain_takeover":
+        for f in data.get("findings", []):
+            findings.append({
+                "severity": f.get("severity", "high"),
                 "issue": f.get("title", ""),
                 "score": data.get("summary", {}).get("score"),
             })
