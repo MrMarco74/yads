@@ -301,6 +301,15 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"Could not register default worker: {e}")
 
+            # --- Load custom-installed modules into runtime registry ---
+            try:
+                from yads.api.routers.scan_modules import load_installed_modules_from_db
+                with Session(engine) as _s:
+                    load_installed_modules_from_db(_s)
+                logger.info("Custom scan modules loaded from DB")
+            except Exception as e:
+                logger.warning(f"Could not load custom modules: {e}")
+
             break
         except Exception as e:
             if i == max_retries - 1:
@@ -459,7 +468,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -469,6 +478,8 @@ app.include_router(analytics.ui_router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tenants.router)
+app.include_router(portfolio.router)
+app.include_router(portfolio.ui_router)
 app.include_router(api_keys.router)
 app.include_router(changelog.router)
 app.include_router(help.router)
@@ -481,13 +492,20 @@ app.include_router(tenant_settings.router)
 app.include_router(compliance.router)
 app.include_router(archived.router)
 app.include_router(reports.router)
+app.include_router(executive_report.router)
 app.include_router(report_builder.router)
 app.include_router(ports.router)
 app.include_router(email_security.router)
 app.include_router(security_findings.router)
 app.include_router(changes.router)
 app.include_router(attack_surface.router)
+app.include_router(attack_path.router)
 app.include_router(scan_compare.router)
+app.include_router(scan_modules.router)
+app.include_router(scanner_import.router)
+app.include_router(scan_profiles.router)
+app.include_router(integrations.router)
+app.include_router(nuclei_suggestions.router)
 app.include_router(secrets.router)
 app.include_router(tech_drift.router)
 app.include_router(cert_timeline.router)
@@ -508,6 +526,8 @@ app.include_router(targets.router)
 app.include_router(exports.router)
 app.include_router(system.router)
 app.include_router(tags.router)
+app.include_router(ai_assistant.router)
+app.include_router(ai_assistant.router)
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):

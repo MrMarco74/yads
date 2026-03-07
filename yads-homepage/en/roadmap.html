@@ -194,6 +194,123 @@
     <div class="container">
         <div class="roadmap-container">
 
+            <!-- AI Intelligence Suite -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🤖</span>
+                    <h2 class="section-title">AI Intelligence Suite <span class="status-badge available">Available</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        A complete AI-powered security analysis layer built directly into YADS. Uses your own OpenAI or Anthropic API key (BYOK model) with intelligent rule-based fallbacks when no AI key is configured. All outputs are available in English and German.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>AI Finding Prioritization <span class="status-badge available">Available</span></td>
+                                <td>Ranks all findings for a target by exploitability and business impact. Supports OpenAI (gpt-4o-mini) and Anthropic (claude-haiku-4-5) with per-tenant BYOK. Includes a rule-based fallback using severity scores and keyword boosting (RCE, SSRF, injection, XSS, etc.) when no AI key is configured.</td>
+                            </tr>
+                            <tr>
+                                <td>AI Remediation Assistant <span class="status-badge available">Available</span></td>
+                                <td>Generates step-by-step remediation guidance for any selected finding with effort estimation (low/medium/high) and reference URLs. Rule-based fallback covers 10+ vulnerability classes: CORS, XSS, SQL injection, SSL/TLS, HTTP headers, DNS zone transfer, cookie security, CSRF, RCE, and open redirect.</td>
+                            </tr>
+                            <tr>
+                                <td>Natural Language Search <span class="status-badge available">Available</span></td>
+                                <td>Query findings across all monitored assets in plain English or German. Examples: "critical nuclei findings on staging.example.com", "all high severity SSL issues", "email security problems this month". Live search with 500ms debounce, AI-parsed or regex-extracted filter chips (severity, module, domain).</td>
+                            </tr>
+                            <tr>
+                                <td>AI Multilanguage Output <span class="status-badge available">Available</span></td>
+                                <td>All AI endpoints accept a <code>lang=de</code> parameter. AI-generated rationale, remediation steps, and search interpretations are returned in German. Rule-based fallbacks are also fully translated, including effort labels and rationale strings.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Executive & Portfolio Reporting -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">📊</span>
+                    <h2 class="section-title">Executive &amp; Portfolio Reporting <span class="status-badge available">Available</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        New high-level views for security management, C-level reporting, and cross-tenant visibility for platform administrators.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Executive Report (C-Level) <span class="status-badge available">Available</span></td>
+                                <td>Non-technical security summary with: grade circle (A–F), numeric score (0–100), risk trend (improving/stable/deteriorating), KPI cards, segmented risk distribution bar, top 5 risk types, top 5 vulnerable assets, and prioritized recommended actions. Includes a print stylesheet for immediate PDF output.</td>
+                            </tr>
+                            <tr>
+                                <td>Attack Path Visualizer <span class="status-badge available">Available</span></td>
+                                <td>D3.js force-directed graph showing the attack surface of any scanned target. Nodes: host, open ports (risk-colored), services/technologies (with CVE counts), and findings. Directed edges model exploitation chains between high/critical findings. Zoom/pan, draggable layout, one-click attack-path navigation, and filter controls.</td>
+                            </tr>
+                            <tr>
+                                <td>Multi-Domain Portfolio View <span class="status-badge available">Available</span></td>
+                                <td>Platform-admin view with cross-tenant statistics: domain count, critical/high findings, average security score (A–F grade badge), plan tier, last scan. Expandable rows reveal top 3 vulnerable domains per tenant. Includes global KPI cards and "View as Tenant" impersonation link.</td>
+                            </tr>
+                            <tr>
+                                <td>Multilanguage PDF &amp; Excel Exports <span class="status-badge available">Available</span></td>
+                                <td>All exports now accept <code>?lang=en</code> or <code>?lang=de</code>. German exports translate column headers, section titles, finding labels, and all fixed strings in both PDF and Excel formats.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Finding Management & Asset Organization -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <h2 class="section-title">Finding Management &amp; Asset Organization <span class="status-badge available">Available</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Tools to track the full remediation lifecycle of security findings and organize assets for better operational visibility.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Finding Status Tracking <span class="status-badge available">Available</span></td>
+                                <td>Track the lifecycle of each finding with four states: Open, Acknowledged, False Positive, Fixed. Add analyst notes per finding. Status survives re-scans and is identified by a deterministic hash of domain|module|issue. Color-coded badges and a status filter on the Security Findings page.</td>
+                            </tr>
+                            <tr>
+                                <td>Findings CSV Export <span class="status-badge available">Available</span></td>
+                                <td>Export all findings to CSV with full filter support (severity, status, module, domain, date range). Columns: domain, title, severity, module, status, found_at, notes.</td>
+                            </tr>
+                            <tr>
+                                <td>Asset Tagging &amp; Grouping UI <span class="status-badge available">Available</span></td>
+                                <td>Assign custom tags to targets (e.g. <code>production</code>, <code>cloud</code>, <code>in-scope</code>). Interactive tag cloud for filtering, inline tag editing per target, bulk tag operations (add/remove/replace across multiple targets), and central tag management with one-click delete across the tenant.</td>
+                            </tr>
+                            <tr>
+                                <td>Extended Cloud Scanner <span class="status-badge available">Available</span></td>
+                                <td>Added DigitalOcean Spaces (NYC3 + AMS3), Cloudflare R2. New Shadow IT detection across GitHub Pages, Netlify, Vercel, Heroku, Firebase Hosting, Render, Railway, and Fly.io — with false-positive filtering for default platform pages. Findings now include structured severity ratings compatible with AI analysis.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- New Scanner Modules -->
             <div class="roadmap-section">
                 <div class="section-header">

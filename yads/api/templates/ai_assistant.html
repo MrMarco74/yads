@@ -1,0 +1,715 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6" x-data="aiAssistant()" x-init="init()">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-white">AI Assistant</h1>
+                {% if ai_provider == 'rule-based' %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                    <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
+                    Rule-based mode
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-900/40 text-violet-300 border border-violet-700/50">
+                    <span class="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse"></span>
+                    AI-powered · {{ ai_provider }}
+                </span>
+                {% endif %}
+            </div>
+            <p class="text-slate-400 text-sm mt-1">Finding prioritisation, remediation guidance, and natural language search.</p>
+        </div>
+        {% if ai_provider == 'rule-based' %}
+        <a href="/tenant-settings" class="inline-flex items-center gap-2 px-3 py-2 text-xs text-slate-400 border border-slate-700 rounded-lg hover:border-violet-600 hover:text-violet-300 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            Configure AI key
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-slate-800">
+        <nav class="-mb-px flex gap-6" aria-label="Tabs">
+            <button @click="activeTab = 'prioritize'"
+                :class="activeTab === 'prioritize' ? 'border-violet-500 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'"
+                class="flex items-center gap-2 px-1 pb-3 text-sm font-medium border-b-2 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Finding Prioritisation
+            </button>
+            <button @click="activeTab = 'remediate'"
+                :class="activeTab === 'remediate' ? 'border-violet-500 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'"
+                class="flex items-center gap-2 px-1 pb-3 text-sm font-medium border-b-2 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Remediation Assistant
+            </button>
+            <button @click="activeTab = 'search'"
+                :class="activeTab === 'search' ? 'border-violet-500 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'"
+                class="flex items-center gap-2 px-1 pb-3 text-sm font-medium border-b-2 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                NL Search
+                <span class="text-[9px] font-bold bg-violet-600/30 text-violet-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Beta</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- TAB 1: Finding Prioritisation                                        -->
+    <!-- ================================================================== -->
+    <div x-show="activeTab === 'prioritize'" x-transition>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Controls -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <h2 class="text-sm font-semibold text-white">Select Target</h2>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5">Target domain</label>
+                        <select x-model="prio.targetId"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            <option value="">-- Select a target --</option>
+                            {% for t in targets %}
+                            <option value="{{ t.id }}">{{ t.domain }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button @click="prioritize()"
+                        :disabled="!prio.targetId || prio.loading"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors">
+                        <template x-if="prio.loading">
+                            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="!prio.loading">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </template>
+                        <span x-text="prio.loading ? 'Analysing...' : 'Prioritise Findings'"></span>
+                    </button>
+
+                    <!-- Error -->
+                    <div x-show="prio.error" class="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-xs text-red-300" x-text="prio.error"></div>
+
+                    <!-- Legend -->
+                    <div class="pt-2 border-t border-slate-800 space-y-1.5">
+                        <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Score Legend</p>
+                        <div class="flex items-center gap-2 text-xs text-slate-400">
+                            <span class="w-5 h-5 rounded bg-orange-500/20 text-orange-300 flex items-center justify-center text-[10px] font-bold">E</span>
+                            Exploitability (1-10)
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-slate-400">
+                            <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-300 flex items-center justify-center text-[10px] font-bold">B</span>
+                            Business Impact (1-10)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="lg:col-span-2">
+                <!-- Empty state -->
+                <div x-show="!prio.results.length && !prio.loading" class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                    <svg class="w-12 h-12 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    <p class="text-slate-500 text-sm">Select a target and click <span class="text-violet-400">Prioritise Findings</span> to begin.</p>
+                </div>
+
+                <!-- Loading skeleton -->
+                <div x-show="prio.loading" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <div class="p-4 border-b border-slate-800 bg-slate-800/40 animate-pulse">
+                        <div class="h-4 bg-slate-700 rounded w-48"></div>
+                    </div>
+                    <template x-for="i in [1,2,3,4,5]" :key="i">
+                        <div class="flex items-start gap-4 px-4 py-3 border-b border-slate-800/60 animate-pulse">
+                            <div class="w-6 h-6 bg-slate-700 rounded-full shrink-0 mt-0.5"></div>
+                            <div class="flex-1 space-y-2">
+                                <div class="h-3 bg-slate-700 rounded w-3/4"></div>
+                                <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="w-8 h-8 bg-slate-700 rounded"></div>
+                                <div class="w-8 h-8 bg-slate-700 rounded"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Results table -->
+                <div x-show="prio.results.length > 0 && !prio.loading" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <!-- Table header -->
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/40">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-medium text-white" x-text="prio.results.length + ' findings ranked'"></span>
+                            <template x-if="prio.aiGenerated">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-900/40 text-violet-300 border border-violet-700/50">
+                                    <span class="h-1 w-1 rounded-full bg-violet-400"></span>
+                                    AI-powered
+                                </span>
+                            </template>
+                            <template x-if="!prio.aiGenerated">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                    Rule-based
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Column labels -->
+                    <div class="grid grid-cols-12 gap-2 px-4 py-2 border-b border-slate-800/60 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <div class="col-span-1">#</div>
+                        <div class="col-span-4">Finding</div>
+                        <div class="col-span-2">Severity</div>
+                        <div class="col-span-1 text-center">E</div>
+                        <div class="col-span-1 text-center">B</div>
+                        <div class="col-span-3">AI Rationale</div>
+                    </div>
+
+                    <!-- Rows -->
+                    <div class="divide-y divide-slate-800/50">
+                        <template x-for="(f, idx) in prio.results" :key="idx">
+                            <div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-slate-800/20 items-start group">
+                                <!-- Rank -->
+                                <div class="col-span-1">
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+                                        :class="f.priority_rank === 1 ? 'bg-red-500/20 text-red-300' : f.priority_rank <= 3 ? 'bg-orange-500/20 text-orange-300' : f.priority_rank <= 7 ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700 text-slate-400'"
+                                        x-text="f.priority_rank"></span>
+                                </div>
+                                <!-- Title + module -->
+                                <div class="col-span-4">
+                                    <p class="text-xs text-slate-200 leading-snug" x-text="f.title"></p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5 font-mono" x-text="(f.module || '').replace(/_scanner$|_/g, m => m === '_scanner' ? '' : ' ').trim()"></p>
+                                </div>
+                                <!-- Severity badge -->
+                                <div class="col-span-2">
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+                                        :class="{
+                                            'bg-red-900/60 text-red-200 border border-red-700/50': f.severity === 'critical',
+                                            'bg-orange-900/60 text-orange-200 border border-orange-700/50': f.severity === 'high',
+                                            'bg-amber-900/60 text-amber-200 border border-amber-700/50': f.severity === 'medium',
+                                            'bg-blue-900/60 text-blue-200 border border-blue-700/50': f.severity === 'low',
+                                            'bg-slate-800 text-slate-400 border border-slate-700': !['critical','high','medium','low'].includes(f.severity)
+                                        }"
+                                        x-text="f.severity"></span>
+                                </div>
+                                <!-- Exploitability score -->
+                                <div class="col-span-1 flex justify-center">
+                                    <span class="inline-flex items-center justify-center w-8 h-8 rounded text-xs font-bold"
+                                        :class="f.exploitability >= 8 ? 'bg-red-900/40 text-red-300' : f.exploitability >= 5 ? 'bg-orange-900/40 text-orange-300' : 'bg-slate-800 text-slate-400'"
+                                        x-text="f.exploitability"></span>
+                                </div>
+                                <!-- Business impact score -->
+                                <div class="col-span-1 flex justify-center">
+                                    <span class="inline-flex items-center justify-center w-8 h-8 rounded text-xs font-bold"
+                                        :class="f.business_impact >= 8 ? 'bg-blue-900/40 text-blue-300' : f.business_impact >= 5 ? 'bg-indigo-900/40 text-indigo-300' : 'bg-slate-800 text-slate-400'"
+                                        x-text="f.business_impact"></span>
+                                </div>
+                                <!-- Rationale -->
+                                <div class="col-span-3">
+                                    <p class="text-[11px] text-slate-400 leading-snug" x-text="f.rationale || '—'"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- TAB 2: Remediation Assistant                                         -->
+    <!-- ================================================================== -->
+    <div x-show="activeTab === 'remediate'" x-transition>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Input form -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <h2 class="text-sm font-semibold text-white">Describe the Finding</h2>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5">Finding title <span class="text-red-400">*</span></label>
+                        <input type="text" x-model="rem.title" placeholder="e.g. CORS wildcard misconfiguration"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder-slate-600">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1.5">Description <span class="text-slate-600">(optional)</span></label>
+                        <textarea x-model="rem.description" rows="3" placeholder="Additional context about the finding..."
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder-slate-600 resize-none"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1.5">Severity</label>
+                            <select x-model="rem.severity"
+                                class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="low">Low</option>
+                                <option value="info">Info</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1.5">Domain</label>
+                            <input type="text" x-model="rem.domain" placeholder="example.com"
+                                class="w-full bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder-slate-600">
+                        </div>
+                    </div>
+
+                    <!-- Quick-select from recent findings if targets exist -->
+                    {% if targets %}
+                    <div class="pt-3 border-t border-slate-800">
+                        <p class="text-xs text-slate-500 mb-2">Or quick-select from a target's findings:</p>
+                        <select @change="quickSelectFinding($event)"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-400 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            <option value="">-- Pick a target to load findings --</option>
+                            {% for t in targets %}
+                            <option value="{{ t.id }}" data-domain="{{ t.domain }}">{{ t.domain }}</option>
+                            {% endfor %}
+                        </select>
+                        <div x-show="rem.quickFindings.length > 0" class="mt-2">
+                            <select @change="applyQuickFinding($event)"
+                                class="w-full bg-slate-800 border border-slate-700 text-slate-400 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                <option value="">-- Select a finding --</option>
+                                <template x-for="(f, i) in rem.quickFindings" :key="i">
+                                    <option :value="i" x-text="'[' + f.severity.toUpperCase() + '] ' + f.title"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <button @click="remediate()"
+                        :disabled="!rem.title.trim() || rem.loading"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors">
+                        <template x-if="rem.loading">
+                            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="!rem.loading">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </template>
+                        <span x-text="rem.loading ? 'Generating...' : 'Get Remediation Steps'"></span>
+                    </button>
+
+                    <div x-show="rem.error" class="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-xs text-red-300" x-text="rem.error"></div>
+                </div>
+            </div>
+
+            <!-- Remediation results -->
+            <div class="lg:col-span-2">
+                <!-- Empty state -->
+                <div x-show="!rem.result && !rem.loading" class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                    <svg class="w-12 h-12 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    <p class="text-slate-500 text-sm">Describe a finding and click <span class="text-violet-400">Get Remediation Steps</span>.</p>
+                </div>
+
+                <!-- Loading -->
+                <div x-show="rem.loading" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4 animate-pulse">
+                    <div class="h-5 bg-slate-700 rounded w-48"></div>
+                    <div class="space-y-3">
+                        <template x-for="i in [1,2,3,4,5]" :key="i">
+                            <div class="flex gap-3">
+                                <div class="w-6 h-6 bg-slate-700 rounded-full shrink-0 mt-0.5"></div>
+                                <div class="flex-1 space-y-1.5">
+                                    <div class="h-3 bg-slate-700 rounded"></div>
+                                    <div class="h-3 bg-slate-700 rounded w-2/3"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Result card -->
+                <div x-show="rem.result && !rem.loading" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <!-- Card header -->
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-800/40">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-5 h-5 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span class="text-sm font-semibold text-white">Remediation Guidance</span>
+                            <template x-if="rem.result && rem.result.ai_generated">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-900/40 text-violet-300 border border-violet-700/50">
+                                    <span class="h-1 w-1 rounded-full bg-violet-400"></span>
+                                    AI-powered
+                                </span>
+                            </template>
+                            <template x-if="rem.result && !rem.result.ai_generated">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                    Rule-based
+                                </span>
+                            </template>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <!-- Effort badge -->
+                            <template x-if="rem.result">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold border"
+                                    :class="{
+                                        'bg-red-900/30 text-red-300 border-red-700/50': rem.result.estimated_effort === 'high',
+                                        'bg-amber-900/30 text-amber-300 border-amber-700/50': rem.result.estimated_effort === 'medium',
+                                        'bg-emerald-900/30 text-emerald-300 border-emerald-700/50': rem.result.estimated_effort === 'low'
+                                    }"
+                                    x-text="(rem.result.estimated_effort || 'medium') + ' effort'"></span>
+                            </template>
+                            <!-- Copy button -->
+                            <button @click="copySteps()" title="Copy steps to clipboard"
+                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 border border-slate-700 rounded-lg hover:border-slate-500 hover:text-white transition-colors">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                <span x-text="rem.copied ? 'Copied!' : 'Copy'"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="p-5">
+                        <ol class="space-y-3" x-show="rem.result">
+                            <template x-for="(step, idx) in (rem.result ? rem.result.steps : [])" :key="idx">
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-600/20 text-violet-300 text-xs font-bold flex items-center justify-center mt-0.5" x-text="idx + 1"></span>
+                                    <p class="text-sm text-slate-300 leading-relaxed" x-text="step"></p>
+                                </li>
+                            </template>
+                        </ol>
+
+                        <!-- References -->
+                        <div x-show="rem.result && rem.result.references && rem.result.references.length" class="mt-5 pt-4 border-t border-slate-800">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">References</p>
+                            <div class="space-y-1">
+                                <template x-for="(ref, i) in (rem.result ? rem.result.references : [])" :key="i">
+                                    <a :href="ref" target="_blank" rel="noopener noreferrer"
+                                        class="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                        <span x-text="ref"></span>
+                                    </a>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- TAB 3: Natural Language Search                                       -->
+    <!-- ================================================================== -->
+    <div x-show="activeTab === 'search'" x-transition>
+        <div class="space-y-5">
+
+            <!-- Search input -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Natural Language Query</label>
+                <div class="relative">
+                    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" x-model="nl.query"
+                        @input="nlSearchDebounced()"
+                        placeholder="e.g. show me targets with critical SSL findings, or find admin panels with high severity issues"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-xl pl-12 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent placeholder-slate-600 transition-colors">
+                </div>
+                <!-- Example queries -->
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <span class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider self-center">Examples:</span>
+                    <template x-for="example in nl.examples" :key="example">
+                        <button @click="nl.query = example; nlSearch()"
+                            class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 rounded-lg transition-colors">
+                            <span x-text="example"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Interpretation + filter pills -->
+            <div x-show="nl.interpretation" class="flex flex-wrap items-center gap-3">
+                <svg class="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-xs text-slate-400" x-text="nl.interpretation"></span>
+                <template x-if="nl.filters && Object.keys(nl.filters).length">
+                    <div class="flex flex-wrap gap-1.5">
+                        <template x-for="[k, v] in Object.entries(nl.filters)" :key="k">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-900/30 text-violet-300 border border-violet-700/40" x-text="k + ': ' + v"></span>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Loading indicator -->
+            <div x-show="nl.loading" class="flex items-center gap-3 text-sm text-slate-400">
+                <svg class="w-4 h-4 animate-spin text-violet-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Searching...
+            </div>
+
+            <!-- Results -->
+            <div x-show="nl.searched && !nl.loading">
+                <!-- No results -->
+                <div x-show="!nl.results.length" class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                    <svg class="w-10 h-10 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <p class="text-slate-500 text-sm">No findings match your query.</p>
+                    <p class="text-slate-600 text-xs mt-1">Try broadening the search or changing the severity/module terms.</p>
+                </div>
+
+                <!-- Results list -->
+                <div x-show="nl.results.length > 0" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/40">
+                        <span class="text-sm font-medium text-white" x-text="nl.results.length + ' result' + (nl.results.length === 1 ? '' : 's') + (nl.total > nl.results.length ? ' (showing first ' + nl.results.length + ' of ' + nl.total + ')' : '')"></span>
+                    </div>
+                    <div class="divide-y divide-slate-800/50">
+                        <template x-for="(r, idx) in nl.results" :key="idx">
+                            <a :href="'/targets/' + r.target_id"
+                                class="flex items-center gap-4 px-4 py-3 hover:bg-slate-800/20 transition-colors group">
+                                <!-- Severity dot -->
+                                <span class="shrink-0 w-2 h-2 rounded-full"
+                                    :class="{
+                                        'bg-red-500': r.severity === 'critical',
+                                        'bg-orange-500': r.severity === 'high',
+                                        'bg-amber-500': r.severity === 'medium',
+                                        'bg-blue-500': r.severity === 'low',
+                                        'bg-slate-500': !['critical','high','medium','low'].includes(r.severity)
+                                    }"></span>
+                                <!-- Domain -->
+                                <span class="shrink-0 font-mono text-xs text-indigo-300 group-hover:text-indigo-200 w-40 truncate" x-text="r.domain"></span>
+                                <!-- Finding title -->
+                                <span class="flex-1 text-xs text-slate-300 truncate" x-text="r.finding_title"></span>
+                                <!-- Severity badge -->
+                                <span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+                                    :class="{
+                                        'bg-red-900/60 text-red-200 border border-red-700/50': r.severity === 'critical',
+                                        'bg-orange-900/60 text-orange-200 border border-orange-700/50': r.severity === 'high',
+                                        'bg-amber-900/60 text-amber-200 border border-amber-700/50': r.severity === 'medium',
+                                        'bg-blue-900/60 text-blue-200 border border-blue-700/50': r.severity === 'low',
+                                        'bg-slate-800 text-slate-400 border border-slate-700': !['critical','high','medium','low'].includes(r.severity)
+                                    }"
+                                    x-text="r.severity"></span>
+                                <!-- Module chip -->
+                                <span class="shrink-0 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded hidden sm:inline"
+                                    x-text="r.module.replace(/_scanner$/, '').replace(/_/g, ' ')"></span>
+                                <!-- Arrow -->
+                                <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </a>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompt when not yet searched -->
+            <div x-show="!nl.searched && !nl.loading && !nl.query" class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+                <svg class="w-12 h-12 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <p class="text-slate-500 text-sm">Type a natural language query above to search across all findings.</p>
+                <p class="text-slate-600 text-xs mt-1">Results update automatically as you type.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function aiAssistant() {
+    return {
+        activeTab: 'prioritize',
+
+        prio: {
+            targetId: '',
+            loading: false,
+            error: '',
+            results: [],
+            aiGenerated: false,
+        },
+
+        rem: {
+            title: '',
+            description: '',
+            severity: 'medium',
+            domain: '',
+            loading: false,
+            error: '',
+            result: null,
+            copied: false,
+            quickFindings: [],
+        },
+
+        nl: {
+            query: '',
+            loading: false,
+            searched: false,
+            results: [],
+            total: 0,
+            interpretation: '',
+            filters: {},
+            debounceTimer: null,
+            examples: [
+                'show me critical SSL findings',
+                'targets with high severity CORS issues',
+                'critical DNS findings',
+                'email security high severity',
+                'targets with exposed admin panels',
+            ],
+        },
+
+        init() {
+            // Nothing to pre-load; targets are injected server-side
+        },
+
+        // ----------------------------------------------------------------
+        // Finding Prioritisation
+        // ----------------------------------------------------------------
+        async prioritize() {
+            if (!this.prio.targetId) return;
+            this.prio.loading = true;
+            this.prio.error = '';
+            this.prio.results = [];
+            try {
+                const resp = await fetch('/api/ai/prioritize-findings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_id: parseInt(this.prio.targetId) }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || `Server error ${resp.status}`);
+                }
+                const data = await resp.json();
+                this.prio.results = data.findings || [];
+                this.prio.aiGenerated = data.ai_generated || false;
+                if (!this.prio.results.length) {
+                    this.prio.error = data.message || 'No findings found for this target.';
+                }
+            } catch (e) {
+                this.prio.error = e.message || 'An unexpected error occurred.';
+            } finally {
+                this.prio.loading = false;
+            }
+        },
+
+        // ----------------------------------------------------------------
+        // Remediation Assistant
+        // ----------------------------------------------------------------
+        async quickSelectFinding(event) {
+            const targetId = event.target.value;
+            const domain = event.target.selectedOptions[0]?.dataset.domain || '';
+            if (!targetId) return;
+            this.rem.domain = domain;
+            this.rem.quickFindings = [];
+            try {
+                const resp = await fetch('/api/ai/prioritize-findings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_id: parseInt(targetId) }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.rem.quickFindings = (data.findings || []).slice(0, 20);
+                }
+            } catch (_) {}
+        },
+
+        applyQuickFinding(event) {
+            const idx = parseInt(event.target.value);
+            if (isNaN(idx)) return;
+            const f = this.rem.quickFindings[idx];
+            if (!f) return;
+            this.rem.title = f.title || '';
+            this.rem.severity = f.severity || 'medium';
+            this.rem.description = f.rationale || '';
+        },
+
+        async remediate() {
+            if (!this.rem.title.trim()) return;
+            this.rem.loading = true;
+            this.rem.error = '';
+            this.rem.result = null;
+            this.rem.copied = false;
+            try {
+                const resp = await fetch('/api/ai/remediate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        finding_title: this.rem.title,
+                        finding_description: this.rem.description,
+                        severity: this.rem.severity,
+                        domain: this.rem.domain,
+                    }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || `Server error ${resp.status}`);
+                }
+                this.rem.result = await resp.json();
+            } catch (e) {
+                this.rem.error = e.message || 'An unexpected error occurred.';
+            } finally {
+                this.rem.loading = false;
+            }
+        },
+
+        async copySteps() {
+            if (!this.rem.result || !this.rem.result.steps) return;
+            const text = this.rem.result.steps
+                .map((s, i) => `${i + 1}. ${s}`)
+                .join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                this.rem.copied = true;
+                setTimeout(() => { this.rem.copied = false; }, 2000);
+            } catch (_) {
+                // Fallback: select a temp textarea
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.top = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                this.rem.copied = true;
+                setTimeout(() => { this.rem.copied = false; }, 2000);
+            }
+        },
+
+        // ----------------------------------------------------------------
+        // Natural Language Search
+        // ----------------------------------------------------------------
+        nlSearchDebounced() {
+            clearTimeout(this.nl.debounceTimer);
+            if (!this.nl.query.trim()) {
+                this.nl.searched = false;
+                this.nl.results = [];
+                this.nl.interpretation = '';
+                this.nl.filters = {};
+                return;
+            }
+            this.nl.debounceTimer = setTimeout(() => this.nlSearch(), 500);
+        },
+
+        async nlSearch() {
+            if (!this.nl.query.trim()) return;
+            this.nl.loading = true;
+            this.nl.searched = false;
+            try {
+                const url = '/api/ai/nl-search?q=' + encodeURIComponent(this.nl.query);
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+                const data = await resp.json();
+                this.nl.results = data.results || [];
+                this.nl.total = data.total || this.nl.results.length;
+                this.nl.interpretation = data.query_interpreted || '';
+                this.nl.filters = data.filters_applied || {};
+                this.nl.searched = true;
+            } catch (e) {
+                this.nl.results = [];
+                this.nl.interpretation = 'Search error: ' + e.message;
+                this.nl.searched = true;
+            } finally {
+                this.nl.loading = false;
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

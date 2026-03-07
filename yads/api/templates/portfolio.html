@@ -1,0 +1,398 @@
+
+{% extends "base.html" %}
+
+{% block main_classes %}flex-1 w-full mx-auto py-6 sm:px-6 lg:px-8{% endblock %}
+
+{% block content %}
+<div class="container px-4 py-8 mx-auto">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Multi-Domain Portfolio</h1>
+            <p class="mt-1 text-sm text-gray-400">Platform-wide security posture across all tenants</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="refreshStats()" id="refreshBtn"
+                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">
+                <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Global KPI Cards (populated by JS) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <!-- Tenants -->
+        <div class="p-5 bg-gray-800 border border-gray-700 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-medium tracking-wider text-gray-400 uppercase">Tenants</span>
+                <div class="p-2 bg-blue-500/10 rounded-lg">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="kpi-tenants text-2xl font-bold text-white">
+                <div class="h-7 w-12 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Active tenants</p>
+        </div>
+
+        <!-- Total Domains -->
+        <div class="p-5 bg-gray-800 border border-gray-700 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-medium tracking-wider text-gray-400 uppercase">Domains</span>
+                <div class="p-2 bg-teal-500/10 rounded-lg">
+                    <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="kpi-domains text-2xl font-bold text-white">
+                <div class="h-7 w-12 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Active targets</p>
+        </div>
+
+        <!-- Critical Findings -->
+        <div class="p-5 bg-gray-800 border border-gray-700 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-medium tracking-wider text-gray-400 uppercase">Critical</span>
+                <div class="p-2 bg-red-500/10 rounded-lg">
+                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="kpi-critical text-2xl font-bold text-red-400">
+                <div class="h-7 w-12 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Critical findings</p>
+        </div>
+
+        <!-- High Findings -->
+        <div class="p-5 bg-gray-800 border border-gray-700 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-medium tracking-wider text-gray-400 uppercase">High</span>
+                <div class="p-2 bg-orange-500/10 rounded-lg">
+                    <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="kpi-high text-2xl font-bold text-orange-400">
+                <div class="h-7 w-12 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">High findings</p>
+        </div>
+    </div>
+
+    <!-- Tenant Table -->
+    <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden">
+
+        <!-- Table Toolbar -->
+        <div class="px-6 py-4 border-b border-gray-700 flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold text-gray-200">Tenant Overview</h2>
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+                    </svg>
+                    <input id="tenantSearch" type="text" placeholder="Filter tenants..."
+                           oninput="filterTable(this.value)"
+                           class="pl-9 pr-4 py-2 text-sm bg-gray-900 border border-gray-600 text-white rounded-lg
+                                  focus:outline-none focus:border-blue-500 transition-colors w-52">
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Skeleton -->
+        <div id="tableSkeleton" class="divide-y divide-gray-700">
+            {% for _ in range(4) %}
+            <div class="px-6 py-4 flex gap-6 animate-pulse">
+                <div class="h-4 bg-gray-700 rounded w-36"></div>
+                <div class="h-4 bg-gray-700 rounded w-16"></div>
+                <div class="h-4 bg-gray-700 rounded w-12"></div>
+                <div class="h-4 bg-gray-700 rounded w-10"></div>
+                <div class="h-4 bg-gray-700 rounded w-10"></div>
+                <div class="h-4 bg-gray-700 rounded w-10"></div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Real Table (hidden until loaded) -->
+        <div id="tableWrapper" class="hidden overflow-x-auto">
+            <table class="w-full text-left table-auto">
+                <thead class="bg-gray-900/50 border-b border-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Tenant</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Plan</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Domains</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Critical</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">High</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Score</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Last Scan</th>
+                        <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tenantTableBody" class="divide-y divide-gray-700 text-gray-300">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+
+            <!-- Empty state -->
+            <div id="emptyState" class="hidden text-center py-12 text-gray-500">
+                No tenants match your search.
+            </div>
+        </div>
+
+        <!-- Error state -->
+        <div id="errorState" class="hidden px-6 py-10 text-center">
+            <p class="text-red-400 text-sm">Failed to load portfolio data. Please refresh.</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ---------------------------------------------------------------------------
+    // Grade badge helper
+    // ---------------------------------------------------------------------------
+    function gradeBadge(grade) {
+        if (!grade) {
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400 border border-gray-600">N/A</span>';
+        }
+        const colors = {
+            'A': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
+            'B': 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30',
+            'C': 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+            'D': 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+            'F': 'text-red-400 bg-red-400/10 border-red-400/30',
+        };
+        const cls = colors[grade] || 'text-gray-400 bg-gray-700 border-gray-600';
+        return `<span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold border ${cls}">${grade}</span>`;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Plan badge helper
+    // ---------------------------------------------------------------------------
+    function planBadge(plan) {
+        const colors = {
+            'Enterprise': 'text-purple-300 bg-purple-500/10 border-purple-500/30',
+            'Pro':        'text-blue-300 bg-blue-500/10 border-blue-500/30',
+            'Standard':   'text-gray-300 bg-gray-700 border-gray-600',
+        };
+        const cls = colors[plan] || 'text-gray-300 bg-gray-700 border-gray-600';
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}">${plan}</span>`;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Format date
+    // ---------------------------------------------------------------------------
+    function fmtDate(iso) {
+        if (!iso) return '<span class="text-gray-500">Never</span>';
+        try {
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' });
+        } catch {
+            return iso;
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Build a table row for one tenant
+    // ---------------------------------------------------------------------------
+    function buildRow(t) {
+        const topDomainsHtml = t.top_domains && t.top_domains.length
+            ? t.top_domains.map(d =>
+                `<div class="flex items-center justify-between py-1">
+                    <span class="font-mono text-xs text-gray-300">${escHtml(d.domain)}</span>
+                    <span class="ml-4 text-xs text-gray-400">${d.findings} finding${d.findings !== 1 ? 's' : ''}</span>
+                </div>`
+              ).join('')
+            : '<p class="text-xs text-gray-500 italic">No findings recorded</p>';
+
+        const scoreLabel = t.security_score !== null ? `${t.security_score}` : '-';
+        const criticalClass = t.critical_findings > 0 ? 'text-red-400 font-bold' : 'text-gray-400';
+        const highClass = t.high_findings > 0 ? 'text-orange-400 font-semibold' : 'text-gray-400';
+
+        return `
+        <tr class="hover:bg-gray-700/40 transition-colors tenant-row" data-name="${escHtml(t.tenant_name.toLowerCase())}">
+            <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleExpand(${t.tenant_id})"
+                            class="text-gray-500 hover:text-gray-300 transition-colors expand-btn"
+                            title="Toggle top domains">
+                        <svg id="chevron-${t.tenant_id}" class="w-4 h-4 transition-transform" fill="none"
+                             stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                    <div>
+                        <div class="font-semibold text-white">${escHtml(t.tenant_name)}</div>
+                        <div class="text-xs text-gray-500">ID #${t.tenant_id}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-6 py-4">${planBadge(t.plan)}</td>
+            <td class="px-6 py-4">
+                <span class="font-medium text-white">${t.active_targets}</span>
+                ${t.total_targets !== t.active_targets
+                    ? `<span class="ml-1 text-xs text-gray-500">/ ${t.total_targets}</span>`
+                    : ''}
+            </td>
+            <td class="px-6 py-4 ${criticalClass}">${t.critical_findings}</td>
+            <td class="px-6 py-4 ${highClass}">${t.high_findings}</td>
+            <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                    ${gradeBadge(t.security_grade)}
+                    <span class="text-xs text-gray-500">${scoreLabel}</span>
+                </div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-400">${fmtDate(t.last_scan_at)}</td>
+            <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                    <a href="/admin/impersonate/${t.tenant_id}"
+                       class="px-3 py-1 text-xs font-bold text-teal-300 bg-teal-900/30 border border-teal-800/50
+                              rounded hover:bg-teal-800/50 transition-colors">
+                        View as Tenant
+                    </a>
+                    <a href="/tenants"
+                       class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700
+                              rounded hover:bg-slate-700 transition-colors">
+                        Manage
+                    </a>
+                </div>
+            </td>
+        </tr>
+        <!-- Expandable top domains sub-row -->
+        <tr id="expand-${t.tenant_id}" class="hidden bg-gray-900/30 tenant-expand-row">
+            <td colspan="8" class="px-14 py-3 border-b border-gray-700/50">
+                <div class="max-w-md">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Top Domains by Finding Count</p>
+                    ${topDomainsHtml}
+                </div>
+            </td>
+        </tr>`;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Expand / collapse top-domain row
+    // ---------------------------------------------------------------------------
+    function toggleExpand(tenantId) {
+        const row = document.getElementById('expand-' + tenantId);
+        const chevron = document.getElementById('chevron-' + tenantId);
+        if (!row) return;
+        row.classList.toggle('hidden');
+        chevron.classList.toggle('rotate-90');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Filter rows by tenant name
+    // ---------------------------------------------------------------------------
+    function filterTable(query) {
+        const q = query.toLowerCase().trim();
+        let visible = 0;
+        document.querySelectorAll('.tenant-row').forEach(row => {
+            const name = row.getAttribute('data-name') || '';
+            const expandId = row.querySelector('[id^="chevron-"]');
+            const tenantId = expandId ? expandId.id.replace('chevron-', '') : null;
+            const show = !q || name.includes(q);
+            row.classList.toggle('hidden', !show);
+            // Also hide expand row
+            if (tenantId) {
+                const expandRow = document.getElementById('expand-' + tenantId);
+                if (expandRow) expandRow.classList.add('hidden');
+            }
+            if (show) visible++;
+        });
+        document.getElementById('emptyState').classList.toggle('hidden', visible > 0);
+    }
+
+    // ---------------------------------------------------------------------------
+    // HTML escape
+    // ---------------------------------------------------------------------------
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Load stats from API
+    // ---------------------------------------------------------------------------
+    async function loadStats() {
+        try {
+            const res = await fetch('/api/portfolio/stats');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+
+            // Update KPI cards
+            document.querySelector('.kpi-tenants').textContent = data.totals.total_tenants;
+            document.querySelector('.kpi-domains').textContent = data.totals.active_targets;
+            document.querySelector('.kpi-critical').textContent = data.totals.critical_findings;
+            document.querySelector('.kpi-high').textContent = data.totals.high_findings;
+
+            // Build table rows
+            const tbody = document.getElementById('tenantTableBody');
+            if (!data.tenants || data.tenants.length === 0) {
+                tbody.innerHTML = '';
+                document.getElementById('emptyState').classList.remove('hidden');
+            } else {
+                tbody.innerHTML = data.tenants.map(buildRow).join('');
+            }
+
+            // Show table, hide skeleton
+            document.getElementById('tableSkeleton').classList.add('hidden');
+            document.getElementById('tableWrapper').classList.remove('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+
+        } catch (err) {
+            console.error('Portfolio stats error:', err);
+            document.getElementById('tableSkeleton').classList.add('hidden');
+            document.getElementById('errorState').classList.remove('hidden');
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Refresh button
+    // ---------------------------------------------------------------------------
+    function refreshStats() {
+        const icon = document.getElementById('refreshIcon');
+        icon.classList.add('animate-spin');
+
+        // Show skeleton again
+        document.getElementById('tableSkeleton').classList.remove('hidden');
+        document.getElementById('tableWrapper').classList.add('hidden');
+        document.getElementById('errorState').classList.add('hidden');
+        document.getElementById('tenantTableBody').innerHTML = '';
+
+        // Reset KPI cards to pulse skeleton
+        ['kpi-tenants', 'kpi-domains', 'kpi-critical', 'kpi-high'].forEach(cls => {
+            document.querySelector('.' + cls).innerHTML =
+                '<div class="h-7 w-12 bg-gray-700 rounded animate-pulse"></div>';
+        });
+
+        loadStats().finally(() => {
+            icon.classList.remove('animate-spin');
+        });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Init
+    // ---------------------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+{% endblock %}

@@ -17,29 +17,25 @@ from yads.models import ScanResult, Target, User
 
 router = APIRouter(prefix="/attack-surface", tags=["analytics"])
 
-# Same modules as security_findings, ordered for display
-MODULES = [
-    ("email_security",      "Email Sec."),
-    ("axfr_scanner",        "AXFR"),
-    ("security_txt",        "Sec.txt"),
-    ("http_headers",        "Headers"),
-    ("cookie_scanner",      "Cookies"),
-    ("cors_scanner",        "CORS"),
-    ("cert_mismatch",       "Cert"),
-    ("shodan_censys",       "Shodan"),
-    ("threat_intel",        "Threat"),
-    ("subdomain_takeover",  "Takeover"),
-    ("git_exposure",        "Git"),
-    ("js_secrets",          "JS Sec."),
-    ("wayback_scanner",     "Wayback"),
-    ("external_resources",  "ExtRes."),
-    ("metadata_scanner",    "Meta"),
-    ("rpki_scanner",        "RPKI"),
-    ("dsgvo_scanner",       "GDPR"),
-    ("nuclei_scanner",      "Nuclei"),
-    ("ssl_scanner",         "SSL"),
+from yads.core.module_registry import REGISTRY, get_finding_modules
+
+# Use finding modules from registry plus a few key non-finding modules for coverage
+_HEATMAP_MODULE_NAMES = get_finding_modules() + [
+    m for m in ["ssl_scanner", "nuclei_scanner", "nmap_scanner", "banner_grabber"]
+    if m not in get_finding_modules()
+]
+# Deduplicate preserving order
+seen = set()
+_HEATMAP_MODULE_NAMES = [
+    m for m in _HEATMAP_MODULE_NAMES
+    if not (m in seen or seen.add(m))
 ]
 
+MODULES = [
+    (name, REGISTRY[name].label[:8] if len(REGISTRY[name].label) > 8 else REGISTRY[name].label)
+    for name in _HEATMAP_MODULE_NAMES
+    if name in REGISTRY
+]
 MODULE_NAMES = [m for m, _ in MODULES]
 
 SEV_ORDER = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, "clean": 0}

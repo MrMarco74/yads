@@ -1,7 +1,25 @@
+"""
+Cloud Misconfiguration Scanner (Extended) (#26)
+
+Checks for exposed/misconfigured cloud storage and services:
+  - AWS S3 (public buckets, ACL misconfig)
+  - Google Cloud Storage
+  - Azure Blob Storage
+  - DigitalOcean Spaces
+  - Firebase / GCP App Engine
+  - GitHub Pages / Netlify / Vercel / Heroku (shadow IT)
+  - Cloudflare R2
+  - Generates severity-rated findings
+"""
+
 import requests
 import logging
 from typing import Any, Dict, List, Optional
 from yads.core.base import BaseScannerModule
+
+
+TIMEOUT = 3
+
 
 class CloudScanner(BaseScannerModule):
     @property
@@ -13,124 +31,202 @@ class CloudScanner(BaseScannerModule):
         self.logger = logging.getLogger("yads.modules.cloud_scanner")
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Scans for Shadow IT cloud assets (buckets/blobs) related to the target.
-        """
-        self.logger.info(f"Starting Cloud Asset scan for: {target}")
-        
-        # 1. Generate Permutations
-        # Extract base name (e.g., "example.com" -> "example")
-        parts = target.split('.')
+        self.logger.info(f"Starting extended Cloud Asset scan for: {target}")
+
+        parts = target.split(".")
         base_name = parts[0]
         if base_name == "www" and len(parts) > 1:
             base_name = parts[1]
-            
-        keywords = ["", "backup", "assets", "dev", "staging", "prod", "public", "internal", "data", "files", "images", "media", "static", "corp"]
-        separators = ["", "-", "."]
-        
-        candidates = set()
-        
-        # Add exact target permutations
-        # example.com -> example-com-backup
-        safe_target = target.replace('.', '-')
-        candidates.add(safe_target)
-        
+        # Safe DNS-friendly name
+        safe_target = target.replace(".", "-")
+
+        keywords = [
+            "", "backup", "assets", "dev", "staging", "prod", "public",
+            "internal", "data", "files", "images", "media", "static",
+            "corp", "api", "admin", "uploads", "logs", "archive",
+        ]
+        separators = ["", "-"]
+
+        candidates = {safe_target, base_name}
         for kw in keywords:
             for sep in separators:
                 if kw:
                     candidates.add(f"{base_name}{sep}{kw}")
                     candidates.add(f"{kw}{sep}{base_name}")
-                    # Also try with full safe target
                     candidates.add(f"{safe_target}{sep}{kw}")
-                else:
-                    candidates.add(base_name)
-        
-        # Limit to avoid timeouts
-        candidate_list = list(candidates)
-        # Prioritize shorter/simpler ones
-        candidate_list.sort(key=len)
-        candidate_list = candidate_list[:100]
-        
+
+        candidate_list = sorted(candidates, key=len)[:80]
+
+        assets = []
         findings = []
-        
-        # 2. Check Providers
-        # We look for existence (DNS/Response) and accessibility (200 vs 403)
-        providers = [
-            {"name": "AWS S3", "template": "https://{name}.s3.amazonaws.com"},
-            {"name": "Google Cloud", "template": "https://storage.googleapis.com/{name}"},
-            # Azure is tricky without container, but account existence check via DNS/HTTP is possible
-            {"name": "Azure Blob", "template": "https://{name}.blob.core.windows.net"},
+
+        # ── Object storage providers ──────────────────────────────────────
+        storage_providers = [
+            {
+                "name": "AWS S3",
+                "template": "https://{name}.s3.amazonaws.com",
+                "open_codes": [200],
+                "exists_codes": [403],
+                "not_found_codes": [404],
+            },
+            {
+                "name": "Google Cloud Storage",
+                "template": "https://storage.googleapis.com/{name}",
+                "open_codes": [200],
+                "exists_codes": [403],
+                "not_found_codes": [404],
+            },
+            {
+                "name": "Azure Blob Storage",
+                "template": "https://{name}.blob.core.windows.net",
+                "open_codes": [200],
+                "exists_codes": [400, 403],
+                "not_found_codes": [404],
+            },
+            {
+                "name": "DigitalOcean Spaces",
+                "template": "https://{name}.nyc3.digitaloceanspaces.com",
+                "open_codes": [200],
+                "exists_codes": [403],
+                "not_found_codes": [404],
+            },
+            {
+                "name": "DigitalOcean Spaces (AMS)",
+                "template": "https://{name}.ams3.digitaloceanspaces.com",
+                "open_codes": [200],
+                "exists_codes": [403],
+                "not_found_codes": [404],
+            },
+            {
+                "name": "Cloudflare R2",
+                "template": "https://{name}.r2.dev",
+                "open_codes": [200],
+                "exists_codes": [403],
+                "not_found_codes": [404],
+            },
         ]
 
-        self.logger.info(f"Checking {len(candidate_list)} permutations across {len(providers)} providers...")
+        self.logger.info(f"Checking {len(candidate_list)} names across {len(storage_providers)} storage providers...")
 
         for name in candidate_list:
-            if not name or len(name) < 3: continue
-            if not name.islower() and not name.replace('-','').isalnum(): continue # simple sanitize
-            
-            for prov in providers:
+            if not name or len(name) < 3:
+                continue
+            for prov in storage_providers:
                 url = prov["template"].format(name=name)
                 try:
-                    # Timeout must be short
-                    resp = requests.head(url, timeout=2, allow_redirects=True)
-                    
-                    status = "Unknown"
-                    found = False
-                    
-                    # AWS S3 Logic
-                    if prov["name"] == "AWS S3":
-                        if resp.status_code == 200:
-                            status = "Public (Open)"
-                            found = True
-                        elif resp.status_code == 403:
-                            status = "Protected (Exists)"
-                            found = True
-                        elif resp.status_code == 404:
-                            found = False # NoSuchBucket
-                            
-                    # GCS Logic
-                    elif prov["name"] == "Google Cloud":
-                        if resp.status_code == 200:
-                            status = "Public (Open)"
-                            found = True
-                        elif resp.status_code == 403:
-                            status = "Protected (Exists)"
-                            found = True
-                        elif resp.status_code == 404:
-                            found = False
-                            
-                    # Azure Logic
-                    elif prov["name"] == "Azure Blob":
-                        # Azure returns 400 (InvalidQueryParameterValue) if account exists but no container
-                        # ConnectionError (NXDOMAIN) if account doesn't exist
-                        # 404 resource not found means account exists but root not found? usually 400 for root
-                        if resp.status_code in [200, 403, 400]: 
-                            # 400 on root often means "Value for one of the query parameters..." -> Account exists!
-                            status = "Protected (Exists)"
-                            if resp.status_code == 200: status = "Public (Open)"
-                            found = True
-                        else:
-                            # 404 from Azure usually means AccountNotFound OR ContainerNotFound. 
-                            # But for root domain check, 404 usually means Account doesn't exist (DNS) or 
-                            # actually Azure Blob specifically returns 404 The specified account does not exist.
-                            found = False
+                    resp = requests.head(url, timeout=TIMEOUT, allow_redirects=True)
+                    status_code = resp.status_code
 
-                    if found:
+                    if status_code in prov["open_codes"]:
+                        status = "Public (Open)"
+                        severity = "high"
+                    elif status_code in prov["exists_codes"]:
+                        status = "Protected (Exists)"
+                        severity = "info"
+                    else:
+                        continue
+
+                    asset = {
+                        "provider": prov["name"],
+                        "bucket_name": name,
+                        "url": url,
+                        "status": status,
+                        "status_code": status_code,
+                        "severity": severity,
+                    }
+                    assets.append(asset)
+                    self.logger.info(f"Found {prov['name']} asset: {name} ({status})")
+
+                    if severity in ("high", "critical"):
                         findings.append({
-                            "provider": prov["name"],
-                            "bucket_name": name,
+                            "title": f"Public {prov['name']} Bucket: {name}",
+                            "description": (
+                                f"The cloud storage bucket '{name}' on {prov['name']} is publicly "
+                                f"accessible (HTTP {status_code}). This may expose sensitive data. "
+                                f"URL: {url}"
+                            ),
+                            "severity": "high",
                             "url": url,
-                            "status": status,
-                            "status_code": resp.status_code
+                            "category": "cloud_exposure",
                         })
-                        self.logger.info(f"Found {prov['name']} asset: {name} ({status})")
-                        
-                except requests.exceptions.ConnectionError:
-                    # DNS failure -> Does not exist
-                    pass
-                except Exception as e:
-                    # Timeouts etc
+                except Exception:
                     pass
 
-        self.logger.info(f"Cloud Asset scan finished. Found {len(findings)} assets.")
-        return {"assets": findings}
+        # ── Shadow IT: PaaS / hosting platforms ──────────────────────────
+        paas_providers = [
+            {"name": "GitHub Pages", "template": "https://{name}.github.io"},
+            {"name": "Netlify", "template": "https://{name}.netlify.app"},
+            {"name": "Vercel", "template": "https://{name}.vercel.app"},
+            {"name": "Heroku", "template": "https://{name}.herokuapp.com"},
+            {"name": "Firebase Hosting", "template": "https://{name}.web.app"},
+            {"name": "Firebase (Appspot)", "template": "https://{name}.appspot.com"},
+            {"name": "Render", "template": "https://{name}.onrender.com"},
+            {"name": "Railway", "template": "https://{name}.up.railway.app"},
+            {"name": "Fly.io", "template": "https://{name}.fly.dev"},
+        ]
+
+        # Check only high-value names (base name + a few variants) for PaaS
+        paas_candidates = [base_name, safe_target, f"{base_name}-app", f"{base_name}-api"]
+
+        self.logger.info(f"Checking {len(paas_candidates)} names across {len(paas_providers)} PaaS providers...")
+        for name in paas_candidates:
+            for prov in paas_providers:
+                url = prov["template"].format(name=name)
+                try:
+                    resp = requests.get(url, timeout=TIMEOUT, allow_redirects=True)
+                    # 200/301/302 = active site
+                    if resp.status_code in (200, 301, 302, 307, 308):
+                        # Exclude "default" pages (Netlify/Heroku default error pages)
+                        body_sample = resp.text[:500].lower() if hasattr(resp, "text") else ""
+                        is_default = any(x in body_sample for x in [
+                            "there's nothing here", "site not found", "no such app",
+                            "we couldn't find", "not deployed",
+                        ])
+                        if not is_default:
+                            assets.append({
+                                "provider": prov["name"],
+                                "bucket_name": name,
+                                "url": url,
+                                "status": "Active Hosting",
+                                "status_code": resp.status_code,
+                                "severity": "info",
+                            })
+                            findings.append({
+                                "title": f"Shadow IT: {prov['name']} hosting detected — {name}",
+                                "description": (
+                                    f"An active site was found at {url} on {prov['name']}. "
+                                    "This may indicate shadow IT or untracked infrastructure "
+                                    "associated with your domain."
+                                ),
+                                "severity": "low",
+                                "url": url,
+                                "category": "shadow_it",
+                            })
+                            self.logger.info(f"Found {prov['name']} active: {url}")
+                except Exception:
+                    pass
+
+        # ── Summary ──────────────────────────────────────────────────────
+        open_buckets = [a for a in assets if a["status"] == "Public (Open)"]
+        existing_buckets = [a for a in assets if a["status"] == "Protected (Exists)"]
+        shadow_it = [a for a in assets if a["status"] == "Active Hosting"]
+
+        summary = {
+            "total_assets_found": len(assets),
+            "open_buckets": len(open_buckets),
+            "protected_buckets": len(existing_buckets),
+            "shadow_it_detected": len(shadow_it),
+            "findings_count": len(findings),
+        }
+
+        self.logger.info(
+            f"Cloud scan complete: {len(assets)} assets found "
+            f"({len(open_buckets)} open, {len(existing_buckets)} protected, "
+            f"{len(shadow_it)} shadow IT)"
+        )
+
+        return {
+            "assets": assets,
+            "findings": findings,
+            "summary": summary,
+        }

@@ -688,6 +688,111 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # 33. Target scan_priority + TenantModuleConfig + InstalledModule (v1.20.0)
+        print(">> Adding target.scan_priority column (v1.20.0)...")
+        try:
+            conn.execute(text("ALTER TABLE target ADD COLUMN IF NOT EXISTS scan_priority INTEGER DEFAULT 5;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        print(">> Creating tenantmoduleconfig table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tenantmoduleconfig (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    module_name VARCHAR NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    updated_by INTEGER REFERENCES "user"(id)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_tenantmoduleconfig_tenant_module
+                    ON tenantmoduleconfig (tenant_id, module_name);
+                CREATE INDEX IF NOT EXISTS ix_tenantmoduleconfig_tenant_id ON tenantmoduleconfig (tenant_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating tenantmoduleconfig table: {e}")
+
+        print(">> Creating installedmodule table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS installedmodule (
+                    id SERIAL PRIMARY KEY,
+                    module_name VARCHAR NOT NULL UNIQUE,
+                    label VARCHAR NOT NULL,
+                    label_de VARCHAR DEFAULT '',
+                    category VARCHAR DEFAULT 'active',
+                    version VARCHAR DEFAULT '1.0.0',
+                    author VARCHAR DEFAULT '',
+                    description VARCHAR DEFAULT '',
+                    module_path VARCHAR NOT NULL,
+                    requires_http BOOLEAN DEFAULT FALSE,
+                    requires_https BOOLEAN DEFAULT FALSE,
+                    default_on BOOLEAN DEFAULT FALSE,
+                    finding_module BOOLEAN DEFAULT TRUE,
+                    extractor VARCHAR DEFAULT 'generic',
+                    installed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    installed_by INTEGER REFERENCES "user"(id),
+                    is_active BOOLEAN DEFAULT TRUE,
+                    setup_log TEXT
+                );
+                CREATE INDEX IF NOT EXISTS ix_installedmodule_module_name ON installedmodule (module_name);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating installedmodule table: {e}")
+
+        # 34. ScanProfile + IntegrationConfig tables (v1.20.0)
+        print(">> Creating scanprofile table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS scanprofile (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER REFERENCES tenant(id),
+                    created_by INTEGER REFERENCES "user"(id),
+                    name VARCHAR NOT NULL,
+                    description VARCHAR,
+                    scan_types JSONB DEFAULT '[]'::jsonb,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    is_public BOOLEAN DEFAULT FALSE,
+                    icon VARCHAR,
+                    color VARCHAR DEFAULT 'blue',
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_scanprofile_tenant_id ON scanprofile (tenant_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating scanprofile table: {e}")
+
+        print(">> Creating integrationconfig table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS integrationconfig (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    integration_type VARCHAR NOT NULL,
+                    config JSONB DEFAULT '{}'::jsonb,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    created_by INTEGER REFERENCES "user"(id)
+                );
+                CREATE INDEX IF NOT EXISTS ix_integrationconfig_tenant_id ON integrationconfig (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_integrationconfig_type ON integrationconfig (integration_type);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating integrationconfig table: {e}")
+
         print("\nMigration Complete!")
 
 

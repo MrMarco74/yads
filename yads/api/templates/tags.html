@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6" x-data="{
+    selectedIds: [],
+    bulkPanelOpen: false,
+    bulkTags: '',
+    bulkAction: 'add',
+    toggleSelect(id, checked) {
+        if (checked) { if (!this.selectedIds.includes(id)) this.selectedIds.push(id); }
+        else { this.selectedIds = this.selectedIds.filter(i => i !== id); }
+    },
+    toggleAll(checked) {
+        this.selectedIds = checked ? [{% for t in filtered_targets %}{{ t.id }}{% if not loop.last %},{% endif %}{% endfor %}] : [];
+    },
+    async applyBulk() {
+        if (this.selectedIds.length === 0) return;
+        const tags = this.bulkTags.split(',').map(t => t.trim()).filter(Boolean);
+        const res = await fetch('/api/tags/bulk-assign', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ target_ids: this.selectedIds, tags, action: this.bulkAction })
+        });
+        if (res.ok) { window.location.reload(); }
+        else { const d = await res.json(); alert('Error: ' + (d.detail || 'Unknown')); }
+    }
+}">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                Asset Tags
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">
+                    {{ all_tags|length }} tag{{ 's' if all_tags|length != 1 else '' }}
+                </span>
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Organise and classify assets with custom tags. Click a tag to filter targets.</p>
+        </div>
+        <button @click="bulkPanelOpen = !bulkPanelOpen"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 10V5a2 2 0 012-2z"/>
+            </svg>
+            Bulk Tag
+        </button>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-white">{{ total_targets }}</p>
+            <p class="text-xs text-slate-400 mt-1">Total Assets</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-indigo-400">{{ all_tags|length }}</p>
+            <p class="text-xs text-slate-400 mt-1">Unique Tags</p>
+        </div>
+        <div class="bg-slate-900 border border-amber-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-amber-400">{{ untagged_count }}</p>
+            <p class="text-xs text-slate-400 mt-1">Untagged Assets</p>
+        </div>
+        <div class="bg-slate-900 border border-emerald-900/50 rounded-xl p-4 text-center">
+            <p class="text-2xl font-bold text-emerald-400">{{ total_targets - untagged_count }}</p>
+            <p class="text-xs text-slate-400 mt-1">Tagged Assets</p>
+        </div>
+    </div>
+
+    <!-- Tag Cloud -->
+    {% if all_tags %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Tag Cloud</h2>
+        <div class="flex flex-wrap gap-2">
+            <a href="/tags"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                      {% if not selected_tag %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700{% endif %}">
+                All
+                <span class="bg-slate-700/60 text-slate-300 rounded-full px-1.5 py-0.5 text-[10px]">{{ total_targets }}</span>
+            </a>
+            {% for tag in all_tags %}
+            <a href="/tags?tag={{ tag | urlencode }}"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                      {% if selected_tag == tag %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700{% endif %}">
+                {{ tag }}
+                <span class="{% if selected_tag == tag %}bg-indigo-500/60{% else %}bg-slate-700/60{% endif %} text-slate-300 rounded-full px-1.5 py-0.5 text-[10px]">
+                    {{ tag_counts.get(tag, 0) }}
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Bulk Operations Panel -->
+    <div x-show="bulkPanelOpen" x-transition class="bg-slate-900 border border-indigo-700/50 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Bulk Tag Assignment</h2>
+        <div class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-48">
+                <label class="block text-xs text-slate-400 mb-1">Tags (comma-separated)</label>
+                <input x-model="bulkTags" type="text" placeholder="e.g. production, critical"
+                       class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Action</label>
+                <select x-model="bulkAction" class="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="add">Add tags</option>
+                    <option value="remove">Remove tags</option>
+                    <option value="replace">Replace all tags</option>
+                </select>
+            </div>
+            <button @click="applyBulk()"
+                    :disabled="selectedIds.length === 0"
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors">
+                Apply to <span x-text="selectedIds.length"></span> selected
+            </button>
+            <button @click="selectedIds = []" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">
+                Clear selection
+            </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">Select rows in the table below using the checkboxes, then apply the operation.</p>
+    </div>
+
+    <!-- Manage Tags Section -->
+    {% if all_tags %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Manage Tags</h2>
+        <p class="text-xs text-slate-500 mb-3">Most used tags — click Delete to remove a tag from all assets.</p>
+        <div class="space-y-2">
+            {% for tag_name, count in top_tags %}
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-300 font-mono w-44 truncate" title="{{ tag_name }}">{{ tag_name }}</span>
+                <div class="flex-1 bg-slate-800 rounded-full h-1.5">
+                    <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ [((count / total_targets) * 100)|int, 4]|max }}%"></div>
+                </div>
+                <span class="text-xs text-slate-500 w-8 text-right">{{ count }}</span>
+                <button onclick="deleteTag('{{ tag_name | e }}')"
+                        class="text-xs text-red-400 hover:text-red-300 px-2 py-0.5 rounded border border-red-900/50 hover:border-red-700 transition-colors">
+                    Delete
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Target List -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/40">
+            <h2 class="text-sm font-semibold text-slate-300">
+                {% if selected_tag %}
+                    Assets tagged "{{ selected_tag }}"
+                {% else %}
+                    All Assets
+                {% endif %}
+                <span class="ml-2 text-slate-500 font-normal text-xs">{{ filtered_targets|length }} asset{{ 's' if filtered_targets|length != 1 else '' }}</span>
+            </h2>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                <input type="checkbox" @change="toggleAll($event.target.checked)" class="rounded border-slate-600">
+                Select all
+            </label>
+        </div>
+
+        {% if filtered_targets %}
+        <div class="divide-y divide-slate-800/60">
+            {% for target in filtered_targets %}
+            <div class="flex items-start gap-3 px-4 py-3 hover:bg-slate-800/20 transition-colors"
+                 x-data="{
+                     editing: false,
+                     newTag: '',
+                     tags: {{ (target.tags or []) | tojson }},
+                     async doAddTag() {
+                         if (!this.newTag.trim()) return;
+                         const tag = this.newTag.trim();
+                         const res = await fetch('/targets/{{ target.id }}/tags', {
+                             method: 'POST',
+                             headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify({tag})
+                         });
+                         if (res.ok) { this.tags = await res.json(); }
+                         this.newTag = '';
+                         this.editing = false;
+                     },
+                     async doRemoveTag(tag) {
+                         const res = await fetch('/targets/{{ target.id }}/tags/' + encodeURIComponent(tag), {method: 'DELETE'});
+                         if (res.ok) { this.tags = await res.json(); }
+                     }
+                 }">
+
+                <!-- Checkbox -->
+                <input type="checkbox"
+                       @change="toggleSelect({{ target.id }}, $event.target.checked)"
+                       :checked="selectedIds.includes({{ target.id }})"
+                       class="mt-0.5 rounded border-slate-600 shrink-0">
+
+                <!-- Domain + tags -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <a href="/targets/{{ target.id }}" class="text-sm font-medium text-white hover:text-indigo-300 font-mono">{{ target.domain }}</a>
+
+                        <!-- Existing tag chips -->
+                        <template x-for="t in tags" :key="t">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">
+                                <span x-text="t"></span>
+                                <button @click="doRemoveTag(t)" class="text-indigo-400 hover:text-red-400 transition-colors leading-none ml-0.5" title="Remove tag">&times;</button>
+                            </span>
+                        </template>
+
+                        <!-- Add tag -->
+                        <template x-if="!editing">
+                            <button @click="editing = true"
+                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] text-slate-500 hover:text-indigo-300 border border-dashed border-slate-700 hover:border-indigo-600 transition-colors">
+                                + add tag
+                            </button>
+                        </template>
+                        <template x-if="editing">
+                            <div class="flex items-center gap-1">
+                                <input x-model="newTag"
+                                       @keydown.enter.prevent="doAddTag()"
+                                       @keydown.escape="editing = false; newTag = ''"
+                                       x-ref="ti"
+                                       x-init="$nextTick(() => { if($refs.ti) $refs.ti.focus() })"
+                                       placeholder="tag name…"
+                                       class="bg-slate-800 border border-indigo-600 text-slate-200 text-xs rounded px-2 py-0.5 w-28 focus:outline-none">
+                                <button @click="doAddTag()" class="text-xs text-indigo-400 hover:text-indigo-200">Add</button>
+                                <button @click="editing = false; newTag = ''" class="text-xs text-slate-500 hover:text-slate-300">Cancel</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Status badge -->
+                <span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium mt-0.5
+                    {% if target.scan_status == 'running' %}bg-amber-900/50 text-amber-300
+                    {% elif target.scan_status == 'failed' %}bg-red-900/50 text-red-300
+                    {% else %}bg-slate-800 text-slate-500{% endif %}">
+                    {{ target.scan_status }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <svg class="w-10 h-10 text-slate-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 10V5a2 2 0 012-2z"/>
+            </svg>
+            <p class="text-white font-semibold">No assets found</p>
+            {% if selected_tag %}
+            <p class="text-slate-400 text-sm mt-1">No assets are tagged "{{ selected_tag }}".</p>
+            <a href="/tags" class="mt-3 inline-block text-xs text-indigo-400 hover:text-indigo-300">Clear filter</a>
+            {% else %}
+            <p class="text-slate-400 text-sm mt-1">No targets have been added yet.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+async function deleteTag(tagName) {
+    if (!confirm(`Remove tag "${tagName}" from all assets? This cannot be undone.`)) return;
+    try {
+        const res = await fetch('/api/tags/' + encodeURIComponent(tagName), {method: 'DELETE'});
+        const data = await res.json();
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Request failed: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

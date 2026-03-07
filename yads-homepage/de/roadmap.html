@@ -194,6 +194,123 @@
     <div class="container">
         <div class="roadmap-container">
 
+            <!-- KI-Intelligence-Suite -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🤖</span>
+                    <h2 class="section-title">KI-Intelligence-Suite <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Eine vollständige KI-gestützte Sicherheitsanalyseschicht, direkt in YADS integriert. Nutzt Ihren eigenen OpenAI- oder Anthropic-API-Schlüssel (BYOK-Modell) mit intelligenten regelbasierten Fallbacks, wenn kein KI-Schlüssel konfiguriert ist. Alle Ausgaben sind auf Englisch und Deutsch verfügbar.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>KI-Befundpriorisierung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Ordnet alle Befunde eines Ziels nach Ausnutzbarkeit und Geschäftsauswirkung. Unterstützt OpenAI (gpt-4o-mini) und Anthropic (claude-haiku-4-5) mit mandantenspezifischem BYOK. Enthält regelbasierten Fallback mit Schweregradwertung und Keyword-Boosting (RCE, SSRF, Injection, XSS usw.) wenn kein KI-Schlüssel konfiguriert ist.</td>
+                            </tr>
+                            <tr>
+                                <td>KI-Maßnahmenassistent <span class="status-badge available">Verfügbar</span></td>
+                                <td>Erzeugt schrittweise Behebungsanleitungen für jeden ausgewählten Befund mit Aufwandsschätzung (gering/mittel/hoch) und Referenz-URLs. Regelbasierter Fallback deckt 10+ Schwachstellenklassen ab: CORS, XSS, SQL-Injection, SSL/TLS, HTTP-Header, DNS-Zonentransfer, Cookie-Sicherheit, CSRF, RCE und offene Weiterleitungen.</td>
+                            </tr>
+                            <tr>
+                                <td>Natürlichsprachige Suche <span class="status-badge available">Verfügbar</span></td>
+                                <td>Durchsucht Befunde über alle überwachten Assets in natürlicher Sprache. Beispiele: "kritische Nuclei-Befunde auf staging.example.com", "alle hohen SSL-Probleme", "E-Mail-Sicherheitsprobleme diesen Monat". Live-Suche mit KI-geparsten oder Regex-extrahierten Filterchips (Schweregrad, Modul, Domain).</td>
+                            </tr>
+                            <tr>
+                                <td>KI-Mehrsprachige Ausgabe <span class="status-badge available">Verfügbar</span></td>
+                                <td>Alle KI-Endpunkte akzeptieren einen <code>lang=de</code>-Parameter. KI-generierte Begründungen, Maßnahmenempfehlungen und Suchinterpretationen werden auf Deutsch ausgegeben. Regelbasierte Fallbacks sind ebenfalls vollständig übersetzt, inklusive Aufwandsbezeichnungen und Begründungsstrings.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Executive- &amp; Portfolio-Reporting -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">📊</span>
+                    <h2 class="section-title">Executive- &amp; Portfolio-Reporting <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Neue hochrangige Ansichten für Sicherheitsmanagement, C-Level-Reporting und mandantenübergreifende Sichtbarkeit für Plattformadministratoren.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Executive Report (C-Level) <span class="status-badge available">Verfügbar</span></td>
+                                <td>Nicht-technische Sicherheitszusammenfassung mit: Bewertungskreis (A–F), numerischem Score (0–100), Risikotrend (verbessert/stabil/verschlechtert), KPI-Karten, segmentiertem Risikoverteilungsbalken, Top 5 Risikotypen, Top 5 gefährdetste Assets und priorisierten Handlungsempfehlungen. Mit Druckstylessheet für sofortige PDF-Ausgabe.</td>
+                            </tr>
+                            <tr>
+                                <td>Angriffspfad-Visualisierer <span class="status-badge available">Verfügbar</span></td>
+                                <td>D3.js-Kraftgerichteter-Graph der Angriffsfläche eines gescannten Ziels. Knoten: Host, offene Ports (risikofarbig), Dienste/Technologien (mit CVE-Anzahl), Befunde. Gerichtete Kanten modellieren Ausnutzungsketten zwischen Hoch/Kritisch-Befunden. Zoom/Schwenk, ziehbares Layout, Ein-Klick-Angriffspfadnavigation.</td>
+                            </tr>
+                            <tr>
+                                <td>Multi-Domain-Portfolio-Ansicht <span class="status-badge available">Verfügbar</span></td>
+                                <td>Plattformadmin-Ansicht mit mandantenübergreifenden Statistiken: Domain-Anzahl, kritische/hohe Befunde, durchschnittlicher Sicherheitsscore (A–F-Badge), Plantier, letzter Scan. Erweiterbare Zeilen zeigen Top 3 gefährdetste Domains pro Mandant. Mit globalen KPI-Karten und "Als Mandant anzeigen"-Link.</td>
+                            </tr>
+                            <tr>
+                                <td>Mehrsprachige PDF- &amp; Excel-Exporte <span class="status-badge available">Verfügbar</span></td>
+                                <td>Alle Exporte akzeptieren jetzt <code>?lang=en</code> oder <code>?lang=de</code>. Deutsche Exporte übersetzen Spaltenüberschriften, Abschnittstitel, Befundbezeichnungen und alle festen Strings in beiden Formaten (PDF und Excel).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Befundmanagement &amp; Asset-Organisation -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <h2 class="section-title">Befundmanagement &amp; Asset-Organisation <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Werkzeuge zur Verfolgung des vollständigen Behebungslebenszyklus von Sicherheitsbefunden und zur Organisation von Assets für bessere Betriebssichtbarkeit.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Befundstatus-Verfolgung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Verfolgen Sie den Lebenszyklus jedes Befunds mit vier Zuständen: Offen, Bestätigt, Falsch-Positiv, Behoben. Analytikernotizen pro Befund hinzufügen. Status übersteht Neuüberprüfungen und wird durch deterministischen Hash von domain|modul|problem identifiziert. Farbcodierte Badges und Statusfilter auf der Sicherheitsbefunde-Seite.</td>
+                            </tr>
+                            <tr>
+                                <td>Befunde-CSV-Export <span class="status-badge available">Verfügbar</span></td>
+                                <td>Exportiert alle Befunde als CSV mit vollständiger Filterunterstützung (Schweregrad, Status, Modul, Domain, Datumsbereich). Spalten: Domain, Titel, Schweregrad, Modul, Status, Gefunden-am, Notizen.</td>
+                            </tr>
+                            <tr>
+                                <td>Asset-Tagging &amp; Gruppierungs-UI <span class="status-badge available">Verfügbar</span></td>
+                                <td>Benutzerdefinierte Tags zu Zielen zuweisen (z.B. <code>produktion</code>, <code>cloud</code>, <code>im-scope</code>). Interaktive Tag-Wolke zum Filtern, Inline-Tag-Bearbeitung pro Ziel, Massen-Tag-Operationen (Hinzufügen/Entfernen/Ersetzen über mehrere Ziele) und zentrale Tag-Verwaltung mit Ein-Klick-Löschen mandantenweit.</td>
+                            </tr>
+                            <tr>
+                                <td>Erweiterter Cloud-Scanner <span class="status-badge available">Verfügbar</span></td>
+                                <td>DigitalOcean Spaces (NYC3 + AMS3), Cloudflare R2 hinzugefügt. Neue Shadow-IT-Erkennung für GitHub Pages, Netlify, Vercel, Heroku, Firebase Hosting, Render, Railway und Fly.io — mit Falsch-Positiv-Filterung für Standard-Plattformseiten. Befunde jetzt mit strukturierten Schweregradwertungen kompatibel mit KI-Analyse.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Neue Scanner-Module -->
             <div class="roadmap-section">
                 <div class="section-header">

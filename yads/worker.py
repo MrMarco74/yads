@@ -989,32 +989,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Port Scanner: {e}", exc_info=True)
                     session.rollback()
 
-            # 4c. Run Nmap Stealth Scanner
-            # (New in v1.5.0)
-            if "nmap_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Stealth Nmap Scan..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.nmap_scanner import NmapScanner
-                    nmap_mod = NmapScanner(db_session=session)
-                    logger.info(f"[Worker] Step 4c: Running {nmap_mod.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {nmap_mod.module_name} for {domain}")
-                        result = nmap_mod.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {nmap_mod.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Nmap Stealth Scanner: {e}")
-                    session.rollback()
+            # 4c. Nmap — dispatched via registry loop below
 
             # 5. Run Visual OSINT
             if "visual_osint" in scan_types:
@@ -1047,10 +1022,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         logger.error(f"[Worker] Error in Visual OSINT: {e}")
                         session.rollback()
 
-            # 5b. Run Wayback Scanner (Archive)
-            if "wayback_scanner" in scan_types:
-                from yads.modules.wayback_scanner import WaybackScanner
-                _run_simple_module(WaybackScanner, target_id, domain, session, "Checking Wayback Machine for historical exposures...")
+            # 5b. Wayback Scanner — dispatched via registry loop below
         
             # 6. Wait for remaining Group A (deception_detector only now)
             if _group_a_futures:
@@ -1133,11 +1105,6 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] SSL domain extraction error: {e}")
             # 7. Crawler queued for parallel execution with content_discovery (see step 9 below)
 
-            # 8. Run Wayback Scanner
-            if "wayback_scanner" in scan_types:
-                from yads.modules.wayback_scanner import WaybackScanner
-                _run_simple_module(WaybackScanner, target_id, domain, session, "Checking Wayback Machine for historical exposures...")
-
             # 7+9. Run Crawler and Content Discovery in parallel (Group B)
             _group_b_classes = []
             if "crawler" in scan_types and (has_http or has_https):
@@ -1197,210 +1164,9 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Deception Detector: {e}")
                     session.rollback()
 
-            # 10. Run TLD Scanner
-            if "tld_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running TLD Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.tld_scanner import TLDScanner
-                    tld_scan = TLDScanner(db_session=session)
-                    logger.info(f"[Worker] Step 10: Running {tld_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {tld_scan.module_name} for {domain}")
-                        result = tld_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {tld_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {tld_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in TLD Scanner: {e}")
-                    session.rollback()
-
-            # 11. Run Cloud Asset Scanner (Shadow IT)
-            if "cloud_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Cloud Asset Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.cloud_scanner import CloudScanner
-                    cloud_scan = CloudScanner(db_session=session)
-                    logger.info(f"[Worker] Step 11: Running {cloud_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {cloud_scan.module_name} for {domain}")
-                        result = cloud_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        if result.data and result.data.get("assets"):
-                             print(f"[Worker] {cloud_scan.module_name} found {len(result.data['assets'])} assets.")
-                        else:
-                             print(f"[Worker] {cloud_scan.module_name} finished (no findings).")
-                    else:
-                        print(f"[Worker] {cloud_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Cloud Asset Scanner: {e}")
-                    session.rollback()
-
-            # 12. Run API Discovery Scanner
-            if "api_discovery" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running API Discovery..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.api_discovery import ApiDiscoveryScanner
-                    api_scan = ApiDiscoveryScanner(db_session=session)
-                    logger.info(f"[Worker] Step 12: Running {api_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {api_scan.module_name} for {domain}")
-                        result = api_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {api_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {api_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in API Discovery Scanner: {e}")
-                    session.rollback()
-
-            if "form_discovery" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Form Discovery..."
-                        session.add(t)
-                        session.commit()
-                        
-                    from yads.modules.form_discovery import FormDiscoveryScanner
-                    form_scan = FormDiscoveryScanner(db_session=session)
-                    logger.info(f"[Worker] Step 13: Running {form_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {form_scan.module_name} for {domain}")
-                        result = form_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                        
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {form_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {form_scan.module_name} finished.")
-                        
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Form Discovery Scanner: {e}")
-                    session.rollback()
-
-            # 14. Run Brand Intelligence Scanner (OSINT)
-            if "brand_intelligence" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Brand Intelligence..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.brand_intelligence import BrandIntelligenceScanner
-                    bi_scan = BrandIntelligenceScanner(db_session=session)
-                    logger.info(f"[Worker] Step 14: Running {bi_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {bi_scan.module_name} for {domain}")
-                        result = bi_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {bi_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {bi_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Brand Intelligence Scanner: {e}")
-                    session.rollback()
-
-            # 15. Run Email Intelligence Scanner (OSINT)
-            if "email_intelligence" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Email Intelligence..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.email_intelligence import EmailIntelligenceScanner
-                    ei_scan = EmailIntelligenceScanner(db_session=session)
-                    logger.info(f"[Worker] Step 15: Running {ei_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {ei_scan.module_name} for {domain}")
-                        result = ei_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {ei_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {ei_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Email Intelligence Scanner: {e}")
-                    session.rollback()
-
-            # 16. Run Social Media Scanner (OSINT)
-            if "social_media_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Social Media Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.social_media_scanner import SocialMediaScanner
-                    sm_scan = SocialMediaScanner(db_session=session)
-                    logger.info(f"[Worker] Step 16: Running {sm_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {sm_scan.module_name} for {domain}")
-                        result = sm_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {sm_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {sm_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Social Media Scanner: {e}")
-                    session.rollback()
+            # Steps 10-16 (tld_scanner, cloud_scanner, api_discovery, form_discovery,
+            # brand_intelligence, email_intelligence, social_media_scanner) are now
+            # dispatched via the registry loop below.
 
             # 17. Deception Detector: runs in Group A if port_scanner not requested,
             # otherwise runs sequentially here (uses port_scanner results from DB).
@@ -1445,128 +1211,55 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in Deception Detector: {e}")
                     session.rollback()
 
-            # 18. Run Seed Files Scanner (robots.txt & sitemap.xml)
-            if "seed_files_scanner" in scan_types:
+            # Steps 18-19 (seed_files_scanner, csp_scanner) dispatched via registry loop below.
+
+            # ── Registry-driven parallel module dispatch ──────────────────
+            # Modules with custom_dispatch=True are handled above; everything
+            # else is submitted concurrently via ThreadPoolExecutor.
+            # Each thread gets its own DB session via _run_parallel_module.
+            from yads.core.module_registry import get_simple_dispatch_modules
+            from concurrent.futures import as_completed as _as_completed
+
+            _parallel_mods = []
+            for _mod_def in get_simple_dispatch_modules():
+                if _mod_def.name not in scan_types:
+                    continue
+                if _mod_def.requires_https and not has_https:
+                    logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTPS")
+                    continue
+                if _mod_def.requires_http and not (has_http or has_https):
+                    logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTP")
+                    continue
                 try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Analyzing robots.txt & sitemap.xml..."
-                        session.add(t)
-                        session.commit()
+                    _parallel_mods.append((_mod_def.name, _mod_def.load_class()))
+                except Exception as _e:
+                    logger.error(f"[Worker] Failed to load {_mod_def.name}: {_e}")
 
-                    from yads.modules.seed_files_scanner import SeedFilesScanner
-                    seed_scan = SeedFilesScanner(db_session=session)
-                    logger.info(f"[Worker] Step 18: Running {seed_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {seed_scan.module_name} for {domain}")
-                        result = seed_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
+            if _parallel_mods:
+                _pmod_names = [n for n, _ in _parallel_mods]
+                logger.info(f"[Worker] Running {len(_parallel_mods)} modules in parallel: {_pmod_names}")
+                _pt = session.get(Target, target_id)
+                if _pt:
+                    _pt.scan_progress = f"Running {len(_parallel_mods)} modules in parallel..."
+                    session.add(_pt)
+                    session.commit()
 
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {seed_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {seed_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Seed Files Scanner: {e}")
-                    session.rollback()
-
-            # 19. Run CSP Scanner (Content-Security-Policy Analysis)
-            if "csp_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Analyzing Content-Security-Policy..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.csp_scanner import CSPScanner
-                    csp_scan = CSPScanner(db_session=session)
-                    logger.info(f"[Worker] Step 19: Running {csp_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {csp_scan.module_name} for {domain}")
-                        result = csp_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {csp_scan.module_name} finished.")
-                    else:
-                        print(f"[Worker] {csp_scan.module_name} finished.")
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in CSP Scanner: {e}")
-                    session.rollback()
-
-            # ── Phase 1 Scanners (via _run_simple_module helper) ─────────────
-            if "email_security" in scan_types:
-                from yads.modules.email_security_scanner import EmailSecurityScanner
-                _run_simple_module(EmailSecurityScanner, target_id, domain, session, "Checking SPF/DKIM/DMARC...")
-
-            if "axfr_scanner" in scan_types:
-                from yads.modules.axfr_scanner import AXFRScanner
-                _run_simple_module(AXFRScanner, target_id, domain, session, "Testing DNS zone transfer (AXFR)...")
-
-            if "security_txt" in scan_types:
-                from yads.modules.security_txt_scanner import SecurityTxtScanner
-                _run_simple_module(SecurityTxtScanner, target_id, domain, session, "Checking security.txt...")
-
-            if "http_headers" in scan_types and (has_http or has_https):
-                from yads.modules.http_headers_scanner import HTTPHeadersScanner
-                _run_simple_module(HTTPHeadersScanner, target_id, domain, session, "Checking HTTP security headers...")
-
-            if "cookie_scanner" in scan_types and (has_http or has_https):
-                from yads.modules.cookie_scanner import CookieScanner
-                _run_simple_module(CookieScanner, target_id, domain, session, "Analyzing cookie security...")
-
-            if "cors_scanner" in scan_types and (has_http or has_https):
-                from yads.modules.cors_scanner import CORSScanner
-                _run_simple_module(CORSScanner, target_id, domain, session, "Testing CORS policy...")
-
-            if "cert_mismatch" in scan_types:
-                from yads.modules.cert_mismatch_scanner import CertMismatchScanner
-                _run_simple_module(CertMismatchScanner, target_id, domain, session, "Checking certificate/domain match...")
-
-            if "shodan_censys" in scan_types:
-                from yads.modules.shodan_censys_scanner import ShodanCensysScanner
-                _run_simple_module(ShodanCensysScanner, target_id, domain, session, "Querying Shodan/Censys...")
-
-            if "threat_intel" in scan_types:
-                from yads.modules.threat_intel_scanner import ThreatIntelScanner
-                _run_simple_module(ThreatIntelScanner, target_id, domain, session, "Querying threat intelligence feeds...")
-
-            if "subdomain_takeover" in scan_types:
-                from yads.modules.subdomain_takeover_scanner import SubdomainTakeoverScanner
-                _run_simple_module(SubdomainTakeoverScanner, target_id, domain, session, "Checking for subdomain takeover risks...")
-
-            if "git_exposure" in scan_types and (has_http or has_https):
-                from yads.modules.git_exposure_scanner import GitExposureScanner
-                _run_simple_module(GitExposureScanner, target_id, domain, session, "Scanning for exposed .git and sensitive files...")
-
-            if "js_secrets" in scan_types and (has_http or has_https):
-                from yads.modules.js_secrets_scanner import JsSecretsScanner
-                _run_simple_module(JsSecretsScanner, target_id, domain, session, "Scanning JavaScript files for secrets...")
-
-            if "external_resources" in scan_types and (has_http or has_https):
-                from yads.modules.external_resources_scanner import ExternalResourcesScanner
-                _run_simple_module(ExternalResourcesScanner, target_id, domain, session, "Analyzing external resource loading...")
-
-            if "metadata_scanner" in scan_types and (has_http or has_https):
-                from yads.modules.metadata_scanner import MetadataScanner
-                _run_simple_module(MetadataScanner, target_id, domain, session, "Extracting document metadata...")
-
-            if "rpki_scanner" in scan_types:
-                from yads.modules.rpki_scanner import RpkiScanner
-                _run_simple_module(RpkiScanner, target_id, domain, session, "Validating RPKI route origin authorizations...")
-
-            if "dsgvo_scanner" in scan_types and (has_http or has_https):
-                from yads.modules.dsgvo_scanner import DsgvoScanner
-                _run_simple_module(DsgvoScanner, target_id, domain, session, "Scanning GDPR/DSGVO compliance indicators...")
+                with ThreadPoolExecutor(
+                    max_workers=min(len(_parallel_mods), 6),
+                    thread_name_prefix="scan-p",
+                ) as _pex:
+                    _pfutures = {
+                        _pex.submit(_run_parallel_module, _cls, target_id, domain): name
+                        for name, _cls in _parallel_mods
+                    }
+                    for _pf in _as_completed(_pfutures):
+                        _pmod_name = _pfutures[_pf]
+                        try:
+                            _pf.result()
+                            logger.info(f"[Worker] Parallel done: {_pmod_name}")
+                        except Exception as _pfe:
+                            logger.error(f"[Worker] Parallel error in {_pmod_name}: {_pfe}")
+                logger.info("[Worker] All parallel modules completed.")
 
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains

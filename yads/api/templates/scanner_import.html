@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Import Scanner Results — YADS{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto py-8 px-4">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-xl font-bold text-white">Import External Scanner Results</h1>
+        <p class="text-sm text-gray-400 mt-1">Import findings from Burp Suite, Nessus, OpenVAS, OWASP ZAP, Nuclei, and more.</p>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-900/30 border border-red-700/50 rounded-lg p-4 mb-6 text-sm text-red-300">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Upload Form -->
+    <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
+        <form action="/scanner-import/upload" method="POST" enctype="multipart/form-data" class="space-y-5">
+
+            <!-- Target Selection -->
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Target Domain</label>
+                <select name="target_id" required
+                    class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                    <option value="">Select a target…</option>
+                    {% for t in targets %}
+                    <option value="{{ t.id }}">{{ t.domain }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Format -->
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Scanner Format</label>
+                <select name="format_hint"
+                    class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                    <option value="auto">Auto-detect</option>
+                    <option value="burp">Burp Suite (XML)</option>
+                    <option value="nessus">Nessus (.nessus)</option>
+                    <option value="openvas">OpenVAS / GVM (XML)</option>
+                    <option value="zap">OWASP ZAP (XML or JSON)</option>
+                    <option value="nuclei">Nuclei (JSON / NDJSON)</option>
+                    <option value="generic_json">Generic JSON</option>
+                </select>
+            </div>
+
+            <!-- File Upload -->
+            <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">File</label>
+                <div class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                    <input type="file" name="file_upload" id="fileUpload" required
+                        accept=".xml,.nessus,.json,.txt"
+                        class="hidden"
+                        onchange="document.getElementById('fileName').textContent = this.files[0]?.name || 'No file selected'">
+                    <label for="fileUpload" class="cursor-pointer">
+                        <div class="text-gray-400 mb-2">
+                            <svg class="w-10 h-10 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                            <span class="text-sm">Click to select file or drag & drop</span>
+                        </div>
+                        <p id="fileName" class="text-xs text-gray-500">No file selected</p>
+                        <p class="text-xs text-gray-600 mt-1">Supported: .xml, .nessus, .json — max 50 MB</p>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2.5 rounded-lg transition-colors">
+                Import Findings
+            </button>
+        </form>
+    </div>
+
+    <!-- Supported Formats -->
+    <div class="mt-6 bg-gray-800/30 border border-gray-700/30 rounded-xl p-5">
+        <h2 class="text-sm font-bold text-gray-300 mb-3">Supported Formats</h2>
+        <div class="grid grid-cols-2 gap-3">
+            {% set formats = [
+                ("Burp Suite", "XML export from Burp Scanner / Pro", "purple"),
+                ("Nessus", ".nessus XML file from Tenable Nessus", "sky"),
+                ("OpenVAS / GVM", "XML report from Greenbone/OpenVAS", "emerald"),
+                ("OWASP ZAP", "XML or JSON alert export", "amber"),
+                ("Nuclei", "JSON / NDJSON output (-json flag)", "rose"),
+                ("Generic JSON", "{ findings: [{ title, severity, description }] }", "gray"),
+            ] %}
+            {% for name, desc, color in formats %}
+            <div class="bg-gray-900/40 rounded-lg p-3">
+                <div class="text-xs font-bold text-{{ color }}-400 mb-0.5">{{ name }}</div>
+                <div class="text-[11px] text-gray-500">{{ desc }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Generic JSON Format Spec -->
+    <details class="mt-4 bg-gray-800/20 border border-gray-700/20 rounded-xl">
+        <summary class="px-5 py-3 text-xs font-medium text-gray-400 cursor-pointer hover:text-gray-200">
+            Generic JSON format specification
+        </summary>
+        <div class="px-5 pb-4">
+            <pre class="text-[11px] text-gray-400 bg-gray-900/50 rounded p-3 overflow-x-auto mt-2">[
+  {
+    "title": "SQL Injection in /api/users",
+    "severity": "critical",
+    "description": "The endpoint is vulnerable to SQL injection via the 'id' parameter.",
+    "remediation": "Use parameterized queries.",
+    "url": "https://example.com/api/users?id=1"
+  }
+]</pre>
+            <p class="text-[11px] text-gray-500 mt-2">
+                Or wrap in <code class="text-gray-400">{ "findings": [...] }</code>.
+                Severity values: <code class="text-gray-400">critical, high, medium, low, info</code>
+            </p>
+        </div>
+    </details>
+</div>
+
+<script>
+// Drag & drop support
+const dropZone = document.querySelector('.border-dashed');
+if (dropZone) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+        dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+    dropZone.addEventListener('dragover', () => dropZone.classList.add('border-blue-400'));
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-400'));
+    dropZone.addEventListener('drop', e => {
+        dropZone.classList.remove('border-blue-400');
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            const input = document.getElementById('fileUpload');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            document.getElementById('fileName').textContent = file.name;
+        }
+    });
+}
+</script>
+{% endblock %}

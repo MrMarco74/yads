@@ -11,11 +11,29 @@ from datetime import datetime
 
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
-from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry
+from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig
 from yads.api.templating import templates
 
 from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.api.routers.tags import get_unique_tags
+from yads.core.module_registry import get_scan_categories, REGISTRY
+
+
+def _get_scan_categories_for_user(session: Session, user: User, prefix: str):
+    """Return scan categories filtered by modules enabled for the user's tenant."""
+    if user.tenant_id is None:
+        return get_scan_categories(prefix)
+    configs = session.exec(
+        select(TenantModuleConfig).where(
+            TenantModuleConfig.tenant_id == user.tenant_id,
+            TenantModuleConfig.enabled == False,
+        )
+    ).all()
+    disabled = {c.module_name for c in configs}
+    if not disabled:
+        return get_scan_categories(prefix)
+    enabled = {name for name in REGISTRY if name not in disabled}
+    return get_scan_categories(prefix, enabled_modules=enabled)
 
 from celery import Celery
 from yads.config import settings
@@ -87,7 +105,11 @@ async def bulk_scan_targets(
                 # Bulk scan is also a MANUAL action, BUT we now RESPECT the queue pause.
                 # If Queue is Paused, valid consumer won't pick it up OR worker will abort if it checks DB.
                 # We set ignore_queue_pause=False (default).
-                celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, final_types, user.tenant_id])
+                celery_app.send_task(
+                    "yads.worker.run_all_scans",
+                    args=[target.id, target.domain, final_types, user.tenant_id],
+                    priority=getattr(target, "scan_priority", 5),
+                )
                 count += 1
         except Exception as e:
             logger.error(f"Failed to queue target {tid_str}: {e}")
@@ -395,6 +417,13 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     # Parse form data for scan types
     form = await request.form()
     scan_types = form.getlist("scan_types") # Returns list of values for keys named "scan_types"
+
+    # Update scan priority if provided
+    try:
+        priority_val = int(form.get("scan_priority", 5))
+        target.scan_priority = max(1, min(9, priority_val))
+    except (ValueError, TypeError):
+        pass
     
     # Validation/Default
     valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "quick_web_probe", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
@@ -430,8 +459,12 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     # Always dispatch to Redis (even if paused, it waits there).
     # This ensures argments are preserved.
     # We pass ignore_queue_pause=False so it respects the "Stop All" state.
-    celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain, selected_types, user.tenant_id])
-    
+    celery_app.send_task(
+        "yads.worker.run_all_scans",
+        args=[target.id, target.domain, selected_types, user.tenant_id],
+        priority=getattr(target, "scan_priority", 5),
+    )
+
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 @router.post("/targets/add", response_class=HTMLResponse)
 async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
@@ -1144,7 +1177,8 @@ async def view_target_table(
             "total_count": total_count,
             "start_item": offset + 1,
             "end_item": min(offset + limit, total_count)
-        }
+        },
+        "scan_categories": _get_scan_categories_for_user(session, user, "t"),
     })
 
 
@@ -1394,7 +1428,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "current_history_id": history_id,
         "raw_results": jsonable_encoder([r.model_dump() for r in current_results]),
         "approved_ciphers": approved_ciphers_set,
-        "schedule": schedule
+        "schedule": schedule,
+        "scan_categories": _get_scan_categories_for_user(session, user, "sc"),
     })
 
 

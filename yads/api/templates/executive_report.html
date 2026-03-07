@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8" id="exec-report-root">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-indigo-400 mb-1">Confidential &mdash; Executive Summary</p>
+            <h1 class="text-3xl font-black text-white tracking-tight">Security Overview</h1>
+            <p class="text-slate-400 mt-1 text-sm max-w-xl">
+                This report summarises your organisation's current security health, key risks, and recommended next steps &mdash; written for business leaders, not technicians.
+            </p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+            <span id="report-date" class="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
+                Loading&hellip;
+            </span>
+            <button onclick="window.print()" title="Print report"
+                class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div id="loading-state" class="flex flex-col items-center justify-center py-24 gap-4">
+        <svg class="animate-spin h-8 w-8 text-indigo-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <p class="text-slate-500 text-sm">Calculating security posture&hellip;</p>
+    </div>
+
+    <!-- Error state (hidden by default) -->
+    <div id="error-state" class="hidden rounded-xl border border-red-500/20 bg-red-500/10 p-8 text-center">
+        <p class="text-red-400 font-semibold">Failed to load report data.</p>
+        <p class="text-slate-500 text-sm mt-1">Please refresh the page or contact your administrator.</p>
+    </div>
+
+    <!-- Main report content (hidden until data loaded) -->
+    <div id="report-content" class="hidden space-y-8">
+
+        <!-- ===== HERO: Grade + Score ===== -->
+        <div class="rounded-2xl border border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800/60 p-8 relative overflow-hidden">
+            <!-- Background glow -->
+            <div id="hero-glow" class="absolute inset-0 opacity-10 pointer-events-none"></div>
+
+            <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-8">
+                <!-- Grade circle -->
+                <div class="flex flex-col items-center justify-center shrink-0">
+                    <div id="grade-badge"
+                        class="h-32 w-32 rounded-full flex flex-col items-center justify-center border-4 shadow-2xl">
+                        <span id="grade-letter" class="text-5xl font-black leading-none"></span>
+                        <span class="text-xs font-semibold uppercase tracking-widest mt-1 opacity-80">Grade</span>
+                    </div>
+                </div>
+
+                <!-- Score + description -->
+                <div class="flex-1">
+                    <div class="flex items-end gap-3 mb-2">
+                        <span id="score-number" class="text-6xl font-black text-white leading-none"></span>
+                        <span class="text-2xl text-slate-500 font-light mb-1">/ 100</span>
+                    </div>
+                    <p id="score-label" class="text-lg font-semibold mb-1"></p>
+                    <p id="score-description" class="text-slate-400 text-sm max-w-lg"></p>
+                </div>
+
+                <!-- Trend pill -->
+                <div class="shrink-0">
+                    <div id="trend-badge" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-semibold"></div>
+                    <p class="text-xs text-slate-500 mt-2 text-center">vs. previous period</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== KPI ROW ===== -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-colors">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">Total Assets</p>
+                <p id="kpi-total" class="text-3xl font-black text-white"></p>
+                <p id="kpi-scanned" class="text-xs text-slate-500 mt-1"></p>
+            </div>
+            <div class="rounded-xl border border-red-900/40 bg-red-500/5 p-5 hover:border-red-700/50 transition-colors">
+                <p class="text-xs text-red-400/80 uppercase tracking-wider mb-2">Critical Issues</p>
+                <p id="kpi-critical" class="text-3xl font-black text-red-400"></p>
+                <p class="text-xs text-slate-500 mt-1">Immediate action required</p>
+            </div>
+            <div class="rounded-xl border border-orange-900/40 bg-orange-500/5 p-5 hover:border-orange-700/50 transition-colors">
+                <p class="text-xs text-orange-400/80 uppercase tracking-wider mb-2">High-Risk Issues</p>
+                <p id="kpi-high" class="text-3xl font-black text-orange-400"></p>
+                <p class="text-xs text-slate-500 mt-1">Address within 7 days</p>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-slate-700 transition-colors">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">Security Score</p>
+                <p id="kpi-score" class="text-3xl font-black text-white"></p>
+                <p class="text-xs text-slate-500 mt-1">Out of 100 points</p>
+            </div>
+        </div>
+
+        <!-- ===== RISK OVERVIEW BAR ===== -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <h2 class="text-base font-bold text-white mb-1">Risk Distribution</h2>
+            <p class="text-xs text-slate-500 mb-5">Proportion of all findings by severity level across your entire estate</p>
+
+            <!-- Bar -->
+            <div class="flex h-4 rounded-full overflow-hidden w-full bg-slate-800 mb-4" id="risk-bar-container">
+                <div id="bar-critical" class="bg-red-500 h-full transition-all duration-700" style="width:0%"></div>
+                <div id="bar-high"     class="bg-orange-500 h-full transition-all duration-700" style="width:0%"></div>
+                <div id="bar-medium"   class="bg-yellow-500 h-full transition-all duration-700" style="width:0%"></div>
+                <div id="bar-low"      class="bg-blue-500 h-full transition-all duration-700" style="width:0%"></div>
+                <div id="bar-info"     class="bg-slate-600 h-full transition-all duration-700" style="width:0%"></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap gap-4 text-xs">
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-red-500"></span>
+                    <span class="text-slate-400">Critical <span id="legend-critical" class="text-white font-semibold"></span></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-orange-500"></span>
+                    <span class="text-slate-400">High <span id="legend-high" class="text-white font-semibold"></span></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-yellow-500"></span>
+                    <span class="text-slate-400">Medium <span id="legend-medium" class="text-white font-semibold"></span></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500"></span>
+                    <span class="text-slate-400">Low <span id="legend-low" class="text-white font-semibold"></span></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-slate-600"></span>
+                    <span class="text-slate-400">Informational <span id="legend-info" class="text-white font-semibold"></span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TWO COLUMN: Top Risks + Top Assets ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Top Risks -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+                <div class="p-5 border-b border-slate-800">
+                    <h2 class="text-base font-bold text-white">Top Security Risks</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Most frequently observed issues across all assets</p>
+                </div>
+                <ol id="top-risks-list" class="divide-y divide-slate-800/60">
+                    <!-- Populated by JS -->
+                </ol>
+                <div id="top-risks-empty" class="hidden p-8 text-center">
+                    <p class="text-emerald-400 font-semibold text-sm">No significant risks detected</p>
+                    <p class="text-slate-500 text-xs mt-1">Your assets appear clean. Keep scanning regularly.</p>
+                </div>
+            </div>
+
+            <!-- Top Vulnerable Assets -->
+            <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+                <div class="p-5 border-b border-slate-800">
+                    <h2 class="text-base font-bold text-white">Assets Needing Attention</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Properties with the highest number of critical and high findings</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left" id="top-assets-table">
+                        <thead class="bg-slate-950/50">
+                            <tr class="text-slate-500 uppercase tracking-wider text-xs">
+                                <th class="px-5 py-3 font-medium">Asset</th>
+                                <th class="px-5 py-3 font-medium text-center">Critical</th>
+                                <th class="px-5 py-3 font-medium text-center">High</th>
+                                <th class="px-5 py-3 font-medium text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-assets-body" class="divide-y divide-slate-800/60">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="top-assets-empty" class="hidden p-8 text-center">
+                    <p class="text-emerald-400 font-semibold text-sm">All assets are in good shape</p>
+                    <p class="text-slate-500 text-xs mt-1">No findings detected. Continue regular monitoring.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== RECOMMENDED ACTIONS ===== -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <div class="p-6 border-b border-slate-800">
+                <h2 class="text-base font-bold text-white">Recommended Actions</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Priority-ordered steps your team should take to improve your security posture</p>
+            </div>
+            <div id="actions-list" class="divide-y divide-slate-800/60">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- ===== FOOTER NOTE ===== -->
+        <div class="rounded-xl border border-slate-800/60 bg-slate-950/30 p-5 flex items-start gap-4">
+            <svg class="w-5 h-5 text-slate-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+            </svg>
+            <div>
+                <p class="text-xs text-slate-400 font-semibold mb-0.5">About This Report</p>
+                <p class="text-xs text-slate-500">
+                    This report is generated automatically based on the latest security scans. The security score is calculated as
+                    100 minus weighted deductions per finding severity (Critical &minus;15, High &minus;8, Medium &minus;3, Low &minus;1).
+                    Scores are clamped between 0 and 100. Findings are sourced from all active assets in your portfolio.
+                    For technical detail, refer to the individual asset scan reports.
+                </p>
+            </div>
+        </div>
+
+    </div>{# end #report-content #}
+</div>
+
+<style>
+@media print {
+    /* Hide nav, sidebar, header elements from base template */
+    nav, aside, header, footer,
+    [data-sidebar], [data-nav],
+    .no-print { display: none !important; }
+
+    body { background: white !important; color: black !important; }
+
+    #exec-report-root {
+        color: black !important;
+    }
+
+    .rounded-xl, .rounded-2xl {
+        border: 1px solid #e2e8f0 !important;
+        background: white !important;
+    }
+
+    .text-white { color: #1a202c !important; }
+    .text-slate-400, .text-slate-500 { color: #718096 !important; }
+    .text-red-400 { color: #e53e3e !important; }
+    .text-orange-400 { color: #dd6b20 !important; }
+    .text-emerald-400 { color: #38a169 !important; }
+
+    #loading-state, #error-state { display: none !important; }
+    #report-content { display: block !important; }
+}
+</style>
+
+<script>
+(function () {
+    const SEVERITY_COLORS = {
+        critical: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20", label: "Critical" },
+        high:     { bg: "bg-orange-500/10", text: "text-orange-400", border: "border-orange-500/20", label: "High" },
+        medium:   { bg: "bg-yellow-500/10", text: "text-yellow-400", border: "border-yellow-500/20", label: "Medium" },
+        low:      { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20", label: "Low" },
+        info:     { bg: "bg-slate-700/30", text: "text-slate-400", border: "border-slate-700", label: "Info" },
+    };
+
+    const GRADE_CONFIG = {
+        A: { border: "border-emerald-500", text: "text-emerald-400", glow: "bg-emerald-500", label: "Excellent", desc: "Your security posture is excellent. Only minor improvements are needed to maintain this level." },
+        B: { border: "border-blue-500",    text: "text-blue-400",    glow: "bg-blue-500",    label: "Good",      desc: "Your security posture is good. A few targeted improvements will bring you to excellent status." },
+        C: { border: "border-yellow-500",  text: "text-yellow-400",  glow: "bg-yellow-500",  label: "Fair",      desc: "Your security posture needs work. Several vulnerabilities require attention to reduce business risk." },
+        D: { border: "border-orange-500",  text: "text-orange-400",  glow: "bg-orange-500",  label: "Poor",      desc: "Your security posture is poor. Significant vulnerabilities are present that could impact your business." },
+        F: { border: "border-red-500",     text: "text-red-400",     glow: "bg-red-500",     label: "Critical",  desc: "Your security posture is critical. Immediate action is required to protect your organisation." },
+    };
+
+    const TREND_CONFIG = {
+        improving:    { icon: "↑", classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", label: "Improving" },
+        stable:       { icon: "→", classes: "bg-slate-700/40 text-slate-400 border-slate-700",          label: "Stable" },
+        deteriorating:{ icon: "↓", classes: "bg-red-500/10 text-red-400 border-red-500/20",             label: "Deteriorating" },
+    };
+
+    const ACTION_ICONS = {
+        "fire": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"/>`,
+        "exclamation": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>`,
+        "lock-closed": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>`,
+        "shield-check": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>`,
+        "server": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>`,
+        "clipboard-list": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>`,
+        "check-circle": `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>`,
+    };
+
+    function sevBadge(sev) {
+        const cfg = SEVERITY_COLORS[sev] || SEVERITY_COLORS.info;
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${cfg.bg} ${cfg.text} border ${cfg.border}">${cfg.label}</span>`;
+    }
+
+    function renderReport(d) {
+        // Date
+        document.getElementById("report-date").textContent = "Generated: " + d.generated_at;
+
+        // ---- Hero ----
+        const gc = GRADE_CONFIG[d.grade] || GRADE_CONFIG["F"];
+        const gradeBadge = document.getElementById("grade-badge");
+        gradeBadge.className = `h-32 w-32 rounded-full flex flex-col items-center justify-center border-4 shadow-2xl ${gc.border} ${gc.text}`;
+        document.getElementById("grade-letter").textContent = d.grade;
+        document.getElementById("hero-glow").className = `absolute inset-0 opacity-10 pointer-events-none ${gc.glow}`;
+        document.getElementById("score-number").textContent = d.security_score;
+        document.getElementById("score-label").className = `text-lg font-semibold mb-1 ${gc.text}`;
+        document.getElementById("score-label").textContent = gc.label + " Security Posture";
+        document.getElementById("score-description").textContent = gc.desc;
+
+        // Trend badge
+        const tc = TREND_CONFIG[d.risk_trend] || TREND_CONFIG.stable;
+        const trendEl = document.getElementById("trend-badge");
+        trendEl.className = `inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-semibold ${tc.classes}`;
+        trendEl.innerHTML = `<span class="text-lg leading-none">${tc.icon}</span>${tc.label}`;
+
+        // ---- KPIs ----
+        document.getElementById("kpi-total").textContent    = d.total_targets;
+        document.getElementById("kpi-scanned").textContent  = `${d.scanned_targets} scanned, ${d.archived_targets} archived`;
+        document.getElementById("kpi-critical").textContent = d.findings.critical;
+        document.getElementById("kpi-high").textContent     = d.findings.high;
+        document.getElementById("kpi-score").textContent    = d.security_score;
+
+        // ---- Risk bar ----
+        const rb = d.risk_bar;
+        document.getElementById("bar-critical").style.width = rb.critical + "%";
+        document.getElementById("bar-high").style.width     = rb.high + "%";
+        document.getElementById("bar-medium").style.width   = rb.medium + "%";
+        document.getElementById("bar-low").style.width      = rb.low + "%";
+        document.getElementById("bar-info").style.width     = rb.info + "%";
+        // Legends
+        document.getElementById("legend-critical").textContent = `(${d.findings.critical})`;
+        document.getElementById("legend-high").textContent     = `(${d.findings.high})`;
+        document.getElementById("legend-medium").textContent   = `(${d.findings.medium})`;
+        document.getElementById("legend-low").textContent      = `(${d.findings.low})`;
+        document.getElementById("legend-info").textContent     = `(${d.findings.info})`;
+
+        // ---- Top Risks ----
+        const riskList = document.getElementById("top-risks-list");
+        if (d.top_finding_types && d.top_finding_types.length > 0) {
+            riskList.innerHTML = d.top_finding_types.map((f, i) => {
+                // Heuristic severity from index (most common = higher risk display)
+                const sevKey = i === 0 ? "critical" : i === 1 ? "high" : i === 2 ? "medium" : "low";
+                return `
+                <li class="flex items-center gap-4 px-5 py-4 hover:bg-slate-800/30 transition-colors">
+                    <span class="text-2xl font-black text-slate-600 tabular-nums w-6 text-center shrink-0">${i + 1}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-slate-200 truncate">${escHtml(f.title)}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Detected ${f.count} time${f.count !== 1 ? 's' : ''} across your assets</p>
+                    </div>
+                    ${sevBadge(sevKey)}
+                </li>`;
+            }).join("");
+        } else {
+            riskList.classList.add("hidden");
+            document.getElementById("top-risks-empty").classList.remove("hidden");
+        }
+
+        // ---- Top Assets ----
+        const tbody = document.getElementById("top-assets-body");
+        if (d.top_targets && d.top_targets.length > 0) {
+            tbody.innerHTML = d.top_targets.map(t => `
+            <tr class="hover:bg-slate-800/30 transition-colors">
+                <td class="px-5 py-3 text-sm font-mono text-slate-300">${escHtml(t.domain)}</td>
+                <td class="px-5 py-3 text-center">
+                    ${t.critical > 0 ? `<span class="inline-block px-2 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">${t.critical}</span>` : '<span class="text-slate-600">—</span>'}
+                </td>
+                <td class="px-5 py-3 text-center">
+                    ${t.high > 0 ? `<span class="inline-block px-2 py-0.5 rounded text-xs font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20">${t.high}</span>` : '<span class="text-slate-600">—</span>'}
+                </td>
+                <td class="px-5 py-3 text-right text-sm text-slate-400 font-semibold">${t.total}</td>
+            </tr>`).join("");
+        } else {
+            document.getElementById("top-assets-table").classList.add("hidden");
+            document.getElementById("top-assets-empty").classList.remove("hidden");
+        }
+
+        // ---- Actions ----
+        const actionsList = document.getElementById("actions-list");
+        actionsList.innerHTML = d.recommended_actions.map((a, i) => {
+            const iconPath = ACTION_ICONS[a.icon] || ACTION_ICONS["clipboard-list"];
+            const priorityColor = i === 0 ? "text-red-400 bg-red-500/10 border-red-500/20"
+                                : i === 1 ? "text-orange-400 bg-orange-500/10 border-orange-500/20"
+                                : i === 2 ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/20"
+                                : "text-blue-400 bg-blue-500/10 border-blue-500/20";
+            return `
+            <div class="flex items-start gap-5 px-6 py-5 hover:bg-slate-800/20 transition-colors">
+                <div class="shrink-0 h-10 w-10 rounded-lg ${priorityColor.split(' ').slice(1).join(' ')} border flex items-center justify-center">
+                    <svg class="w-5 h-5 ${priorityColor.split(' ')[0]}" fill="none" stroke="currentColor" viewBox="0 0 24 24">${iconPath}</svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <p class="text-sm font-bold text-white">${escHtml(a.title)}</p>
+                        <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${priorityColor}">P${a.priority}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">${escHtml(a.description)}</p>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // Fetch data
+    fetch("/executive-report/data")
+        .then(r => {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+        })
+        .then(data => {
+            document.getElementById("loading-state").classList.add("hidden");
+            document.getElementById("report-content").classList.remove("hidden");
+            renderReport(data);
+        })
+        .catch(err => {
+            console.error("Executive report error:", err);
+            document.getElementById("loading-state").classList.add("hidden");
+            document.getElementById("error-state").classList.remove("hidden");
+        });
+})();
+</script>
+{% endblock %}

@@ -637,6 +637,161 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <blockquote
 </blockquote>
 <hr />
+<h2>13. KI-Intelligenz-Assistent</h2>
+<p>Das KI-Assistent-Modul bietet drei KI-gestützte Analyse-Tools, zugänglich über <strong>Intelligence → KI-Assistent</strong> in der Seitenleiste. Alle Funktionen unterstützen OpenAI und Anthropic (BYOK) und beinhalten regelbasierte Fallbacks, wenn kein KI-Schlüssel konfiguriert ist.</p>
+
+<h3>13.1 KI-Anbieter konfigurieren</h3>
+<p>KI-Funktionen erfordern einen API-Schlüssel von OpenAI oder Anthropic. Schlüssel können auf zwei Ebenen gesetzt werden:</p>
+<ul>
+    <li><strong>Plattformweit</strong>: Navigieren Sie zu <strong>Einstellungen → Systemkonfiguration</strong> und setzen Sie <code>OPENAI_API_KEY</code> oder <code>ANTHROPIC_API_KEY</code>. Dies gilt für alle Mandanten ohne eigenen Schlüssel.</li>
+    <li><strong>Pro Mandant (BYOK)</strong>: Mandantenadministratoren können ihre eigene <code>llm_provider</code>-, <code>llm_api_key</code>- und <code>llm_model</code>-Konfiguration in <strong>Mandanteneinstellungen → KI-Konfiguration</strong> setzen. Mandantenschlüssel haben Vorrang vor plattformweiten Schlüsseln.</li>
+</ul>
+<blockquote>
+    <p><strong>💡 Regelbasierter Fallback</strong>: Wenn kein API-Schlüssel konfiguriert ist, fallen alle drei KI-Funktionen automatisch auf ausgefeilte regelbasierte Logik zurück. Die Ergebnisse werden als "Regelbasierte Analyse" statt "KI-generiert" gekennzeichnet.</p>
+</blockquote>
+
+<h3>13.2 Befundpriorisierung</h3>
+<p>Ordnet alle Sicherheitsbefunde eines ausgewählten Ziels automatisch nach kombinierter Ausnutzbarkeit und Geschäftsauswirkung.</p>
+<ol>
+    <li>Öffnen Sie <strong>Intelligence → KI-Assistent</strong>.</li>
+    <li>Wählen Sie den Tab <strong>Priorisierung</strong>.</li>
+    <li>Wählen Sie ein Ziel aus der Dropdown-Liste und klicken Sie auf <strong>Analysieren</strong>.</li>
+    <li>Die Ergebnisse zeigen jeden Befund mit: Prioritätsrang, Schweregrad-Badge, Ausnutzbarkeit (1–10), Geschäftsauswirkung (1–10) und einer einzeiligen Begründung.</li>
+</ol>
+<p><strong>Sprache:</strong> Übergeben Sie <code>lang=de</code> im API-Anfragekörper, um Begründungen und Bezeichnungen auf Deutsch zu erhalten.</p>
+
+<h3>13.3 Maßnahmenassistent</h3>
+<p>Erzeugt schrittweise, umsetzbare Behebungsanleitungen für jeden spezifischen Befund.</p>
+<ol>
+    <li>Öffnen Sie den Tab <strong>Maßnahmen</strong> im KI-Assistenten.</li>
+    <li>Füllen Sie die Befunddetails manuell aus (Titel, Beschreibung, Schweregrad, Domain), oder nutzen Sie die Schnellauswahl: Wählen Sie ein Ziel, laden Sie dessen Befunde, und klicken Sie auf einen Befund, um das Formular automatisch auszufüllen.</li>
+    <li>Klicken Sie auf <strong>Maßnahmen abrufen</strong>.</li>
+    <li>Die Ergebniskarte zeigt: nummerierte Schritte, Aufwands-Badge (Gering / Mittel / Hoch) und Referenzlinks.</li>
+    <li>Nutzen Sie die <strong>Kopieren</strong>-Schaltfläche, um die Schritte in ein Ticket oder einen Bericht einzufügen.</li>
+</ol>
+<p>Der regelbasierte Fallback enthält eingebaute Behebungsanleitungen für: CORS, XSS, SQL-Injection, SSL/TLS, HTTP-Sicherheitsheader, DNS-Zonentransfer (AXFR), Cookie-Sicherheit, CSRF, RCE und offene Weiterleitungen.</p>
+
+<h3>13.4 Natürlichsprachige Suche</h3>
+<p>Durchsucht die gesamte Befunddatenbank über alle Ziele mit natürlicher Sprache (Deutsch oder Englisch).</p>
+<p><strong>Beispielabfragen:</strong></p>
+<ul>
+    <li><code>zeige alle kritischen Nuclei-Befunde auf api.example.com</code></li>
+    <li><code>hohe SSL-Probleme auf allen Domains</code></li>
+    <li><code>E-Mail-Sicherheitsprobleme</code></li>
+    <li><code>DNS-Befunde auf Staging-Umgebungen</code></li>
+    <li><code>show me all critical findings on api.example.com</code> (Englisch)</li>
+</ul>
+<p>Die Suche verwendet 500ms-Entprellen. Geparste Filter werden als Chips unter dem Suchfeld angezeigt (Schweregrad, Modul, Domain-Fragment). Ergebnisse sind nach Schweregrad sortiert und auf 200 Einträge begrenzt. Klicken Sie auf ein Ergebnis, um direkt zur Zieldetailseite zu navigieren.</p>
+
+<h3>13.5 Mehrsprachige KI-Ausgabe</h3>
+<p>Alle drei KI-Endpunkte akzeptieren einen <code>lang</code>-Parameter (<code>en</code> oder <code>de</code>). Bei <code>lang=de</code>:</p>
+<ul>
+    <li>KI-Systemprompts erhalten den Zusatz "Antworte auf Deutsch." — das Modell antwortet auf Deutsch.</li>
+    <li>Regelbasierte Begründungsstrings, Aufwandsbezeichnungen und Suchinterpretationstexte werden ebenfalls auf Deutsch zurückgegeben.</li>
+    <li>Die Benutzeroberfläche übergibt diesen Parameter automatisch basierend auf den Spracheinstellungen des Browsers.</li>
+</ul>
+
+<hr />
+<h2>14. Befundmanagement &amp; Schwachstellenverfolgung</h2>
+<p>Über die reine Erkennung von Schwachstellen hinaus ermöglicht YADS jetzt die Verfolgung des Behebungslebenszyklus jedes Befunds. Zugang über <strong>Sicherheit → Befunde</strong>.</p>
+
+<h3>14.1 Befundstatus</h3>
+<p>Jedem Befund kann einer von vier Status zugewiesen werden:</p>
+<table>
+    <tr><th>Status</th><th>Bedeutung</th><th>Badge-Farbe</th></tr>
+    <tr><td>Offen</td><td>Neu erkannt, noch nicht bearbeitet</td><td>Grau</td></tr>
+    <tr><td>Bestätigt</td><td>Team ist informiert und arbeitet daran</td><td>Blau</td></tr>
+    <tr><td>Falsch-Positiv</td><td>Verifiziertes Nicht-Problem, aus Zählungen ausgeschlossen</td><td>Grau (durchgestrichen)</td></tr>
+    <tr><td>Behoben</td><td>Behebung bestätigt</td><td>Grün (Smaragd)</td></tr>
+</table>
+<p>Status aktualisieren: klicken Sie auf die <strong>Bearbeiten</strong>-Schaltfläche in einer Befundzeile. Ein Modal öffnet sich mit einem Status-Dropdown und einem optionalen Notizfeld. Klicken Sie auf <strong>Speichern</strong>, um die Änderung zu übernehmen.</p>
+<blockquote>
+    <p><strong>Technischer Hinweis</strong>: Status wird mandantenspezifisch gespeichert und durch einen deterministischen SHA-256-Hash von <code>domain|modul|problem_titel</code> identifiziert. Der Status übersteht Neuüberprüfungen — ein als "Behoben" markierter Befund behält diesen Status auch nach dem nächsten Scan, bis der Befund tatsächlich aus den Ergebnissen verschwindet.</p>
+</blockquote>
+
+<h3>14.2 Nach Status filtern</h3>
+<p>Ein <strong>Status</strong>-Dropdown-Filter auf der Sicherheitsbefunde-Seite erlaubt die Konzentration auf das Wesentliche:</p>
+<ul>
+    <li><em>Offen</em>: Unbearbeitete Probleme sehen</li>
+    <li><em>Bestätigt</em>: Laufende Bearbeitungen sehen</li>
+    <li><em>Falsch-Positiv</em>: Ausschlüsse überprüfen</li>
+    <li><em>Behoben</em>: Abgeschlossene Behebungen verifizieren</li>
+</ul>
+
+<h3>14.3 CSV-Export</h3>
+<p>Die <strong>CSV exportieren</strong>-Schaltfläche (Toolbar, oben rechts in der Befundtabelle) exportiert die aktuell gefilterte Ansicht. Alle aktiven Filter werden angewendet — Schweregrad, Status, Modul, Domain und Datumsbereich. CSV-Spalten:</p>
+<ul>
+    <li><code>domain</code>, <code>title</code>, <code>severity</code>, <code>module</code>, <code>status</code>, <code>found_at</code>, <code>notes</code></li>
+</ul>
+
+<hr />
+<h2>15. Asset-Tagging &amp; Organisation</h2>
+<p>Tags ermöglichen die Organisation von Zielen in logische Gruppen. Navigation über <strong>Ziele → Tags</strong>.</p>
+
+<h3>15.1 Tags zuweisen</h3>
+<ul>
+    <li><strong>Inline-Bearbeitung</strong>: In der Zieltabelle auf den <strong>+ Tag hinzufügen</strong>-Link in einer Zeile klicken. Tag-Namen eingeben und Enter drücken. Auf <strong>×</strong> an einem bestehenden Chip klicken, um ihn zu entfernen.</li>
+    <li><strong>Tags-Seite</strong>: Auf eine Zielzeile in der Tags-Seite klicken, um ein Bearbeitungspanel zu öffnen.</li>
+    <li><strong>Massenoperationen</strong>: Mehrere Ziele per Checkbox auswählen, dann das <strong>Massen-Tag</strong>-Panel nutzen, um Tags über alle ausgewählten Ziele gleichzeitig hinzuzufügen, zu entfernen oder zu ersetzen.</li>
+</ul>
+
+<h3>15.2 Nach Tag filtern</h3>
+<p>Eine interaktive <strong>Tag-Wolke</strong> auf der Tags-Seite zeigt alle verwendeten Tags. Die Chipgröße skaliert mit der Verwendungshäufigkeit. Klicken Sie auf ein Tag, um die Zielliste darunter zu filtern. Erneutes Klicken hebt den Filter auf.</p>
+
+<h3>15.3 Tag-Taxonomie verwalten</h3>
+<p>Der Bereich <strong>Tags verwalten</strong> auf der Tags-Seite zeigt ein Balkendiagramm der am häufigsten verwendeten Tags. Jeder Tag hat eine <strong>Löschen</strong>-Schaltfläche, die diesen Tag von allen Zielen des Mandanten entfernt.</p>
+
+<h3>15.4 Empfohlene Tag-Konventionen</h3>
+<table>
+    <tr><th>Kategorie</th><th>Beispiel-Tags</th><th>Zweck</th></tr>
+    <tr><td>Umgebung</td><td><code>produktion</code>, <code>staging</code>, <code>entwicklung</code></td><td>Produktion von Nicht-Produktion trennen</td></tr>
+    <tr><td>Kritikalität</td><td><code>kritisch</code>, <code>hochwertig</code>, <code>intern</code></td><td>Scan-Schwerpunkte priorisieren</td></tr>
+    <tr><td>Scope</td><td><code>im-scope</code>, <code>außerhalb-scope</code>, <code>drittanbieter</code></td><td>Pentest- und Bug-Bounty-Scoping</td></tr>
+    <tr><td>Infrastruktur</td><td><code>cloud</code>, <code>aws</code>, <code>azure</code>, <code>on-prem</code></td><td>Infrastrukturtyp-Klassifizierung</td></tr>
+    <tr><td>Team</td><td><code>team-backend</code>, <code>team-frontend</code></td><td>Eigentümerzuordnung</td></tr>
+    <tr><td>Compliance</td><td><code>dsgvo</code>, <code>pci</code>, <code>iso27001</code></td><td>Regulatorischer Scope</td></tr>
+</table>
+
+<hr />
+<h2>16. Executive Report &amp; Portfolio-Ansicht</h2>
+
+<h3>16.1 Executive Security Report</h3>
+<p>Navigation über <strong>Intelligence → Executive Report</strong>. Diese Seite bietet eine nicht-technische, C-Level-freundliche Sicherheitsübersicht — geeignet für Management-Präsentationen, Vorstandsberichte und Stakeholder-Updates.</p>
+<p><strong>Inhalte:</strong></p>
+<ul>
+    <li><strong>Sicherheitsnote</strong>: Eine einzelne Buchstabennote (A–F) mit numerischem Score (0–100), berechnet aus der Schweregradverteilung über alle aktiven Ziele.</li>
+    <li><strong>Risikotrend</strong>: Verbessert, Stabil oder Verschlechtert — abgeleitet aus den letzten 10 SecurityTrend-Datensätzen.</li>
+    <li><strong>KPI-Karten</strong>: Überwachte Assets, kritische Probleme, Hochrisiko-Probleme, Gesamtscore.</li>
+    <li><strong>Risikoverteilungsbalken</strong>: Segmentierter Horizontalbalken, der den Anteil kritisch → Info auf einen Blick zeigt.</li>
+    <li><strong>Top 5 Risikotypen</strong>: Häufigste Befundkategorien über alle Ziele.</li>
+    <li><strong>Top 5 gefährdetste Assets</strong>: Domains mit der höchsten Befundanzahl.</li>
+    <li><strong>Handlungsempfehlungen</strong>: Bis zu 5 priorisierte, verständliche Maßnahmen basierend auf tatsächlichen Befunden.</li>
+</ul>
+<p><strong>Drucken als PDF:</strong> Klicken Sie auf die <strong>Bericht drucken</strong>-Schaltfläche. Ein Druckstylessheet blendet die Navigation aus und rendert den Bericht mit weißem Hintergrund für den Druck oder als PDF-Speicherung aus dem Browser.</p>
+
+<h3>16.2 Angriffspfad-Visualisierer</h3>
+<p>Navigation über <strong>Intelligence → Angriffspfad</strong> (oder von einer Zieldetailseite). Dieser interaktive Graph zeigt, wie ein Angreifer von der Erstbetretung zu tieferer Kompromittierung eines spezifischen Ziels vorgehen könnte.</p>
+<p><strong>Verwendung:</strong></p>
+<ol>
+    <li>Wählen Sie ein Ziel aus der Dropdown-Liste.</li>
+    <li>Der Graph lädt mit kraftgerichtetem Layout. Knoten verschieben; Scrollen zum Zoomen.</li>
+    <li>Klicken Sie auf einen Knoten, um das <strong>Knotendetail</strong>-Panel rechts zu öffnen (Port/Banner, Dienstversion/CVEs, Befundbeschreibung).</li>
+    <li>Die <strong>Top-Angriffspfade</strong>-Liste zeigt die risikoreichsten Befunde — klicken zum Hinspringen.</li>
+    <li>Filter: Knotentypen per Checkbox ein-/ausblenden, Mindestrisiko-Slider.</li>
+</ol>
+<p><strong>Farbcodierung:</strong> Rot = Kritisch, Orange = Hoch, Gelb = Mittel, Grün = Niedrig/Info.</p>
+
+<h3>16.3 Portfolio-Ansicht (Plattformadministratoren)</h3>
+<p>Plattformadministratoren (Benutzer mit <code>role=admin</code> ohne Mandantenzuweisung) können über <strong>Admin → Portfolio-Ansicht</strong> zugreifen. Diese mandantenübergreifende Übersicht zeigt:</p>
+<ul>
+    <li>Mandantenspezifische Statistiken: Domain-Anzahl, kritische/hohe Befunde, durchschnittlicher Sicherheitsscore (A–F-Badge), Plantier, letzter Scan.</li>
+    <li>Globale KPI-Karten: Gesamtmandanten, Gesamtdomains plattformweit, kritische Befunde plattformweit.</li>
+    <li>Erweiterbare Zeilen: Top 3 gefährdetste Domains pro Mandant mit Befundanzahlen.</li>
+    <li><strong>Als Mandant anzeigen</strong>: Schneller Imitationslink, der den Kontext auf das Dashboard des Mandanten umschaltet.</li>
+    <li>Inline-Suche: Mandantenliste in Echtzeit nach Namen filtern.</li>
+</ul>
+
+<hr />
 <h2>13. Best Practices</h2>
 <p>Um das Beste aus YADS herauszuholen, beachten Sie diese Tipps:</p>
 <blockquote>
@@ -733,7 +888,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <h2>15. Support</h2>
 <p>Für technischen Support oder um Fehler zu melden: support@yads-security.com</p>
 <hr />
-<p><em>Verifiziert für YADS v1.19.2</em></p>
+<p><em>Verifiziert für YADS v1.20.0</em></p>
         </main>
     </div>
     

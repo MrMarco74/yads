@@ -2,31 +2,77 @@
 {% block content %}
 <div class="space-y-6">
 
+    <!-- Status Update Modal -->
+    <div id="statusModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <h2 class="text-base font-semibold text-white mb-4">Update Finding Status</h2>
+            <input type="hidden" id="modalFindingHash">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1.5">Status</label>
+                    <select id="modalStatus" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                        <option value="open">Open</option>
+                        <option value="acknowledged">Acknowledged</option>
+                        <option value="false_positive">False Positive</option>
+                        <option value="fixed">Fixed</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1.5">Note <span class="text-slate-600">(optional)</span></label>
+                    <textarea id="modalNote" rows="3" placeholder="Add context, ticket number, etc."
+                              class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-5 justify-end">
+                <button onclick="closeStatusModal()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Cancel</button>
+                <button onclick="saveStatus()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-white">Security Findings</h1>
             <p class="text-slate-400 text-sm mt-1">Aggregated findings from all Phase 1 security scanners across all targets.</p>
         </div>
-        <!-- Filters -->
-        <form method="GET" class="flex flex-wrap gap-2">
-            <select name="module_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option value="">All Modules</option>
-                {% for m in finding_modules %}
-                <option value="{{ m }}" {% if module_filter == m %}selected{% endif %}>{{ m.replace('_', ' ').title() }}</option>
-                {% endfor %}
-            </select>
-            <select name="severity_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option value="">All Severities</option>
-                <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
-                <option value="high" {% if severity_filter == 'high' %}selected{% endif %}>High</option>
-                <option value="medium" {% if severity_filter == 'medium' %}selected{% endif %}>Medium</option>
-                <option value="low" {% if severity_filter == 'low' %}selected{% endif %}>Low</option>
-            </select>
-            {% if module_filter or severity_filter %}
-            <a href="/security-findings/" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">Clear</a>
-            {% endif %}
-        </form>
+        <!-- Toolbar -->
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- Filters form -->
+            <form method="GET" class="flex flex-wrap gap-2" id="filterForm">
+                <select name="module_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="">All Modules</option>
+                    {% for m in finding_modules %}
+                    <option value="{{ m }}" {% if module_filter == m %}selected{% endif %}>{{ m.replace('_', ' ').title() }}</option>
+                    {% endfor %}
+                </select>
+                <select name="severity_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="">All Severities</option>
+                    <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+                    <option value="high" {% if severity_filter == 'high' %}selected{% endif %}>High</option>
+                    <option value="medium" {% if severity_filter == 'medium' %}selected{% endif %}>Medium</option>
+                    <option value="low" {% if severity_filter == 'low' %}selected{% endif %}>Low</option>
+                </select>
+                <select name="status_filter" onchange="this.form.submit()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="">All Statuses</option>
+                    <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
+                    <option value="acknowledged" {% if status_filter == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
+                    <option value="false_positive" {% if status_filter == 'false_positive' %}selected{% endif %}>False Positive</option>
+                    <option value="fixed" {% if status_filter == 'fixed' %}selected{% endif %}>Fixed</option>
+                </select>
+                {% if module_filter or severity_filter or status_filter %}
+                <a href="/security-findings/" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">Clear</a>
+                {% endif %}
+            </form>
+            <!-- CSV Export button -->
+            <a href="/security-findings/api/findings/export?{% if severity_filter %}severity={{ severity_filter }}&{% endif %}{% if module_filter %}module={{ module_filter }}&{% endif %}{% if status_filter %}status={{ status_filter }}{% endif %}"
+               class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium rounded-lg border border-slate-700 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Export CSV
+            </a>
+        </div>
     </div>
 
     <!-- Summary KPIs -->
@@ -79,13 +125,14 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-500">{{ entry.findings|length }} finding{{ 's' if entry.findings|length != 1 else '' }}</span>
-                    <a href="/targets/{{ entry.target.id }}" class="text-xs text-slate-500 hover:text-indigo-400">View →</a>
+                    <a href="/targets/{{ entry.target.id }}" class="text-xs text-slate-500 hover:text-indigo-400">View &rarr;</a>
                 </div>
             </div>
             <!-- Findings list -->
             <div class="divide-y divide-slate-800/50">
                 {% for f in entry.findings %}
                 <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-800/20">
+                    <!-- Severity badge -->
                     <span class="shrink-0 mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
                         {% if f.severity == 'critical' %}bg-red-900/60 text-red-200 border border-red-700/50
                         {% elif f.severity == 'high' %}bg-orange-900/60 text-orange-200 border border-orange-700/50
@@ -94,10 +141,30 @@
                         {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
                         {{ f.severity }}
                     </span>
+                    <!-- Issue text -->
                     <div class="flex-1 min-w-0">
                         <p class="text-xs text-slate-200">{{ f.issue }}</p>
+                        {% if f.status_note %}
+                        <p class="text-[10px] text-slate-500 mt-0.5 italic">Note: {{ f.status_note }}</p>
+                        {% endif %}
                     </div>
+                    <!-- Module label -->
                     <span class="shrink-0 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded">{{ f.module.replace('_scanner','').replace('_',' ') }}</span>
+                    <!-- Status badge -->
+                    <span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold
+                        {% if f.status == 'open' %}bg-slate-800 text-slate-300 border border-slate-700
+                        {% elif f.status == 'acknowledged' %}bg-blue-900/50 text-blue-300 border border-blue-700/50
+                        {% elif f.status == 'false_positive' %}bg-slate-800 text-slate-500 border border-slate-700 line-through
+                        {% elif f.status == 'fixed' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700/50
+                        {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                        {% if f.status == 'false_positive' %}FP{% else %}{{ f.status|replace('_', ' ')|title }}{% endif %}
+                    </span>
+                    <!-- Update Status button -->
+                    <button onclick="openStatusModal('{{ f.finding_hash }}', '{{ f.status }}', {{ f.status_note | tojson }})"
+                            class="shrink-0 text-[10px] text-slate-500 hover:text-indigo-400 border border-slate-700 hover:border-indigo-600 px-1.5 py-0.5 rounded transition-colors"
+                            title="Update status">
+                        Edit
+                    </button>
                 </div>
                 {% endfor %}
             </div>
@@ -123,4 +190,45 @@
     {% endif %}
 
 </div>
+
+<script>
+function openStatusModal(findingHash, currentStatus, currentNote) {
+    document.getElementById('modalFindingHash').value = findingHash;
+    document.getElementById('modalStatus').value = currentStatus || 'open';
+    document.getElementById('modalNote').value = currentNote || '';
+    document.getElementById('statusModal').classList.remove('hidden');
+}
+
+function closeStatusModal() {
+    document.getElementById('statusModal').classList.add('hidden');
+}
+
+async function saveStatus() {
+    const hash = document.getElementById('modalFindingHash').value;
+    const status = document.getElementById('modalStatus').value;
+    const note = document.getElementById('modalNote').value;
+
+    try {
+        const res = await fetch(`/security-findings/api/findings/${hash}/status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status, note })
+        });
+        if (res.ok) {
+            closeStatusModal();
+            window.location.reload();
+        } else {
+            const d = await res.json();
+            alert('Error: ' + (d.detail || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Request failed: ' + e.message);
+    }
+}
+
+// Close modal on backdrop click
+document.getElementById('statusModal').addEventListener('click', function(e) {
+    if (e.target === this) closeStatusModal();
+});
+</script>
 {% endblock %}

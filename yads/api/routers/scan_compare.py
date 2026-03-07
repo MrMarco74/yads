@@ -17,33 +17,9 @@ from yads.models import ScanResult, Target, User
 
 router = APIRouter(prefix="/scan-compare", tags=["analytics"])
 
-MODULE_LABELS = {
-    "email_security": "Email Security",
-    "axfr_scanner": "DNS Zone Transfer",
-    "security_txt": "Security.txt",
-    "http_headers": "HTTP Headers",
-    "cookie_scanner": "Cookie Security",
-    "cors_scanner": "CORS",
-    "cert_mismatch": "Cert Mismatch",
-    "shodan_censys": "Shodan / Censys",
-    "threat_intel": "Threat Intel",
-    "subdomain_takeover": "Subdomain Takeover",
-    "git_exposure": "Git Exposure",
-    "js_secrets": "JS Secrets",
-    "wayback_scanner": "Wayback Machine",
-    "external_resources": "External Resources",
-    "metadata_scanner": "Document Metadata",
-    "rpki_scanner": "RPKI / BGP",
-    "dsgvo_scanner": "Privacy / DSGVO",
-    "dns_scanner": "DNS Scanner",
-    "subdomain_scanner": "Subdomain Recon",
-    "ssl_scanner": "SSL Scanner",
-    "web_analyzer": "Web Analyzer",
-    "nuclei_scanner": "Nuclei",
-    "infrastructure_scanner": "Infrastructure",
-    "nmap_scanner": "Nmap",
-    "cve_scanner": "CVE Scanner",
-}
+from yads.core.module_registry import get_module_labels as _get_module_labels
+
+MODULE_LABELS = {**_get_module_labels(), "cve_scanner": "CVE Scanner"}
 
 
 def _flatten_value(val: Any, prefix: str = "") -> Dict[str, str]:
