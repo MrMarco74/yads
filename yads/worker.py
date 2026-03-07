@@ -1516,6 +1516,69 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in CSP Scanner: {e}")
                     session.rollback()
 
+            if "email_security" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Checking SPF/DKIM/DMARC..."
+                        session.add(t); session.commit()
+                    from yads.modules.email_security_scanner import EmailSecurityScanner
+                    es_scan = EmailSecurityScanner(db_session=session)
+                    logger.info(f"[Worker] Running {es_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {es_scan.module_name} for {domain}")
+                        result = es_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {es_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Email Security Scanner: {e}")
+                    session.rollback()
+
+            if "axfr_scanner" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Testing DNS zone transfer (AXFR)..."
+                        session.add(t); session.commit()
+                    from yads.modules.axfr_scanner import AXFRScanner
+                    axfr_scan = AXFRScanner(db_session=session)
+                    logger.info(f"[Worker] Running {axfr_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {axfr_scan.module_name} for {domain}")
+                        result = axfr_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {axfr_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in AXFR Scanner: {e}")
+                    session.rollback()
+
+            if "security_txt" in scan_types:
+                try:
+                    t = session.get(Target, target_id)
+                    if t:
+                        t.scan_progress = "Checking security.txt..."
+                        session.add(t); session.commit()
+                    from yads.modules.security_txt_scanner import SecurityTxtScanner
+                    stxt_scan = SecurityTxtScanner(db_session=session)
+                    logger.info(f"[Worker] Running {stxt_scan.module_name}...")
+                    with LogCapture() as logs:
+                        logger.info(f"Starting {stxt_scan.module_name} for {domain}")
+                        result = stxt_scan.process(target_id, domain)
+                        captured_logs = logs.get_logs()
+                    if result and hasattr(result, 'log_content'):
+                        result.log_content = sanitize_null_bytes(captured_logs)
+                        session.add(result); session.commit()
+                    print(f"[Worker] {stxt_scan.module_name} finished.")
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Security.txt Scanner: {e}")
+                    session.rollback()
+
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
             

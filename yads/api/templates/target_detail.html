@@ -268,6 +268,18 @@
                                 <input type="checkbox" name="scan_types" value="csp_scanner" checked class="form-checkbox text-emerald-500 rounded bg-gray-900 border-emerald-600">
                                 <span class="text-sm font-medium text-emerald-400">CSP Scanner (External Domain Discovery)</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-blue-900/20 rounded border border-blue-900/50 hover:bg-blue-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="email_security" checked class="form-checkbox text-blue-500 rounded bg-gray-900 border-blue-600">
+                                <span class="text-sm font-medium text-blue-400">Email Security (SPF / DKIM / DMARC)</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 bg-red-900/20 rounded border border-red-900/50 hover:bg-red-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="axfr_scanner" checked class="form-checkbox text-red-500 rounded bg-gray-900 border-red-600">
+                                <span class="text-sm font-medium text-red-400">DNS Zone Transfer (AXFR)</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 bg-slate-900/40 rounded border border-slate-700/50 hover:bg-slate-800/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="security_txt" checked class="form-checkbox text-slate-400 rounded bg-gray-900 border-slate-600">
+                                <span class="text-sm font-medium text-slate-400">Security.txt (RFC 9116)</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners

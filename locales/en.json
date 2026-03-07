@@ -143,7 +143,10 @@
     "scan_type": "Scan Type",
     "results": "Scan Results",
     "no_results": "No scan results yet.",
-    "modules": "Modules"
+    "modules": "Modules",
+    "email_security": "Email Security (SPF / DKIM / DMARC)",
+    "axfr_scanner": "DNS Zone Transfer (AXFR)",
+    "security_txt": "Security.txt (RFC 9116)"
   },
   "report": {
     "generate": "Generate Report",
