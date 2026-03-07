@@ -445,6 +445,37 @@ def _run_parallel_module(module_cls, target_id: int, domain: str):
         logger.error(f"[Worker] Parallel module {module_cls.__name__} error: {e}")
 
 
+def _run_simple_module(module_cls, target_id: int, domain: str, session, progress_msg: str = None):
+    """
+    DRY helper for simple scanner modules.
+    Updates scan_progress, runs module, saves log_content.
+    Returns True on success, False on error.
+    """
+    if progress_msg:
+        t = session.get(Target, target_id)
+        if t:
+            t.scan_progress = progress_msg
+            session.add(t)
+            session.commit()
+    try:
+        scanner = module_cls(db_session=session)
+        logger.info(f"[Worker] Running {scanner.module_name}...")
+        with LogCapture() as logs:
+            logger.info(f"Starting {scanner.module_name} for {domain}")
+            result = scanner.process(target_id, domain)
+            captured_logs = logs.get_logs()
+        if result and hasattr(result, 'log_content'):
+            result.log_content = sanitize_null_bytes(captured_logs)
+            session.add(result)
+            session.commit()
+        print(f"[Worker] {scanner.module_name} finished.")
+        return True
+    except Exception as e:
+        logger.error(f"[Worker] Error in {module_cls.__name__}: {e}")
+        session.rollback()
+        return False
+
+
 @celery_app.task(name="yads.worker.run_all_scans", bind=True)
 def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = None, tenant_id: int = None, ignore_queue_pause: bool = False):
     """
@@ -1516,152 +1547,34 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in CSP Scanner: {e}")
                     session.rollback()
 
+            # ── Phase 1 Scanners (via _run_simple_module helper) ─────────────
             if "email_security" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Checking SPF/DKIM/DMARC..."
-                        session.add(t); session.commit()
-                    from yads.modules.email_security_scanner import EmailSecurityScanner
-                    es_scan = EmailSecurityScanner(db_session=session)
-                    logger.info(f"[Worker] Running {es_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {es_scan.module_name} for {domain}")
-                        result = es_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {es_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Email Security Scanner: {e}")
-                    session.rollback()
+                from yads.modules.email_security_scanner import EmailSecurityScanner
+                _run_simple_module(EmailSecurityScanner, target_id, domain, session, "Checking SPF/DKIM/DMARC...")
 
             if "axfr_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Testing DNS zone transfer (AXFR)..."
-                        session.add(t); session.commit()
-                    from yads.modules.axfr_scanner import AXFRScanner
-                    axfr_scan = AXFRScanner(db_session=session)
-                    logger.info(f"[Worker] Running {axfr_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {axfr_scan.module_name} for {domain}")
-                        result = axfr_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {axfr_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in AXFR Scanner: {e}")
-                    session.rollback()
+                from yads.modules.axfr_scanner import AXFRScanner
+                _run_simple_module(AXFRScanner, target_id, domain, session, "Testing DNS zone transfer (AXFR)...")
 
             if "security_txt" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Checking security.txt..."
-                        session.add(t); session.commit()
-                    from yads.modules.security_txt_scanner import SecurityTxtScanner
-                    stxt_scan = SecurityTxtScanner(db_session=session)
-                    logger.info(f"[Worker] Running {stxt_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {stxt_scan.module_name} for {domain}")
-                        result = stxt_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {stxt_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Security.txt Scanner: {e}")
-                    session.rollback()
+                from yads.modules.security_txt_scanner import SecurityTxtScanner
+                _run_simple_module(SecurityTxtScanner, target_id, domain, session, "Checking security.txt...")
 
             if "http_headers" in scan_types and (has_http or has_https):
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Checking HTTP security headers..."
-                        session.add(t); session.commit()
-                    from yads.modules.http_headers_scanner import HTTPHeadersScanner
-                    hh_scan = HTTPHeadersScanner(db_session=session)
-                    logger.info(f"[Worker] Running {hh_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {hh_scan.module_name} for {domain}")
-                        result = hh_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {hh_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in HTTP Headers Scanner: {e}")
-                    session.rollback()
+                from yads.modules.http_headers_scanner import HTTPHeadersScanner
+                _run_simple_module(HTTPHeadersScanner, target_id, domain, session, "Checking HTTP security headers...")
 
             if "cookie_scanner" in scan_types and (has_http or has_https):
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Analyzing cookie security..."
-                        session.add(t); session.commit()
-                    from yads.modules.cookie_scanner import CookieScanner
-                    ck_scan = CookieScanner(db_session=session)
-                    logger.info(f"[Worker] Running {ck_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {ck_scan.module_name} for {domain}")
-                        result = ck_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {ck_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Cookie Scanner: {e}")
-                    session.rollback()
+                from yads.modules.cookie_scanner import CookieScanner
+                _run_simple_module(CookieScanner, target_id, domain, session, "Analyzing cookie security...")
 
             if "cors_scanner" in scan_types and (has_http or has_https):
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Testing CORS policy..."
-                        session.add(t); session.commit()
-                    from yads.modules.cors_scanner import CORSScanner
-                    cors_scan = CORSScanner(db_session=session)
-                    logger.info(f"[Worker] Running {cors_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {cors_scan.module_name} for {domain}")
-                        result = cors_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {cors_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in CORS Scanner: {e}")
-                    session.rollback()
+                from yads.modules.cors_scanner import CORSScanner
+                _run_simple_module(CORSScanner, target_id, domain, session, "Testing CORS policy...")
 
             if "cert_mismatch" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Checking certificate/domain match..."
-                        session.add(t); session.commit()
-                    from yads.modules.cert_mismatch_scanner import CertMismatchScanner
-                    cm_scan = CertMismatchScanner(db_session=session)
-                    logger.info(f"[Worker] Running {cm_scan.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {cm_scan.module_name} for {domain}")
-                        result = cm_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result); session.commit()
-                    print(f"[Worker] {cm_scan.module_name} finished.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Cert Mismatch Scanner: {e}")
-                    session.rollback()
+                from yads.modules.cert_mismatch_scanner import CertMismatchScanner
+                _run_simple_module(CertMismatchScanner, target_id, domain, session, "Checking certificate/domain match...")
 
             # Subdomain Discovery & Auto-Queue Logic
             # Updated to check 'subdomain_scanner' result as the primary source of subdomains
