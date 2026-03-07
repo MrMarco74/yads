@@ -88,9 +88,18 @@ class BaseScannerModule(abc.ABC):
                 last_scanned_at=current_time
             )
             self.db.add(state)
-            
+
             # Save Result
             result = self._save_result(target_id, raw_data, new_hash, current_time)
+            self.db.flush()
+
+            # Record ChangeEvent for first scan
+            event = ChangeEvent(
+                scan_result_id=result.id,
+                event_type="FIRST_SCAN",
+                description=self._describe_change(raw_data),
+            )
+            self.db.add(event)
             self.db.commit()
             return result
 
@@ -98,14 +107,23 @@ class BaseScannerModule(abc.ABC):
         if state.last_result_hash != new_hash:
             # CHANGE DETECTED
             print(f"Change detected for {target_domain} in {self.module_name}")
-            
+
             # Update State
             state.last_result_hash = new_hash
             state.last_scanned_at = current_time
             self.db.add(state)
-            
+
             # Save Result
             result = self._save_result(target_id, raw_data, new_hash, current_time)
+            self.db.flush()
+
+            # Record ChangeEvent
+            event = ChangeEvent(
+                scan_result_id=result.id,
+                event_type="DATA_CHANGED",
+                description=self._describe_change(raw_data),
+            )
+            self.db.add(event)
             self.db.commit()
             return result
         else:
@@ -132,6 +150,22 @@ class BaseScannerModule(abc.ABC):
             result = self._save_result(target_id, raw_data, new_hash, current_time)
             self.db.commit()
             return result
+
+    def _describe_change(self, data: Dict) -> str:
+        """Build a short human-readable summary of the scan result for ChangeEvent."""
+        summary = data.get("summary", {})
+        parts = []
+        score = summary.get("score")
+        if score is not None:
+            parts.append(f"Score: {score}")
+        findings = data.get("findings", [])
+        fc = len(findings) if isinstance(findings, list) else summary.get("findings_count", 0)
+        if fc:
+            parts.append(f"{fc} finding(s)")
+        # Module-specific extras
+        if data.get("error"):
+            parts.append(f"Error: {data['error']}")
+        return "; ".join(parts) if parts else "Data updated"
 
     def _save_result(self, target_id: int, data: Dict, result_hash: str, timestamp: datetime) -> ScanResult:
         result = ScanResult(
