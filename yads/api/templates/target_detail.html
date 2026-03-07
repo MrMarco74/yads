@@ -312,6 +312,10 @@
                                 <input type="checkbox" name="scan_types" value="git_exposure" class="form-checkbox text-cyan-500 rounded bg-gray-900 border-cyan-600">
                                 <span class="text-sm font-medium text-cyan-400">Exposed .git / Files</span>
                             </label>
+                            <label class="flex items-center space-x-2 p-3 bg-yellow-900/20 rounded border border-yellow-900/50 hover:bg-yellow-900/30 cursor-pointer">
+                                <input type="checkbox" name="scan_types" value="js_secrets" class="form-checkbox text-yellow-500 rounded bg-gray-900 border-yellow-600">
+                                <span class="text-sm font-medium text-yellow-400">JS Secrets & Endpoints</span>
+                            </label>
                         </div>
                         <button type="submit" class="w-full bg-slate-700 hover:bg-blue-900/50 text-white text-xs font-bold py-2 rounded-lg transition-colors border border-slate-600">
                             Run Selected Scanners
@@ -3103,6 +3107,63 @@
                 {% endif %}
                 {% else %}
                 <p class="text-gray-500 italic text-sm">No data. Run "Exposed .git / Sensitive Files" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- JS SECRETS CARD -->
+            {% set js = js_secrets_result.data if js_secrets_result and js_secrets_result.data else none %}
+            <div class="bg-gray-800/50 border {% if js and js.summary.secret_count > 0 %}border-red-500/40{% else %}border-yellow-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-yellow-500/10 rounded-lg text-yellow-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">JS Secrets & Endpoints</h2>
+                            <p class="text-xs text-gray-400">API keys, tokens, and internal endpoints in JavaScript files.</p>
+                        </div>
+                    </div>
+                    {% if js %}
+                    <div class="text-right text-xs text-gray-500">
+                        <div>{{ js.js_files_scanned }} JS files</div>
+                        <div class="{% if js.summary.secret_count > 0 %}text-red-400 font-bold{% else %}text-emerald-400{% endif %}">{{ js.summary.secret_count }} secret(s)</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if js %}
+                {% if js.findings %}
+                <div class="space-y-2 mb-4">
+                    {% for f in js.findings %}
+                    <div class="p-2.5 bg-gray-900/50 rounded border {% if f.severity == 'critical' %}border-red-500/30{% elif f.severity == 'high' %}border-orange-500/30{% else %}border-gray-700/30{% endif %}">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 {% if f.severity == 'critical' %}bg-red-900/60 text-red-300{% elif f.severity == 'high' %}bg-orange-900/60 text-orange-300{% elif f.severity == 'medium' %}bg-amber-900/60 text-amber-300{% else %}bg-blue-900/60 text-blue-300{% endif %}">{{ f.severity }}</span>
+                            <span class="text-xs text-gray-200">{{ f.title }}</span>
+                        </div>
+                        <p class="text-[11px] text-gray-500 font-mono truncate">{{ f.detail }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2 mb-3">
+                    <p class="text-emerald-400 text-sm">✓ No hardcoded secrets detected in JavaScript files.</p>
+                </div>
+                {% endif %}
+
+                {% if js.endpoints %}
+                <div>
+                    <div class="text-xs text-gray-500 mb-2 uppercase tracking-wider">Discovered API Endpoints ({{ js.endpoints | length }})</div>
+                    <div class="space-y-0.5 max-h-32 overflow-y-auto custom-scrollbar">
+                        {% for ep in js.endpoints[:20] %}
+                        <div class="text-[11px] font-mono text-gray-400 bg-gray-900/30 px-2 py-0.5 rounded">{{ ep }}</div>
+                        {% endfor %}
+                        {% if js.endpoints | length > 20 %}<div class="text-[11px] text-gray-500 px-2">+{{ js.endpoints | length - 20 }} more</div>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "JavaScript Secrets & Endpoints" scan.</p>
                 {% endif %}
             </div>
 
