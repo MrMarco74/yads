@@ -108,39 +108,37 @@ class NmapScanner(BaseScannerModule):
             my_env = os.environ.copy()
             my_env["LC_ALL"] = "C"
             
+            NMAP_TIMEOUT = 300  # 5 min hard cap per target — prevents blocking the full task slot
+
             proc = subprocess.Popen(
-                cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.STDOUT, # Merge stderr to stdout to catch stats
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1, # Line buffered
                 universal_newlines=True,
                 env=my_env
             )
-            
-            # Read stdout line by line
+
+            try:
+                stdout_data, _ = proc.communicate(timeout=NMAP_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdout_data, _ = proc.communicate()
+                self.logger.warning(
+                    f"[Nmap] Scan timed out after {NMAP_TIMEOUT}s for {target} — partial results returned"
+                )
+                stdout_data = (stdout_data or "") + f"\n[YADS] Nmap terminated after {NMAP_TIMEOUT}s timeout"
+
             raw_output_lines = []
-            
-            # Iterate over lines
-            scan_started_logging = False
-            for line in proc.stdout:
+            for line in stdout_data.splitlines():
                 line = line.strip()
                 if not line:
                     continue
-                    
                 raw_output_lines.append(line)
-                
-                # Check for progress
-                # Example: "About 45.45% done" or "Stats: 0:00:01 elapsed"
                 if ("About" in line and "% done" in line) or "Stats:" in line:
                     self.logger.info(f"[Nmap] {line}")
-                elif "Scanning" in line: 
+                elif "Scanning" in line or "Starting Nmap" in line:
                     self.logger.info(f"[Nmap] {line}")
-                elif not scan_started_logging and "Starting Nmap" in line:
-                    self.logger.info(f"[Nmap] {line}")
-                    scan_started_logging = True
-            
-            proc.wait()
             
             if proc.returncode != 0:
                 raise Exception(f"Nmap exited with {proc.returncode}")
