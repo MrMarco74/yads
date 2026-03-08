@@ -105,35 +105,32 @@ class VisualOSINT(BaseScannerModule):
         """
         try:
             with sync_playwright() as p:
-                # Launch browser
-                # Note: 'chromium' must be installed.
-                # In Docker, we usually set args=['--no-sandbox']
                 browser = p.chromium.launch(
-                    headless=True, 
+                    headless=True,
                     args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
                 )
-                
-                # Create context with viewport
                 context = browser.new_context(viewport={'width': 1280, 'height': 800})
                 page = context.new_page()
-                
-                # Navigate
-                url = f"https://{target}"
-                # Fallback to http if https fails? Or rely on scanner handling.
-                # Playwright throws if page doesn't load.
-                try:
-                    page.goto(url, timeout=30000, wait_until="networkidle")
-                except Exception:
-                    # Try HTTP
-                    url = f"http://{target}"
-                    page.goto(url, timeout=30000, wait_until="networkidle")
 
-                # Take Screenshot
+                captured = False
+                for scheme in ("https", "http"):
+                    url = f"{scheme}://{target}"
+                    self.logger.info(f"Trying {url} ...")
+                    try:
+                        page.goto(url, timeout=15000, wait_until="load")
+                        captured = True
+                        break
+                    except Exception as e:
+                        self.logger.warning(f"{scheme.upper()} failed: {e}")
+
+                if not captured:
+                    browser.close()
+                    return False
+
                 page.screenshot(path=output_path, full_page=True)
-                
                 browser.close()
                 return True
-                
+
         except Exception as e:
             self.logger.error(f"Playwright error: {e}")
             return False
