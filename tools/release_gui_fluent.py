@@ -103,6 +103,36 @@ def get_log_stylesheet(dark: bool = None) -> str:
         """
 from qfluentwidgets.components.material import AcrylicLineEdit
 
+
+def _insert_log_line(log_view, message: str, level: str = "info"):
+    """Thread-safe HTML log insert with escaping and document size limit."""
+    import html as _html
+    from datetime import datetime
+    dark = isDarkTheme()
+    if dark:
+        colors = {"info": "#d4d4d4", "success": "#4ec9b0", "warning": "#dcdcaa", "error": "#f14c4c"}
+        ts_color = "#6a9955"
+    else:
+        colors = {"info": "#1e1e1e", "success": "#107c10", "warning": "#ca5010", "error": "#d13438"}
+        ts_color = "#107c10"
+    color = colors.get(level, colors["info"])
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    safe_msg = _html.escape(str(message))
+    line = f'<span style="color:{ts_color};">[{timestamp}]</span> <span style="color:{color};">{safe_msg}</span><br>'
+    # Trim oldest 200 lines when document exceeds 2000 blocks to prevent OOM
+    doc = log_view.document()
+    if doc.blockCount() > 2000:
+        cur = log_view.textCursor()
+        cur.movePosition(cur.MoveOperation.Start)
+        cur.movePosition(cur.MoveOperation.Down, cur.MoveMode.KeepAnchor, 200)
+        cur.removeSelectedText()
+    cur = log_view.textCursor()
+    cur.movePosition(cur.MoveOperation.End)
+    log_view.setTextCursor(cur)
+    log_view.insertHtml(line)
+    log_view.ensureCursorVisible()
+
+
 # Import release modules
 try:
     from release import ReleaseOrchestrator
@@ -876,24 +906,7 @@ class ProdDeployPage(QWidget):
         self._log(message, level)
 
     def _log(self, message: str, level: str = "info"):
-        dark = isDarkTheme()
-        if dark:
-            colors = {"info": "#d4d4d4", "success": "#4ec9b0", "warning": "#dcdcaa", "error": "#f14c4c"}
-            timestamp_color = "#6a9955"
-        else:
-            colors = {"info": "#1e1e1e", "success": "#107c10", "warning": "#ca5010", "error": "#d13438"}
-            timestamp_color = "#107c10"
-
-        color = colors.get(level, colors["info"])
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        html = f'<span style="color: {timestamp_color};">[{timestamp}]</span> <span style="color: {color};">{message}</span><br>'
-        cursor = self.log_view.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.log_view.setTextCursor(cursor)
-        self.log_view.insertHtml(html)
-        self.log_view.ensureCursorVisible()
+        _insert_log_line(self.log_view, message, level)
 
     def _clear_logs(self):
         self.log_view.clear()
@@ -1281,24 +1294,7 @@ class LocalDeployPage(QWidget):
         self._log(message, level)
 
     def _log(self, message: str, level: str = "info"):
-        dark = isDarkTheme()
-        if dark:
-            colors = {"info": "#d4d4d4", "success": "#4ec9b0", "warning": "#dcdcaa", "error": "#f14c4c"}
-            timestamp_color = "#6a9955"
-        else:
-            colors = {"info": "#1e1e1e", "success": "#107c10", "warning": "#ca5010", "error": "#d13438"}
-            timestamp_color = "#107c10"
-
-        color = colors.get(level, colors["info"])
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        html = f'<span style="color: {timestamp_color};">[{timestamp}]</span> <span style="color: {color};">{message}</span><br>'
-        cursor = self.log_view.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.log_view.setTextCursor(cursor)
-        self.log_view.insertHtml(html)
-        self.log_view.ensureCursorVisible()
+        _insert_log_line(self.log_view, message, level)
 
     def _clear_logs(self):
         self.log_view.clear()
@@ -1724,42 +1720,9 @@ class ReleasePage(QWidget):
         self._log(message, level)
 
     def _log(self, message: str, level: str = "info"):
-        """Add message to log view"""
-        dark = isDarkTheme()
-
-        if dark:
-            colors = {
-                "info": "#d4d4d4",
-                "success": "#4ec9b0",
-                "warning": "#dcdcaa",
-                "error": "#f14c4c"
-            }
-            timestamp_color = "#6a9955"
-        else:
-            colors = {
-                "info": "#1e1e1e",
-                "success": "#107c10",
-                "warning": "#ca5010",
-                "error": "#d13438"
-            }
-            timestamp_color = "#107c10"
-
-        color = colors.get(level, colors["info"])
-
-        # Add timestamp
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        html = f'<span style="color: {timestamp_color};">[{timestamp}]</span> <span style="color: {color};">{message}</span><br>'
-
-        cursor = self.log_view.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.log_view.setTextCursor(cursor)
-        self.log_view.insertHtml(html)
-        self.log_view.ensureCursorVisible()
+        _insert_log_line(self.log_view, message, level)
 
     def _clear_logs(self):
-        """Clear log view"""
         self.log_view.clear()
 
     def _on_finished(self, success: bool, message: str):
