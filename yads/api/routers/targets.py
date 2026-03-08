@@ -56,13 +56,16 @@ async def bulk_scan_targets(
          return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
          
     scan_types_selected = form.getlist("scan_types")
-    
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "quick_web_probe", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
+
+    from yads.core.module_registry import REGISTRY
+    # All registered module names + special pseudo-types
+    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
     final_types = [t for t in scan_types_selected if t in valid_types]
-    
+
     if "full_scan" in final_types:
-        # User explicitly requested EVERYTHING
-        final_types = [t for t in valid_types if t != "full_scan"]
+        # Expand to all modules EXCEPT subdomain_scanner — it triggers
+        # mass auto-queuing of subdomains and must always be an explicit choice.
+        final_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
     
     if not final_types:
          return RedirectResponse(url="/targets/table?msg=Error:+No+valid+scan+types+selected", status_code=303)
@@ -426,15 +429,14 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         pass
     
     # Validation/Default
-    valid_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner", "web_analyzer", "typosquat_scanner", "infrastructure_scanner", "visual_osint", "ssl_scanner", "wayback_scanner", "crawler", "cve_scanner", "content_discovery", "tld_scanner", "quick_web_probe", "port_scanner", "nmap_scanner", "nuclei_scanner", "brand_intelligence", "email_intelligence", "social_media_scanner", "deception_detector", "full_scan"]
+    from yads.core.module_registry import REGISTRY
+    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
     selected_types = [t for t in scan_types if t in valid_types]
-    
+
     if "full_scan" in selected_types:
-        # User explicitly requested EVERYTHING
-        # Expand 'full_scan' to all real scanner types
-        # Remove 'full_scan' pseudo-type to avoid worker conflict
-        real_types = [t for t in valid_types if t != "full_scan"]
-        selected_types = real_types
+        # Expand to all modules EXCEPT subdomain_scanner — it triggers
+        # mass auto-queuing of subdomains and must always be an explicit choice.
+        selected_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
     
     # --- License Check ---
     from yads.models import SystemConfig
