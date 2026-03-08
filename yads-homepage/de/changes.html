@@ -152,6 +152,25 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.21.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserungen der Stabilität und Zuverlässigkeit</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Es wurde ein kritischer Fehler behoben, bei dem Aufgaben nach visuellen OSINT-Scans abstürzten und Ziele auf unbestimmte Zeit im Status „wird ausgeführt“ verblieben. Die Fehlerbehebung gewährleistet eine ordnungsgemäße Bereinigung und Zustandsverwaltung nach der Ausführung von visuellen OSINT-Scans.</li>
+                    <li>Die Stabilität von visuellen OSINT-Scans wurde verbessert, indem das Playwright-Timeout auf 15 Sekunden pro Versuch reduziert und die Wartebedingung auf „load“ umgestellt wurde, um unbegrenzte Hänger auf Seiten mit persistenter Netzwerkaktivität zu verhindern.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte Protokollierung für visuelle OSINT-Scans, um klarere Fortschrittsaktualisierungen und Fehlermeldungen bereitzustellen und so die Sichtbarkeit des Scanstatus zu verbessern.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: d1149a0793d8b4a999f15b710258f99e7ddb62065840a91eb2c97b2849a21fab</p>
+            </div>
+        </div>
+
         <!-- Version 1.21.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.21.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
