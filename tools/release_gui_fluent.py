@@ -896,13 +896,14 @@ class ProdDeployPage(QWidget):
 
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
-    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local"):
+    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local", profiles: list = None):
         super().__init__()
         self.project_root = project_root
         self.action = action
         self.wipe_data = wipe_data
         self.setup_token = setup_token
         self.auth_mode = auth_mode
+        self.profiles = profiles or []
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
@@ -952,18 +953,35 @@ class LocalDeployWorker(QThread):
         finally:
             self.current_process = None
 
+    def _profile_flags(self) -> list:
+        """Build --profile flags for active profiles."""
+        flags = []
+        for p in self.profiles:
+            flags += ["--profile", p]
+        return flags
+
+    def _update_env(self, key: str, value: str):
+        """Write or update a key=value line in .env."""
+        env_path = self.project_root / ".env"
+        lines = env_path.read_text().splitlines() if env_path.exists() else []
+        lines = [l for l in lines if not l.startswith(f"{key}=")]
+        lines.append(f"{key}={value}")
+        env_path.write_text("\n".join(lines) + "\n")
+
     def _execute_action(self):
         self.signals.progress_update.emit(0, 100, f"Starting local {self.action}...")
-        
+
+        profile_flags = self._profile_flags()
+        profile_info = f" (profiles: {', '.join(self.profiles)})" if self.profiles else " (core only)"
+
         if self.action == "start":
-            self._log("Starting local environment...", "info")
+            self._log(f"Starting local environment{profile_info}...", "info")
+
             if self.wipe_data:
                 self._log("Wiping volumes (Neuinstallation) first...", "warning")
-                self._run_cmd(["docker", "compose", "down", "-v"])
-                # Force-remove nuclei_templates volume in case down -v left stale data
+                # Down with all known profiles so every container is included
+                self._run_cmd(["docker", "compose", "--profile", "keycloak", "--profile", "monitoring", "down", "-v"])
                 self._run_cmd(["docker", "volume", "rm", "--force", "yads_nuclei_templates"])
-                # Remove persistent config so setup wizard runs on fresh start
-                # Use a temp container since the file is root-owned (written by Docker)
                 self._log("Resetting data/config.env for fresh setup...", "info")
                 self._run_cmd([
                     "docker", "run", "--rm",
@@ -973,43 +991,42 @@ class LocalDeployWorker(QThread):
 
             if self.setup_token:
                 self._log("Injecting SETUP_TOKEN into .env...", "info")
-                env_path = self.project_root / ".env"
-                lines = env_path.read_text().splitlines() if env_path.exists() else []
-                lines = [l for l in lines if not l.startswith("SETUP_TOKEN=")]
-                lines.append(f"SETUP_TOKEN={self.setup_token}")
-                env_path.write_text("\n".join(lines) + "\n")
+                self._update_env("SETUP_TOKEN", self.setup_token)
 
-            # Inject AUTH_MODE into .env
             self._log(f"Setting AUTH_MODE={self.auth_mode} in .env...", "info")
-            env_path = self.project_root / ".env"
-            lines = env_path.read_text().splitlines() if env_path.exists() else []
-            lines = [l for l in lines if not l.startswith("AUTH_MODE=")]
-            lines.append(f"AUTH_MODE={self.auth_mode}")
-            env_path.write_text("\n".join(lines) + "\n")
+            self._update_env("AUTH_MODE", self.auth_mode)
 
-            build_cmd = ["docker", "compose", "build"]
-            up_cmd = ["docker", "compose", "up", "-d"]
-            
+            profiles_val = ",".join(self.profiles) if self.profiles else ""
+            self._update_env("COMPOSE_PROFILES", profiles_val)
+            self._log(f"COMPOSE_PROFILES={profiles_val or '(none)'}", "info")
+
+            build_cmd = ["docker", "compose"] + profile_flags + ["build"]
+            up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d"]
+
             self._log("Building containers...", "info")
             if not self._run_cmd(build_cmd):
                 return self.signals.operation_finished.emit(False, "Build failed")
-                
+
             self._log("Starting services...", "info")
             if not self._run_cmd(up_cmd):
                 return self.signals.operation_finished.emit(False, "Start failed")
-                
-            self.signals.operation_finished.emit(True, "Local environment started successfully")
+
+            self.signals.operation_finished.emit(True, f"Local environment started{profile_info}")
 
         elif self.action == "stop":
-            self._log("Stopping local environment...", "info")
-            down_cmd = ["docker", "compose", "down"]
+            self._log(f"Stopping local environment{profile_info}...", "info")
+            # Always stop ALL profiles so no containers are left behind
+            down_cmd = ["docker", "compose",
+                        "--profile", "keycloak",
+                        "--profile", "monitoring",
+                        "down"]
             if self.wipe_data:
                 self._log("Will wipe data volumes...", "warning")
                 down_cmd.append("-v")
-                
+
             if not self._run_cmd(down_cmd):
                 return self.signals.operation_finished.emit(False, "Stop failed")
-                
+
             msg = "Local environment stopped and wiped" if self.wipe_data else "Local environment stopped"
             self.signals.operation_finished.emit(True, msg)
 
@@ -1057,6 +1074,25 @@ class LocalDeployPage(QWidget):
         auth_row.addWidget(self.oidc_switch)
         auth_row.addStretch()
         layout.addLayout(auth_row)
+
+        # Docker Compose Profile Toggles
+        profile_card = CardWidget(self)
+        profile_layout = QVBoxLayout(profile_card)
+        profile_layout.setContentsMargins(20, 12, 20, 12)
+        profile_layout.setSpacing(8)
+        profile_layout.addWidget(StrongBodyLabel("Docker Compose Profile", self))
+
+        profile_row = QHBoxLayout()
+        profile_row.setSpacing(24)
+        self.profile_keycloak = CheckBox("Keycloak / SSO", self)
+        self.profile_monitoring = CheckBox("Monitoring (Grafana · Prometheus · Loki · MinIO)", self)
+        profile_row.addWidget(self.profile_keycloak)
+        profile_row.addWidget(self.profile_monitoring)
+        profile_row.addStretch()
+        profile_layout.addLayout(profile_row)
+
+        layout.addWidget(profile_card)
+        self._load_profiles_from_env()
 
         # Action Card
         action_card = CardWidget(self)
@@ -1133,6 +1169,27 @@ class LocalDeployPage(QWidget):
             self.info_bar.setTitle("Local Docker Compose")
             self.info_bar.setContent("Manage your local development stack. Uses the docker-compose.yml file in the project root.")
 
+    def _load_profiles_from_env(self):
+        """Pre-populate profile checkboxes from COMPOSE_PROFILES in .env."""
+        env_path = script_dir.parent / ".env"
+        if not env_path.exists():
+            return
+        for line in env_path.read_text().splitlines():
+            if line.startswith("COMPOSE_PROFILES="):
+                val = line.split("=", 1)[1].strip()
+                profiles = [p.strip() for p in val.split(",") if p.strip()]
+                self.profile_keycloak.setChecked("keycloak" in profiles)
+                self.profile_monitoring.setChecked("monitoring" in profiles)
+                break
+
+    def _active_profiles(self) -> list:
+        profiles = []
+        if self.profile_keycloak.isChecked():
+            profiles.append("keycloak")
+        if self.profile_monitoring.isChecked():
+            profiles.append("monitoring")
+        return profiles
+
     def _on_oidc_toggled(self, checked: bool):
         if checked:
             InfoBar.info("SSO aktiviert", "AUTH_MODE=oidc wird beim nächsten Start gesetzt. Keycloak muss laufen.", parent=self, position=InfoBarPosition.TOP)
@@ -1186,7 +1243,7 @@ class LocalDeployPage(QWidget):
         self.log_view.clear()
 
         auth_mode = "oidc" if self.oidc_switch.isChecked() else "local"
-        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token, auth_mode=auth_mode)
+        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token, auth_mode=auth_mode, profiles=self._active_profiles())
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.start()
