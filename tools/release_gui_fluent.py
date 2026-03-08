@@ -2155,6 +2155,144 @@ class AboutPage(QWidget):
         layout.addStretch()
 
 
+class DevCredsPage(SmoothScrollArea):
+    """Dev credentials and URLs overview page"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("devCredsPage")
+        self.setWidgetResizable(True)
+
+        container = QWidget()
+        self.setWidget(container)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(16)
+
+        layout.addWidget(TitleLabel("Dev Credentials & URLs", self))
+        layout.addWidget(BodyLabel(
+            "Alle Zugangsdaten für die lokale Entwicklungsumgebung (docker compose up).", self
+        ))
+
+        SERVICES = [
+            {
+                "title": "YADS API",
+                "entries": [
+                    ("URL",      "http://localhost:8085", None, None),
+                    ("Lokaler Admin", None, "admin", "admin"),
+                    ("OIDC Scanner",  None, "frischkorn-scanner", "Scanner1234!"),
+                    ("OIDC Admin",    None, "frischkorn-admin",   "Admin1234!"),
+                    ("OIDC Auditor",  None, "frischkorn-auditor", "Auditor1234!"),
+                ],
+            },
+            {
+                "title": "Keycloak",
+                "entries": [
+                    ("URL",           "http://localhost:8080", None, None),
+                    ("Admin Console", "http://localhost:8080/admin/master/console/", None, None),
+                    ("Admin User",    None, "admin", "admin"),
+                    ("Realm",         None, "frischkorn", None),
+                ],
+            },
+            {
+                "title": "Grafana",
+                "entries": [
+                    ("URL",   "http://localhost:3000", None, None),
+                    ("Login", None, "admin", "admin"),
+                ],
+            },
+            {
+                "title": "Prometheus",
+                "entries": [
+                    ("URL",     "http://localhost:9090", None, None),
+                    ("Auth",    None, "(kein Login)", None),
+                ],
+            },
+            {
+                "title": "MinIO",
+                "entries": [
+                    ("URL (Console)", "http://localhost:9001", None, None),
+                    ("URL (API)",     "http://localhost:9000", None, None),
+                    ("Login",         None, "minioadmin", "minioadmin123"),
+                ],
+            },
+            {
+                "title": "PostgreSQL",
+                "entries": [
+                    ("Host",     None, "localhost:5432", None),
+                    ("Datenbank", None, "yads", None),
+                    ("Login",    None, "yads", "yads_dev_local"),
+                ],
+            },
+            {
+                "title": "Redis",
+                "entries": [
+                    ("URL", "redis://localhost:6379/0", None, None),
+                    ("Auth", None, "(kein Login)", None),
+                ],
+            },
+        ]
+
+        for svc in SERVICES:
+            card = CardWidget(container)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(24, 16, 24, 16)
+            card_layout.setSpacing(10)
+
+            card_layout.addWidget(SubtitleLabel(svc["title"], card))
+
+            for label, url, user, password in svc["entries"]:
+                row = QHBoxLayout()
+                row.setSpacing(8)
+
+                lbl = BodyLabel(f"<b>{label}:</b>", card)
+                lbl.setFixedWidth(120)
+                row.addWidget(lbl)
+
+                if url:
+                    link = TransparentPushButton(url, card)
+                    link.setFixedHeight(28)
+                    link.clicked.connect(lambda checked=False, u=url: self._open_url(u))
+                    row.addWidget(link)
+                elif user:
+                    user_lbl = BodyLabel(user, card)
+                    row.addWidget(user_lbl)
+
+                if password:
+                    row.addStretch()
+                    pw_lbl = BodyLabel("●●●●●●●●", card)
+                    pw_lbl.setToolTip(password)
+                    row.addWidget(pw_lbl)
+                    copy_btn = PushButton("Kopieren", card)
+                    copy_btn.setFixedWidth(90)
+                    copy_btn.setFixedHeight(28)
+                    copy_btn.clicked.connect(lambda checked=False, p=password: self._copy(p))
+                    row.addWidget(copy_btn)
+                else:
+                    row.addStretch()
+
+                card_layout.addLayout(row)
+
+            layout.addWidget(card)
+
+        layout.addStretch()
+
+    def _open_url(self, url: str):
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _copy(self, text: str):
+        QApplication.clipboard().setText(text)
+        InfoBar.success(
+            title="Kopiert",
+            content=f"In die Zwischenablage kopiert.",
+            duration=1500,
+            parent=self,
+            position=InfoBarPosition.TOP_RIGHT,
+        )
+
+
 class MainWindow(FluentWindow):
     """Main application window with fluent navigation"""
 
@@ -2177,6 +2315,7 @@ class MainWindow(FluentWindow):
         self.release_page = ReleasePage(self)
         self.local_deploy_page = LocalDeployPage(self)
         self.prod_deploy_page = ProdDeployPage(self)
+        self.dev_creds_page = DevCredsPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
 
@@ -2218,6 +2357,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.release_page, FIF.PLAY, "Release")
         self.addSubInterface(self.local_deploy_page, FIF.APPLICATION, "Local Env")
         self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
+        self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
         # Add about at bottom
