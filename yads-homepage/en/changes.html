@@ -152,6 +152,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.40.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.40.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">SSO, Observability, and Security</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Introduced Single Sign-On (SSO) support via Keycloak, including user and tenant migration scripts, realm configurations, and OIDC login flow</li>
+                    <li>Added a comprehensive Observability stack with Prometheus, Grafana, Loki, Promtail, and MinIO for monitoring and log retention, including pre-configured Grafana dashboards and alert rules</li>
+                    <li>Implemented modular deployment via Docker Compose profiles for core components, Keycloak, and monitoring stacks</li>
+                    <li>Added a "Dev Creds" page to the release manager, providing local service URLs and login credentials for development environments</li>
+                    <li>Integrated new feature highlights (Enterprise SSO, DORA EU, Observability) into the landing page</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Enhanced security checks to avoid false positives related to .env files and passwords</li>
+                    <li>Improved asset handling in the release uploader to support directory uploads and maintain directory structure</li>
+                    <li>Refactored homepage assets for better organization and reduced duplication</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed an issue where German language pages were unable to load assets by using absolute URLs</li>
+                    <li>Resolved a Keycloak authentication issue caused by an invalid 'groups' scope request</li>
+                    <li>Addressed a Grafana startup error caused by duplicate datasource files</li>
+                    <li>Fixed an issue in OIDC flow regarding the usage of internal vs public URLs for Keycloak authorization redirect</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a4535a6b82e03ea250132685936eafb0971177150d56d6b899dfbfd86e81c77c</p>
+            </div>
+        </div>
+
         <!-- Version 1.40.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.40.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
@@ -187,7 +218,7 @@
                     <li>Improved OIDC flow by using OIDC_PUBLIC_URL for browser redirects and OIDC_SERVER_URL for Docker-internal communication.</li>
                     <li>Enhanced the Docker Compose setup with environment variables for authentication and other settings, using default values for easy overrides.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a4535a6b82e03ea250132685936eafb0971177150d56d6b899dfbfd86e81c77c</p>
             </div>
         </div>
 
