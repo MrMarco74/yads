@@ -2855,6 +2855,91 @@
                 {% endif %}
             </div>
 
+            <!-- WAF / IDS / IPS CARD -->
+            {% set waf = waf_result.data if waf_result and waf_result.data else none %}
+            <div class="bg-gray-800/50 border {% if waf and waf.findings and waf.findings|selectattr('severity','in',['high','critical'])|list %}border-red-500/40{% elif waf and waf.waf_detected %}border-emerald-500/30{% else %}border-purple-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-white">WAF / IDS / IPS Detection</h2>
+                            <p class="text-xs text-gray-400">Web Application Firewall, CDN, and blocking behavior analysis.</p>
+                        </div>
+                    </div>
+                    {% if waf %}
+                    <div class="text-right">
+                        <div class="text-xl font-bold {% if waf.summary.score >= 80 %}text-emerald-400{% elif waf.summary.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ waf.summary.score }}</div>
+                        <div class="text-[10px] text-gray-500">Score</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if waf %}
+                <!-- Status badges -->
+                <div class="flex flex-wrap gap-2 mb-4">
+                    {% if waf.waf_detected %}
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-emerald-900/40 text-emerald-300 border border-emerald-700/40">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                        WAF/CDN Detected
+                    </span>
+                    {% for p in waf.providers %}
+                    <span class="px-2 py-1 rounded-full text-xs bg-purple-900/30 text-purple-300 border border-purple-700/30">{{ p }}</span>
+                    {% endfor %}
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-900/30 text-amber-300 border border-amber-700/40">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                        No WAF Detected
+                    </span>
+                    {% endif %}
+
+                    {% if waf.waf_blocking %}
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold bg-blue-900/30 text-blue-300 border border-blue-700/30">🛡 Actively Blocking</span>
+                    {% elif waf.waf_detected %}
+                    <span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-800 text-gray-400 border border-gray-700">Monitoring Only</span>
+                    {% endif %}
+                </div>
+
+                <!-- Findings -->
+                {% if waf.findings %}
+                <div class="space-y-1.5 mb-3">
+                    {% for f in waf.findings %}
+                    <div class="flex items-start gap-2 p-2 rounded bg-gray-900/50 border border-gray-700/30">
+                        <span class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
+                            {% if f.severity == 'critical' %}bg-red-900/70 text-red-200
+                            {% elif f.severity == 'high' %}bg-red-900/50 text-red-300
+                            {% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300
+                            {% else %}bg-blue-900/30 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-medium text-gray-200">{{ f.title }}</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">{{ f.description }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Origin IPs (bypass risk) -->
+                {% if waf.origin_ips %}
+                <div class="mt-3 pt-3 border-t border-gray-700/40">
+                    <p class="text-xs text-gray-500 mb-1">Detected origin IPs:</p>
+                    <div class="flex flex-wrap gap-1">
+                        {% for ip in waf.origin_ips %}
+                        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-900 text-gray-400">{{ ip }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mt-3 pt-2 border-t border-gray-700/30">
+                    <a href="/waf-analysis?target_id={{ target.id }}" class="text-xs text-purple-400 hover:text-purple-300 transition-colors">→ WAF Reaction Profiling</a>
+                </div>
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "WAF / IDS / IPS Detector" scan.</p>
+                {% endif %}
+            </div>
+
             <!-- THREAT INTELLIGENCE CARD -->
             {% set ti = threat_intel_result.data if threat_intel_result and threat_intel_result.data else none %}
             <div class="bg-gray-800/50 border {% if ti and ti.summary.threat_level in ('critical','high') %}border-rose-500/40{% elif ti and ti.summary.threat_level == 'medium' %}border-amber-500/30{% else %}border-rose-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
