@@ -152,6 +152,25 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.21.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Stability and Reliability Enhancements</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed a critical bug where tasks crashed after visual OSINT scans, leaving targets in a 'running' state indefinitely. The fix ensures proper cleanup and state management after visual OSINT execution.</li>
+                    <li>Improved the stability of visual OSINT scans by reducing the Playwright timeout to 15 seconds per attempt and switching the wait condition to 'load' to prevent indefinite hangs on pages with persistent network activity.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Enhanced logging for visual OSINT scans to provide clearer progress updates and error messages, improving the visibility of scan status.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: d1149a0793d8b4a999f15b710258f99e7ddb62065840a91eb2c97b2849a21fab</p>
+            </div>
+        </div>
+
         <!-- Version 1.21.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.21.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
