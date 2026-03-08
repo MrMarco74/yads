@@ -58,7 +58,7 @@ def get_authorization_url(realm: str = None) -> str:
         f"?client_id={cfg['client_id']}"
         f"&redirect_uri={cfg['redirect_uri']}"
         f"&response_type=code"
-        f"&scope=openid+profile+email+groups"
+        f"&scope=openid+profile+email"
     )
     return base + params
 
