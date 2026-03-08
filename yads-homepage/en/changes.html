@@ -152,6 +152,30 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.20.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Subdomain Scan Control</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Prevented unintended full subdomain scans by disabling the subdomain scanner module by default in scheduled and full scans.</li>
+                    <li>Fixed auto-queue logic in the worker to correctly trigger only when a subdomain or DNS module is included in the scan types.</li>
+                </ul>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added passive/active badges to modules in the target details, target table, and scan profiles views to indicate module scanning type.</li>
+                    <li>Added a 'Passive only' filter button to easily view only passive modules.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Replaced hardcoded valid scan types with the module registry for bulk and single scans. The `subdomain_scanner` is also now excluded from full scan expansion.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 759cc7e2df764f03e8e35531bb048915f2f7cf1d02973bdc54792b8c115131f2</p>
+            </div>
+        </div>
+
         <!-- Version 1.20.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
