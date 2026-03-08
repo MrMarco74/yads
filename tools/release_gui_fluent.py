@@ -896,12 +896,13 @@ class ProdDeployPage(QWidget):
 
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
-    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None):
+    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local"):
         super().__init__()
         self.project_root = project_root
         self.action = action
         self.wipe_data = wipe_data
         self.setup_token = setup_token
+        self.auth_mode = auth_mode
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
@@ -978,6 +979,14 @@ class LocalDeployWorker(QThread):
                 lines.append(f"SETUP_TOKEN={self.setup_token}")
                 env_path.write_text("\n".join(lines) + "\n")
 
+            # Inject AUTH_MODE into .env
+            self._log(f"Setting AUTH_MODE={self.auth_mode} in .env...", "info")
+            env_path = self.project_root / ".env"
+            lines = env_path.read_text().splitlines() if env_path.exists() else []
+            lines = [l for l in lines if not l.startswith("AUTH_MODE=")]
+            lines.append(f"AUTH_MODE={self.auth_mode}")
+            env_path.write_text("\n".join(lines) + "\n")
+
             build_cmd = ["docker", "compose", "build"]
             up_cmd = ["docker", "compose", "up", "-d"]
             
@@ -1036,6 +1045,18 @@ class LocalDeployPage(QWidget):
         self.wipe_check.setToolTip("WARNING: This removes all local db data upon start/stop!")
         self.wipe_check.stateChanged.connect(self._on_wipe_toggled)
         layout.addWidget(self.wipe_check)
+
+        # SSO / Auth Mode Toggle
+        auth_row = QHBoxLayout()
+        auth_row.setSpacing(12)
+        self.oidc_switch = SwitchButton(self)
+        self.oidc_switch.setChecked(False)
+        self.oidc_switch.setOnText("SSO aktiv (AUTH_MODE=oidc)")
+        self.oidc_switch.setOffText("Lokale Anmeldung (AUTH_MODE=local)")
+        self.oidc_switch.checkedChanged.connect(self._on_oidc_toggled)
+        auth_row.addWidget(self.oidc_switch)
+        auth_row.addStretch()
+        layout.addLayout(auth_row)
 
         # Action Card
         action_card = CardWidget(self)
@@ -1112,6 +1133,12 @@ class LocalDeployPage(QWidget):
             self.info_bar.setTitle("Local Docker Compose")
             self.info_bar.setContent("Manage your local development stack. Uses the docker-compose.yml file in the project root.")
 
+    def _on_oidc_toggled(self, checked: bool):
+        if checked:
+            InfoBar.info("SSO aktiviert", "AUTH_MODE=oidc wird beim nächsten Start gesetzt. Keycloak muss laufen.", parent=self, position=InfoBarPosition.TOP)
+        else:
+            InfoBar.info("Lokale Anmeldung", "AUTH_MODE=local wird beim nächsten Start gesetzt.", parent=self, position=InfoBarPosition.TOP)
+
     def _on_action(self, action: str):
         msg = f"You are about to {action} the local Docker environment.\n\n"
         if self.wipe_check.isChecked():
@@ -1158,7 +1185,8 @@ class LocalDeployPage(QWidget):
         self.indeterminate_progress.start()
         self.log_view.clear()
 
-        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token)
+        auth_mode = "oidc" if self.oidc_switch.isChecked() else "local"
+        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token, auth_mode=auth_mode)
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.start()
