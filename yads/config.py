@@ -72,10 +72,14 @@ class Settings(BaseSettings):
     AUTH_MODE: str = os.getenv("AUTH_MODE", "local")  # "local" oder "oidc"
 
     # OIDC/Keycloak Settings (nur relevant wenn AUTH_MODE=oidc)
-    OIDC_SERVER_URL: str = os.getenv("OIDC_SERVER_URL", "http://localhost:8080")
-    OIDC_REALM: str = os.getenv("OIDC_REALM", "yads-dev")
+    # OIDC_SERVER_URL:        intern (Docker-zu-Docker, Token-Exchange server-seitig)
+    # OIDC_PUBLIC_URL:        extern (Browser-Redirect zu Keycloak Login-Seite)
+    # Lokal: OIDC_SERVER_URL=http://keycloak:8080, OIDC_PUBLIC_URL=http://localhost:8080
+    OIDC_SERVER_URL: str = os.getenv("OIDC_SERVER_URL", "http://keycloak:8080")
+    OIDC_PUBLIC_URL: str = os.getenv("OIDC_PUBLIC_URL", "http://localhost:8080")
+    OIDC_REALM: str = os.getenv("OIDC_REALM", "frischkorn")
     OIDC_CLIENT_ID: str = os.getenv("OIDC_CLIENT_ID", "yads")
-    OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "")
+    OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "frischkorn-yads-secret")
     OIDC_REDIRECT_URI: str = os.getenv("OIDC_REDIRECT_URI", "http://localhost:8085/auth/oidc/callback")
 
     # Prometheus Metrics
