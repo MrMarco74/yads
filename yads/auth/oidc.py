@@ -47,10 +47,13 @@ def get_authorization_url(realm: str = None) -> str:
     """
     Baut die Keycloak-Autorisierungs-URL.
     realm: Optional — überschreibt Default-Realm aus Settings.
+    Verwendet OIDC_PUBLIC_URL für Browser-Redirect (nicht Docker-internal URL).
     """
     cfg = get_oidc_config()
     r = realm or cfg["realm"]
-    base = f"{cfg['server_url']}/realms/{r}/protocol/openid-connect/auth"
+    # OIDC_PUBLIC_URL: extern erreichbar (Browser), nicht OIDC_SERVER_URL (Docker-intern)
+    public_url = settings.OIDC_PUBLIC_URL.rstrip("/")
+    base = f"{public_url}/realms/{r}/protocol/openid-connect/auth"
     params = (
         f"?client_id={cfg['client_id']}"
         f"&redirect_uri={cfg['redirect_uri']}"
