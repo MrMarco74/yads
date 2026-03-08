@@ -204,6 +204,11 @@ class User(SQLModel, table=True):
     # Changelog Tracking
     last_seen_changelog_id: Optional[int] = Field(default=0)
 
+    # OIDC/External Auth
+    auth_mode: str = Field(default="local")  # "local" oder "oidc"
+    oidc_sub: Optional[str] = Field(default=None, index=True)  # Keycloak Subject-ID
+    oidc_tenant: Optional[str] = Field(default=None)  # Keycloak Realm/Tenant-Name
+
 class ChangelogEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
@@ -446,6 +451,26 @@ class SecurityAuditLog(SQLModel, table=True):
     # MITRE ATT&CK mapping
     mitre_tactic_id: Optional[str] = Field(default=None, index=True)  # e.g., "TA0001"
     mitre_technique_id: Optional[str] = Field(default=None, index=True)  # e.g., "T1078"
+
+    # DORA EU Art. 10 Hash-Chain (Tamper-Proof Logging)
+    prev_entry_hash: Optional[str] = Field(default=None)  # Hash des vorherigen Eintrags
+    entry_hash: Optional[str] = Field(default=None)       # SHA256(content + prev_hash)
+
+
+def compute_audit_hash(entry: "SecurityAuditLog", prev_hash: Optional[str] = None) -> str:
+    """
+    Berechnet SHA256-Hash eines Audit-Log-Eintrags.
+    Bindet prev_hash ein für Hash-Chain-Integrität (DORA EU Art. 10).
+    """
+    import hashlib, json
+    content = {
+        "action": entry.event_type,
+        "user_id": entry.user_id,
+        "timestamp": entry.timestamp.isoformat() if entry.timestamp else "",
+        "details": entry.details,
+        "prev_hash": prev_hash or "GENESIS",
+    }
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
 
 
 # ============================================================================
