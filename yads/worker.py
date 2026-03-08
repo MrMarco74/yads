@@ -1019,7 +1019,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
         
             # 6. Wait for remaining Group A (deception_detector only now)
             if _group_a_futures:
-                logger.info(f"[Worker] Waiting for Group A background modules: {_group_a_modules}...")
+                logger.info(f"[Worker] Waiting for Group A background modules: {list(_group_a_futures.keys())}...")
                 _futures_wait(_group_a_futures, return_when=ALL_COMPLETED)
                 logger.info("[Worker] Group A completed.")
 
