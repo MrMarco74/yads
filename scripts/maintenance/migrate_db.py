@@ -830,6 +830,28 @@ def migrate():
         except Exception as e:
             print(f"   Error creating tenantscanconfig table: {e}")
 
+        # User OIDC fields
+        print(">> Adding User OIDC fields (auth_mode, oidc_sub, oidc_tenant)...")
+        try:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS auth_mode VARCHAR DEFAULT \'local\''))
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS oidc_sub VARCHAR'))
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS oidc_tenant VARCHAR'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_user_oidc_sub ON "user" (oidc_sub)'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
+        # SecurityAuditLog Hash-Chain fields
+        print(">> Adding SecurityAuditLog hash-chain fields (DORA EU)...")
+        try:
+            conn.execute(text('ALTER TABLE securityauditlog ADD COLUMN IF NOT EXISTS prev_entry_hash VARCHAR'))
+            conn.execute(text('ALTER TABLE securityauditlog ADD COLUMN IF NOT EXISTS entry_hash VARCHAR'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print("\nMigration Complete!")
 
 
