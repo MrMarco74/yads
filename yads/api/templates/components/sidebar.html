@@ -159,7 +159,7 @@
                 </li>
                 <!-- Reports Dropdown -->
                 <li>
-                    <details class="group" {% if '/reports' in request.path or '/compliance' in request.path or '/ports' in request.path or '/email-security' in request.path or '/secrets' in request.path or '/tech-drift' in request.path or '/cert-timeline' in request.path or '/asr' in request.path or '/cloud-assets' in request.path or '/pqc' in request.path or '/security-findings' in request.path or '/scanner-import' in request.path or '/executive-report' in request.path or '/attack-path' in request.path or '/ai-assistant' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/reports' in request.path or '/compliance' in request.path or '/ports' in request.path or '/email-security' in request.path or '/secrets' in request.path or '/tech-drift' in request.path or '/cert-timeline' in request.path or '/asr' in request.path or '/cloud-assets' in request.path or '/pqc' in request.path or '/security-findings' in request.path or '/waf-analysis' in request.path or '/scanner-import' in request.path or '/executive-report' in request.path or '/attack-path' in request.path or '/ai-assistant' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none">
                             <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -215,6 +215,11 @@
                             <li>
                                 <a href="/security-findings" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/security-findings' in request.path %}text-white bg-slate-800{% endif %}">
                                     <span class="text-xs font-medium">{{ _('nav.security_findings') }}</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/waf-analysis" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/waf-analysis' in request.path %}text-white bg-slate-800{% endif %}">
+                                    <span class="text-xs font-medium">WAF / IDS / IPS</span>
                                 </a>
                             </li>
                             <li>
