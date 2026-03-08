@@ -14,6 +14,40 @@
         th, td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
         th { background: rgba(255,255,255,0.05); }
         blockquote { border-left: 4px solid var(--accent-primary); padding-left: 1rem; margin: 1.5rem 0; color: #94a3b8; font-style: italic; }
+
+        /* Docs sidebar enhancements */
+        #docsSearch {
+            width: 100%; box-sizing: border-box;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px; padding: 0.45rem 0.7rem; color: #e2e8f0;
+            font-size: 0.82rem; margin-bottom: 0.75rem; outline: none;
+        }
+        #docsSearch:focus { border-color: var(--accent-primary); }
+        #docsSearch::placeholder { color: #64748b; }
+        .docs-print-btn {
+            display: block; width: 100%; text-align: center;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; padding: 0.4rem; color: #94a3b8;
+            font-size: 0.78rem; cursor: pointer; margin-bottom: 1rem;
+            transition: background 0.2s, color 0.2s;
+        }
+        .docs-print-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .docs-sidebar li.toc-hidden { display: none; }
+        .docs-sidebar a.toc-active { color: var(--accent-primary) !important; font-weight: 600; }
+        .docs-sidebar details > summary { cursor: pointer; list-style: none; }
+        .docs-sidebar details > summary::marker,
+        .docs-sidebar details > summary::-webkit-details-marker { display: none; }
+        .docs-sidebar details > summary::before { content: "▶ "; font-size: 0.65rem; opacity: 0.5; }
+        .docs-sidebar details[open] > summary::before { content: "▼ "; }
+
+        /* Print styles */
+        @media print {
+            nav, aside.docs-sidebar, footer, .docs-print-btn, #docsSearch { display: none !important; }
+            .docs-layout { display: block !important; }
+            .docs-content { max-width: 100% !important; }
+            h2 { page-break-before: auto; }
+            a { color: inherit; text-decoration: none; }
+        }
     </style>
     <link rel="icon" type="image/png" href="./images/favicon.png">
 </head>
@@ -43,7 +77,9 @@
 
     <div class="container docs-layout">
         <aside class="docs-sidebar">
-            <h4 style="margin-bottom: 1rem; color: #fff;">Contents</h4>
+            <input type="search" id="docsSearch" placeholder="🔍 Search docs…" autocomplete="off">
+            <button class="docs-print-btn" onclick="window.print()">⬇ PDF / Print</button>
+            <h4 style="margin-bottom: 0.75rem; color: #fff;">Contents</h4>
             <ul>
                 <li><a href="#table-of-contents">Table of Contents</a></li>
 <li><a href="#1-introduction">1. Introduction</a></li>
@@ -1033,16 +1069,72 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
     </footer>
 
     <script>
-        // Add IDs to H2s for linking
-        document.querySelectorAll("h2").forEach(h2 => {
-            const id = h2.textContent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-            h2.id = id;
+        // ── 1. Assign IDs to headings ───────────────────────────────────────
+        document.querySelectorAll("h2, h3").forEach(h => {
+            const id = h.textContent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            h.id = id;
         });
-        // Correct TOC links
-         document.querySelectorAll(".docs-sidebar a").forEach(a => {
+        // Correct TOC anchor links to match slugified IDs
+        document.querySelectorAll(".docs-sidebar a").forEach(a => {
             const targetId = a.getAttribute("href").replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
             a.setAttribute("href", "#" + targetId);
         });
+
+        // ── 2. Collapsible ToC sub-lists ────────────────────────────────────
+        document.querySelectorAll(".docs-sidebar > ul > li").forEach(li => {
+            const subList = li.querySelector("ul");
+            if (!subList) return;
+            const link = li.querySelector(":scope > a");
+            if (!link) return;
+            const details = document.createElement("details");
+            details.open = true;
+            const summary = document.createElement("summary");
+            summary.appendChild(link.cloneNode(true));
+            details.appendChild(summary);
+            details.appendChild(subList.cloneNode(true));
+            li.innerHTML = "";
+            li.appendChild(details);
+        });
+
+        // ── 3. Live search ──────────────────────────────────────────────────
+        const searchInput = document.getElementById("docsSearch");
+        if (searchInput) {
+            searchInput.addEventListener("input", function () {
+                const q = this.value.trim().toLowerCase();
+                document.querySelectorAll(".docs-sidebar li").forEach(li => {
+                    if (!q) { li.classList.remove("toc-hidden"); return; }
+                    const text = li.textContent.toLowerCase();
+                    li.classList.toggle("toc-hidden", !text.includes(q));
+                });
+                // Keep parent visible if any child matches
+                document.querySelectorAll(".docs-sidebar li").forEach(li => {
+                    if (li.classList.contains("toc-hidden")) {
+                        const parent = li.closest("details");
+                        if (parent) {
+                            const visibleChild = parent.querySelector("li:not(.toc-hidden)");
+                            if (visibleChild) li.classList.remove("toc-hidden");
+                        }
+                    }
+                });
+            });
+        }
+
+        // ── 4. Scroll-spy: highlight active section in sidebar ──────────────
+        const headings = Array.from(document.querySelectorAll(".docs-content h2, .docs-content h3"));
+        const tocLinks = Array.from(document.querySelectorAll(".docs-sidebar a"));
+
+        function updateActiveToc() {
+            const scrollY = window.scrollY + 120;
+            let active = headings[0];
+            for (const h of headings) {
+                if (h.getBoundingClientRect().top + window.scrollY <= scrollY) active = h;
+            }
+            tocLinks.forEach(a => {
+                a.classList.toggle("toc-active", active && a.getAttribute("href") === "#" + active.id);
+            });
+        }
+        window.addEventListener("scroll", updateActiveToc, { passive: true });
+        updateActiveToc();
     </script>
 </body>
 </html>

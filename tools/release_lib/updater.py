@@ -143,12 +143,15 @@ class FileUpdater:
         with open(file_path, 'r') as f:
             content = f.read()
 
-        # Replace version references (lines 75 and 493 typically have version info)
-        # Pattern: v1.13.3 or Version 1.13.3
+        # Replace version references and date
+        today = datetime.now().strftime("%Y-%m-%d")
         patterns = [
             (r'v\d+\.\d+\.\d+', f'v{new_version}'),
             (r'Version \d+\.\d+\.\d+', f'Version {new_version}'),
             (r'version \d+\.\d+\.\d+', f'version {new_version}'),
+            # Update "Last Updated" / "Zuletzt aktualisiert" date
+            (r'(Last Updated:</strong>\s*)\d{4}-\d{2}-\d{2}', rf'\g<1>{today}'),
+            (r'(Zuletzt aktualisiert:</strong>\s*)\d{4}-\d{2}-\d{2}', rf'\g<1>{today}'),
         ]
 
         new_content = content
