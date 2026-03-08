@@ -202,21 +202,35 @@ from yads.database import engine
 def auto_dns_cleanup():
     """
     Periodic task to check DNS health for all active targets.
+    Respects GLOBAL_MAX_CONCURRENT_SCANS — queues in batches, never floods.
     """
+    from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
+
     logger.info("[Worker] Starting periodic DNS cleanup scan for all active targets")
     try:
         with Session(engine) as session:
-            # Query all non-archived targets
+            max_concurrent = get_max_concurrent_scans(session)
             targets = session.exec(select(Target).where(Target.is_archived == False)).all()
-            
+
+            queued = 0
+            skipped = 0
+            active_count = get_active_scan_count(session)
+
             for t in targets:
-                # Dispatch a scan with only dns_cleanup module
+                if active_count >= max_concurrent:
+                    skipped += 1
+                    continue
                 celery_app.send_task(
-                    "yads.worker.run_all_scans", 
+                    "yads.worker.run_all_scans",
                     args=[t.id, t.domain, ["dns_cleanup"], t.tenant_id]
                 )
-            
-            logger.info(f"[Worker] Dispatched DNS health checks for {len(targets)} targets.")
+                queued += 1
+                active_count += 1
+
+            logger.info(
+                f"[Worker] DNS cleanup: queued {queued}, skipped {skipped} "
+                f"(limit {max_concurrent})."
+            )
     except Exception as e:
         logger.error(f"[Worker] Failed to run auto_dns_cleanup: {e}")
 
