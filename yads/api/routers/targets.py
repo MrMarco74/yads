@@ -17,6 +17,7 @@ from yads.api.templating import templates
 from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY
+from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 
 
 def _get_scan_categories_for_user(session: Session, user: User, prefix: str):
@@ -75,13 +76,18 @@ async def bulk_scan_targets(
     logger.info(f"DEBUG: Bulk Scan Request. Target Count: {len(target_ids)}. Selected Types: {scan_types_selected}. Final: {final_types}")
 
     count = 0
-    
+    skipped = 0
+
     # Check Queue Status
     from yads.models import SystemConfig
     queue_config = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = False
     if queue_config and queue_config.value.lower() == "true":
         queue_active = True
+
+    # Global concurrent scan limit
+    max_concurrent = get_max_concurrent_scans(session)
+    active_count = get_active_scan_count(session)
 
     for tid_str in target_ids:
         try:
@@ -93,34 +99,34 @@ async def bulk_scan_targets(
                 from yads.core.license import license_manager
                 lc = session.get(SystemConfig, "license_key")
                 if not lc or not lc.value or not license_manager.verify(lc.value):
-                     # Skip queueing, maybe just continue or error?
-                     # For bulk, continuing is safer but we should probably stop.
-                     # But let's just skip this one (effectively stopping all if loop continues)
-                     # Actually, return error immediately
                      return RedirectResponse(url="/targets/table?msg=Error:+License+Required+for+Scanning", status_code=303)
                 # ---------------------
 
+                # Respect global concurrent scan limit
+                if active_count >= max_concurrent:
+                    skipped += 1
+                    continue
+
                 target.scan_status = "queued"
                 session.add(target)
-                
-                # Always dispatch to Redis (even if paused, it waits there).
-                # This ensures arguments (scan_types) are preserved.
-                # Bulk scan is also a MANUAL action, BUT we now RESPECT the queue pause.
-                # If Queue is Paused, valid consumer won't pick it up OR worker will abort if it checks DB.
-                # We set ignore_queue_pause=False (default).
+
                 celery_app.send_task(
                     "yads.worker.run_all_scans",
                     args=[target.id, target.domain, final_types, user.tenant_id],
                     priority=getattr(target, "scan_priority", 5),
                 )
                 count += 1
+                active_count += 1
         except Exception as e:
             logger.error(f"Failed to queue target {tid_str}: {e}")
             continue
             
     session.commit()
-            
-    return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)
+
+    msg = f"Queued+{count}+scans"
+    if skipped:
+        msg += f"+({skipped}+skipped:+concurrent+limit+{max_concurrent}+reached)"
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 @router.post("/targets/import", response_class=HTMLResponse)
 async def bulk_import_targets(
@@ -448,9 +454,13 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     # ---------------------
 
     if not selected_types:
-        # DO NOT FALLBACK TO ALL.
-        # Fail if nothing valid selected.
         msg = "Error: No valid scan types selected."
+        return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
+
+    # Global concurrent scan limit
+    max_concurrent = get_max_concurrent_scans(session)
+    if get_active_scan_count(session) >= max_concurrent:
+        msg = f"Error: Concurrent scan limit ({max_concurrent}) reached. Try again later."
         return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
 
     # Trigger Celery Task (and update status)
