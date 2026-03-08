@@ -10,10 +10,28 @@
 #   3. Label worker nodes: docker node update --label-add yads-worker=true <node-name>
 #   4. Deploy stack: docker stack deploy -c docker-compose.swarm.yml yads
 #
+# Optional Overlay Files:
+#   With Keycloak:
+#     docker stack deploy -c docker-compose.swarm.yml -c docker-compose.keycloak.swarm.yml yads
+#   With Monitoring (Prometheus/Grafana/Loki/MinIO):
+#     docker stack deploy -c docker-compose.swarm.yml -c docker-compose.monitoring.swarm.yml yads
+#   With both:
+#     docker stack deploy -c docker-compose.swarm.yml -c docker-compose.keycloak.swarm.yml -c docker-compose.monitoring.swarm.yml yads
+#
 # Environment Variables (set in .env or export before deploy):
 #   WORKER_REGISTRATION_TOKEN: Pre-shared token for worker registration
 #   POSTGRES_PASSWORD: Database password
 #   YADS_IMAGE: Container image (default: yads:latest)
+#   AUTH_MODE: "local" (default) or "oidc" — enable Keycloak SSO
+#   OIDC_SERVER_URL: Internal container URL for Keycloak (token exchange)
+#   OIDC_PUBLIC_URL: Browser-facing Keycloak URL (user redirects)
+#   OIDC_REALM: Keycloak realm name (default: yads)
+#   OIDC_CLIENT_ID: Keycloak client ID (default: yads)
+#   OIDC_CLIENT_SECRET: Keycloak client secret
+#   OIDC_REDIRECT_URI: OAuth2 callback URI
+#   METRICS_ENABLED: Enable Prometheus /metrics endpoint (default: false)
+#   METRICS_AUTH_MODE: Metrics auth mode (default: token)
+#   METRICS_TOKEN: Bearer token for /metrics endpoint
 #
 # Scaling Workers:
 #   docker service scale yads_yads-worker=5
@@ -38,6 +56,21 @@ services:
       - WORKER_MODE=primary
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
       - SETUP_TOKEN=${SETUP_TOKEN:-}
+      # Authentication Mode: "local" (default) or "oidc" (Keycloak)
+      - AUTH_MODE=${AUTH_MODE:-local}
+      # OIDC/Keycloak — only relevant if AUTH_MODE=oidc
+      # OIDC_SERVER_URL: Docker-internal URL (container-to-container token exchange)
+      # OIDC_PUBLIC_URL: Browser-facing URL (user redirect to Keycloak login)
+      - OIDC_SERVER_URL=${OIDC_SERVER_URL:-http://keycloak:8080}
+      - OIDC_PUBLIC_URL=${OIDC_PUBLIC_URL:-http://localhost:8080}
+      - OIDC_REALM=${OIDC_REALM:-yads}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-yads}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-changeme}
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8000/auth/oidc/callback}
+      # Prometheus Metrics
+      - METRICS_ENABLED=${METRICS_ENABLED:-false}
+      - METRICS_AUTH_MODE=${METRICS_AUTH_MODE:-token}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
     volumes:
       - logs:/app/logs
       - data:/app/data

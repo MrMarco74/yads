@@ -1,0 +1,117 @@
+# Keycloak Overlay for Docker Swarm
+#
+# Provides an embedded Keycloak identity provider and its dedicated PostgreSQL
+# database as optional Swarm services. Overlay this file on top of the base
+# swarm compose to activate Keycloak SSO:
+#
+#   docker stack deploy \
+#     -c docker-compose.swarm.yml \
+#     -c docker-compose.keycloak.swarm.yml \
+#     yads
+#
+# Required environment variables (.env or shell exports):
+#   KC_DB_PASSWORD        Password for the Keycloak PostgreSQL user (required)
+#   KC_ADMIN              Keycloak admin username        (default: admin)
+#   KC_ADMIN_PASSWORD     Keycloak admin password        (required in prod)
+#   KC_PORT               Host port for Keycloak HTTP    (default: 8080)
+#
+# After deploying, set these in your main .env to wire up YADS:
+#   AUTH_MODE=oidc
+#   OIDC_SERVER_URL=http://keycloak:8080          # internal container URL
+#   OIDC_PUBLIC_URL=https://keycloak.example.com  # browser-facing URL
+#   OIDC_REALM=yads
+#   OIDC_CLIENT_ID=yads
+#   OIDC_CLIENT_SECRET=<client secret from Keycloak>
+#   OIDC_REDIRECT_URI=https://yads.example.com/auth/oidc/callback
+#
+# Realm import:
+#   Place realm JSON export files in ./keycloak/realms/ — they are mounted
+#   read-only into the container and imported on startup via --import-realm.
+
+services:
+  # --------------------------------------------------------------------------
+  # Keycloak Database (Manager Node Only — stateful)
+  # --------------------------------------------------------------------------
+  keycloak-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # --------------------------------------------------------------------------
+  # Keycloak Identity Provider (Manager Node Only)
+  # Uses `start --import-realm` (production mode, not start-dev) with HTTP
+  # enabled so that a reverse proxy can handle TLS termination externally.
+  # --------------------------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
+      KEYCLOAK_ADMIN: ${KC_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?KC_ADMIN_PASSWORD is required}
+      # Allow HTTP — TLS is handled by the external reverse proxy
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      # Proxy header mode for running behind a reverse proxy
+      KC_PROXY: edge
+    ports:
+      - "${KC_PORT:-8080}:8080"
+    volumes:
+      - ./keycloak/realms:/opt/keycloak/data/import:ro
+    networks:
+      - yads-internal
+      - yads-frontend
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+volumes:
+  keycloak-db-data:
+    driver: local
+    labels:
+      com.yads.service: keycloak
+      com.yads.component: database
+
+networks:
+  yads-internal:
+    external: true
+    name: yads_yads-internal
+  yads-frontend:
+    external: true
+    name: yads_yads-frontend
