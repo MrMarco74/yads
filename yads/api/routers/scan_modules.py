@@ -10,7 +10,6 @@ Admin interface for:
 import json
 import os
 import shutil
-import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
@@ -224,28 +223,14 @@ async def upload_module(
         if existing_installed and existing_installed.is_active:
             raise HTTPException(status_code=409, detail=f"Module '{module_name}' is already installed")
 
-        # Run setup script if present
-        setup_log = ""
+        # Reject ZIPs that contain executable setup scripts (RCE prevention)
         for setup_file in ["setup.py", "setup.sh"]:
-            setup_path = os.path.join(tmpdir, setup_file)
-            if os.path.exists(setup_path):
-                try:
-                    if setup_file.endswith(".sh"):
-                        cmd = ["bash", setup_path]
-                    else:
-                        cmd = ["python", setup_path]
-                    result = subprocess.run(
-                        cmd, cwd=tmpdir, capture_output=True, text=True, timeout=120
-                    )
-                    setup_log = result.stdout + result.stderr
-                    if result.returncode != 0:
-                        raise HTTPException(
-                            status_code=500,
-                            detail=f"Setup script failed (exit {result.returncode}): {setup_log[-500:]}"
-                        )
-                except subprocess.TimeoutExpired:
-                    raise HTTPException(status_code=500, detail="Setup script timed out (120s)")
-                break
+            if os.path.exists(os.path.join(tmpdir, setup_file)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Module ZIP must not contain '{setup_file}'. "
+                           "Setup scripts are not executed for security reasons."
+                )
 
         # Copy module file to custom modules dir
         module_file = manifest["module_file"]
