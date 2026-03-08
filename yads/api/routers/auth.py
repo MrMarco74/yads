@@ -184,61 +184,61 @@ async def logout(
 
 # MFA Setup Routes (Protected)
 @router.get("/mfa/setup", response_class=HTMLResponse)
-async def mfa_setup_page(request: Request, user: User = Depends(get_current_user)):
+async def mfa_setup_page(
+    request: Request,
+    session: Session = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+):
     if user.mfa_enabled:
         return templates.TemplateResponse("mfa_setup.html", {"request": request, "message": "MFA is already enabled."})
 
-    # Generate Secret
-    if not user.mfa_secret:
-        # Assuming Session is also injected via Depends in get_current_user or we need a fresh one to save?
-        # get_current_user returns a detached object usually if session closed? 
-        # Actually get_current_user uses a session dependency, but that session closes after the request.
-        # We need a new session to write to DB here or pass session to get_current_user differently?
-        # Standard Pattern: In route, get session, get user by ID from session.
-        pass
-
-    # We need to save the secret to DB temporarily or permanently?
-    # Usually: Generate secret -> Show QR -> Verify -> Save/Enable.
-    
-    # For simplicity: Generate fresh secret now, pass to template. 
-    # User must Scan and Enter Code to Confirm.
+    # Generate secret server-side and persist it — never rely on client to send it back
     secret = pyotp.random_base32()
+    db_user = session.get(User, user.id)
+    db_user.pending_mfa_secret = secret
+    session.add(db_user)
+    session.commit()
+
     totp = pyotp.TOTP(secret)
     uri = totp.provisioning_uri(name=user.username, issuer_name="YADS")
-    
+
     return templates.TemplateResponse("mfa_setup.html", {
-        "request": request, 
+        "request": request,
         "secret": secret,
-        "otp_uri": uri
+        "otp_uri": uri,
     })
 
 @router.post("/mfa/verify")
 async def mfa_verify(
-    request: Request, 
+    request: Request,
     first_code: str = Form(...),
-    secret: str = Form(...),
     session: Session = Depends(get_db_session),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
+    # Read secret from DB — never trust client-submitted secret
+    db_user = session.get(User, user.id)
+    secret = db_user.pending_mfa_secret
+    if not secret:
+        raise HTTPException(
+            status_code=400,
+            detail="No MFA enrollment in progress. Please restart MFA setup.",
+        )
+
     totp = pyotp.TOTP(secret)
     if totp.verify(first_code):
-        # Valid! Save secret and enable MFA
-        # Re-fetch user from this session to attach properties
-        db_user = session.get(User, user.id)
         db_user.mfa_secret = secret
         db_user.mfa_enabled = True
+        db_user.pending_mfa_secret = None  # Clear enrollment secret
         session.add(db_user)
-
-        # Log MFA enabled event
         log_mfa_event(request, db_user, "enabled", by_admin=False, session=session)
         session.commit()
         return RedirectResponse(url="/?msg=MFA+Enabled", status_code=303)
     else:
         return templates.TemplateResponse("mfa_setup.html", {
-            "request": request, 
+            "request": request,
             "secret": secret,
-            "otp_uri": totp.provisioning_uri(name=user.username, issuer_name="YADS"),
-            "error": "Invalid Code. Try again."
+            "otp_uri": totp.provisioning_uri(name=db_user.username, issuer_name="YADS"),
+            "error": "Invalid Code. Try again.",
         })
 
 @router.get("/auth/change-password", response_class=HTMLResponse)

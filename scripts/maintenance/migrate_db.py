@@ -17,6 +17,15 @@ def migrate():
     with engine.connect() as conn:
         print("Migrating Database...")
         
+        # 1a. Update User Table: pending_mfa_secret (server-side MFA enrollment, v1.20+)
+        print(">> Checking User table: pending_mfa_secret...")
+        try:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS pending_mfa_secret VARCHAR;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         # 1. Update User Table: last_seen_changelog_id
         print(">> Checking User table: last_seen_changelog_id...")
         try:

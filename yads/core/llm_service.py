@@ -146,6 +146,39 @@ def _build_prompt(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# URL validation (SSRF prevention)
+# ---------------------------------------------------------------------------
+
+# Cloud metadata and other well-known internal-only endpoints that must never
+# be reachable via a tenant-supplied LLM API URL.
+_BLOCKED_HOSTS: frozenset = frozenset({
+    "169.254.169.254",           # AWS / GCP / Azure instance metadata
+    "metadata.google.internal",
+    "169.254.170.2",             # AWS ECS task metadata
+    "100.100.100.200",           # Alibaba Cloud metadata
+})
+
+
+def _validate_api_url(url: str) -> None:
+    """
+    Reject obvious SSRF targets in tenant-supplied LLM API URLs.
+    Blocks known cloud-metadata endpoints and non-http(s) schemes.
+    Internal Docker hostnames (e.g. 'ollama') are intentionally allowed.
+    """
+    if not url:
+        return
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"LLM API URL must use http or https scheme, got: {parsed.scheme!r}"
+        )
+    hostname = (parsed.hostname or "").lower()
+    if hostname in _BLOCKED_HOSTS:
+        raise ValueError(f"LLM API URL hostname is blocked: {hostname!r}")
+
+
+# ---------------------------------------------------------------------------
 # Provider backends
 # ---------------------------------------------------------------------------
 
@@ -202,6 +235,9 @@ def _call_anthropic(api_key: str, model: str, prompt: str, timeout: int) -> str:
 
 def _run_sync(provider, api_key, api_url, model, prompt, timeout) -> str:
     """Synchronous dispatch — runs in thread executor from async context."""
+    # Validate any tenant-supplied URL before making outbound requests
+    if api_url:
+        _validate_api_url(api_url)
     if provider == "ollama":
         return _call_ollama(api_url or "http://ollama:11434", model, prompt, timeout)
     elif provider == "openai":
