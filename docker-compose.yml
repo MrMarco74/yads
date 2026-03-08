@@ -16,7 +16,7 @@ services:
       - MFA_ENABLED=false
       - SETUP_TOKEN=${SETUP_TOKEN:-}
       # Authentication Mode: "local" (default) or "oidc" (Keycloak)
-      - AUTH_MODE=${AUTH_MODE:-local}
+      - AUTH_MODE=${AUTH_MODE:-oidc}
       # OIDC/Keycloak — only relevant if AUTH_MODE=oidc
       # OIDC_SERVER_URL: Docker-internal URL (container-to-container token exchange)
       # OIDC_PUBLIC_URL: Browser-facing URL (user redirect to Keycloak login)
