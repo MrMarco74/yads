@@ -63,7 +63,7 @@
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" name="auto_queue" class="sr-only peer" {% if auto_queue %}checked{% endif %}>
                         <!-- Track -->
-                        <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors duration-200"></div>
+                        <div class="w-9 h-5 bg-red-800 rounded-full peer-checked:bg-indigo-600 transition-colors duration-200"></div>
                         <!-- Knob -->
                         <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
                     </label>
@@ -150,7 +150,7 @@
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer {% if https_only_env_override %}opacity-50{% endif %}">
                         <input type="checkbox" name="https_only" class="sr-only peer" {% if https_only and not https_only_env_override %}checked{% endif %} {% if https_only_env_override %}disabled{% endif %}>
-                        <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-emerald-600 transition-colors duration-200"></div>
+                        <div class="w-9 h-5 bg-red-800 rounded-full peer-checked:bg-emerald-600 transition-colors duration-200"></div>
                         <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
                     </label>
                 </div>
@@ -163,7 +163,7 @@
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" name="verify_ssl" class="sr-only peer" {% if verify_ssl %}checked{% endif %}>
-                        <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-emerald-600 transition-colors duration-200"></div>
+                        <div class="w-9 h-5 bg-red-800 rounded-full peer-checked:bg-emerald-600 transition-colors duration-200"></div>
                         <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
                     </label>
                 </div>
@@ -287,7 +287,7 @@
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" name="metrics_enabled" class="sr-only peer" {% if metrics_enabled %}checked{% endif %}>
-                            <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-orange-600 transition-colors duration-200"></div>
+                            <div class="w-9 h-5 bg-red-800 rounded-full peer-checked:bg-orange-600 transition-colors duration-200"></div>
                             <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
                         </label>
                     </div>
@@ -320,7 +320,7 @@
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" name="metrics_include_tenant_labels" class="sr-only peer" {% if metrics_include_tenant_labels %}checked{% endif %}>
-                            <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-orange-600 transition-colors duration-200"></div>
+                            <div class="w-9 h-5 bg-red-800 rounded-full peer-checked:bg-orange-600 transition-colors duration-200"></div>
                             <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
                         </label>
                     </div>
