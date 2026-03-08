@@ -679,11 +679,27 @@
                     <div class="text-sm font-semibold text-white">Enable Automated Scanning</div>
                     <div class="text-xs text-gray-400 mt-0.5">Scheduler queues idle targets automatically on the configured interval</div>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" name="auto_scan_enabled" value="true" class="sr-only peer"
-                        {% if scan_config and scan_config.auto_scan_enabled %}checked{% endif %}>
-                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
+                <div class="flex items-center gap-3">
+                    <span id="auto-scan-label" class="text-xs font-bold {% if scan_config and scan_config.auto_scan_enabled %}text-blue-400{% else %}text-red-400{% endif %}">
+                        {% if scan_config and scan_config.auto_scan_enabled %}EIN{% else %}AUS{% endif %}
+                    </span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="auto_scan_enabled" value="true" id="auto-scan-toggle" class="sr-only peer"
+                            {% if scan_config and scan_config.auto_scan_enabled %}checked{% endif %}>
+                        <div class="w-11 h-6 bg-red-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+                <script>
+                (function(){
+                    var cb = document.getElementById('auto-scan-toggle');
+                    var lbl = document.getElementById('auto-scan-label');
+                    if(!cb||!lbl) return;
+                    cb.addEventListener('change', function(){
+                        lbl.textContent = cb.checked ? 'EIN' : 'AUS';
+                        lbl.className = 'text-xs font-bold ' + (cb.checked ? 'text-blue-400' : 'text-red-400');
+                    });
+                })();
+                </script>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
