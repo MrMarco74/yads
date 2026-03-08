@@ -39,5 +39,25 @@
                 {% if mfa_required %} Verify {% else %} Sign In {% endif %}
             </button>
         </form>
+
+        {% if auth_mode == 'oidc' %}
+        <div class="mt-4">
+            <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-700"></div>
+                </div>
+                <div class="relative flex justify-center text-xs">
+                    <span class="px-2 bg-gray-800 text-gray-500">oder</span>
+                </div>
+            </div>
+            <a href="/auth/oidc/login"
+               class="mt-4 w-full flex items-center justify-center gap-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                Mit SSO anmelden (Keycloak)
+            </a>
+        </div>
+        {% endif %}
     </div>
 {% endblock %}

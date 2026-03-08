@@ -33,7 +33,10 @@ templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UT
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "auth_mode": settings.AUTH_MODE,
+    })
 
 @router.post("/login", response_class=HTMLResponse)
 async def login(
@@ -367,3 +370,75 @@ async def switch_tenant(
     # If they are stuck in a tenant, they rely on the link.
     
     return RedirectResponse(url=redirect_target + "?error=Access+Denied+to+Tenant", status_code=303)
+
+
+# ── OIDC / Keycloak Login ──────────────────────────────────────────────────
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+@router.get("/auth/oidc/login")
+async def oidc_login(realm: Optional[str] = None):
+    """
+    Startet OIDC-Login-Flow. Redirectet zu Keycloak.
+    Optional: ?realm=frischkorn für tenant-spezifischen Realm.
+    """
+    from yads.auth.oidc import get_authorization_url
+
+    if settings.AUTH_MODE != "oidc":
+        raise HTTPException(status_code=400, detail="OIDC not enabled (AUTH_MODE=local)")
+
+    url = get_authorization_url(realm=realm)
+    return RedirectResponse(url=url)
+
+
+@router.get("/auth/oidc/callback")
+async def oidc_callback(
+    request: Request,
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    session: Session = Depends(get_db_session),
+):
+    """
+    Keycloak Callback-Endpoint.
+    Tauscht Authorization Code gegen Token, erstellt Session.
+    """
+    from yads.auth.oidc import exchange_code_for_token, decode_token_claims, get_or_create_user
+    from yads.auth.security import create_access_token
+
+    if error:
+        logger.warning(f"OIDC callback error: {error}")
+        return RedirectResponse(url="/login?error=oidc_error")
+
+    if not code:
+        return RedirectResponse(url="/login?error=no_code")
+
+    # Token austauschen
+    token_response = exchange_code_for_token(code)
+    if not token_response:
+        return RedirectResponse(url="/login?error=token_exchange_failed")
+
+    # Claims dekodieren
+    claims = decode_token_claims(token_response)
+    if not claims:
+        return RedirectResponse(url="/login?error=invalid_token")
+
+    # User erstellen/aktualisieren
+    user = get_or_create_user(session, claims)
+    if not user:
+        return RedirectResponse(url="/login?error=user_creation_failed")
+
+    # YADS Session-Cookie setzen (gleicher Mechanismus wie lokaler Login)
+    access_token = create_access_token(subject=user.username)
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=False,  # In HTTPS-Umgebung auf True setzen
+    )
+    logger.info(f"OIDC login successful: {user.email} (role={user.role})")
+    return response
