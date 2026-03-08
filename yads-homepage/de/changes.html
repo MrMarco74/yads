@@ -5,7 +5,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://yads-security.com; font-src 'self' https://yads-security.com; img-src 'self' data: https://yads-security.com; script-src 'self' 'unsafe-inline' https://yads-security.com;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aktuelle Änderungen - YADS</title>
-    <link rel="stylesheet" href="../en/css/style.css">
+    <link rel="stylesheet" href="https://yads-security.com/css/style.css">
     <style>
         .timeline {
             position: relative;
@@ -118,13 +118,13 @@
             color: var(--accent-secondary);
         }
     </style>
-    <link rel="icon" type="image/png" href="../en/images/favicon.png">
+    <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
 </head>
 <body>
     <nav>
         <div class="container">
             <a href="index.html" class="logo">
-                <img src="../en/images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <img src="https://yads-security.com/images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
                 <span class="text-gradient">YADS</span> Security
             </a>
             <div class="nav-links">
@@ -153,6 +153,45 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.40.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.40.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">SSO, Observability und Modularer Deployment</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Einführung des Keycloak-basierten Single Sign-On (SSO) Login-Flows mit lokalem Login als Opt-in.</li>
+                    <li>Hinzugefügt ein Skript zur Migration bestehender YADS-Benutzer und Mandanten zu Keycloak.</li>
+                    <li>Implementierung eines modularen Deployments über Docker Compose Profile für Keycloak- und Monitoring-Komponenten.</li>
+                    <li>Hinzugefügt Grafana Alert-Regeln per Provisioning für Scan-Fehler, Queue-Status, Worker-Verfügbarkeit, Lizenzgültigkeit und Queue-Backlog.</li>
+                    <li>Einführung einer 'Dev Creds'-Seite in der Release Manager UI, die URLs, Benutzernamen und Passwörter für lokale Dienste (YADS API, Keycloak, Grafana, Prometheus, MinIO, PostgreSQL, Redis) mit Copy-to-Clipboard-Funktionalität anzeigt.</li>
+                    <li>Implementiert Swarm Overlays für OIDC und Metriken in der YADS API sowie optionale Swarm Overlays für Keycloak- und Monitoring-Stacks.</li>
+                    <li>Hinzugefügt automatische Screenshot-Erfassung per Playwright für YADS, Keycloak, Grafana, Prometheus und MinIO.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Refaktorierung der Homepage-Assets, sodass diese kanonisch im Verzeichnis 'en/' sind, und Deduplizierung von Assets in ein gemeinsam genutztes Verzeichnis 'assets/', um Duplizierung zu reduzieren.</li>
+                    <li>Verbesserte Asset-Verarbeitung im Uploader, um Verzeichnisse aus 'en/' einzubeziehen und Verzeichnis-Uploads über SSH und FTP zu verarbeiten.</li>
+                    <li>Erweiterung der lokalen Deployment-Seite mit einem SSO-Toggle, der das Umschalten zwischen lokaler Authentifizierung und OIDC durch Modifizieren des AUTH_MODE in der .env-Datei ermöglicht.</li>
+                    <li>Hinzugefügt DORA EU Compliance Features, einschließlich Audit-Hash-Verkettung.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung eines Problems, bei dem die '.env'-Prüfung '.env.example'-Dateien als Sicherheitsrisiken kennzeichnete.</li>
+                    <li>Behebung von Fehlalarmen bei der Passwortprüfung durch Ausschließen der Verzeichnisse 'venv/**' und '.rel_venv/**'.</li>
+                    <li>Behebung eines Problems, bei dem das Anfordern des 'groups'-Scopes in der Keycloak-Auth-Anfrage einen 'invalid_scope'-Fehler verursachte.</li>
+                    <li>Behebung von Grafana-Startfehlern, die durch doppelte Datenquell-Dateien verursacht wurden.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserung des OIDC-Flows durch Verwendung von OIDC_PUBLIC_URL für Browser-Weiterleitungen und OIDC_SERVER_URL für die Docker-interne Kommunikation.</li>
+                    <li>Erweiterung des Docker Compose-Setups mit Umgebungsvariablen für Authentifizierung und andere Einstellungen, unter Verwendung von Standardwerten für einfache Überschreibungen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.40.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.40.0</span><span class="channel-badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
