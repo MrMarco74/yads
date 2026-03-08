@@ -18,6 +18,31 @@ from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
+from yads.models import SecurityAuditLog
+
+
+def _audit_scan_trigger(session, user, domains: list, scan_types: list, trigger: str, request=None):
+    """Write a SecurityAuditLog entry for every scan trigger."""
+    try:
+        entry = SecurityAuditLog(
+            event_type="scan_triggered",
+            username=user.username if user else "system",
+            user_id=user.id if user else None,
+            source_ip=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+            tenant_id=user.tenant_id if user else None,
+            success=True,
+            details={
+                "trigger": trigger,
+                "domains": domains[:50],  # cap to avoid huge payloads
+                "domain_count": len(domains),
+                "scan_types": scan_types,
+            },
+        )
+        session.add(entry)
+        session.commit()
+    except Exception as e:
+        logger.warning(f"[Audit] Failed to write scan_triggered log: {e}")
 
 
 def _get_scan_categories_for_user(session: Session, user: User, prefix: str):
@@ -117,11 +142,13 @@ async def bulk_scan_targets(
                 )
                 count += 1
                 active_count += 1
+
         except Exception as e:
             logger.error(f"Failed to queue target {tid_str}: {e}")
             continue
-            
+
     session.commit()
+    _audit_scan_trigger(session, user, list(target_ids)[:50], final_types, "bulk_scan", request)
 
     msg = f"Queued+{count}+scans"
     if skipped:
@@ -476,6 +503,7 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         args=[target.id, target.domain, selected_types, user.tenant_id],
         priority=getattr(target, "scan_priority", 5),
     )
+    _audit_scan_trigger(session, user, [target.domain], selected_types, "single_scan", request)
 
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
 @router.post("/targets/add", response_class=HTMLResponse)
