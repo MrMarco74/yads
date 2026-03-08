@@ -1,71 +1,26 @@
 apiVersion: 1
 
-groups:
-  - orgId: 1
-    name: YADS Critical
-    folder: YADS
-    interval: 1m
-    rules:
-      - uid: worker-crash-alert
-        title: Worker Task Crash Rate High
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: prometheus
-            model:
-              expr: rate(celery_task_failed_total[5m]) > 0.1
-        noDataState: OK
-        execErrState: Alerting
-        for: 5m
-        annotations:
-          summary: "YADS Worker: High task failure rate detected"
-        labels:
-          severity: critical
-
-      - uid: queue-paused-alert
-        title: Queue Paused Too Long
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: prometheus
-            model:
-              expr: yads_queue_paused == 1
-        noDataState: OK
-        execErrState: Alerting
-        for: 10m
-        annotations:
-          summary: "YADS Queue has been paused for more than 10 minutes"
-        labels:
-          severity: warning
-
-      - uid: no-active-worker-alert
-        title: No Active Worker
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: prometheus
-            model:
-              expr: celery_workers_active == 0
-        noDataState: Alerting
-        execErrState: Alerting
-        for: 5m
-        annotations:
-          summary: "YADS: No active Celery workers detected"
-        labels:
-          severity: critical
-
-      - uid: high-scan-failure-alert
-        title: High Scan Failure Rate
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: prometheus
-            model:
-              expr: rate(yads_scan_failed_total[10m]) / (rate(yads_scan_total[10m]) + 0.001) > 0.2
-        noDataState: OK
-        execErrState: Alerting
-        for: 10m
-        annotations:
-          summary: "YADS: Scan failure rate exceeds 20% over the last 10 minutes"
-        labels:
-          severity: warning
+# Alert Rules werden manuell in der Grafana UI angelegt.
+# Grund: Grafana Unified Alerting erfordert vollständige relativeTimeRange-Felder
+# die via YAML-Provisioning komplex zu pflegen sind.
+#
+# Zu konfigurierende Alerts (in Grafana UI unter Alerting > Alert Rules):
+#
+# 1. Worker Task Crash Rate High
+#    Query: rate(yads_scan_errors_total[5m]) > 0.1
+#    For: 5m | Severity: critical
+#
+# 2. Queue Paused Too Long
+#    Query: yads_queue_paused == 1
+#    For: 10m | Severity: warning
+#
+# 3. No Active Worker
+#    Query: yads_active_scans == 0
+#    For: 5m | Severity: critical
+#
+# 4. High Scan Failure Rate
+#    Query: rate(yads_scan_errors_total[10m]) > 0.2
+#    For: 10m | Severity: warning
+#
+# Notification Channel: YADS-Alerts (Teams + Email)
+# Konfiguriert in: teams-email.yml
