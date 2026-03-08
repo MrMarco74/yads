@@ -7,6 +7,8 @@ Admin interface for:
   - Installing new modules via ZIP upload (platform admin only)
   - Removing custom-installed modules (platform admin only)
 """
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -15,6 +17,8 @@ import zipfile
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
@@ -34,6 +38,46 @@ _CUSTOM_MODULES_DIR = os.path.join(
 
 CAT_LABELS = {c["id"]: c["label"] for c in CATEGORIES}
 CAT_COLORS = {c["id"]: c["color"] for c in CATEGORIES}
+
+
+def _verify_module_signature(zip_bytes: bytes, signature_b64: Optional[str]) -> None:
+    """
+    Verify Ed25519 signature over SHA-256(zip_bytes).
+
+    If MODULE_SIGNING_PUBLIC_KEY is configured, a valid signature is required.
+    If it is not configured, the check is skipped (unsigned modules allowed).
+
+    Raises HTTPException 400/403 on failure.
+    """
+    from yads.config import settings
+
+    pubkey_b64 = settings.MODULE_SIGNING_PUBLIC_KEY
+    if not pubkey_b64:
+        return  # Signing not enforced
+
+    if not signature_b64:
+        raise HTTPException(
+            status_code=403,
+            detail="Module signing is enforced. Upload must include an Ed25519 signature."
+        )
+
+    try:
+        raw_key = base64.b64decode(pubkey_b64)
+        try:
+            pub: Ed25519PublicKey = serialization.load_pem_public_key(raw_key)  # type: ignore[assignment]
+        except ValueError:
+            pub: Ed25519PublicKey = serialization.load_der_public_key(raw_key)  # type: ignore[assignment]
+
+        # Normalise base64 padding
+        sig_padded = signature_b64 + "=" * (-len(signature_b64) % 4)
+        sig = base64.urlsafe_b64decode(sig_padded)
+
+        digest = hashlib.sha256(zip_bytes).digest()
+        pub.verify(sig, digest)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid module signature.")
 
 
 def _get_enabled_map(session: Session, tenant_id: int) -> Dict[str, bool]:
@@ -186,6 +230,7 @@ async def upload_module(
     session: Session = Depends(get_session),
     user: User = Depends(PlatformAdminChecker()),
     module_zip: UploadFile = File(...),
+    signature: Optional[str] = Form(None),
 ):
     if not module_zip.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="Only ZIP files are accepted")
@@ -194,6 +239,9 @@ async def upload_module(
     try:
         zip_path = os.path.join(tmpdir, "upload.zip")
         content = await module_zip.read()
+
+        _verify_module_signature(content, signature)
+
         with open(zip_path, "wb") as f:
             f.write(content)
 

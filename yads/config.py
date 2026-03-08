@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQURXL0UxMzJWUzkwQlZLclZTYW9zYzVablRIZERQME1WRGhPaDZZNTYwVG89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
     LICENSE_KEY: Optional[str] = None
 
+    # Custom Module Signing (optional)
+    # If set, all custom module uploads must carry a valid Ed25519 signature.
+    # Generate a keypair with: python scripts/sign_module.py --keygen
+    MODULE_SIGNING_PUBLIC_KEY: Optional[str] = None
+
     # Setup Wizard
     SETUP_COMPLETE: bool = False
     SETUP_TOKEN: Optional[str] = None
