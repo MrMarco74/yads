@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
 from datetime import datetime
 
-from yads.database import get_session
+from yads.database import get_session, redis_client
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
 from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig
 from yads.api.templating import templates
