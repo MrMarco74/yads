@@ -606,9 +606,10 @@ class ProdDeployWorker(QThread):
             # 3. Load
             self._log("Step 5/8: Loading images on remote host (combined session)...", "info")
             self.signals.progress_update.emit(80, 100, "Loading images on remote...")
+            # Suppress per-layer output (can be hundreds of lines) — only show final summary
             load_cmd = (
-                f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load && "
-                f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load"
+                f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)' && "
+                f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'"
             )
             if not self._run_cmd(["ssh", self.remote_host, load_cmd]):
                 return self.signals.operation_finished.emit(False, "Remote docker load failed")
@@ -655,11 +656,11 @@ class ProdDeployWorker(QThread):
             self._log("Step 8/8: Verifying service health...", "info")
             import time as _time
             _time.sleep(10)
-            status_ok = self._run_cmd(
+            # Show service table in log
+            self._run_cmd(
                 ["ssh", self.remote_host,
                  f"docker service ls --filter label=com.docker.stack.namespace={self.stack_name} "
-                 f"--format 'table {{{{.Name}}}}\\t{{{{.Replicas}}}}\\t{{{{.Image}}}}'"],
-                capture_output=False
+                 f"--format 'table {{{{.Name}}}}\\t{{{{.Replicas}}}}\\t{{{{.Image}}}}'"]
             )
             # Check for any 0/N failures (exclude intentional 0/0 entries)
             check_cmd = (
