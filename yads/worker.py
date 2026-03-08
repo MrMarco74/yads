@@ -236,10 +236,6 @@ def auto_dns_cleanup():
 
 # -- Periodic Schedule Configuration --
 celery_app.conf.beat_schedule = {
-    'periodic-dns-cleanup': {
-        'task': 'yads.worker.auto_dns_cleanup',
-        'schedule': 6 * 3600.0, # Run every 6 hours (in seconds)
-    },
     'daily-security-trends': {
         'task': 'yads.worker.calculate_security_trends',
         'schedule': 24 * 3600.0, # Run every 24 hours
