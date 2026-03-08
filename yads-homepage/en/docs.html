@@ -34,11 +34,14 @@
         .docs-print-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
         .docs-sidebar li.toc-hidden { display: none; }
         .docs-sidebar a.toc-active { color: var(--accent-primary) !important; font-weight: 600; }
-        .docs-sidebar details > summary { cursor: pointer; list-style: none; }
-        .docs-sidebar details > summary::marker,
-        .docs-sidebar details > summary::-webkit-details-marker { display: none; }
-        .docs-sidebar details > summary::before { content: "▶ "; font-size: 0.65rem; opacity: 0.5; }
-        .docs-sidebar details[open] > summary::before { content: "▼ "; }
+        .docs-sidebar li.toc-has-children > ul { display: none; }
+        .docs-sidebar li.toc-open > ul { display: block; }
+        .toc-toggle {
+            background: none; border: none; color: #64748b;
+            font-size: 0.6rem; padding: 0 4px 0 0; cursor: pointer;
+            vertical-align: middle; line-height: 1; transition: color 0.15s;
+        }
+        .toc-toggle:hover { color: #e2e8f0; }
 
         /* Print styles */
         @media print {
@@ -1084,16 +1087,16 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
         document.querySelectorAll(".docs-sidebar > ul > li").forEach(li => {
             const subList = li.querySelector("ul");
             if (!subList) return;
-            const link = li.querySelector(":scope > a");
-            if (!link) return;
-            const details = document.createElement("details");
-            details.open = true;
-            const summary = document.createElement("summary");
-            summary.appendChild(link.cloneNode(true));
-            details.appendChild(summary);
-            details.appendChild(subList.cloneNode(true));
-            li.innerHTML = "";
-            li.appendChild(details);
+            li.classList.add("toc-has-children", "toc-open");
+            const btn = document.createElement("button");
+            btn.className = "toc-toggle";
+            btn.textContent = "▼";
+            btn.addEventListener("click", e => {
+                e.preventDefault();
+                const open = li.classList.toggle("toc-open");
+                btn.textContent = open ? "▼" : "▶";
+            });
+            li.insertBefore(btn, li.firstChild);
         });
 
         // ── 3. Live search ──────────────────────────────────────────────────
