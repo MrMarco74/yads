@@ -155,7 +155,7 @@ services:
       - 8.8.4.4
     deploy:
       mode: replicated
-      replicas: ${WORKER_REPLICAS:-2}
+      replicas: ${WORKER_REPLICAS:-0}
       placement:
         constraints:
           - node.hostname == prod-node

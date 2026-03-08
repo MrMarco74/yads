@@ -387,7 +387,6 @@ class ProdDeployWorker(QThread):
         self.backup_registry_image = "gitlab.example.internal:5050/apps/yads/yads-backup:latest"
         self.services_to_update = [
             f"{self.stack_name}_yads-api",
-            f"{self.stack_name}_yads-worker",
             f"{self.stack_name}_yads-worker-primary",
             f"{self.stack_name}_yads-backup"
         ]
@@ -651,6 +650,30 @@ class ProdDeployWorker(QThread):
             
             if not self._run_cmd(["ssh", self.remote_host, full_remote_cmd]):
                 return self.signals.operation_finished.emit(False, "Remote deployment/update failed")
+
+            # 6. Service status check
+            self._log("Step 8/8: Verifying service health...", "info")
+            import time as _time
+            _time.sleep(10)
+            status_ok = self._run_cmd(
+                ["ssh", self.remote_host,
+                 f"docker service ls --filter label=com.docker.stack.namespace={self.stack_name} "
+                 f"--format 'table {{{{.Name}}}}\\t{{{{.Replicas}}}}\\t{{{{.Image}}}}'"],
+                capture_output=False
+            )
+            # Check for any 0/N failures (exclude intentional 0/0 entries)
+            check_cmd = (
+                f"docker service ls --filter label=com.docker.stack.namespace={self.stack_name} "
+                f"--format '{{{{.Replicas}}}}' | grep -v '^0/0' | grep '^0/' || true"
+            )
+            result = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host, check_cmd]),
+                capture_output=True, text=True
+            )
+            if result.stdout.strip():
+                self._log(f"⚠️  Some services have 0 replicas running: {result.stdout.strip()}", "warning")
+            else:
+                self._log("✅ All expected services are running!", "success")
 
             self.signals.progress_update.emit(100, 100, "Success!")
             self._log("✅ Deployment to PROD completed successfully!", "success")
