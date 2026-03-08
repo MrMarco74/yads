@@ -21,6 +21,9 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-yads}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-frischkorn-yads-secret}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8085/auth/oidc/callback}
+      # Prometheus Metrics
+      - METRICS_ENABLED=true
+      - METRICS_AUTH_MODE=none
       # TLS/SSL Certificate Settings (optional)
       # - DISABLE_HTTPS_ONLY=false          # Emergency override to disable HTTPS-only mode
       # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt  # Custom CA for internal PKI

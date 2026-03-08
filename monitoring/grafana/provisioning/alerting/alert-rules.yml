@@ -1,26 +1,258 @@
 apiVersion: 1
 
-# Alert Rules werden manuell in der Grafana UI angelegt.
-# Grund: Grafana Unified Alerting erfordert vollständige relativeTimeRange-Felder
-# die via YAML-Provisioning komplex zu pflegen sind.
-#
-# Zu konfigurierende Alerts (in Grafana UI unter Alerting > Alert Rules):
-#
-# 1. Worker Task Crash Rate High
-#    Query: rate(yads_scan_errors_total[5m]) > 0.1
-#    For: 5m | Severity: critical
-#
-# 2. Queue Paused Too Long
-#    Query: yads_queue_paused == 1
-#    For: 10m | Severity: warning
-#
-# 3. No Active Worker
-#    Query: yads_active_scans == 0
-#    For: 5m | Severity: critical
-#
-# 4. High Scan Failure Rate
-#    Query: rate(yads_scan_errors_total[10m]) > 0.2
-#    For: 10m | Severity: warning
-#
-# Notification Channel: YADS-Alerts (Teams + Email)
-# Konfiguriert in: teams-email.yml
+groups:
+  - orgId: 1
+    name: YADS Operational Alerts
+    folder: YADS
+    interval: 1m
+    rules:
+
+      # 1. Scan Error Rate — zu viele Scan-Fehler
+      - uid: yads-alert-scan-errors
+        title: "YADS: High Scan Error Rate"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: rate(yads_scan_errors_total[5m])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Scan error rate exceeds 0.1/s for 5 minutes"
+          description: "Current rate: {{ $values.A.Value | printf \"%.4f\" }} errors/s"
+        labels:
+          severity: critical
+
+      # 2. Queue paused zu lange
+      - uid: yads-alert-queue-paused
+        title: "YADS: Queue Paused Too Long"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: yads_queue_active == 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Scan queue has been paused for more than 10 minutes"
+          description: "Queue is currently inactive. Check Settings → Queue."
+        labels:
+          severity: warning
+
+      # 3. Keine aktiven Scans (Worker hängt oder tot)
+      - uid: yads-alert-no-active-workers
+        title: "YADS: No Active Workers"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: yads_workers_total{status="online"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "No online workers detected for 5 minutes"
+          description: "Worker count: {{ $values.A.Value }}. Check the yads-worker container."
+        labels:
+          severity: critical
+
+      # 4. Lizenz ungültig
+      - uid: yads-alert-license-invalid
+        title: "YADS: License Invalid or Expired"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: yads_license_valid
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          summary: "YADS license is invalid or expired"
+          description: "License metric returned {{ $values.A.Value }}. Renew the license immediately."
+        labels:
+          severity: critical
+
+      # 5. Queue Tiefe zu hoch (Backlog)
+      - uid: yads-alert-queue-backlog
+        title: "YADS: Queue Backlog Too High"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: yads_queue_depth
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 100
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Scan queue has more than 100 pending tasks"
+          description: "Current queue depth: {{ $values.A.Value }} tasks. Consider scaling workers."
+        labels:
+          severity: warning
