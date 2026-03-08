@@ -43,3 +43,22 @@ git:
 release:
   changelog_mode: interactive  # 'interactive' or 'editor'
   dry_run_default: true  # Always preview before execution
+
+# Production deploy settings (Frischkorn-Prod)
+deploy:
+  portainer:
+    url: https://prod.example.com:9443   # Portainer URL
+    api_key: ${PORTAINER_API_KEY}                   # API key (Settings → API)
+    stack_name: yads                                # Docker Swarm stack name
+    verify_ssl: true                                # Set false for self-signed certs
+    health_url: https://prod.example.com/api/health  # Optional health check
+
+  ssh:
+    host: prod.example.com
+    user: root
+    key_file: ~/.ssh/id_rsa
+    port: 22
+
+  migrations:
+    enabled: true
+    command: "docker exec yads-api python scripts/maintenance/migrate_db.py"

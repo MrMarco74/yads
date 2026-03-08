@@ -29,6 +29,7 @@ from release_lib.changelog import ChangelogManager
 from release_lib.translator import ChangelogTranslator
 from release_lib.updater import FileUpdater
 from release_lib.uploader import ReleaseUploader
+from release_lib.deployer import ProductionDeployer, DeployError
 
 
 class ReleaseOrchestrator:
@@ -411,6 +412,36 @@ class ReleaseOrchestrator:
                 self.file_updater.rollback()
             raise
 
+    def deploy_to_production(self, version: str, dry_run: bool = False) -> bool:
+        """
+        Deploy a released version to production (Frischkorn-Prod).
+
+        Reads deploy config from release.yaml (deploy section).
+        Supports Portainer API and SSH fallback.
+
+        Args:
+            version: Version string to deploy (e.g., "1.20.3")
+            dry_run: If True, show what would happen without executing
+
+        Returns:
+            True if successful
+        """
+        if not hasattr(self, 'config') or self.config is None:
+            self.load_config()
+
+        deploy_cfg = self.config.get('deploy', {})
+        if not deploy_cfg:
+            print("\n❌ No 'deploy' section in release.yaml.")
+            print("   Run: ./tools/release.py init-config  to create a template.\n")
+            return False
+
+        deployer = ProductionDeployer(deploy_cfg)
+        try:
+            return deployer.deploy(version, dry_run=dry_run)
+        except DeployError as e:
+            print(f"\n❌ Deploy failed: {e}\n")
+            return False
+
     def retry_upload(self, version: str, channel: str = 'stable', dry_run: bool = False) -> bool:
         """
         Retry upload for an existing release.
@@ -536,6 +567,10 @@ Examples:
   # Retry upload for beta release
   ./tools/release.py upload --version 1.14.0 --channel beta
 
+  # Deploy to production (Frischkorn-Prod via Portainer)
+  ./tools/release.py deploy --version 1.20.3
+  ./tools/release.py deploy --version 1.20.3 --dry-run
+
   # Initialize configuration
   ./tools/release.py init-config
         """
@@ -607,6 +642,23 @@ Examples:
         help='Output path (default: ~/.yads/release.yaml)'
     )
 
+    # Deploy command
+    deploy_parser = subparsers.add_parser('deploy', help='Deploy a release to production (Frischkorn-Prod)')
+    deploy_parser.add_argument(
+        '--version',
+        required=True,
+        help='Version to deploy (e.g., 1.20.3)'
+    )
+    deploy_parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would be deployed without executing'
+    )
+    deploy_parser.add_argument(
+        '--config',
+        help='Path to config file (default: ~/.yads/release.yaml)'
+    )
+
     # Version command
     version_parser = subparsers.add_parser('version', help='Show current version')
 
@@ -676,6 +728,24 @@ Examples:
             sys.exit(1)
 
         success = orchestrator.retry_upload(args.version, channel=args.channel)
+        sys.exit(0 if success else 1)
+
+    elif args.command == 'deploy':
+        orchestrator = ReleaseOrchestrator(
+            str(project_root),
+            args.config if hasattr(args, 'config') else None
+        )
+
+        try:
+            orchestrator.load_config()
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n❌ Configuration error: {e}")
+            sys.exit(1)
+
+        success = orchestrator.deploy_to_production(
+            version=args.version,
+            dry_run=args.dry_run,
+        )
         sys.exit(0 if success else 1)
 
 
