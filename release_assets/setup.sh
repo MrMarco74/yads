@@ -89,9 +89,9 @@ else
 fi
 
 if [[ "$OVERWRITE_ENV" =~ ^[Yy]$ ]]; then
-    POSTGRES_PASSWORD=$(openssl rand -base64 24)
+    POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
     SECRET_KEY=$(openssl rand -hex 32)
-    
+
     cat <<EOF > .env
 # --- Database ---
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
@@ -106,7 +106,152 @@ EOF
 fi
 echo ""
 
-# 5. Application Access Mode
+# 5. Identity Provider (Keycloak)
+echo -e "${YELLOW}>> Identity Provider (SSO/Keycloak)${NC}"
+echo "YADS supports local user accounts (built-in) and SSO via Keycloak (OIDC)."
+echo "  1) Local authentication only — no Keycloak needed (recommended for small teams)"
+echo "  2) Bundled Keycloak — YADS manages a Keycloak instance via Docker"
+echo "  3) External Keycloak — connect YADS to your existing Keycloak/OIDC server"
+read -p "Choose [1/2/3, default 1]: " KC_CHOICE
+KC_CHOICE=${KC_CHOICE:-1}
+
+DOCKER_PROFILES=""
+KC_ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+KC_DB_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+
+case "$KC_CHOICE" in
+    2)
+        echo ""
+        read -p "Keycloak port [default 8080]: " KC_PORT
+        KC_PORT=${KC_PORT:-8080}
+        read -p "YADS public hostname (e.g. yads.example.com or localhost) [default localhost]: " YADS_HOST
+        YADS_HOST=${YADS_HOST:-localhost}
+        DOCKER_PROFILES="keycloak"
+        cat <<EOF >> .env
+
+# --- Identity Provider (Bundled Keycloak) ---
+AUTH_MODE=oidc
+KC_PORT=$KC_PORT
+KC_ADMIN=admin
+KC_ADMIN_PASSWORD=$KC_ADMIN_PASSWORD
+KC_DB_PASSWORD=$KC_DB_PASSWORD
+OIDC_SERVER_URL=http://keycloak:8080
+OIDC_PUBLIC_URL=http://${YADS_HOST}:${KC_PORT}
+OIDC_REALM=yads
+OIDC_CLIENT_ID=yads
+OIDC_CLIENT_SECRET=$(openssl rand -hex 24)
+OIDC_REDIRECT_URI=http://${YADS_HOST}:${API_PORT}/auth/oidc/callback
+EOF
+        echo -e "${GREEN}✓ Bundled Keycloak configured (port $KC_PORT)${NC}"
+        echo -e "${BLUE}  Keycloak Admin: admin / $KC_ADMIN_PASSWORD${NC}"
+        echo -e "${YELLOW}  Note: Run migration after first start:${NC}"
+        echo -e "  docker exec yads-api python /app/scripts/maintenance/migrate_users_to_keycloak.py \\"
+        echo -e "    --keycloak-url http://keycloak:8080"
+        ;;
+    3)
+        echo ""
+        read -p "Keycloak server URL (reachable from YADS container, e.g. https://keycloak.example.com): " EXT_KC_SERVER
+        read -p "Keycloak public URL (browser-facing, often same as above): " EXT_KC_PUBLIC
+        EXT_KC_PUBLIC=${EXT_KC_PUBLIC:-$EXT_KC_SERVER}
+        read -p "Realm name: " EXT_KC_REALM
+        read -p "Client ID [default yads]: " EXT_KC_CLIENT
+        EXT_KC_CLIENT=${EXT_KC_CLIENT:-yads}
+        read -p "Client Secret: " EXT_KC_SECRET
+        read -p "YADS public hostname for redirect URI [default localhost]: " YADS_HOST
+        YADS_HOST=${YADS_HOST:-localhost}
+        cat <<EOF >> .env
+
+# --- Identity Provider (External Keycloak/OIDC) ---
+AUTH_MODE=oidc
+OIDC_SERVER_URL=${EXT_KC_SERVER}
+OIDC_PUBLIC_URL=${EXT_KC_PUBLIC}
+OIDC_REALM=${EXT_KC_REALM}
+OIDC_CLIENT_ID=${EXT_KC_CLIENT}
+OIDC_CLIENT_SECRET=${EXT_KC_SECRET}
+OIDC_REDIRECT_URI=http://${YADS_HOST}:${API_PORT}/auth/oidc/callback
+EOF
+        echo -e "${GREEN}✓ External Keycloak configured${NC}"
+        echo -e "${YELLOW}  Note: Ensure YADS client exists in realm '${EXT_KC_REALM}' with:${NC}"
+        echo -e "    - Redirect URI: http://${YADS_HOST}:${API_PORT}/auth/oidc/callback"
+        echo -e "    - Protocol mappers: 'groups' (group-membership) + 'yads_tenant' (hardcoded)"
+        ;;
+    *)
+        echo "AUTH_MODE=local" >> .env
+        echo -e "${GREEN}✓ Local authentication selected (no Keycloak required)${NC}"
+        ;;
+esac
+echo ""
+
+# 6. Observability Stack (Prometheus/Grafana)
+echo -e "${YELLOW}>> Observability & Monitoring${NC}"
+echo "YADS exposes Prometheus metrics at /metrics for monitoring and alerting."
+echo "  1) None — no monitoring stack"
+echo "  2) Bundled stack — Prometheus + Grafana + Loki (managed by YADS Docker)"
+echo "  3) External — connect your existing Prometheus/Grafana to YADS /metrics"
+read -p "Choose [1/2/3, default 1]: " MON_CHOICE
+MON_CHOICE=${MON_CHOICE:-1}
+
+GRAFANA_ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+MINIO_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+METRICS_TOKEN=$(openssl rand -hex 24)
+
+case "$MON_CHOICE" in
+    2)
+        read -p "Grafana port [default 3000]: " GRAFANA_PORT
+        GRAFANA_PORT=${GRAFANA_PORT:-3000}
+        DOCKER_PROFILES="${DOCKER_PROFILES:+$DOCKER_PROFILES,}monitoring"
+        cat <<EOF >> .env
+
+# --- Observability Stack (Bundled) ---
+METRICS_ENABLED=true
+METRICS_AUTH_MODE=token
+METRICS_TOKEN=$METRICS_TOKEN
+GRAFANA_PORT=$GRAFANA_PORT
+GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD
+MINIO_ROOT_PASSWORD=$MINIO_PASSWORD
+EOF
+        echo -e "${GREEN}✓ Bundled monitoring stack configured${NC}"
+        echo -e "${BLUE}  Grafana: http://localhost:${GRAFANA_PORT} — admin / $GRAFANA_ADMIN_PASSWORD${NC}"
+        ;;
+    3)
+        read -p "Your Prometheus scrape endpoint for YADS will be http://<host>:${API_PORT}/metrics"
+        echo ""
+        echo -e "${YELLOW}  Auth mode for /metrics endpoint:${NC}"
+        echo "  1) None (open — only if Prometheus is on same host/network)"
+        echo "  2) Bearer token (recommended)"
+        read -p "Choose [1/2, default 2]: " METRICS_AUTH_CHOICE
+        METRICS_AUTH_CHOICE=${METRICS_AUTH_CHOICE:-2}
+        if [ "$METRICS_AUTH_CHOICE" == "1" ]; then
+            METRICS_AUTH_STR="METRICS_AUTH_MODE=none"
+        else
+            METRICS_AUTH_STR="METRICS_AUTH_MODE=token
+METRICS_TOKEN=$METRICS_TOKEN"
+            echo -e "${BLUE}  Metrics token: $METRICS_TOKEN${NC}"
+            echo -e "${YELLOW}  Add this to your Prometheus scrape config:${NC}"
+            echo "    bearer_token: $METRICS_TOKEN"
+        fi
+        cat <<EOF >> .env
+
+# --- Observability (External Prometheus/Grafana) ---
+METRICS_ENABLED=true
+$METRICS_AUTH_STR
+EOF
+        echo -e "${GREEN}✓ Metrics endpoint enabled for external Prometheus${NC}"
+        ;;
+    *)
+        echo "# Monitoring: disabled" >> .env
+        echo -e "${GREEN}✓ No monitoring stack configured${NC}"
+        ;;
+esac
+echo ""
+
+# Write Docker Compose profiles to .env if any optional stacks selected
+if [ -n "$DOCKER_PROFILES" ]; then
+    echo "COMPOSE_PROFILES=$DOCKER_PROFILES" >> .env
+    echo -e "${BLUE}  Active Docker profiles: $DOCKER_PROFILES${NC}"
+fi
+
+# 7. Application Access Mode
 echo -e "${YELLOW}>> Access Mode Configuration${NC}"
 if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
     echo "SSL is enabled. Nginx Reverse Proxy is REQUIRED."
@@ -145,17 +290,37 @@ else
     echo -e "${BLUE}Notice: No Nginx configuration genenerated. API will be exposed directly on port $API_PORT.${NC}"
 fi
 
-# 7. Final Steps
+# 8. Final Steps
 echo -e "${BLUE}==============================================================================${NC}"
 echo -e "${GREEN}Configuration Complete!${NC}"
 echo ""
 echo "Next steps:"
 echo "  1. Review the generated .env file"
-if [ "$HAS_NGINX" == "true" ]; then
-    echo "  2. Access YADS at: ${BLUE}http${USE_SSL:+s}://localhost:$API_PORT${NC}"
+echo ""
+if [ -n "$DOCKER_PROFILES" ]; then
+    echo "  2. Start YADS (with optional stacks):"
+    echo -e "     ${BLUE}docker compose up -d${NC}"
+    echo -e "     ${YELLOW}(COMPOSE_PROFILES=$DOCKER_PROFILES is set in .env — optional services start automatically)${NC}"
 else
-    echo "  2. Access YADS at: ${BLUE}http://localhost:$API_PORT${NC} (Direct API)"
+    echo "  2. Start YADS:"
+    echo -e "     ${BLUE}docker compose up -d${NC}"
 fi
-echo "  3. Start YADS with: ${BLUE}docker compose up -d${NC}"
+echo ""
+if [ "$HAS_NGINX" == "true" ]; then
+    echo "  3. Access YADS at: ${BLUE}http${USE_SSL:+s}://localhost:$API_PORT${NC}"
+else
+    echo "  3. Access YADS at: ${BLUE}http://localhost:$API_PORT${NC}"
+fi
+echo ""
+if [ "$KC_CHOICE" == "2" ]; then
+    echo "  4. Migrate existing users to Keycloak (after first start):"
+    echo -e "     ${BLUE}docker exec yads-api python /app/scripts/maintenance/migrate_users_to_keycloak.py \\${NC}"
+    echo -e "     ${BLUE}  --keycloak-url http://keycloak:8080 --dry-run${NC}"
+    echo ""
+fi
+echo "  Manual override of optional stacks:"
+echo "    Keycloak only:   docker compose --profile keycloak up -d"
+echo "    Monitoring only: docker compose --profile monitoring up -d"
+echo "    All stacks:      docker compose --profile keycloak --profile monitoring up -d"
 echo ""
 echo -e "${BLUE}==============================================================================${NC}"

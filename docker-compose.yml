@@ -1,5 +1,7 @@
 services:
-  # --- Backend Services ---
+  # ==========================================================================
+  # YADS CORE (always started)
+  # ==========================================================================
   yads-api:
     container_name: yads-app-yads-api-1
     build:
@@ -13,28 +15,30 @@ services:
       - LOG_DIR=/app/logs
       - MFA_ENABLED=false
       - SETUP_TOKEN=${SETUP_TOKEN:-}
-      # OIDC/Keycloak Settings (AUTH_MODE=oidc aktiviert SSO)
+      # Authentication Mode: "local" (default) or "oidc" (Keycloak)
       - AUTH_MODE=${AUTH_MODE:-local}
+      # OIDC/Keycloak — only relevant if AUTH_MODE=oidc
+      # OIDC_SERVER_URL: Docker-internal URL (container-to-container token exchange)
+      # OIDC_PUBLIC_URL: Browser-facing URL (user redirect to Keycloak login)
       - OIDC_SERVER_URL=${OIDC_SERVER_URL:-http://keycloak:8080}
       - OIDC_PUBLIC_URL=${OIDC_PUBLIC_URL:-http://localhost:8080}
-      - OIDC_REALM=${OIDC_REALM:-frischkorn}
+      - OIDC_REALM=${OIDC_REALM:-yads}
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-yads}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-frischkorn-yads-secret}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-changeme}
       - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8085/auth/oidc/callback}
       # Prometheus Metrics
-      - METRICS_ENABLED=true
-      - METRICS_AUTH_MODE=none
+      - METRICS_ENABLED=${METRICS_ENABLED:-false}
+      - METRICS_AUTH_MODE=${METRICS_AUTH_MODE:-token}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
       # TLS/SSL Certificate Settings (optional)
-      # - DISABLE_HTTPS_ONLY=false          # Emergency override to disable HTTPS-only mode
-      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt  # Custom CA for internal PKI
-      # - CLIENT_CERT_PATH=/app/certs/client.crt       # Client certificate for mTLS
-      # - CLIENT_KEY_PATH=/app/certs/client.key        # Client key for mTLS
+      # - DISABLE_HTTPS_ONLY=false
+      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt
+      # - CLIENT_CERT_PATH=/app/certs/client.crt
+      # - CLIENT_KEY_PATH=/app/certs/client.key
     volumes:
       - ./logs:/app/logs
       - .:/app
       - nuclei_templates:/root/nuclei-templates
-      # Uncomment to mount certificates:
-      # - ./certs:/app/certs:ro
     depends_on:
       - db
       - redis
@@ -50,24 +54,17 @@ services:
     environment:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      # TLS/SSL Certificate Settings (optional)
-      # - DISABLE_HTTPS_ONLY=false          # Emergency override to disable HTTPS-only mode
-      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt  # Custom CA for internal PKI
-      # - CLIENT_CERT_PATH=/app/certs/client.crt       # Client certificate for mTLS
-      # - CLIENT_KEY_PATH=/app/certs/client.key        # Client key for mTLS
     volumes:
       - ./logs:/app/logs
       - .:/app
       - nuclei_templates:/root/nuclei-templates
-      # Uncomment to mount certificates:
-      # - ./certs:/app/certs:ro
     depends_on:
       - db
       - redis
     networks:
       - yads-net
 
-  # --- Infrastructure ---
+  # --- Infrastructure (Core) ---
   db:
     image: postgres:15-alpine
     environment:
@@ -89,13 +86,18 @@ services:
     networks:
       - yads-net
 
-  # --- Identity Provider ---
+  # ==========================================================================
+  # IDENTITY PROVIDER — Profile: keycloak
+  # Starten: docker compose --profile keycloak up -d
+  # Alternativ: externe Keycloak-Instanz via .env konfigurieren (OIDC_SERVER_URL etc.)
+  # ==========================================================================
   keycloak-db:
     image: postgres:15-alpine
+    profiles: [keycloak]
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_secret
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak_secret}
     volumes:
       - keycloak-db-data:/var/lib/postgresql/data
     networks:
@@ -103,18 +105,19 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
+    profiles: [keycloak]
     command: start-dev --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_secret
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_secret}
+      KEYCLOAK_ADMIN: ${KC_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
     ports:
-      - "8080:8080"
+      - "${KC_PORT:-8080}:8080"
     volumes:
       - ./keycloak/realms:/opt/keycloak/data/import
     depends_on:
@@ -122,11 +125,17 @@ services:
     networks:
       - yads-net
 
-  # --- Observability Stack ---
+  # ==========================================================================
+  # OBSERVABILITY STACK — Profile: monitoring
+  # Starten: docker compose --profile monitoring up -d
+  # Alternativ: externe Grafana/Prometheus-Instanz — nur METRICS_ENABLED=true
+  # setzen und Prometheus extern auf :8085/metrics scrapen lassen.
+  # ==========================================================================
   prometheus:
     image: prom/prometheus:v2.51.0
+    profiles: [monitoring]
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -139,14 +148,15 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.0
+    profiles: [monitoring]
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SMTP_ENABLED: "true"
-      GF_SMTP_HOST: "smtp.example.com:587"
-      GF_SMTP_FROM_ADDRESS: "yads-alerts@example.com"
+      GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${GF_SMTP_HOST:-smtp.example.com:587}
+      GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-yads-alerts@example.com}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -158,8 +168,9 @@ services:
 
   loki:
     image: grafana/loki:2.9.0
+    profiles: [monitoring]
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT:-3100}:3100"
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -169,6 +180,7 @@ services:
 
   promtail:
     image: grafana/promtail:2.9.0
+    profiles: [monitoring]
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/log:/var/log:ro
@@ -177,16 +189,17 @@ services:
     networks:
       - yads-net
 
-  # --- Cold Storage (5-year log retention) ---
+  # Cold Storage (DORA EU 5-year retention)
   minio:
     image: minio/minio:latest
+    profiles: [monitoring]
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - minio-data:/data
     networks:
