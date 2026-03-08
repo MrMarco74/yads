@@ -1262,84 +1262,74 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 logger.info("[Worker] All parallel modules completed.")
 
             # Subdomain Discovery & Auto-Queue Logic
-            # Updated to check 'subdomain_scanner' result as the primary source of subdomains
-            
-            auto_queue_enabled = settings.AUTO_QUEUE_SUBDOMAINS
-            try:
-                from yads.models import SystemConfig
-                aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
-                if aq_conf:
-                    auto_queue_enabled = aq_conf.value.lower() == 'true'
-            except Exception:
-                pass
+            # Guard: only runs when the current scan actually included a subdomain/dns module.
+            # Without this, historical DB results would trigger re-queuing on every unrelated scan.
+            subdomain_modules_ran = bool(set(scan_types) & {'subdomain_scanner', 'dns_scanner'})
+            if not subdomain_modules_ran:
+                logger.debug("[Worker] Skipping auto-queue: subdomain_scanner/dns_scanner not in current scan_types.")
+            else:
+                auto_queue_enabled = settings.AUTO_QUEUE_SUBDOMAINS
+                try:
+                    from yads.models import SystemConfig
+                    aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
+                    if aq_conf:
+                        auto_queue_enabled = aq_conf.value.lower() == 'true'
+                except Exception:
+                    pass
 
-            try:
-                 # Check for Subdomain Scanner results first
-                 # Prioritize 'subdomain_scanner' if present
-                 sub_res = session.exec(select(ScanResult).where(
-                     ScanResult.target_id == target_id,
-                     ScanResult.module_name == "subdomain_scanner"
-                 ).order_by(ScanResult.scanned_at.desc())).first()
-                 
-                 # Fallback to legacy 'dns_scanner' if subdomain_scanner didn't run effectively
-                 if not sub_res:
-                     sub_res = session.exec(select(ScanResult).where(
-                         ScanResult.target_id == target_id,
-                         ScanResult.module_name == "dns_scanner"
-                     ).order_by(ScanResult.scanned_at.desc())).first()
+                try:
+                    # Prioritize 'subdomain_scanner'; fall back to 'dns_scanner'
+                    sub_res = session.exec(select(ScanResult).where(
+                        ScanResult.target_id == target_id,
+                        ScanResult.module_name == "subdomain_scanner"
+                    ).order_by(ScanResult.scanned_at.desc())).first()
 
-                 if sub_res and sub_res.data and "subdomains" in sub_res.data:
-                     subs = sub_res.data["subdomains"]
-                     
-                     new_targets_count = 0
-                     queued_count = 0
-                     
-                     for entry in subs:
-                         sub_domain = entry.get("subdomain")
-                         if sub_domain and sub_domain != domain: # Avoid self-loop
+                    if not sub_res:
+                        sub_res = session.exec(select(ScanResult).where(
+                            ScanResult.target_id == target_id,
+                            ScanResult.module_name == "dns_scanner"
+                        ).order_by(ScanResult.scanned_at.desc())).first()
 
-                             # Only add subdomains that actually resolved to an IP
-                             ips = entry.get("ips") or []
-                             if not ips:
-                                 logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
-                                 continue
+                    if sub_res and sub_res.data and "subdomains" in sub_res.data:
+                        subs = sub_res.data["subdomains"]
+                        new_targets_count = 0
+                        queued_count = 0
 
-                             # Check existence
-                             existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
-                             if not existing:
-                                 # Create New Target (Always)
-                                 # Inherit Tenant ID from parent
-                                 new_target = Target(domain=sub_domain, tenant_id=parent_tenant_id)
-                                 session.add(new_target)
-                                 session.commit()
-                                 session.refresh(new_target)
-                                 new_targets_count += 1
-                                 
-                                 # Queue Scan (Conditional)
-                                 if auto_queue_enabled:
-                                     # FIX: Only queue new subdomains with dns_scanner to prevent recursive explosion
-                                     # User request: "new targets, which have been added during the subdomain scan, 
-                                     # should only conduct the scan type DNS Records (Simple)"
-                                     subdomain_scan_types = ['dns_scanner']
-                                     celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id])
-                                     queued_count += 1
-                                     logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {subdomain_scan_types}")
-                                 else:
-                                     logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
-                                 
-                                     # Webhook: New Asset
-                                     webhook_service.trigger_event(parent_tenant_id, "new_asset", {
-                                         "domain": sub_domain,
-                                         "source": "subdomain_discovery",
-                                         "parent": domain
-                                     })
-                     
-                     if new_targets_count > 0:
-                         logger.info(f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. Queued: {queued_count}.")
+                        for entry in subs:
+                            sub_domain = entry.get("subdomain")
+                            if sub_domain and sub_domain != domain:
+                                ips = entry.get("ips") or []
+                                if not ips:
+                                    logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
+                                    continue
 
-            except Exception as e:
-                logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
-                session.rollback()
+                                existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
+                                if not existing:
+                                    new_target = Target(domain=sub_domain, tenant_id=parent_tenant_id)
+                                    session.add(new_target)
+                                    session.commit()
+                                    session.refresh(new_target)
+                                    new_targets_count += 1
+
+                                    if auto_queue_enabled:
+                                        subdomain_scan_types = ['dns_scanner']
+                                        celery_app.send_task("yads.worker.run_all_scans", args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id])
+                                        queued_count += 1
+                                        logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {subdomain_scan_types}")
+                                    else:
+                                        logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
+                                        webhook_service.trigger_event(parent_tenant_id, "new_asset", {
+                                            "domain": sub_domain,
+                                            "source": "subdomain_discovery",
+                                            "parent": domain
+                                        })
+
+                        if new_targets_count > 0:
+                            logger.info(f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. Queued: {queued_count}.")
+
+                except Exception as e:
+                    logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
+                    session.rollback()
 
             # Post-Scan Compliance Recalculation
             try:

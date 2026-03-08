@@ -23,6 +23,8 @@ Fields per entry:
                         "<name>"    — uses module-specific extractor in security_findings.py
   custom_dispatch bool  Worker has special dispatch logic; registry loop skips this module.
                         The module is still registered for UI/label/finding purposes.
+  passive         bool  True = passive/safe (read-only, no probing, no port scanning).
+                        False = active/intrusive (fuzzing, port scans, exploit probes, etc.).
 """
 
 from collections import OrderedDict
@@ -34,7 +36,7 @@ class ModuleDef:
     __slots__ = (
         "name", "label", "label_de", "category", "module_path",
         "worker_note", "requires_http", "requires_https", "default_on",
-        "finding_module", "extractor", "custom_dispatch", "report_view",
+        "finding_module", "extractor", "custom_dispatch", "report_view", "passive",
     )
 
     def __init__(
@@ -52,6 +54,7 @@ class ModuleDef:
         extractor: str = "generic",
         custom_dispatch: bool = False,
         report_view: Optional[str] = None,
+        passive: bool = True,
     ):
         self.name = name
         self.label = label
@@ -67,6 +70,7 @@ class ModuleDef:
         self.custom_dispatch = custom_dispatch
         # Explicit report page URL. None → auto-resolves to /reports/module/{name}
         self.report_view = report_view
+        self.passive = passive
 
     def get_report_url(self) -> str:
         """Return the report URL — explicit override or auto-generated generic."""
@@ -109,7 +113,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         category="recon",
         module_path="yads.modules.dns_scanner:DnsScanner",
         worker_note="Enumerating subdomains via Certificate Transparency...",
-        default_on=True,
+        default_on=False,
         finding_module=False,
         custom_dispatch=True,  # uses auto-queue logic in worker
     )),
@@ -132,6 +136,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Testing DNS zone transfer (AXFR)...",
         finding_module=True,
         extractor="axfr_scanner",
+        passive=False,
     )),
     ("tld_scanner", ModuleDef(
         name="tld_scanner",
@@ -221,6 +226,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="cors_scanner",
+        passive=False,
     )),
     ("csp_scanner", ModuleDef(
         name="csp_scanner",
@@ -286,6 +292,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("seed_files_scanner", ModuleDef(
         name="seed_files_scanner",
@@ -384,6 +391,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Checking for subdomain takeover risks...",
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("nuclei_scanner", ModuleDef(
         name="nuclei_scanner",
@@ -395,6 +403,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=False,
         custom_dispatch=True,
+        passive=False,
     )),
     ("banner_grabber", ModuleDef(
         name="banner_grabber",
@@ -405,6 +414,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Grabbing service banners and fingerprinting...",
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
 
     # ── Active Scanning ────────────────────────────────────────────────────
@@ -418,6 +428,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         finding_module=False,
         custom_dispatch=True,
         report_view="/ports",
+        passive=False,
     )),
     ("nmap_scanner", ModuleDef(
         name="nmap_scanner",
@@ -428,6 +439,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Running stealth Nmap scan...",
         finding_module=False,
         report_view="/ports",
+        passive=False,
     )),
     ("crawler", ModuleDef(
         name="crawler",
@@ -439,6 +451,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=False,
         custom_dispatch=True,
+        passive=False,
     )),
     ("content_discovery", ModuleDef(
         name="content_discovery",
@@ -450,6 +463,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=False,
         custom_dispatch=True,
+        passive=False,
     )),
     ("visual_osint", ModuleDef(
         name="visual_osint",
@@ -471,6 +485,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Running Deception Detector...",
         finding_module=False,
         custom_dispatch=True,
+        passive=False,
     )),
     ("infrastructure_scanner", ModuleDef(
         name="infrastructure_scanner",
@@ -482,6 +497,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         finding_module=False,
         custom_dispatch=True,
         report_view="/ports",
+        passive=False,
     )),
 
     ("waf_detector", ModuleDef(
@@ -494,6 +510,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("asn_scanner", ModuleDef(
         name="asn_scanner",
@@ -536,6 +553,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("dns_history_scanner", ModuleDef(
         name="dns_history_scanner",
@@ -599,6 +617,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("graphql_scanner", ModuleDef(
         name="graphql_scanner",
@@ -610,6 +629,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("websocket_scanner", ModuleDef(
         name="websocket_scanner",
@@ -621,6 +641,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("password_spray_mapper", ModuleDef(
         name="password_spray_mapper",
@@ -653,6 +674,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         requires_http=True,
         finding_module=True,
         extractor="generic",
+        passive=False,
     )),
     ("mobile_app_discovery", ModuleDef(
         name="mobile_app_discovery",

@@ -47,10 +47,11 @@ def run_scheduler_loop(celery_app):
                     logger.info(f"Triggering scheduled scan for {target.domain} (Frequency: {schedule.frequency})")
                     
                     # 2. Trigger Scan
-                    # Defaulting to a standard set of scans for scheduled jobs
+                    # Defaulting to a standard set of scans for scheduled jobs.
+                    # NOTE: subdomain_scanner intentionally excluded — it triggers
+                    # auto-queuing of hundreds of subdomains per run.
                     scan_types = [
-                        "subdomain_scanner", "dns_scanner", "web_analyzer", 
-                        "ssl_scanner", "nuclei_scanner", "port_scanner"
+                        "dns_scanner", "web_analyzer", "ssl_scanner"
                     ]
                     
                     # Send Task to Celery
