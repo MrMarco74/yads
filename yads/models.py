@@ -555,6 +555,38 @@ class TenantModuleConfig(SQLModel, table=True):
     updated_by: Optional[int] = Field(default=None, foreign_key="user.id")
 
 
+class TenantScanConfig(SQLModel, table=True):
+    """Per-tenant automated scan configuration."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", unique=True, index=True)
+
+    # Master switch
+    auto_scan_enabled: bool = Field(default=False)
+
+    # Frequency: "daily", "weekly", "monthly" — or use cron_expression
+    frequency: str = Field(default="weekly")
+    cron_expression: Optional[str] = Field(default=None)
+
+    # Scan types to run automatically
+    scan_types: List[str] = Field(
+        default=["dns_scanner", "ssl_scanner", "web_analyzer"],
+        sa_column=Column(JSONB)
+    )
+
+    # Throttling
+    max_targets_per_run: int = Field(default=10)    # max queued per scheduler tick
+    max_concurrent_scans: int = Field(default=3)    # max active at once for this tenant
+
+    # Optional time window (UTC, "HH:MM" strings). NULL = always allowed.
+    scan_window_start: Optional[str] = Field(default=None)
+    scan_window_end: Optional[str] = Field(default=None)
+
+    # Scheduler tracking
+    last_auto_run_at: Optional[datetime] = Field(default=None)
+    next_auto_run_at: Optional[datetime] = Field(default=None, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class InstalledModule(SQLModel, table=True):
     """Dynamically installed scanner modules (uploaded as ZIP packages by admin)."""
     id: Optional[int] = Field(default=None, primary_key=True)

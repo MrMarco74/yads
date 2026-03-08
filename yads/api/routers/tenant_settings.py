@@ -3,9 +3,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from typing import Optional
 
+from typing import List
 from yads.database import get_session
-from yads.models import User, Tenant, Webhook
+from yads.models import User, Tenant, Webhook, TenantScanConfig
 from yads.auth.deps import RoleChecker, get_current_user
+from yads.core.module_registry import REGISTRY
 from yads.config import settings
 from yads.utils.license_deps import require_feature
 
@@ -58,12 +60,18 @@ async def tenant_settings_page(
     tenant = session.get(Tenant, user.tenant_id)
     
     webhooks = session.exec(select(Webhook).where(Webhook.tenant_id == user.tenant_id)).all()
-    
+    scan_config = session.exec(
+        select(TenantScanConfig).where(TenantScanConfig.tenant_id == user.tenant_id)
+    ).first()
+    all_scan_types = sorted(REGISTRY.keys())
+
     return templates.TemplateResponse("tenant_settings.html", {
         "request": request,
         "tenant": tenant,
         "webhooks": webhooks,
-        "user": user
+        "user": user,
+        "scan_config": scan_config,
+        "all_scan_types": all_scan_types,
     })
 
 
@@ -223,3 +231,57 @@ async def test_webhook(
         </div>
         """
     return ""
+
+
+@router.post("/automation", response_class=HTMLResponse)
+async def update_scan_automation(
+    request: Request,
+    auto_scan_enabled: bool = Form(False),
+    frequency: str = Form("weekly"),
+    cron_expression: Optional[str] = Form(None),
+    scan_types: List[str] = Form(default=[]),
+    max_targets_per_run: int = Form(10),
+    max_concurrent_scans: int = Form(3),
+    scan_window_start: Optional[str] = Form(None),
+    scan_window_end: Optional[str] = Form(None),
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session),
+):
+    if not user.tenant_id:
+        return RedirectResponse("/tenant-settings", status_code=303)
+
+    # Validate + sanitise
+    if frequency not in ("daily", "weekly", "monthly"):
+        frequency = "weekly"
+    max_targets_per_run = max(1, min(max_targets_per_run, 100))
+    max_concurrent_scans = max(1, min(max_concurrent_scans, 10))
+    cron_expr = cron_expression.strip() if cron_expression and cron_expression.strip() else None
+    win_start = scan_window_start.strip() if scan_window_start and scan_window_start.strip() else None
+    win_end = scan_window_end.strip() if scan_window_end and scan_window_end.strip() else None
+    types = scan_types if scan_types else ["dns_scanner", "ssl_scanner", "web_analyzer"]
+
+    # Upsert
+    config = session.exec(
+        select(TenantScanConfig).where(TenantScanConfig.tenant_id == user.tenant_id)
+    ).first()
+    if not config:
+        config = TenantScanConfig(tenant_id=user.tenant_id)
+
+    config.auto_scan_enabled = auto_scan_enabled
+    config.frequency = frequency
+    config.cron_expression = cron_expr
+    config.scan_types = types
+    config.max_targets_per_run = max_targets_per_run
+    config.max_concurrent_scans = max_concurrent_scans
+    config.scan_window_start = win_start
+    config.scan_window_end = win_end
+    config.updated_at = datetime.utcnow()
+
+    # Set next run when enabling for the first time
+    if auto_scan_enabled and not config.next_auto_run_at:
+        from yads.core.scheduler import compute_next_auto_run
+        config.next_auto_run_at = compute_next_auto_run(frequency, cron_expr, datetime.utcnow())
+
+    session.add(config)
+    session.commit()
+    return RedirectResponse("/tenant-settings#automation", status_code=303)

@@ -662,6 +662,106 @@
             </form>
         </div>
 
+    <!-- Automated Scan Configuration -->
+    {% if not no_context %}
+    <div class="mt-8" id="automation">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-white">Automated Scan Schedule</h3>
+        </div>
+        <form action="/tenant-settings/automation" method="POST" class="bg-gray-900/40 rounded-xl border border-gray-700/50 p-6 space-y-5">
+
+            <!-- Master switch -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold text-white">Enable Automated Scanning</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Scheduler queues idle targets automatically on the configured interval</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="auto_scan_enabled" value="true" class="sr-only peer"
+                        {% if scan_config and scan_config.auto_scan_enabled %}checked{% endif %}>
+                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Frequency -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Frequency</label>
+                    <select name="frequency" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                        {% for f in ["daily","weekly","monthly"] %}
+                        <option value="{{ f }}" {% if scan_config and scan_config.frequency == f %}selected{% endif %}>{{ f|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Cron override -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Cron Override <span class="text-gray-500">(optional, overrides frequency)</span></label>
+                    <input type="text" name="cron_expression" placeholder="e.g. 0 2 * * 1"
+                        value="{{ scan_config.cron_expression if scan_config and scan_config.cron_expression else '' }}"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                </div>
+                <!-- Max targets per run -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Max Targets per Scheduler Tick</label>
+                    <input type="number" name="max_targets_per_run" min="1" max="100"
+                        value="{{ scan_config.max_targets_per_run if scan_config else 10 }}"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <!-- Max concurrent -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Max Concurrent Scans (this tenant)</label>
+                    <input type="number" name="max_concurrent_scans" min="1" max="10"
+                        value="{{ scan_config.max_concurrent_scans if scan_config else 3 }}"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <!-- Time window -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window Start (UTC HH:MM, optional)</label>
+                    <input type="text" name="scan_window_start" placeholder="e.g. 02:00"
+                        value="{{ scan_config.scan_window_start if scan_config and scan_config.scan_window_start else '' }}"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window End (UTC HH:MM, optional)</label>
+                    <input type="text" name="scan_window_end" placeholder="e.g. 06:00"
+                        value="{{ scan_config.scan_window_end if scan_config and scan_config.scan_window_end else '' }}"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                </div>
+            </div>
+
+            <!-- Scan types -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-300 mb-2">Scan Types to Run Automatically</label>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {% set active_types = scan_config.scan_types if scan_config and scan_config.scan_types else ["dns_scanner","ssl_scanner","web_analyzer"] %}
+                    {% for st in all_scan_types %}
+                    <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                        <input type="checkbox" name="scan_types" value="{{ st }}"
+                            {% if st in active_types %}checked{% endif %}
+                            class="rounded border-gray-600 bg-gray-700 text-blue-500">
+                        {{ st | replace("_", " ") | title }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if scan_config and scan_config.last_auto_run_at %}
+            <div class="text-xs text-gray-500">
+                Last auto-run: {{ scan_config.last_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}
+                {% if scan_config.next_auto_run_at %} · Next: {{ scan_config.next_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}{% endif %}
+            </div>
+            {% endif %}
+
+            <div class="flex justify-end pt-2">
+                <button type="submit" class="btn-primary px-6 py-2 text-sm">Save Automation Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
     {% endif %}
 </div>
 {% endblock %}
