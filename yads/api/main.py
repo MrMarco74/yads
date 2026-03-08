@@ -274,9 +274,10 @@ async def lifespan(app: FastAPI):
                 if not existing_users:
                     logger.warning("No users found. Creating default 'admin' user.")
                     default_admin = User(
-                        username="admin", 
+                        username="admin",
                         password_hash=get_password_hash("admin"),
-                        role="admin"
+                        role="admin",
+                        force_password_change=True,
                     )
                     session.add(default_admin)
                     session.commit()

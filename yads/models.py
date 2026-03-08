@@ -186,6 +186,7 @@ class User(SQLModel, table=True):
     # MFA Fields
     mfa_secret: Optional[str] = None
     mfa_enabled: bool = Field(default=False)
+    pending_mfa_secret: Optional[str] = None  # Temp secret during MFA enrollment (server-side only)
     
     # Password Policy
     force_password_change: bool = Field(default=False)

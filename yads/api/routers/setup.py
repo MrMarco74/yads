@@ -104,15 +104,14 @@ async def configure_db(req: DBConfigRequest):
     # 1. Connect with current credentials to change password
     # We use the current global 'engine' which should be valid with startup default
     try:
-        with current_engine.connect() as conn:
-            # Postgres specific
-            # We must use proper escaping or params. 
-            # Parametrization for password in ALTER USER usually tricky in some drivers? 
-            # Safer to just use simple string if validated.
-            # Using text()
-            stmt = text(f"ALTER USER yads WITH PASSWORD '{new_password}'")
-            conn.execute(stmt)
-            conn.commit()
+        # Use raw psycopg2 connection for parameterized DDL — text() f-strings are not safe here
+        raw_conn = current_engine.raw_connection()
+        try:
+            cursor = raw_conn.cursor()
+            cursor.execute("ALTER USER yads WITH PASSWORD %s", (new_password,))
+            raw_conn.commit()
+        finally:
+            raw_conn.close()
     except Exception as e:
         logger.error(f"Failed to change DB password: {e}")
         # It's possible we already changed it in a previous partial attempt?
@@ -222,6 +221,13 @@ async def init_data(req: DataActionRequest):
 
 @router.post("/create-admin")
 async def create_admin(req: AdminRequest):
+    # Block once setup is complete — prevents unauthenticated admin creation post-setup
+    if getattr(settings, "SETUP_COMPLETE", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Setup already complete. Use the admin panel to manage users."
+        )
+
     # Manual session creation to ensure we use the latest credentials
     # bypassing Depends(get_session) which might hold stale global state
     from sqlmodel import Session, create_engine
