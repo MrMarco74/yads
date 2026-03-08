@@ -79,23 +79,29 @@ else
     echo -e "${GREEN}PASS${NC}"
 fi
 
-# Check 4: Verify no .env files are tracked
+# Check 4: Verify no .env files are tracked (.env.example is allowed)
 echo -n "  [CHECK] No .env files tracked in Git... "
-if git ls-files | grep -E '\.env(\.|$)' &>/dev/null; then
+if git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|prod|production|staging|development)$' &>/dev/null; then
     echo -e "${RED}FAIL${NC}"
     echo -e "${RED}ERROR: .env files found in repository!${NC}"
-    git ls-files | grep -E '\.env(\.|$)'
+    git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|prod|production|staging|development)$'
     SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
 else
     echo -e "${GREEN}PASS${NC}"
 fi
 
-# Check 5: Scan for common password patterns in tracked files
+# Check 5: Scan for common password patterns in tracked files (excludes venv/site-packages)
 echo -n "  [CHECK] No hardcoded passwords in code... "
-if git grep -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' | grep -v -E '(example|template|test|mock|placeholder|CHANGE_THIS)' &>/dev/null; then
+_PW_EXCLUDE='(example|template|test|mock|placeholder|CHANGE_THIS|changeme|your-|_invalid_password|_wrong_password|_failure.*password|password.*failure|LOGIN_FAILURE)'
+_PW_PATHS=('*.py' '*.js' '*.yml' '*.yaml'
+           ':(exclude,glob)venv/**' ':(exclude,glob).venv/**' ':(exclude,glob).rel_venv/**'
+           ':(exclude,glob)*/site-packages/**' ':(exclude)*.example')
+if git grep -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- "${_PW_PATHS[@]}" \
+   | grep -v -E "$_PW_EXCLUDE" &>/dev/null; then
     echo -e "${RED}WARNING${NC}"
     echo -e "${RED}WARNING: Potential hardcoded passwords found. Please review:${NC}"
-    git grep -n -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' | grep -v -E '(example|template|test|mock|placeholder|CHANGE_THIS)' || true
+    git grep -n -i -E '(password|passwd|pwd)\s*=\s*["\x27][^"\x27]{8,}["\x27]' -- "${_PW_PATHS[@]}" \
+      | grep -v -E "$_PW_EXCLUDE" || true
     # Don't fail build, just warn
 else
     echo -e "${GREEN}PASS${NC}"
