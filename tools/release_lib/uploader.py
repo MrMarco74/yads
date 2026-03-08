@@ -62,10 +62,10 @@ class ReleaseUploader:
         channel_display = "🔷 BETA" if channel == 'beta' else "🟢 STABLE"
         print(f"\n📦 Release Channel: {channel_display}\n")
 
-        # Verify all files exist
+        # Verify all files/directories exist
         missing_files = []
         for local_file, _ in files_to_upload:
-            full_path = self.project_root / local_file
+            full_path = self.project_root / local_file.rstrip('/')
             if not full_path.exists():
                 missing_files.append(local_file)
 
@@ -105,19 +105,23 @@ class ReleaseUploader:
 
             total_size = 0
             for local_file, remote_path in files_to_upload:
-                full_path = self.project_root / local_file
+                is_dir = local_file.endswith('/')
+                full_path = self.project_root / local_file.rstrip('/')
                 if full_path.exists():
-                    size = full_path.stat().st_size
+                    if is_dir:
+                        size = sum(f.stat().st_size for f in full_path.rglob('*') if f.is_file())
+                        n = sum(1 for f in full_path.rglob('*') if f.is_file())
+                        size_str = f"{self._format_size(size)} ({n} files)"
+                    else:
+                        size = full_path.stat().st_size
+                        size_str = self._format_size(size)
                     total_size += size
-                    size_str = self._format_size(size)
                 else:
                     size_str = "MISSING!"
 
-                # Show full remote path including filename
-                remote_filename = os.path.basename(local_file)
-                full_remote = remote_path.rstrip('/') + '/' + remote_filename
-
-                print(f"  📁 {local_file}")
+                icon = "📂" if is_dir else "📁"
+                full_remote = remote_path if is_dir else remote_path.rstrip('/') + '/' + os.path.basename(local_file)
+                print(f"  {icon} {local_file}")
                 print(f"     Size: {size_str}")
                 print(f"     → {full_remote}")
                 print()
@@ -177,71 +181,39 @@ class ReleaseUploader:
         # beta -> version-beta.json
         version_json_file = 'releases/version-beta.json' if channel == 'beta' else 'releases/version.json'
 
+        en = paths.get('homepage_en', '/en/').rstrip('/') + '/'
+        de = paths.get('homepage_de', '/de/').rstrip('/') + '/'
+        rel = paths.get('releases', '/en/releases/').rstrip('/') + '/'
+
         files = [
             # Release package
-            (
-                f'releases/yads_v{version}_customer_pkg.zip',
-                paths.get('releases', '/en/releases/')
-            ),
-            # Version metadata (channel-specific)
-            (
-                version_json_file,
-                paths.get('releases', '/en/releases/')
-            ),
-            # Software Bill of Materials (SBOM)
-            (
-                'releases/sbom.json',
-                paths.get('releases', '/en/releases/')
-            ),
-            (
-                'releases/sbom.xml',
-                paths.get('releases', '/en/releases/')
-            ),
-            # Cryptography Bill of Materials (CBOM)
-            (
-                'releases/cbom.json',
-                paths.get('releases', '/en/releases/')
-            ),
-            (
-                'releases/cbom.xml',
-                paths.get('releases', '/en/releases/')
-            ),
+            (f'releases/yads_v{version}_customer_pkg.zip', rel),
+            (version_json_file, rel),
+            ('releases/sbom.json', rel),
+            ('releases/sbom.xml', rel),
+            ('releases/cbom.json', rel),
+            ('releases/cbom.xml', rel),
 
-            # Homepage files (EN)
-            (
-                'yads-homepage/en/support.html',
-                paths.get('homepage_en', '/en/')
-            ),
-            (
-                'yads-homepage/en/changes.html',
-                paths.get('homepage_en', '/en/')
-            ),
-            (
-                'yads-homepage/en/docs.html',
-                paths.get('homepage_en', '/en/')
-            ),
-            (
-                'yads-homepage/en/bom.html',
-                paths.get('homepage_en', '/en/')
-            ),
+            # Homepage HTML (EN) — yads-security.com/en/
+            ('yads-homepage/en/index.html',   en),
+            ('yads-homepage/en/changes.html', en),
+            ('yads-homepage/en/docs.html',    en),
+            ('yads-homepage/en/support.html', en),
+            ('yads-homepage/en/bom.html',     en),
 
-            # Homepage files (DE)
-            (
-                'yads-homepage/de/support.html',
-                paths.get('homepage_de', '/de/')
-            ),
-            (
-                'yads-homepage/de/changes.html',
-                paths.get('homepage_de', '/de/')
-            ),
-            (
-                'yads-homepage/de/docs.html',
-                paths.get('homepage_de', '/de/')
-            ),
-            (
-                'yads-homepage/de/bom.html',
-                paths.get('homepage_de', '/de/')
-            ),
+            # Homepage assets (EN canonical — DE site loads these cross-origin from .com)
+            # Entries ending with '/' are treated as directories (rsync/FTP recursive)
+            ('yads-homepage/en/css/',     en + 'css/'),
+            ('yads-homepage/en/scripts/', en + 'scripts/'),
+            ('yads-homepage/en/fonts/',   en + 'fonts/'),
+            ('yads-homepage/en/images/',  en + 'images/'),
+
+            # Homepage HTML (DE) — yads-security.de/de/
+            ('yads-homepage/de/index.html',   de),
+            ('yads-homepage/de/changes.html', de),
+            ('yads-homepage/de/docs.html',    de),
+            ('yads-homepage/de/support.html', de),
+            ('yads-homepage/de/bom.html',     de),
         ]
 
         return files
@@ -290,46 +262,43 @@ class ReleaseUploader:
                 print()
 
         # Calculate totals for progress display
+        def _path_size(p: Path) -> int:
+            if p.is_dir():
+                return sum(f.stat().st_size for f in p.rglob('*') if f.is_file())
+            return p.stat().st_size if p.exists() else 0
+
         total_files = len(files)
-        total_bytes = sum(os.path.getsize(self.project_root / f[0]) for f in files)
+        total_bytes = sum(_path_size(self.project_root / f[0].rstrip('/')) for f in files)
         uploaded_bytes = 0
 
-        print(f"  📊 Total: {total_files} files, {self._format_size(total_bytes)}\n")
+        print(f"  📊 Total: {total_files} entries, {self._format_size(total_bytes)}\n")
 
         for file_idx, (local_file, remote_path) in enumerate(files, 1):
-            local_full_path = self.project_root / local_file
+            is_dir = local_file.endswith('/')
+            local_full_path = self.project_root / local_file.rstrip('/')
 
             # Ensure remote path ends with /
             if not remote_path.endswith('/'):
                 remote_path += '/'
 
-            # Build rsync command
-            if use_password:
-                # Use sshpass for password authentication
-                cmd = [
-                    'sshpass', '-p', password,
-                    'rsync',
-                    '-avz',
-                    '--progress',
-                    '-e', f'ssh -p {port} -o StrictHostKeyChecking=no -o PubkeyAuthentication=no',
-                    str(local_full_path),
-                    f'{user}@{host}:{remote_path}'
-                ]
-            else:
-                # Use key file authentication
-                cmd = [
-                    'rsync',
-                    '-avz',
-                    '--progress',
-                    '-e', f'ssh -i {key_file} -p {port} -o StrictHostKeyChecking=no',
-                    str(local_full_path),
-                    f'{user}@{host}:{remote_path}'
-                ]
+            # For directories: rsync source_dir/ remote_dir/ (trailing slash = sync contents)
+            rsync_source = str(local_full_path) + ('/' if is_dir else '')
 
-            file_size = os.path.getsize(local_full_path)
-            print(f"  [{file_idx}/{total_files}] 📁 {local_file}")
-            print(f"          Size: {self._format_size(file_size)}")
-            print(f"          → {remote_path}{os.path.basename(local_file)}")
+            ssh_opts = (
+                f'ssh -p {port} -o StrictHostKeyChecking=no -o PubkeyAuthentication=no'
+                if use_password else
+                f'ssh -i {key_file} -p {port} -o StrictHostKeyChecking=no'
+            )
+            rsync_base = ['sshpass', '-p', password, 'rsync'] if use_password else ['rsync']
+            cmd = rsync_base + ['-avz', '--progress', '-e', ssh_opts,
+                                 rsync_source, f'{user}@{host}:{remote_path}']
+
+            entry_size = _path_size(local_full_path)
+            icon = "📂" if is_dir else "📁"
+            dest = remote_path if is_dir else f"{remote_path}{os.path.basename(local_file)}"
+            print(f"  [{file_idx}/{total_files}] {icon} {local_file}")
+            print(f"          Size: {self._format_size(entry_size)}")
+            print(f"          → {dest}")
 
             try:
                 import time
@@ -352,9 +321,9 @@ class ReleaseUploader:
 
                 # Calculate speed
                 elapsed = time.time() - start_time
-                speed = file_size / elapsed if elapsed > 0 else 0
+                speed = entry_size / elapsed if elapsed > 0 else 0
 
-                uploaded_bytes += file_size
+                uploaded_bytes += entry_size
                 overall_percent = int((uploaded_bytes / total_bytes) * 100) if total_bytes > 0 else 100
 
                 print(f"          ✅ Done in {elapsed:.1f}s ({self._format_size(speed)}/s)")
@@ -436,54 +405,61 @@ class ReleaseUploader:
                 ftp.connect(host, port, timeout=30)
                 ftp.login(user, password)
 
+            def _ftp_upload_file(ftp_conn, local_path: Path, remote_dir: str) -> int:
+                """Upload a single file via FTP. Returns bytes uploaded."""
+                self._ensure_ftp_directory(ftp_conn, remote_dir)
+                ftp_conn.cwd(remote_dir)
+                fsize = local_path.stat().st_size
+                with open(local_path, 'rb') as f:
+                    ftp_conn.storbinary(f'STOR {local_path.name}', f)
+                return fsize
+
+            def _ftp_upload_dir(ftp_conn, local_dir: Path, remote_base: str) -> int:
+                """Recursively upload a directory via FTP. Returns bytes uploaded."""
+                total = 0
+                for item in sorted(local_dir.rglob('*')):
+                    if item.is_file():
+                        rel = item.relative_to(local_dir)
+                        remote_dir = remote_base.rstrip('/') + '/' + str(rel.parent).replace('\\', '/')
+                        if str(rel.parent) == '.':
+                            remote_dir = remote_base
+                        total += _ftp_upload_file(ftp_conn, item, remote_dir)
+                        print(f"          ↳ {item.name}")
+                return total
+
             # Calculate totals for progress display
+            def _entry_size(p: Path) -> int:
+                if p.is_dir():
+                    return sum(f.stat().st_size for f in p.rglob('*') if f.is_file())
+                return p.stat().st_size if p.exists() else 0
+
             total_files = len(files)
-            total_bytes = sum(os.path.getsize(self.project_root / f[0]) for f in files)
+            total_bytes = sum(_entry_size(self.project_root / f[0].rstrip('/')) for f in files)
             uploaded_bytes = 0
 
-            print(f"  📊 Total: {total_files} files, {self._format_size(total_bytes)}\n")
+            print(f"  📊 Total: {total_files} entries, {self._format_size(total_bytes)}\n")
 
             for file_idx, (local_file, remote_path) in enumerate(files, 1):
-                local_full_path = self.project_root / local_file
-                remote_filename = os.path.basename(local_file)
-                file_size = os.path.getsize(local_full_path)
+                is_dir = local_file.endswith('/')
+                local_full_path = self.project_root / local_file.rstrip('/')
+                entry_size = _entry_size(local_full_path)
+                icon = "📂" if is_dir else "📁"
 
-                # Ensure remote directory exists
-                self._ensure_ftp_directory(ftp, remote_path)
+                print(f"  [{file_idx}/{total_files}] {icon} {local_file}")
+                print(f"          Size: {self._format_size(entry_size)}")
+                print(f"          → {remote_path}")
 
-                # Change to remote directory
-                ftp.cwd(remote_path)
+                start_time = time.time()
+                if is_dir:
+                    bytes_done = _ftp_upload_dir(ftp, local_full_path, remote_path)
+                else:
+                    bytes_done = _ftp_upload_file(ftp, local_full_path, remote_path)
 
-                print(f"  [{file_idx}/{total_files}] 📁 {local_file}")
-                print(f"          Size: {self._format_size(file_size)}")
-                print(f"          → {remote_path}{remote_filename}")
-
-                # Upload file with progress
-                with open(local_full_path, 'rb') as f:
-                    bytes_sent = [0]  # Use list for closure
-                    last_percent = [0]
-                    start_time = time.time()
-
-                    def progress_callback(data):
-                        bytes_sent[0] += len(data)
-                        percent = int((bytes_sent[0] / file_size) * 100) if file_size > 0 else 100
-
-                        # Only update display every 5%
-                        if percent >= last_percent[0] + 5 or percent == 100:
-                            last_percent[0] = percent
-                            elapsed = time.time() - start_time
-                            speed = bytes_sent[0] / elapsed if elapsed > 0 else 0
-                            print(f"\r          Progress: {percent:3d}% ({self._format_size(bytes_sent[0])}/{self._format_size(file_size)}) - {self._format_size(speed)}/s", end='', flush=True)
-
-                    ftp.storbinary(f'STOR {remote_filename}', f, callback=progress_callback)
-
-                uploaded_bytes += file_size
+                uploaded_bytes += bytes_done
                 elapsed = time.time() - start_time
-                speed = file_size / elapsed if elapsed > 0 else 0
-                print(f"\r          ✅ Done in {elapsed:.1f}s ({self._format_size(speed)}/s)                    ")
-
-                # Show overall progress
+                speed = bytes_done / elapsed if elapsed > 0 else 0
                 overall_percent = int((uploaded_bytes / total_bytes) * 100) if total_bytes > 0 else 100
+                print(f"          ✅ Done in {elapsed:.1f}s ({self._format_size(speed)}/s)")
                 print(f"          Overall: {overall_percent}% ({self._format_size(uploaded_bytes)}/{self._format_size(total_bytes)})\n")
 
             ftp.quit()
