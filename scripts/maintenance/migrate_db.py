@@ -802,6 +802,34 @@ def migrate():
         except Exception as e:
             print(f"   Error creating integrationconfig table: {e}")
 
+        print(">> Creating tenantscanconfig table (per-tenant automation)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tenantscanconfig (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenant(id),
+                    auto_scan_enabled BOOLEAN DEFAULT FALSE,
+                    frequency VARCHAR DEFAULT 'weekly',
+                    cron_expression VARCHAR,
+                    scan_types JSONB DEFAULT '["dns_scanner", "ssl_scanner", "web_analyzer"]'::jsonb,
+                    max_targets_per_run INTEGER DEFAULT 10,
+                    max_concurrent_scans INTEGER DEFAULT 3,
+                    scan_window_start VARCHAR,
+                    scan_window_end VARCHAR,
+                    last_auto_run_at TIMESTAMP WITHOUT TIME ZONE,
+                    next_auto_run_at TIMESTAMP WITHOUT TIME ZONE,
+                    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_tenantscanconfig_tenant
+                    ON tenantscanconfig (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_tenantscanconfig_next_run
+                    ON tenantscanconfig (next_auto_run_at);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating tenantscanconfig table: {e}")
+
         print("\nMigration Complete!")
 
 
