@@ -153,6 +153,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.40.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.40.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">SSO, Observability und Sicherheit</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Unterstützung für Single Sign-On (SSO) über Keycloak hinzugefügt, inklusive Benutzer- und Tenant-Migrationsskripten, Realm-Konfigurationen und OIDC-Login-Flow</li>
+                    <li>Umfassender Observability-Stack mit Prometheus, Grafana, Loki, Promtail und MinIO für Monitoring und Log-Retention hinzugefügt, inklusive vorkonfigurierter Grafana-Dashboards und Alert-Regeln</li>
+                    <li>Modulare Bereitstellung über Docker Compose-Profile für Kernkomponenten, Keycloak und Monitoring-Stacks implementiert</li>
+                    <li>Eine "Dev Creds"-Seite zum Release Manager hinzugefügt, die lokale Service-URLs und Login-Credentials für Entwicklungsumgebungen bereitstellt</li>
+                    <li>Neue Feature-Highlights (Enterprise SSO, DORA EU, Observability) in die Landing Page integriert</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte Sicherheitsüberprüfungen, um False Positives in Bezug auf .env-Dateien und Passwörter zu vermeiden</li>
+                    <li>Verbesserte Asset-Verarbeitung im Release-Uploader zur Unterstützung von Verzeichnis-Uploads und zur Beibehaltung der Verzeichnisstruktur</li>
+                    <li>Homepage-Assets für bessere Organisation und Reduzierung von Duplizierung refaktorisiert</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Problem behoben, bei dem deutschsprachige Seiten keine Assets laden konnten, indem absolute URLs verwendet wurden</li>
+                    <li>Ein durch eine ungültige 'groups'-Scope-Anfrage verursachtes Keycloak-Authentifizierungsproblem behoben</li>
+                    <li>Ein Grafana-Startfehler aufgrund doppelter Datasource-Dateien behoben</li>
+                    <li>Problem im OIDC-Flow bezüglich der Verwendung interner vs. öffentlicher URLs für die Keycloak-Autorisierungsweiterleitung behoben</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a4535a6b82e03ea250132685936eafb0971177150d56d6b899dfbfd86e81c77c</p>
+            </div>
+        </div>
+
         <!-- Version 1.40.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.40.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
@@ -188,7 +219,7 @@
                     <li>Verbesserung des OIDC-Flows durch Verwendung von OIDC_PUBLIC_URL für Browser-Weiterleitungen und OIDC_SERVER_URL für die Docker-interne Kommunikation.</li>
                     <li>Erweiterung des Docker Compose-Setups mit Umgebungsvariablen für Authentifizierung und andere Einstellungen, unter Verwendung von Standardwerten für einfache Überschreibungen.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a4535a6b82e03ea250132685936eafb0971177150d56d6b899dfbfd86e81c77c</p>
             </div>
         </div>
 
