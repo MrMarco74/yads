@@ -56,7 +56,7 @@
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
                 <span style="background: var(--accent-secondary); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap;">v1.40 STABLE</span>
                 <span style="background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap; border: 1px solid rgba(16,185,129,0.3);">Approaching v2.0 Release</span>
-                <h3 style="margin: 0; font-size: 1.4rem;">AI Risk Analysis, PQC Readiness, 19+ Scanner Modules &amp; Full EN/DE Platform</h3>
+                <h3 style="margin: 0; font-size: 1.4rem;">AI Risk Analysis, PQC Readiness, Enterprise SSO, DORA EU Compliance &amp; Observability Stack</h3>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
                 <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
@@ -89,6 +89,21 @@
                     <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Full EN/DE Platform</h4>
                     <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Complete English and German UI, PDF reports, Excel exports, AI outputs, and scan result labels. Language preference is user-configurable per profile and persists across sessions.</p>
                 </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔑</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Enterprise SSO &amp; Identity</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Keycloak integration with OpenID Connect. Role-based access via LDAP groups, multi-tenant realm support, and seamless SSO login — or keep local auth for standalone deployments.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚖️</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">DORA EU Compliance</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Tamper-proof security audit log with SHA-256 hash chain (DORA EU Art. 10). 5-year cold storage via MinIO S3 with ILM lifecycle policies. Verifiable, exportable audit trail for regulators.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📈</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Observability Stack</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Integrated Grafana dashboards (Operations, DORA Metrics), Prometheus metrics, Loki log aggregation, and MinIO cold storage — deployable as bundled Docker profiles or connected to your existing stack.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -105,6 +120,18 @@
         <div class="feature-card">
             <h3>Visual Intelligence</h3>
             <p>Interactive network graphs reveal relationships and attack paths that traditional lists miss.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Enterprise Identity &amp; SSO</h3>
+            <p>Keycloak OpenID Connect integration with multi-tenant realm support, LDAP group mapping, and flexible auth modes — bundled or external IdP.</p>
+        </div>
+        <div class="feature-card">
+            <h3>DORA EU Audit Compliance</h3>
+            <p>Tamper-proof audit log with SHA-256 hash chain. 5-year cold storage via MinIO S3. Built for DORA EU Art. 10 regulatory requirements.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Observability &amp; Alerting</h3>
+            <p>Grafana operations dashboards, Prometheus metrics, Loki log streaming, and configurable alert rules — deployable as optional Docker Compose profiles.</p>
         </div>
     </section>
 
@@ -172,6 +199,24 @@
                 <h4 style="margin-bottom: 0.5rem; color: #fff;">Modular Scan Architecture</h4>
                 <p style="font-size: 0.85rem;">19+ independent scanner modules with configurable scan profiles. Select exactly which modules run per target — DNS, SSL, Nuclei, Threat Intel, Ports, Secrets, and more.</p>
             </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                <img src="images/v140/login_sso.png" alt="SSO Login with Keycloak" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">SSO Login (Keycloak)</h4>
+                <p style="font-size: 0.85rem;">One-click SSO login via Keycloak. Supports OIDC Authorization Code Flow with multi-tenant realm separation and group-based role mapping.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                <img src="images/v140/grafana_operations.png" alt="Grafana Operations Dashboard" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">Observability Dashboard</h4>
+                <p style="font-size: 0.85rem;">Real-time Grafana operations dashboard showing active scans, queue depth, worker load, error rates, and live log stream from Loki.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                <img src="images/v140/grafana_dora.png" alt="DORA Metrics Dashboard" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">DORA Metrics &amp; Audit Log</h4>
+                <p style="font-size: 0.85rem;">DORA EU compliance dashboard with Deployment Frequency, Lead Time, MTTR, and Change Failure Rate — backed by a tamper-proof SHA-256 hash-chained audit log.</p>
+            </div>
         </div>
     </section>
     
@@ -225,6 +270,21 @@
                     <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEW</span>
                     <h4 style="color: var(--accent-primary);">Multi-language</h4>
                     <p style="font-size: 0.9rem; color: var(--text-secondary);">Full EN/DE Support</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                    <h4 style="color: var(--accent-primary);">Enterprise SSO</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Keycloak / OIDC Identity</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                    <h4 style="color: var(--accent-primary);">DORA EU Audit</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Hash-Chain Audit Log</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEW</span>
+                    <h4 style="color: var(--accent-primary);">Observability</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Grafana / Prometheus / Loki</p>
                 </div>
             </div>
             <p style="text-align: center; margin-top: 2rem; color: var(--text-secondary); font-size: 0.9rem;">

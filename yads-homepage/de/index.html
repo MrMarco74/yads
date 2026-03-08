@@ -57,7 +57,7 @@
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
                 <span style="background: var(--accent-secondary); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap;">v1.40 STABLE</span>
                 <span style="background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap; border: 1px solid rgba(16,185,129,0.3);">Release v2.0 in Vorbereitung</span>
-                <h3 style="margin: 0; font-size: 1.4rem;">KI-Risikoanalyse, Post-Quanten-Kryptographie, 19+ Scanner-Module &amp; vollst. DE/EN-Plattform</h3>
+                <h3 style="margin: 0; font-size: 1.4rem;">KI-Risikoanalyse, PQC-Bereitschaft, Enterprise SSO, DORA-EU-Compliance &amp; Observability-Stack</h3>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
                 <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
@@ -90,6 +90,21 @@
                     <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Vollständiges DE/EN-Interface</h4>
                     <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Komplett deutsch- und englischsprachige Oberfläche, PDF-Reports, Excel-Exporte, KI-Ausgaben und Scan-Ergebnisbeschriftungen. Sprachpräferenz pro Benutzerprofil konfigurierbar.</p>
                 </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔑</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Enterprise SSO &amp; Identity</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Keycloak-Integration mit OpenID Connect. Rollenbasierter Zugriff über LDAP-Gruppen, Multi-Tenant-Realm-Unterstützung und nahtloses SSO-Login — oder lokale Authentifizierung für Standalone-Deployments.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚖️</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">DORA-EU-Compliance</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Manipulationssicheres Sicherheits-Audit-Log mit SHA-256-Hash-Chain (DORA EU Art. 10). 5-jährige Kaltspeicherung via MinIO S3 mit ILM-Lifecycle-Policies. Verifizierbares, exportierbares Audit-Trail für Behörden.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📈</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Observability-Stack</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Integrierte Grafana-Dashboards (Operations, DORA-Metriken), Prometheus-Metriken, Loki-Log-Aggregation und MinIO-Kaltspeicher — als gebündelte Docker-Profile deploybar oder mit vorhandenem Stack verbindbar.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -106,6 +121,18 @@
         <div class="feature-card">
             <h3>Visuelle Intelligenz</h3>
             <p>Interaktive Netzwerkgraphen zeigen Beziehungen und Angriffspfade auf, die herkömmliche Listen übersehen.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Enterprise Identity &amp; SSO</h3>
+            <p>Keycloak OpenID Connect mit Multi-Tenant-Realm-Unterstützung, LDAP-Gruppenabbildung und flexiblen Auth-Modi — gebündelt oder externer IdP.</p>
+        </div>
+        <div class="feature-card">
+            <h3>DORA-EU-Audit-Compliance</h3>
+            <p>Manipulationssicheres Audit-Log mit SHA-256-Hash-Chain. 5-jährige Kaltspeicherung via MinIO S3. Gebaut für DORA EU Art. 10 Regulierungsanforderungen.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Observability &amp; Alerting</h3>
+            <p>Grafana-Operations-Dashboards, Prometheus-Metriken, Loki-Log-Streaming und konfigurierbare Alert-Regeln — als optionale Docker-Compose-Profile deploybar.</p>
         </div>
     </section>
 
@@ -173,6 +200,24 @@
                 <h4 style="margin-bottom: 0.5rem; color: #fff;">Modulare Scanner-Architektur</h4>
                 <p style="font-size: 0.85rem;">19+ unabhängige Scanner-Module mit konfigurierbaren Scan-Profilen. Wählen Sie genau, welche Module pro Ziel laufen – DNS, SSL, Nuclei, Threat-Intel, Ports, Secrets und mehr.</p>
             </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                <img src="https://yads-security.com/images/v140/login_sso.png" alt="SSO-Login mit Keycloak" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">SSO-Login (Keycloak)</h4>
+                <p style="font-size: 0.85rem;">Ein-Klick-SSO-Login via Keycloak. Unterstützt OIDC Authorization Code Flow mit Multi-Tenant-Realm-Trennung und gruppenbasierter Rollenzuweisung.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                <img src="https://yads-security.com/images/v140/grafana_operations.png" alt="Grafana Operations Dashboard" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">Observability-Dashboard</h4>
+                <p style="font-size: 0.85rem;">Echtzeit-Grafana-Operations-Dashboard mit aktiven Scans, Queue-Tiefe, Worker-Last, Fehlerrate und Live-Log-Stream aus Loki.</p>
+            </div>
+            <div class="feature-card" style="padding: 1rem; position: relative;">
+                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--accent-secondary); color: #fff; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                <img src="https://yads-security.com/images/v140/grafana_dora.png" alt="DORA-Metriken-Dashboard" class="hero-image img-clickable" style="margin-bottom: 1rem;">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">DORA-Metriken &amp; Audit-Log</h4>
+                <p style="font-size: 0.85rem;">DORA-EU-Compliance-Dashboard mit Deployment Frequency, Lead Time, MTTR und Change Failure Rate — gesichert durch manipulationssicheres SHA-256-Hash-Chain-Audit-Log.</p>
+            </div>
         </div>
     </section>
     
@@ -226,6 +271,21 @@
                     <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEU</span>
                     <h4 style="color: var(--accent-primary);">Mehrsprachigkeit</h4>
                     <p style="font-size: 0.9rem; color: var(--text-secondary);">Vollst. DE/EN-Support</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <h4 style="color: var(--accent-primary);">Enterprise SSO</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Keycloak / OIDC Identity</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <h4 style="color: var(--accent-primary);">DORA-EU-Audit</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Hash-Chain-Audit-Log</p>
+                </div>
+                <div style="position: relative;">
+                    <span style="position: absolute; top: -0.4rem; right: -0.4rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <h4 style="color: var(--accent-primary);">Observability</h4>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">Grafana / Prometheus / Loki</p>
                 </div>
             </div>
             <p style="text-align: center; margin-top: 2rem; color: var(--text-secondary); font-size: 0.9rem;">
