@@ -706,46 +706,7 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         error_type=type(e).__name__
                     )
 
-            # 1b. Run DNS Record Scanner (Light)
-            if "dns_scanner" in scan_types:
-                module_start = datetime.utcnow()
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running DNS Record Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.dns_scanner import DNSRecordScanner
-                    dns_scan = DNSRecordScanner(db_session=session)
-                    logger.info(f"[Worker] Running {dns_scan.module_name}...")
-
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {dns_scan.module_name} for {domain}")
-                        result = dns_scan.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                         result.log_content = sanitize_null_bytes(captured_logs)
-                         session.add(result)
-                         session.commit()
-
-                    # Prometheus Metrics: Module Completed
-                    module_duration = (datetime.utcnow() - module_start).total_seconds()
-                    get_metrics().record_scan_completed(
-                        tenant_id=parent_tenant_id,
-                        module_name="dns_scanner",
-                        duration_seconds=module_duration,
-                        status="success"
-                    )
-                except Exception as e:
-                    logger.error(f"[Worker] Error in DNS Record Scanner: {e}")
-                    session.rollback()
-                    get_metrics().record_scan_error(
-                        tenant_id=parent_tenant_id if 'parent_tenant_id' in locals() else None,
-                        module_name="dns_scanner",
-                        error_type=type(e).__name__
-                    )
+            # 1b. DNS Record Scanner — dispatched via Group A (parallel with web_analyzer below)
 
             # 1c. Run DNS Cleanup Scanner (Archive dead targets)
             if "dns_cleanup" in scan_types:
@@ -774,19 +735,30 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                     logger.error(f"[Worker] Error in DNS Cleanup Scanner: {e}")
                     session.rollback()
 
-            # Group A: launch independent modules in background while web_analyzer runs
-            _group_a_futures = []
-            _group_a_modules = []
-            _group_a_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="scan-a")
-            # ssl_scanner and infrastructure_scanner run sequentially after web_analyzer.
-            # Parallel execution via ThreadPoolExecutor was unreliable in Celery worker
-            # context — silent failures with no logs or DB writes.
-            # deception_detector is independent when port_scanner is not requested
-            # (it falls back to default ports; no dependency on port_scanner results)
-            # deception_detector runs sequentially later (ThreadPoolExecutor unreliable in Celery)
-            _group_a_executor.shutdown(wait=False)
-            if _group_a_modules:
-                logger.info(f"[Worker] Group A started in background: {_group_a_modules}")
+            # Group A: dns_scanner + ssl_scanner in background while web_analyzer runs.
+            # Both are fully independent (no dependency on web_analyzer results).
+            # Uses _run_parallel_module — each thread gets its own DB session (Celery-safe).
+            _group_a_futures: dict = {}
+            _group_a_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="scan-a")
+
+            if "dns_scanner" in scan_types:
+                from yads.modules.dns_scanner import DNSRecordScanner
+                _group_a_futures["dns_scanner"] = _group_a_executor.submit(
+                    _run_parallel_module, DNSRecordScanner, target_id, domain
+                )
+                logger.info("[Worker] [Group A] dns_scanner started in background.")
+
+            if "ssl_scanner" in scan_types and has_https:
+                from yads.modules.ssl_scanner import SSLScanner
+                _group_a_futures["ssl_scanner"] = _group_a_executor.submit(
+                    _run_parallel_module, SSLScanner, target_id, domain
+                )
+                logger.info("[Worker] [Group A] ssl_scanner started in background.")
+            elif "ssl_scanner" in scan_types and not has_https:
+                logger.info("[Worker] [Group A] ssl_scanner skipped: no HTTPS.")
+
+            if _group_a_futures:
+                logger.info(f"[Worker] Group A running in background: {list(_group_a_futures.keys())}")
 
             # 2. Run Web Scanner
             # Dependency: CVE Scanner requires Web Analyzer
@@ -838,6 +810,17 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                             module_name="web_analyzer",
                             error_type=type(e).__name__
                         )
+
+            # Collect Group A (dns_scanner + ssl_scanner) — wait before continuing
+            if _group_a_futures:
+                logger.info("[Worker] Collecting Group A results (dns + ssl)...")
+                for _ga_name, _ga_fut in _group_a_futures.items():
+                    try:
+                        _ga_fut.result(timeout=120)
+                        logger.info(f"[Worker] [Group A] {_ga_name} completed.")
+                    except Exception as _ga_err:
+                        logger.error(f"[Worker] [Group A] {_ga_name} error: {_ga_err}")
+                _group_a_executor.shutdown(wait=False)
 
             # 2b. Run Infrastructure Scanner (sequential, runs after web_analyzer)
             if "infrastructure_scanner" in scan_types:
@@ -1030,35 +1013,10 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                 _futures_wait(_group_a_futures, return_when=ALL_COMPLETED)
                 logger.info("[Worker] Group A completed.")
 
-            # 6b. Run SSL Scanner sequentially
-            if "ssl_scanner" in scan_types and has_https:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running SSL Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.ssl_scanner import SSLScanner
-                    ssl = SSLScanner(db_session=session)
-                    logger.info(f"[Worker] Step 6b: Running {ssl.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {ssl.module_name} for {domain}")
-                        result = ssl.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {ssl.module_name} found changes/new data.")
-                    else:
-                        print(f"[Worker] {ssl.module_name} no change.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in SSL Scanner: {e}")
-                    session.rollback()
-            elif "ssl_scanner" in scan_types and not has_https:
-                logger.info("[Worker] Skipping SSL Scanner: Port 443 closed (Optimization).")
+            # 6b. SSL Scanner — already dispatched via Group A above (parallel with web_analyzer).
+            # Results are committed to DB; post-processing below reads from DB.
+            if "ssl_scanner" in scan_types and not has_https:
+                logger.info("[Worker] ssl_scanner skipped: no HTTPS (already noted in Group A).")
 
             if "ssl_scanner" in scan_types and has_https:
                 # Post-process: auto-queue extracted domains from SSL cert (read from DB)
@@ -1252,10 +1210,10 @@ def run_all_scans(self, target_id: int, domain: str, scan_types: list[str] = Non
                         _pex.submit(_run_parallel_module, _cls, target_id, domain): name
                         for name, _cls in _parallel_mods
                     }
-                    for _pf in _as_completed(_pfutures):
+                    for _pf in _as_completed(_pfutures, timeout=180):
                         _pmod_name = _pfutures[_pf]
                         try:
-                            _pf.result()
+                            _pf.result(timeout=120)
                             logger.info(f"[Worker] Parallel done: {_pmod_name}")
                         except Exception as _pfe:
                             logger.error(f"[Worker] Parallel error in {_pmod_name}: {_pfe}")
