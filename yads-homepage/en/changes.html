@@ -152,6 +152,35 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.21.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Bug Fixes for Core Components</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed a critical error where the SSL scanner failed during CT org cross-queries due to a missing database session, causing scans to fail for all domains.</li>
+                    <li>Resolved an issue in the log viewer where logs were not displayed due to a missing redis_client import in the targets router, affecting all modules including visual_osint.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 4c3bab6b54c8436e6c59a506a9a09ec4120b848bccccf960d91b9615376d8b4b</p>
+            </div>
+        </div>
+
+        <!-- Version 1.21.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Log Viewer Bug Fix</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed an issue where the Log Viewer displayed empty logs for all modules due to a missing redis_client import in the targets router.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 4c3bab6b54c8436e6c59a506a9a09ec4120b848bccccf960d91b9615376d8b4b</p>
+            </div>
+        </div>
+
         <!-- Version 1.21.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.21.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

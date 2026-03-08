@@ -152,6 +152,35 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.21.2 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Fehlerbehebungen für Kernkomponenten</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Ein kritischer Fehler wurde behoben, bei dem der SSL-Scanner während CT-Org-übergreifender Abfragen aufgrund einer fehlenden Datenbanksitzung fehlschlug, was dazu führte, dass Scans für alle Domains fehlschlugen.</li>
+                    <li>Ein Problem im Log Viewer wurde behoben, bei dem Protokolle aufgrund eines fehlenden redis_client-Imports im Targets-Router nicht angezeigt wurden, was alle Module einschließlich visual_osint betraf.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 4c3bab6b54c8436e6c59a506a9a09ec4120b848bccccf960d91b9615376d8b4b</p>
+            </div>
+        </div>
+
+        <!-- Version 1.21.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.21.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Fehlerbehebung für Log Viewer</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Problem behoben, bei dem der Log Viewer leere Logs für alle Module anzeigte, aufgrund eines fehlenden redis_client-Imports im Targets-Router.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 4c3bab6b54c8436e6c59a506a9a09ec4120b848bccccf960d91b9615376d8b4b</p>
+            </div>
+        </div>
+
         <!-- Version 1.21.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.21.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
