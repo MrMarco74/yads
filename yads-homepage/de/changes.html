@@ -152,6 +152,30 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.20.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.20.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Subdomain-Scan-Steuerung</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Verhindert unbeabsichtigte vollständige Subdomain-Scans durch standardmäßige Deaktivierung des Subdomain-Scanner-Moduls in geplanten und vollständigen Scans.</li>
+                    <li>Behoben die Auto-Queue-Logik im Worker, um korrekt nur dann auszulösen, wenn ein Subdomain- oder DNS-Modul in den Scan-Typen enthalten ist.</li>
+                </ul>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Passive/Aktive Badges zu Modulen in den Zieldetails, der Zieltabelle und den Scanprofilansichten hinzugefügt, um den Modul-Scan-Typ anzuzeigen.</li>
+                    <li>Eine Schaltfläche 'Nur passiv' hinzugefügt, um auf einfache Weise nur passive Module anzuzeigen.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Feste Scan-Typen durch die Modulregistrierung für Bulk- und Einzelscans ersetzt. Der `subdomain_scanner` ist jetzt auch von der vollständigen Scan-Erweiterung ausgeschlossen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 759cc7e2df764f03e8e35531bb048915f2f7cf1d02973bdc54792b8c115131f2</p>
+            </div>
+        </div>
+
         <!-- Version 1.20.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.20.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
