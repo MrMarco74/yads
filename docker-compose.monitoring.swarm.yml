@@ -1,0 +1,229 @@
+# Monitoring Overlay for Docker Swarm
+#
+# Provides a full observability stack (Prometheus, Grafana, Loki, Promtail,
+# MinIO) as optional Swarm services. Overlay this file on top of the base
+# swarm compose to activate monitoring:
+#
+#   docker stack deploy \
+#     -c docker-compose.swarm.yml \
+#     -c docker-compose.monitoring.swarm.yml \
+#     yads
+#
+# Or combined with Keycloak:
+#   docker stack deploy \
+#     -c docker-compose.swarm.yml \
+#     -c docker-compose.keycloak.swarm.yml \
+#     -c docker-compose.monitoring.swarm.yml \
+#     yads
+#
+# Required configuration files (must exist before deploy):
+#   ./monitoring/prometheus/prometheus.yml
+#   ./monitoring/grafana/provisioning/
+#   ./monitoring/loki/loki-config.yml
+#   ./monitoring/promtail/promtail-config.yml
+#
+# Required environment variables (.env or shell exports):
+#   GRAFANA_ADMIN_PASSWORD   Grafana admin password      (default: admin — change in prod!)
+#   MINIO_ROOT_USER          MinIO admin user            (default: minioadmin — change in prod!)
+#   MINIO_ROOT_PASSWORD      MinIO admin password        (required in prod)
+#   METRICS_TOKEN            Bearer token configured in YADS for /metrics auth
+#
+# Also set in the base docker-compose.swarm.yml environment:
+#   METRICS_ENABLED=true
+#   METRICS_AUTH_MODE=token
+#   METRICS_TOKEN=<same token as above>
+#
+# Note: Prometheus scrapes YADS via service name `yads-api` on port 8000.
+# Update ./monitoring/prometheus/prometheus.yml accordingly:
+#   scrape_configs:
+#     - job_name: yads
+#       metrics_path: /metrics
+#       bearer_token: <METRICS_TOKEN>
+#       static_configs:
+#         - targets: ['yads-api:8000']
+#
+# MinIO is provided for DORA EU 5-year long-term metric/log retention.
+# Wire Grafana → Loki and Prometheus remote_write → MinIO via the
+# Grafana provisioning config and the Prometheus config file.
+
+services:
+  # --------------------------------------------------------------------------
+  # Prometheus — Metrics Scraper (Manager Node Only)
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # Grafana — Dashboard & Alerting (Manager Node Only)
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${GF_SMTP_HOST:-smtp.example.com:587}
+      GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-yads-alerts@example.com}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # --------------------------------------------------------------------------
+  # Loki — Log Aggregation Backend (Manager Node Only)
+  # --------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # --------------------------------------------------------------------------
+  # Promtail — Log Shipper (Global Mode — runs on every Swarm node)
+  # Collects /var/log and YADS app logs from each node and ships to Loki.
+  # --------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - logs:/app/logs:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - yads-internal
+    deploy:
+      # Global mode: one Promtail instance per Swarm node to collect local logs
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # --------------------------------------------------------------------------
+  # MinIO — S3-compatible Object Storage for Long-Term Retention
+  # DORA EU regulation requires 5-year metric/log retention.
+  # --------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - minio-data:/data
+    networks:
+      - yads-internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+volumes:
+  prometheus-data:
+    driver: local
+    labels:
+      com.yads.service: prometheus
+      com.yads.component: monitoring
+  grafana-data:
+    driver: local
+    labels:
+      com.yads.service: grafana
+      com.yads.component: monitoring
+  loki-data:
+    driver: local
+    labels:
+      com.yads.service: loki
+      com.yads.component: monitoring
+  minio-data:
+    driver: local
+    labels:
+      com.yads.service: minio
+      com.yads.component: monitoring
+
+networks:
+  yads-internal:
+    external: true
+    name: yads_yads-internal

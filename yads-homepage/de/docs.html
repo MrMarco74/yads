@@ -129,13 +129,15 @@
 </li>
 <li><a href="#18-fehlerbehebung">18. Fehlerbehebung</a></li>
 <li><a href="#19-support">19. Support</a></li>
+<li><a href="#20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</a></li>
+<li><a href="#21-identity-provider-sso">21. Identity Provider &amp; SSO</a></li>
 
             </ul>
         </aside>
         <main class="docs-content">
             <h1>YADS - Umfassendes Benutzerhandbuch</h1>
-<p><strong>Version:</strong> 1.20.3
-<strong>Letzte Aktualisierung:</strong> 2026-03-07</p>
+<p><strong>Version:</strong> 1.40.0
+<strong>Letzte Aktualisierung:</strong> 2026-03-08</p>
 <p>Willkommen zum <strong>YADS (Yet Another Domain Scanner)</strong> Handbuch. Diese Anleitung deckt alle Aspekte der Anwendung ab, vom ersten Scan bis zur erweiterten Konfiguration und Mandantenfähigkeit.</p>
 <hr />
 <h2>Inhaltsverzeichnis</h2>
@@ -165,7 +167,8 @@
 <li><a href="#16-executive-report--portfolio-ansicht">Executive Report &amp; Portfolio-Ansicht</a></li>
 <li><a href="#17-best-practices">Best Practices</a></li>
 <li><a href="#18-fehlerbehebung">Fehlerbehebung</a></li>
-<li><a href="#19-support">Support</a></li>
+<li><a href="#20-standalone-lokale-installation">Standalone- &amp; Lokale Installation</a></li>
+<li><a href="#21-identity-provider-sso">Identity Provider &amp; SSO</a></li>
 </ol>
 <hr />
 <h2>1. Einführung</h2>
@@ -1049,7 +1052,90 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <h2>19. Support</h2>
 <p>Für technischen Support oder um Fehler zu melden: support@yads-security.com</p>
 <hr />
-<p><em>Verifiziert für YADS v1.21.3</em></p>
+<h2 id="20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</h2>
+<h3>Voraussetzungen</h3>
+<ul>
+    <li>Docker ≥ 24</li>
+    <li>Docker Compose Plugin ≥ 2.20</li>
+    <li>4 GB RAM (empfohlen: 8 GB)</li>
+    <li>20 GB freier Festplattenplatz</li>
+</ul>
+<h3>Minimalinstallation (Core only)</h3>
+<p>Startet API, Worker, Datenbank und Redis ohne optionale Dienste:</p>
+<pre><code>docker compose up -d</code></pre>
+<h3>Mit Identity Provider</h3>
+<pre><code>docker compose --profile keycloak up -d</code></pre>
+<h3>Mit Monitoring-Stack</h3>
+<pre><code>docker compose --profile monitoring up -d</code></pre>
+<h3>Vollständige Installation</h3>
+<pre><code>docker compose --profile keycloak --profile monitoring up -d</code></pre>
+<p>Alternativ können die Profile in der <code>.env</code>-Datei gesetzt werden:</p>
+<pre><code>COMPOSE_PROFILES=keycloak,monitoring</code></pre>
+<h3>Erster Start</h3>
+<ol>
+    <li>Nach dem Start den Setup-Wizard unter <code>http://localhost:8085/setup</code> aufrufen.</li>
+    <li>Admin-Account anlegen und Lizenzschlüssel eingeben.</li>
+    <li>Konfiguration wird in <code>data/config.env</code> gespeichert und über die UI verwaltet.</li>
+</ol>
+<h3>Konfiguration</h3>
+<ul>
+    <li>Vorlage: <code>.env.example</code> — vollständiges Referenz-Template mit allen verfügbaren Variablen</li>
+    <li>Persistente Laufzeit-Konfiguration: <code>data/config.env</code> (wird über die UI gespeichert)</li>
+</ul>
+<h3>Externe Services einbinden</h3>
+<p>Wenn Keycloak oder Prometheus bereits extern betrieben werden, müssen nur die entsprechenden Umgebungsvariablen gesetzt werden — kein eigener Container erforderlich:</p>
+<pre><code>AUTH_MODE=oidc
+OIDC_SERVER_URL=http://your-keycloak:8080
+OIDC_PUBLIC_URL=https://keycloak.your-domain.com</code></pre>
+<h3>User-Migration zu Keycloak</h3>
+<pre><code>python scripts/maintenance/migrate_users_to_keycloak.py \
+  --keycloak-url http://keycloak:8080 \
+  --dry-run</code></pre>
+<blockquote>
+    <p><strong>Hinweis:</strong> Kubernetes- und Cloud-Deployment wird in einem separaten Kapitel dokumentiert (in Vorbereitung).</p>
+</blockquote>
+<hr />
+<h2 id="21-identity-provider-sso">21. Identity Provider &amp; SSO</h2>
+<h3>Authentifizierungsmodi</h3>
+<ul>
+    <li><strong><code>AUTH_MODE=local</code></strong> (Standard): Lokale Benutzerverwaltung, keine externe Abhängigkeit.</li>
+    <li><strong><code>AUTH_MODE=oidc</code></strong>: Keycloak oder beliebiger OIDC-konformer Identity Provider.</li>
+</ul>
+<h3>URL-Konfiguration für Docker-Deployments</h3>
+<ul>
+    <li><strong><code>OIDC_SERVER_URL</code></strong>: Interne URL für Server-zu-Server-Kommunikation (z.B. <code>http://keycloak:8080</code>)</li>
+    <li><strong><code>OIDC_PUBLIC_URL</code></strong>: Öffentliche URL für den Browser-Redirect (z.B. <code>https://keycloak.your-domain.com</code>)</li>
+</ul>
+<h3>Realm-Konzept</h3>
+<p>Für jede YADS-Mandanteninstanz wird ein eigener Keycloak-Realm empfohlen, um vollständige Mandantentrennung im Identity Provider sicherzustellen.</p>
+<h3>Gruppen-Mapping</h3>
+<table>
+    <thead>
+        <tr><th>Keycloak-Gruppe</th><th>YADS-Rolle</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>{tenant}-admins</code></td><td><code>tenant_admin</code></td></tr>
+        <tr><td><code>{tenant}-scanners</code></td><td><code>scanner</code></td></tr>
+        <tr><td><code>{tenant}-auditors</code></td><td><code>auditor</code></td></tr>
+        <tr><td><code>yads-platform-admins</code></td><td><code>admin</code></td></tr>
+    </tbody>
+</table>
+<h3>Keycloak-Client-Konfiguration</h3>
+<p>Folgende Protocol Mapper müssen im Keycloak-Client konfiguriert sein:</p>
+<ul>
+    <li><strong>groups</strong>: Überträgt Gruppenmitgliedschaften als JWT-Claim</li>
+    <li><strong>yads_tenant</strong> (hardcoded): Gibt den Mandanten-Bezeichner an</li>
+</ul>
+<h3>Migration bestehender User</h3>
+<pre><code>python scripts/maintenance/migrate_users_to_keycloak.py \
+  --keycloak-url http://keycloak:8080 \
+  --realm yads \
+  --dry-run</code></pre>
+<blockquote>
+    <p>Entfernen Sie <code>--dry-run</code>, um die Migration tatsächlich durchzuführen. Bestehende lokale Passwörter bleiben als Fallback erhalten, solange <code>AUTH_MODE=local</code> aktiv ist.</p>
+</blockquote>
+<hr />
+<p><em>Verifiziert für YADS v1.40.0</em></p>
         </main>
     </div>
     
