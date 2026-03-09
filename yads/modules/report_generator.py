@@ -420,21 +420,529 @@ class PDFReport(FPDF):
         self.multi_cell(130, 7, f"{item.get('title')} - {item.get('desc')}", border=1, new_x="RIGHT", new_y="TOP")
         self.set_xy(x_start, self.get_y())
 
+    # ── Phase 1+2 Scanner Sections ────────────────────────────────────────
+
+    def _severity_color(self, sev: str):
+        s = str(sev).lower()
+        if s == "critical":
+            self.set_text_color(180, 0, 0)
+        elif s == "high":
+            self.set_text_color(200, 80, 0)
+        elif s == "medium":
+            self.set_text_color(160, 120, 0)
+        else:
+            self.set_text_color(0, 0, 0)
+
+    def _reset_color(self):
+        self.set_text_color(0, 0, 0)
+
+    def _findings_table(self, findings: list, cols: tuple = ("Severity", "Finding")):
+        if not findings:
+            return
+        self.set_font("helvetica", "B", 9)
+        self.set_fill_color(220, 220, 220)
+        col_w = (30, 150)
+        self.cell(col_w[0], 7, cols[0], border=1, fill=True)
+        self.cell(col_w[1], 7, cols[1], border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+        self.set_font("courier", "", 9)
+        for f in findings[:40]:
+            sev = _s(str(f.get("severity", f.get("level", "-"))))
+            msg = _s(str(f.get("message", f.get("description", f.get("finding", str(f))))))
+            if len(msg) > 80:
+                msg = msg[:77] + "..."
+            self._severity_color(sev)
+            self.cell(col_w[0], 6, sev, border=1)
+            self._reset_color()
+            self.cell(col_w[1], 6, msg, border=1, new_x="LMARGIN", new_y="NEXT")
+        self.ln(3)
+
+    def add_email_security_section(self, result):
+        self.chapter_title("Email Security (SPF / DKIM / DMARC / BIMI)")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No email security data available.")
+            return
+        score = data.get("score", "-")
+        self.set_font("helvetica", "B", 12)
+        self.cell(0, 8, f"Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        self.set_font("courier", "", 10)
+
+        for proto in ("spf", "dkim", "dmarc", "bimi"):
+            d = data.get(proto, {})
+            if not d:
+                continue
+            valid = d.get("valid", d.get("found", False))
+            status = "PASS" if valid else "FAIL"
+            record = _s(str(d.get("record", d.get("value", "-")))[:80])
+            self._severity_color("low" if valid else "high")
+            self.cell(20, 6, proto.upper(), border=1)
+            self.cell(20, 6, status, border=1)
+            self._reset_color()
+            self.cell(140, 6, record, border=1, new_x="LMARGIN", new_y="NEXT")
+
+        issues = data.get("issues", [])
+        if issues:
+            self.ln(3)
+            self.set_font("helvetica", "B", 10)
+            self.cell(0, 7, "Issues:", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 9)
+            for issue in issues[:20]:
+                self.set_text_color(180, 0, 0)
+                self.cell(0, 5, _s(f"  ! {issue}"), new_x="LMARGIN", new_y="NEXT")
+            self._reset_color()
+        self.ln()
+
+    def add_axfr_section(self, result):
+        self.chapter_title("DNS Zone Transfer (AXFR)")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No AXFR data available.")
+            return
+        vulnerable = data.get("vulnerable", False)
+        self.set_font("helvetica", "B", 12)
+        if vulnerable:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, "VULNERABLE — Zone Transfer is publicly accessible!", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, "Not vulnerable — Zone Transfer correctly restricted.", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        self.set_font("courier", "", 10)
+        ns_list = data.get("nameservers", [])
+        if ns_list:
+            self.cell(0, 5, f"Nameservers tested: {', '.join(_s(n) for n in ns_list[:6])}", new_x="LMARGIN", new_y="NEXT")
+        leaked = data.get("leaked_records", [])
+        if leaked:
+            self.ln(2)
+            self.set_font("helvetica", "B", 10)
+            self.cell(0, 7, f"Leaked Records ({len(leaked)}):", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 8)
+            for rec in leaked[:20]:
+                self.cell(0, 5, _s(f"  {rec}"), new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_security_txt_section(self, result):
+        self.chapter_title("Security.txt (RFC 9116)")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No security.txt data available.")
+            return
+        found = data.get("found", False)
+        score = data.get("score", "-")
+        self.set_font("helvetica", "B", 12)
+        self.cell(0, 8, f"Found: {'Yes' if found else 'No'}  |  Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        self.set_font("courier", "", 10)
+        for field in ("contact", "expires", "encryption", "policy", "acknowledgments"):
+            val = data.get(field, "-")
+            if val and val != "-":
+                self.cell(0, 5, _s(f"  {field.capitalize()}: {val}"), new_x="LMARGIN", new_y="NEXT")
+        issues = data.get("issues", [])
+        if issues:
+            self.ln(2)
+            self.set_font("helvetica", "B", 10)
+            self.cell(0, 7, "Issues:", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 9)
+            for issue in issues[:10]:
+                self.set_text_color(160, 100, 0)
+                self.cell(0, 5, _s(f"  * {issue}"), new_x="LMARGIN", new_y="NEXT")
+            self._reset_color()
+        self.ln()
+
+    def add_http_headers_section(self, result):
+        self.chapter_title("HTTP Security Headers")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No HTTP headers data available.")
+            return
+        score = data.get("score", "-")
+        grade = data.get("grade", "-")
+        self.set_font("helvetica", "B", 12)
+        self.cell(0, 8, f"Score: {score}/100  |  Grade: {grade}", new_x="LMARGIN", new_y="NEXT")
+        self.set_font("courier", "", 10)
+        missing = data.get("missing_headers", [])
+        if missing:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 6, f"Missing: {', '.join(_s(h) for h in missing)}", new_x="LMARGIN", new_y="NEXT")
+            self._reset_color()
+        leaky = data.get("leaky_headers", [])
+        if leaky:
+            self.set_text_color(160, 80, 0)
+            self.cell(0, 6, f"Information leakage: {', '.join(_s(h) for h in leaky)}", new_x="LMARGIN", new_y="NEXT")
+            self._reset_color()
+        self.ln(2)
+        self._findings_table(data.get("findings", []))
+        self.ln()
+
+    def add_cookie_scanner_section(self, result):
+        self.chapter_title("Cookie Security")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No cookie data available.")
+            return
+        score = data.get("score", "-")
+        cookies = data.get("cookies", [])
+        self.set_font("helvetica", "B", 12)
+        self.cell(0, 8, f"Score: {score}/100  |  Cookies: {len(cookies)}  |  Insecure: {data.get('insecure_count', '-')}", new_x="LMARGIN", new_y="NEXT")
+        if cookies:
+            self.ln(3)
+            self.set_font("helvetica", "B", 9)
+            self.set_fill_color(220, 220, 220)
+            self.cell(60, 7, "Cookie", border=1, fill=True)
+            self.cell(25, 7, "Secure", border=1, fill=True)
+            self.cell(25, 7, "HttpOnly", border=1, fill=True)
+            self.cell(30, 7, "SameSite", border=1, fill=True)
+            self.cell(40, 7, "Issue", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 8)
+            for c in cookies[:25]:
+                name = _s(str(c.get("name", ""))[:28])
+                secure = "Y" if c.get("secure") else "N"
+                httponly = "Y" if c.get("httponly") else "N"
+                samesite = _s(str(c.get("samesite", "-")))
+                issues = _s(", ".join(c.get("issues", []))[:30])
+                if not c.get("secure") or not c.get("httponly"):
+                    self.set_text_color(160, 0, 0)
+                self.cell(60, 6, name, border=1)
+                self.cell(25, 6, secure, border=1)
+                self.cell(25, 6, httponly, border=1)
+                self.cell(30, 6, samesite, border=1)
+                self.cell(40, 6, issues, border=1, new_x="LMARGIN", new_y="NEXT")
+                self._reset_color()
+        self.ln()
+
+    def add_cors_scanner_section(self, result):
+        self.chapter_title("CORS Misconfiguration")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No CORS data available.")
+            return
+        vulnerable = data.get("vulnerable", False)
+        score = data.get("score", "-")
+        self.set_font("helvetica", "B", 12)
+        if vulnerable:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, f"VULNERABLE  |  Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, f"No CORS issues found  |  Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        self.ln(2)
+        self._findings_table(data.get("findings", []))
+        self.ln()
+
+    def add_cert_mismatch_section(self, result):
+        self.chapter_title("TLS Certificate / Domain Match")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No cert mismatch data available.")
+            return
+        valid = data.get("valid", True)
+        self.set_font("helvetica", "B", 12)
+        if not valid:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, "MISMATCH — Certificate does not match domain!", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, "Certificate matches domain correctly.", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        self.set_font("courier", "", 10)
+        for field in ("common_name", "san", "expiry", "issuer"):
+            val = data.get(field)
+            if val:
+                if isinstance(val, list):
+                    val = ", ".join(str(v) for v in val[:6])
+                self.cell(0, 5, _s(f"  {field.replace('_',' ').title()}: {val}"), new_x="LMARGIN", new_y="NEXT")
+        self._findings_table(data.get("findings", []))
+        self.ln()
+
+    def add_shodan_censys_section(self, result):
+        self.chapter_title("Host Intelligence (Shodan / Censys)")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No host intelligence data available.")
+            return
+        self.set_font("courier", "", 10)
+        for field in ("ip", "asn", "country", "city", "isp", "hostnames"):
+            val = data.get(field)
+            if val:
+                if isinstance(val, list):
+                    val = ", ".join(str(v) for v in val[:5])
+                self.cell(0, 5, _s(f"  {field.replace('_',' ').title()}: {val}"), new_x="LMARGIN", new_y="NEXT")
+        ports = data.get("open_ports", data.get("ports", []))
+        if ports:
+            self.ln(2)
+            self.set_font("helvetica", "B", 10)
+            self.cell(0, 7, f"Open Ports ({len(ports)}):", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 9)
+            port_strs = [_s(f"{p.get('port','?')}/{p.get('protocol','tcp')} {p.get('service','')}") if isinstance(p, dict) else _s(str(p)) for p in ports[:20]]
+            self.multi_cell(0, 5, "  " + "  |  ".join(port_strs))
+        cves = data.get("cves", data.get("vulns", []))
+        if cves:
+            self.ln(2)
+            self.set_font("helvetica", "B", 10)
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 7, f"CVEs from host scan ({len(cves)}):", new_x="LMARGIN", new_y="NEXT")
+            self._reset_color()
+            self.set_font("courier", "", 9)
+            for cve in cves[:10]:
+                cve_id = _s(str(cve.get("id", cve.get("cve", cve))) if isinstance(cve, dict) else cve)
+                self.cell(0, 5, f"  {cve_id}", new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_threat_intel_section(self, result):
+        self.chapter_title("Threat Intelligence (AbuseIPDB / OTX / VirusTotal)")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No threat intelligence data available.")
+            return
+        level = data.get("threat_level", "-")
+        self.set_font("helvetica", "B", 12)
+        self._severity_color(level)
+        self.cell(0, 8, f"Threat Level: {level.upper()}", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        self.set_font("courier", "", 10)
+        abuse = data.get("abuseipdb", {})
+        if abuse:
+            score = abuse.get("abuse_confidence_score", "-")
+            total = abuse.get("total_reports", "-")
+            self.cell(0, 5, _s(f"  AbuseIPDB: confidence={score}%  reports={total}"), new_x="LMARGIN", new_y="NEXT")
+        otx = data.get("otx", {})
+        if otx:
+            pulses = otx.get("pulse_count", 0)
+            self.cell(0, 5, _s(f"  OTX AlienVault: {pulses} threat pulses"), new_x="LMARGIN", new_y="NEXT")
+        vt = data.get("virustotal", {})
+        if vt:
+            positives = vt.get("positives", 0)
+            total_vt = vt.get("total", 0)
+            self.cell(0, 5, _s(f"  VirusTotal: {positives}/{total_vt} engines flagged"), new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_subdomain_takeover_section(self, result):
+        self.chapter_title("Subdomain Takeover")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No subdomain takeover data available.")
+            return
+        vulns = data.get("vulnerable", [])
+        score = data.get("score", "-")
+        checked = data.get("checked_count", "-")
+        self.set_font("helvetica", "B", 12)
+        if vulns:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, f"VULNERABLE — {len(vulns)} subdomain(s) at risk!  Score: {score}/100  Checked: {checked}", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, f"No takeover risks found.  Score: {score}/100  Checked: {checked}", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        if vulns:
+            self.ln(3)
+            self.set_font("helvetica", "B", 9)
+            self.set_fill_color(255, 210, 210)
+            self.cell(70, 7, "Subdomain", border=1, fill=True)
+            self.cell(40, 7, "Provider", border=1, fill=True)
+            self.cell(70, 7, "CNAME", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 9)
+            for v in vulns[:20]:
+                self.cell(70, 6, _s(str(v.get("subdomain",""))[:34]), border=1)
+                self.cell(40, 6, _s(str(v.get("provider",""))[:19]), border=1)
+                self.cell(70, 6, _s(str(v.get("cname",""))[:34]), border=1, new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_git_exposure_section(self, result):
+        self.chapter_title("Git / Source Exposure")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No git exposure data available.")
+            return
+        exposed = data.get("exposed_paths", [])
+        score = data.get("score", "-")
+        self.set_font("helvetica", "B", 12)
+        if exposed:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, f"EXPOSED — {len(exposed)} sensitive path(s) found!  Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, f"No sensitive paths exposed.  Score: {score}/100", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        if exposed:
+            self.ln(3)
+            self.set_font("helvetica", "B", 9)
+            self.set_fill_color(255, 210, 210)
+            self.cell(110, 7, "Path", border=1, fill=True)
+            self.cell(25, 7, "Status", border=1, fill=True)
+            self.cell(45, 7, "Size", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 8)
+            for p in exposed[:30]:
+                self.cell(110, 6, _s(str(p.get("path",""))[:54]), border=1)
+                self.cell(25, 6, _s(str(p.get("status",""))[:12]), border=1)
+                self.cell(45, 6, _s(str(p.get("size",""))[:22]), border=1, new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_js_secrets_section(self, result):
+        self.chapter_title("JavaScript Secrets Scanner")
+        data = get_data(result)
+        if not data:
+            self.chapter_body("No JS secrets data available.")
+            return
+        secrets = data.get("secrets", [])
+        score = data.get("score", "-")
+        files_scanned = data.get("files_scanned", "-")
+        self.set_font("helvetica", "B", 12)
+        if secrets:
+            self.set_text_color(180, 0, 0)
+            self.cell(0, 8, f"SECRETS FOUND — {len(secrets)} secret(s) in JS files!  Score: {score}/100  Files: {files_scanned}", new_x="LMARGIN", new_y="NEXT")
+        else:
+            self.set_text_color(0, 130, 0)
+            self.cell(0, 8, f"No secrets found.  Score: {score}/100  Files scanned: {files_scanned}", new_x="LMARGIN", new_y="NEXT")
+        self._reset_color()
+        if secrets:
+            self.ln(3)
+            self.set_font("helvetica", "B", 9)
+            self.set_fill_color(255, 210, 210)
+            self.cell(40, 7, "Type", border=1, fill=True)
+            self.cell(80, 7, "File", border=1, fill=True)
+            self.cell(60, 7, "Match (truncated)", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.set_font("courier", "", 8)
+            for s in secrets[:25]:
+                t = _s(str(s.get("type",""))[:19])
+                f = _s(str(s.get("file",""))[:39])
+                m = _s(str(s.get("match",""))[:29])
+                self.cell(40, 6, t, border=1)
+                self.cell(80, 6, f, border=1)
+                self.cell(60, 6, m, border=1, new_x="LMARGIN", new_y="NEXT")
+            if len(secrets) > 25:
+                self.cell(0, 5, _s(f"  ... and {len(secrets)-25} more"), new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+    def add_security_findings_summary(self, scan_results):
+        """Aggregated findings table from all modules — placed at start of report."""
+        self.chapter_title("Security Findings Summary")
+        all_findings = []
+
+        MODULE_SEVERITIES = {
+            "axfr_scanner": ("CRITICAL", "DNS Zone Transfer publicly accessible"),
+            "subdomain_takeover_scanner": ("CRITICAL", "Subdomain takeover risk detected"),
+            "git_exposure_scanner": ("HIGH", "Git/source exposure"),
+            "js_secrets_scanner": ("HIGH", "Secrets found in JavaScript"),
+            "cors_scanner": ("HIGH", "CORS misconfiguration"),
+            "cert_mismatch_scanner": ("HIGH", "TLS certificate mismatch"),
+            "http_headers": ("MEDIUM", "Missing security headers"),
+            "cookie_scanner": ("MEDIUM", "Insecure cookies"),
+            "email_security": ("MEDIUM", "Email security issues"),
+            "security_txt_scanner": ("LOW", "security.txt missing/incomplete"),
+            "threat_intel_scanner": ("INFO", "Threat intelligence flags"),
+            "shodan_censys_scanner": ("INFO", "Open ports / host intelligence"),
+        }
+
+        for res in (scan_results if isinstance(scan_results, list) else []):
+            mod = res.module_name
+            data = get_data(res) or {}
+            sev_default, desc_default = MODULE_SEVERITIES.get(mod, ("INFO", mod))
+
+            # Per-module critical check
+            if mod == "axfr_scanner" and data.get("vulnerable"):
+                all_findings.append(("CRITICAL", mod, "Zone transfer is publicly accessible"))
+            elif mod == "subdomain_takeover_scanner":
+                vulns = data.get("vulnerable", [])
+                if vulns:
+                    all_findings.append(("CRITICAL", mod, f"{len(vulns)} subdomain(s) vulnerable to takeover"))
+            elif mod == "git_exposure_scanner":
+                exposed = data.get("exposed_paths", [])
+                if exposed:
+                    all_findings.append(("HIGH", mod, f"{len(exposed)} sensitive path(s) exposed"))
+            elif mod == "js_secrets_scanner":
+                secrets = data.get("secrets", [])
+                if secrets:
+                    all_findings.append(("HIGH", mod, f"{len(secrets)} secret(s) found in JS files"))
+            elif mod == "cors_scanner" and data.get("vulnerable"):
+                all_findings.append(("HIGH", mod, "CORS misconfiguration detected"))
+            elif mod == "cert_mismatch_scanner" and not data.get("valid", True):
+                all_findings.append(("HIGH", mod, "TLS certificate/domain mismatch"))
+            elif mod == "http_headers":
+                missing = data.get("missing_headers", [])
+                if missing:
+                    all_findings.append(("MEDIUM", mod, f"Missing headers: {', '.join(missing[:4])}"))
+            elif mod == "cookie_scanner":
+                insecure = data.get("insecure_count", 0)
+                if insecure:
+                    all_findings.append(("MEDIUM", mod, f"{insecure} insecure cookie(s)"))
+            elif mod == "email_security":
+                issues = data.get("issues", [])
+                if issues:
+                    all_findings.append(("MEDIUM", mod, f"{len(issues)} email security issue(s)"))
+            elif mod == "threat_intel_scanner":
+                level = data.get("threat_level", "none")
+                if level and level.lower() not in ("none", "clean", "-"):
+                    all_findings.append(("HIGH" if level.lower() in ("high","critical") else "MEDIUM", mod, f"Threat level: {level}"))
+
+        if not all_findings:
+            self.set_font("helvetica", "I", 10)
+            self.cell(0, 8, "No critical findings detected across all modules.", new_x="LMARGIN", new_y="NEXT")
+            self.ln()
+            return
+
+        SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+        all_findings.sort(key=lambda x: SEV_ORDER.get(x[0], 9))
+
+        self.set_font("helvetica", "B", 9)
+        self.set_fill_color(220, 220, 220)
+        self.cell(30, 7, "Severity", border=1, fill=True)
+        self.cell(55, 7, "Module", border=1, fill=True)
+        self.cell(95, 7, "Finding", border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+        self.set_font("courier", "", 9)
+        for sev, mod, finding in all_findings:
+            self._severity_color(sev)
+            self.cell(30, 6, sev, border=1)
+            self._reset_color()
+            self.cell(55, 6, _s(mod[:26]), border=1)
+            self.cell(95, 6, _s(finding[:46]), border=1, new_x="LMARGIN", new_y="NEXT")
+        self.ln()
+
+
 def generate_report(target_domain: str, scan_results: Dict[str, Any]) -> bytes:
     pdf = PDFReport(target_domain)
-    # Infra, DNS, Web, Typosquat, API, Form, SSL
+
+    # Security findings summary (aggregated, placed first)
+    pdf.add_security_findings_summary(scan_results)
+
+    # All scanner sections in logical order
     scanners = {
+        # Original modules
         'infrastructure_scanner': pdf.add_infra_section,
         'dns_scanner': pdf.add_dns_section,
+        'subdomain_scanner': pdf.add_dns_section,
         'web_analyzer': pdf.add_web_section,
         'typosquat_scanner': pdf.add_typosquat_section,
         'api_discovery': pdf.add_api_discovery_section,
         'form_discovery': pdf.add_form_discovery_section,
-        'ssl_scanner': pdf.add_pqc_section
+        'ssl_scanner': pdf.add_pqc_section,
+        # Phase 1 modules
+        'email_security': pdf.add_email_security_section,
+        'axfr_scanner': pdf.add_axfr_section,
+        'security_txt_scanner': pdf.add_security_txt_section,
+        'http_headers': pdf.add_http_headers_section,
+        'cookie_scanner': pdf.add_cookie_scanner_section,
+        'cors_scanner': pdf.add_cors_scanner_section,
+        'cert_mismatch_scanner': pdf.add_cert_mismatch_section,
+        # Phase 2 modules
+        'shodan_censys_scanner': pdf.add_shodan_censys_section,
+        'threat_intel_scanner': pdf.add_threat_intel_section,
+        'subdomain_takeover_scanner': pdf.add_subdomain_takeover_section,
+        'git_exposure_scanner': pdf.add_git_exposure_section,
+        'js_secrets_scanner': pdf.add_js_secrets_section,
     }
+    seen_dns = False
     for mod_name, func in scanners.items():
-        res = next((r for r in scan_results if r.module_name == mod_name), None)
-        if res: func(res)
+        # dns_scanner and subdomain_scanner share the same section — only render once
+        if mod_name in ('dns_scanner', 'subdomain_scanner'):
+            if seen_dns:
+                continue
+            res = next((r for r in scan_results if r.module_name == mod_name), None)
+            if res:
+                seen_dns = True
+        else:
+            res = next((r for r in scan_results if r.module_name == mod_name), None)
+        if res:
+            func(res)
     return pdf.output()
 
 def generate_pqc_report(target_domain: str, ssl_result: Dict[str, Any]) -> bytes:

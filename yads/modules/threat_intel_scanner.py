@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.api_rate_limiter import get_api_rate_limiter
 from yads.config import settings
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,10 @@ class ThreatIntelScanner(BaseScannerModule):
     # ------------------------------------------------------------------
 
     def _query_abuseipdb(self, ip: str) -> Dict[str, Any]:
+        limiter = get_api_rate_limiter()
+        if not limiter.acquire("abuseipdb", timeout=10.0):
+            logger.warning("[ThreatIntel] AbuseIPDB rate limit exceeded, skipping")
+            return {"error": "Rate limit exceeded", "status": "rate_limited"}
         try:
             resp = requests.get(
                 "https://api.abuseipdb.com/api/v2/check",
@@ -149,59 +154,68 @@ class ThreatIntelScanner(BaseScannerModule):
     # ------------------------------------------------------------------
 
     def _query_otx(self, domain: str, ip: Optional[str]) -> Dict[str, Any]:
+        limiter = get_api_rate_limiter()
         results = {}
         headers = {"X-OTX-API-KEY": settings.OTX_API_KEY}
 
         # Domain lookup
-        try:
-            resp = requests.get(
-                f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/general",
-                headers=headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 401:
-                return {"error": "Unauthorized", "status": "auth_error"}
-            resp.raise_for_status()
-            d = resp.json()
-            results["domain"] = {
-                "pulse_count": d.get("pulse_info", {}).get("count", 0),
-                "pulses": [
-                    {
-                        "name": p.get("name"),
-                        "tags": (p.get("tags") or [])[:5],
-                        "malware_families": p.get("malware_families", []),
-                        "adversary": p.get("adversary"),
-                        "tlp": p.get("tlp"),
-                    }
-                    for p in (d.get("pulse_info", {}).get("pulses") or [])[:5]
-                ],
-                "validation": d.get("validation", []),
-                "alexa": d.get("alexa"),
-                "whois": d.get("whois"),
-            }
-        except requests.RequestException as e:
-            logger.warning(f"[ThreatIntel] OTX domain lookup failed: {e}")
-            results["domain"] = {"error": str(e)}
-
-        # IP lookup
-        if ip:
+        if not limiter.acquire("otx", timeout=10.0):
+            logger.warning("[ThreatIntel] OTX rate limit exceeded, skipping domain lookup")
+            results["domain"] = {"error": "Rate limit exceeded", "status": "rate_limited"}
+        else:
             try:
                 resp = requests.get(
-                    f"https://otx.alienvault.com/api/v1/indicators/IPv4/{ip}/general",
+                    f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/general",
                     headers=headers,
                     timeout=REQUEST_TIMEOUT,
                 )
+                if resp.status_code == 401:
+                    return {"error": "Unauthorized", "status": "auth_error"}
                 resp.raise_for_status()
                 d = resp.json()
-                results["ip"] = {
+                results["domain"] = {
                     "pulse_count": d.get("pulse_info", {}).get("count", 0),
-                    "reputation": d.get("reputation", 0),
-                    "country_code": d.get("country_code"),
-                    "asn": d.get("asn"),
+                    "pulses": [
+                        {
+                            "name": p.get("name"),
+                            "tags": (p.get("tags") or [])[:5],
+                            "malware_families": p.get("malware_families", []),
+                            "adversary": p.get("adversary"),
+                            "tlp": p.get("tlp"),
+                        }
+                        for p in (d.get("pulse_info", {}).get("pulses") or [])[:5]
+                    ],
+                    "validation": d.get("validation", []),
+                    "alexa": d.get("alexa"),
+                    "whois": d.get("whois"),
                 }
             except requests.RequestException as e:
-                logger.warning(f"[ThreatIntel] OTX IP lookup failed: {e}")
-                results["ip"] = {"error": str(e)}
+                logger.warning(f"[ThreatIntel] OTX domain lookup failed: {e}")
+                results["domain"] = {"error": str(e)}
+
+        # IP lookup (separate rate-limit token)
+        if ip:
+            if not limiter.acquire("otx", timeout=10.0):
+                logger.warning("[ThreatIntel] OTX rate limit exceeded, skipping IP lookup")
+                results["ip"] = {"error": "Rate limit exceeded", "status": "rate_limited"}
+            else:
+                try:
+                    resp = requests.get(
+                        f"https://otx.alienvault.com/api/v1/indicators/IPv4/{ip}/general",
+                        headers=headers,
+                        timeout=REQUEST_TIMEOUT,
+                    )
+                    resp.raise_for_status()
+                    d = resp.json()
+                    results["ip"] = {
+                        "pulse_count": d.get("pulse_info", {}).get("count", 0),
+                        "reputation": d.get("reputation", 0),
+                        "country_code": d.get("country_code"),
+                        "asn": d.get("asn"),
+                    }
+                except requests.RequestException as e:
+                    logger.warning(f"[ThreatIntel] OTX IP lookup failed: {e}")
+                    results["ip"] = {"error": str(e)}
 
         results["status"] = "ok"
         return results
@@ -211,6 +225,11 @@ class ThreatIntelScanner(BaseScannerModule):
     # ------------------------------------------------------------------
 
     def _query_virustotal(self, domain: str) -> Dict[str, Any]:
+        limiter = get_api_rate_limiter()
+        if not limiter.acquire("virustotal", timeout=10.0):
+            logger.warning("[ThreatIntel] VirusTotal rate limit exceeded, skipping")
+            return {"error": "Rate limit exceeded", "status": "rate_limited"}
+
         headers = {"x-apikey": settings.VIRUSTOTAL_API_KEY}
 
         try:

@@ -341,6 +341,265 @@ async def export_targets_excel(lang: str = "en", session: Session = Depends(get_
     return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+@router.get("/targets/{target_id}/export/excel")
+async def export_target_excel(
+    target_id: int,
+    lang: str = "en",
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"]))
+):
+    """Multi-sheet Excel export for a single target (one sheet per scanner module)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    if user.role != "admin" and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    results = session.exec(
+        select(ScanResult).where(ScanResult.target_id == target_id)
+        .order_by(ScanResult.scanned_at.desc())
+    ).all()
+    by_module = {}
+    for r in results:
+        if r.module_name not in by_module:
+            by_module[r.module_name] = r.data or {}
+
+    de = lang.lower().startswith("de")
+    HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
+    HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
+    ALT_FILL = PatternFill("solid", fgColor="EFF4FB")
+
+    def make_header(ws, cols):
+        ws.append(cols)
+        for cell in ws[1]:
+            cell.fill = HEADER_FILL
+            cell.font = HEADER_FONT
+        ws.freeze_panes = ws["A2"]
+
+    def autofit(ws):
+        for col in ws.columns:
+            width = max((len(str(cell.value or "")) for cell in col), default=8)
+            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max(width + 4, 12), 60)
+
+    def stripe(ws):
+        for i, row in enumerate(ws.iter_rows(min_row=2), start=2):
+            if i % 2 == 0:
+                for cell in row:
+                    cell.fill = ALT_FILL
+
+    def kv_sheet(name, pairs):
+        ws2 = wb.create_sheet(name)
+        make_header(ws2, ["Feld" if de else "Field", "Wert" if de else "Value"])
+        for k, v in pairs:
+            ws2.append([k, str(v) if v is not None else "-"])
+        stripe(ws2)
+        autofit(ws2)
+
+    def table_sheet(name, cols, rows_data):
+        ws2 = wb.create_sheet(name)
+        make_header(ws2, cols)
+        for row in rows_data:
+            ws2.append(row)
+        stripe(ws2)
+        autofit(ws2)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Übersicht" if de else "Summary"
+    make_header(ws, ["Feld" if de else "Field", "Wert" if de else "Value"])
+    last_scan = results[0].scanned_at.strftime("%Y-%m-%d %H:%M UTC") if results else "-"
+    for row in [
+        ("Domain", target.domain),
+        ("ID", target.id),
+        ("Letzter Scan" if de else "Last Scan", last_scan),
+        ("Module", ", ".join(sorted(by_module.keys()))),
+        ("Archiviert" if de else "Archived", "Ja" if target.is_archived else "Nein" if de else ("Yes" if target.is_archived else "No")),
+    ]:
+        ws.append(row)
+    autofit(ws)
+
+    d = by_module.get("dns_scanner") or by_module.get("subdomain_scanner") or {}
+    if d:
+        kv_sheet("DNS", [
+            ("Subdomains", len(d.get("subdomains", []))),
+            ("Wildcard", d.get("wildcard_detected", "-")),
+            ("A Records", ", ".join(d.get("records", {}).get("A", []))),
+            ("MX Records", ", ".join(d.get("records", {}).get("MX", []))),
+            ("NS Records", ", ".join(d.get("records", {}).get("NS", []))),
+            ("TXT Records", " | ".join(d.get("records", {}).get("TXT", []))),
+        ])
+        subs = d.get("subdomains", [])
+        if subs:
+            table_sheet("DNS Subdomains", ["Subdomain", "IPs", "Source" if not de else "Quelle"],
+                [[s.get("subdomain",""), ", ".join(s.get("ips",[])), s.get("source","")] for s in subs[:500]])
+
+    d = by_module.get("ssl_scanner", {})
+    if d:
+        cert = d.get("certificate", {})
+        kv_sheet("SSL/TLS", [
+            ("Issuer CN", cert.get("issuer", {}).get("commonName", d.get("issuer", "-"))),
+            ("Subject CN", cert.get("subject", {}).get("commonName", "-")),
+            ("Gültig ab" if de else "Valid From", d.get("notBefore", cert.get("notBefore", "-"))),
+            ("Gültig bis" if de else "Valid Until", d.get("notAfter", cert.get("notAfter", "-"))),
+            ("SANs", ", ".join(d.get("san", []))),
+            ("Protocol", d.get("protocol", "-")),
+            ("Grade", d.get("grade", "-")),
+        ])
+
+    d = by_module.get("web_analyzer", {})
+    if d:
+        kv_sheet("Web-Analyse" if de else "Web Analysis", [
+            ("HTTP Status", d.get("http_status", "-")),
+            ("HTTPS Status", d.get("https_status", "-")),
+            ("Server", d.get("server_header", "-")),
+            ("Technologien" if de else "Technologies", ", ".join(t.get("name","") for t in d.get("technologies", []))),
+            ("CVEs", len(d.get("cves", []))),
+            ("HTTPS Redirect", d.get("https_redirect", "-")),
+        ])
+
+    d = by_module.get("email_security", {})
+    if d:
+        kv_sheet("E-Mail-Sicherheit" if de else "Email Security", [
+            ("Score", d.get("score", "-")),
+            ("SPF gültig" if de else "SPF valid", d.get("spf", {}).get("valid", "-")),
+            ("SPF Record", d.get("spf", {}).get("record", "-")),
+            ("DKIM gültig" if de else "DKIM valid", d.get("dkim", {}).get("valid", "-")),
+            ("DMARC gültig" if de else "DMARC valid", d.get("dmarc", {}).get("valid", "-")),
+            ("DMARC Policy", d.get("dmarc", {}).get("policy", "-")),
+            ("BIMI", d.get("bimi", {}).get("found", "-")),
+            ("Probleme" if de else "Issues", " | ".join(str(i) for i in d.get("issues", []))),
+        ])
+
+    d = by_module.get("http_headers", {})
+    if d:
+        kv_sheet("HTTP Headers", [
+            ("Score", d.get("score", "-")),
+            ("Grade", d.get("grade", "-")),
+            ("Fehlend" if de else "Missing", ", ".join(d.get("missing_headers", []))),
+            ("Leaky", ", ".join(d.get("leaky_headers", []))),
+        ])
+        findings = d.get("findings", [])
+        if findings:
+            table_sheet("HTTP Headers Befunde" if de else "HTTP Headers Findings",
+                ["Header", "Schwere" if de else "Severity", "Befund" if de else "Finding"],
+                [[f.get("header",""), f.get("severity",""), f.get("message","")] for f in findings])
+
+    d = by_module.get("cookie_scanner", {})
+    if d:
+        kv_sheet("Cookies", [
+            ("Score", d.get("score", "-")),
+            ("Anzahl" if de else "Total", len(d.get("cookies", []))),
+            ("Unsicher" if de else "Insecure", d.get("insecure_count", "-")),
+        ])
+        cookies = d.get("cookies", [])
+        if cookies:
+            table_sheet("Cookies Detail",
+                ["Cookie", "Secure", "HttpOnly", "SameSite", "Probleme" if de else "Issues"],
+                [[c.get("name",""), c.get("secure","-"), c.get("httponly","-"),
+                  c.get("samesite","-"), " | ".join(c.get("issues",[]))] for c in cookies])
+
+    d = by_module.get("cors_scanner", {})
+    if d:
+        kv_sheet("CORS", [
+            ("Score", d.get("score", "-")),
+            ("Anfällig" if de else "Vulnerable", d.get("vulnerable", "-")),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+        if d.get("findings"):
+            table_sheet("CORS Befunde" if de else "CORS Findings",
+                ["Origin", "Schwere" if de else "Severity", "Problem" if de else "Issue"],
+                [[f.get("origin",""), f.get("severity",""), f.get("message","")] for f in d["findings"]])
+
+    d = by_module.get("subdomain_takeover_scanner", {})
+    if d:
+        vulns = d.get("vulnerable", [])
+        kv_sheet("Subdomain Takeover", [
+            ("Score", d.get("score", "-")),
+            ("Anfällig" if de else "Vulnerable", len(vulns)),
+            ("Geprüft" if de else "Checked", d.get("checked_count", "-")),
+        ])
+        if vulns:
+            table_sheet("Takeover Vulnerable",
+                ["Subdomain", "Provider", "CNAME", "Sicherheit" if de else "Confidence"],
+                [[v.get("subdomain",""), v.get("provider",""), v.get("cname",""), v.get("confidence","")] for v in vulns])
+
+    d = by_module.get("threat_intel_scanner", {})
+    if d:
+        kv_sheet("Threat Intel", [
+            ("Bedrohungsstufe" if de else "Threat Level", d.get("threat_level", "-")),
+            ("AbuseIPDB Score", d.get("abuseipdb", {}).get("abuse_confidence_score", "-")),
+            ("OTX Pulses", d.get("otx", {}).get("pulse_count", "-")),
+            ("VirusTotal Positives", d.get("virustotal", {}).get("positives", "-")),
+        ])
+
+    d = by_module.get("git_exposure_scanner", {})
+    if d:
+        exposed = d.get("exposed_paths", [])
+        kv_sheet("Git-Exposition" if de else "Git Exposure", [
+            ("Score", d.get("score", "-")),
+            ("Exponiert" if de else "Exposed Paths", len(exposed)),
+        ])
+        if exposed:
+            table_sheet("Git Pfade" if de else "Git Paths",
+                ["Pfad" if de else "Path", "Status", "Größe" if de else "Size"],
+                [[p.get("path",""), p.get("status",""), p.get("size","")] for p in exposed])
+
+    d = by_module.get("js_secrets_scanner", {})
+    if d:
+        secrets = d.get("secrets", [])
+        kv_sheet("JS-Geheimnisse" if de else "JS Secrets", [
+            ("Score", d.get("score", "-")),
+            ("Gefunden" if de else "Found", len(secrets)),
+            ("Gescannte Dateien" if de else "Files Scanned", d.get("files_scanned", "-")),
+        ])
+        if secrets:
+            table_sheet("JS Secrets Detail",
+                ["Typ" if de else "Type", "Datei" if de else "File", "Treffer" if de else "Match"],
+                [[s.get("type",""), s.get("file",""), s.get("match","")[:80]] for s in secrets[:200]])
+
+    d = by_module.get("infrastructure_scanner", {})
+    if d:
+        asn = d.get("asn", {})
+        kv_sheet("Infrastruktur" if de else "Infrastructure", [
+            ("IP", d.get("ip", "-")),
+            ("ASN", asn.get("asn", "-")),
+            ("ISP/Org", asn.get("asn_description", "-")),
+            ("Land" if de else "Country", asn.get("country", "-")),
+            ("Hosting", d.get("hosting_provider", "-")),
+            ("CDN", d.get("cdn_provider", "-")),
+            ("WAF", d.get("waf", "-")),
+        ])
+
+    d = by_module.get("nuclei_scanner", {})
+    if d:
+        vulns = d.get("findings", d.get("vulnerabilities", []))
+        kv_sheet("Nuclei-Schwachstellen" if de else "Nuclei Vulnerabilities", [
+            ("Gesamt" if de else "Total", len(vulns)),
+            ("Critical", sum(1 for v in vulns if v.get("severity","").lower() == "critical")),
+            ("High", sum(1 for v in vulns if v.get("severity","").lower() == "high")),
+            ("Medium", sum(1 for v in vulns if v.get("severity","").lower() == "medium")),
+        ])
+        if vulns:
+            table_sheet("Nuclei Befunde" if de else "Nuclei Findings",
+                ["ID", "Name", "Schwere" if de else "Severity", "URL"],
+                [[v.get("template_id",""), v.get("name",""), v.get("severity",""), v.get("matched_at","")] for v in vulns[:500]])
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    fname = f"yads_{target.domain.replace('.','_')}_report_{lang}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
+
+
 @router.get("/targets/{target_id}/export")
 async def export_target_pdf(target_id: int, lang: str = "en", session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """

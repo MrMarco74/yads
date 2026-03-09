@@ -266,9 +266,46 @@
                             <label class="block text-xs text-gray-400 mb-1">Password</label>
                             <input type="password" name="smtp_password" value="{{ smtp_password }}" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono">
                     </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">From Address</label>
+                            <input type="text" name="smtp_from" value="{{ smtp_from }}" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">Notification Recipient</label>
+                            <input type="email" name="email_notification_address" value="{{ email_notification_address }}" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">Base URL (for email links)</label>
+                            <input type="text" name="base_url" value="{{ base_url }}" placeholder="https://your-yads-instance.com" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono">
+                        </div>
+                        <div class="col-span-2 flex items-center justify-between border-t border-gray-700/50 pt-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-200">Email Notifications</label>
+                                <p class="text-xs text-gray-400">Send alert when scan detects changes + daily digest at 07:00 UTC.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="email_notifications_enabled" class="sr-only peer" {% if email_notifications_enabled %}checked{% endif %}>
+                                <div class="w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-indigo-600 transition-colors duration-200"></div>
+                                <div class="absolute left-[2px] top-[2px] bg-white border border-gray-300 rounded-full h-4 w-4 transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-white"></div>
+                            </label>
+                        </div>
+                        <div class="col-span-2">
+                            <button type="button" onclick="testEmail()" class="text-xs px-3 py-1.5 rounded bg-indigo-700 hover:bg-indigo-600 text-white font-medium">Send Test Email</button>
+                            <span id="email-test-result" class="ml-2 text-xs text-gray-400"></span>
+                        </div>
                     </div>
                 </div>
             </div>
+            <script>
+            function testEmail() {
+                const el = document.getElementById('email-test-result');
+                el.textContent = 'Sending...';
+                fetch('/settings/email/test', {method: 'POST'})
+                    .then(r => r.json())
+                    .then(d => { el.textContent = d.message || 'Sent!'; el.className = 'ml-2 text-xs text-green-400'; })
+                    .catch(e => { el.textContent = 'Failed: ' + e; el.className = 'ml-2 text-xs text-red-400'; });
+            }
+            </script>
 
             <!-- Prometheus Metrics -->
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
