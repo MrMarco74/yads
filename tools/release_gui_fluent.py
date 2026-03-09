@@ -564,7 +564,14 @@ class ProdDeployWorker(QThread):
         finally:
             self.current_process = None
 
+    def _elapsed(self, start: float) -> str:
+        import time as _t
+        s = int(_t.time() - start)
+        return f"{s//60}m {s%60}s" if s >= 60 else f"{s}s"
+
     def _execute_deploy(self):
+        import time as _time
+        _deploy_start = _time.time()
         try:
             if self.wipe_reinstall:
                 self._log("🚀 Starting Production Deployment (FRESH INSTALL)", "warning")
@@ -740,9 +747,28 @@ class ProdDeployWorker(QThread):
             else:
                 self._log("✅ All expected services are running!", "success")
 
-            self.signals.progress_update.emit(100, 100, "Success!")
-            self._log("✅ Deployment to PROD completed successfully!", "success")
-            self.signals.operation_finished.emit(True, "PROD Update finished")
+            # 7. Post-deploy smoke test
+            self._log("Running smoke test (HTTP health check)...", "info")
+            import time as _t2
+            _t2.sleep(5)  # brief settle time
+            try:
+                import urllib.request, urllib.error
+                _smoke_url = "https://prod.example.com/health"
+                req = urllib.request.Request(_smoke_url, headers={"User-Agent": "YADS-Deploy-SmokeTest/1.0"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    if resp.status == 200:
+                        self._log(f"✅ Smoke test passed — HTTP 200 from {_smoke_url}", "success")
+                    else:
+                        self._log(f"⚠️  Smoke test: unexpected status {resp.status} from {_smoke_url}", "warning")
+            except urllib.error.URLError as _se:
+                self._log(f"⚠️  Smoke test failed (URL error): {_se.reason} — check nginx/proxy config", "warning")
+            except Exception as _se:
+                self._log(f"⚠️  Smoke test failed: {_se}", "warning")
+
+            _total = self._elapsed(_deploy_start)
+            self.signals.progress_update.emit(100, 100, f"Success! ({_total})")
+            self._log(f"✅ Deployment to PROD completed successfully! [total time: {_total}]", "success")
+            self.signals.operation_finished.emit(True, f"PROD Update finished in {_total}")
 
         finally:
             # Cleanup locals ALWAYS
@@ -852,6 +878,14 @@ class ProdDeployPage(QWidget):
         log_header.addWidget(clear_btn)
         log_layout.addLayout(log_header)
 
+        # Log filter bar
+        from qfluentwidgets import SearchLineEdit
+        self._log_filter = SearchLineEdit(self)
+        self._log_filter.setPlaceholderText("Filter logs…")
+        self._log_filter.setFixedHeight(28)
+        self._log_filter.textChanged.connect(self._apply_log_filter)
+        log_layout.addWidget(self._log_filter)
+
         self.log_view = TextEdit(self)
         self.log_view.setReadOnly(True)
         self.log_view.setMinimumHeight(350)
@@ -859,6 +893,14 @@ class ProdDeployPage(QWidget):
         log_layout.addWidget(self.log_view)
 
         layout.addWidget(log_card, 1)
+        self._all_log_lines: list[tuple[str, str]] = []  # (text, level)
+
+    def _apply_log_filter(self, text: str):
+        """Re-render log_view showing only lines containing filter text."""
+        self.log_view.clear()
+        for line, level in self._all_log_lines:
+            if not text or text.lower() in line.lower():
+                self._append_log_html(line, level)
 
     def _on_wipe_toggled(self, state):
         if self.wipe_check.isChecked():
@@ -943,10 +985,17 @@ class ProdDeployPage(QWidget):
     def _on_log(self, message: str, level: str):
         self._log(message, level)
 
-    def _log(self, message: str, level: str = "info"):
+    def _append_log_html(self, message: str, level: str):
         _insert_log_line(self.log_view, message, level)
 
+    def _log(self, message: str, level: str = "info"):
+        self._all_log_lines.append((message, level))
+        filt = getattr(self, '_log_filter', None)
+        if filt is None or not filt.text() or filt.text().lower() in message.lower():
+            _insert_log_line(self.log_view, message, level)
+
     def _clear_logs(self):
+        self._all_log_lines.clear()
         self.log_view.clear()
 
     def _on_finished(self, success: bool, message: str):
