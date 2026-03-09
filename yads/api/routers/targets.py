@@ -1388,6 +1388,23 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     rpki_scanner_result = next((r for r in current_results if r.module_name == 'rpki_scanner'), None)
     dsgvo_scanner_result = next((r for r in current_results if r.module_name == 'dsgvo_scanner'), None)
     waf_result = next((r for r in current_results if r.module_name == 'waf_detector'), None)
+    open_redirect_result = next((r for r in current_results if r.module_name == 'open_redirect_scanner'), None)
+    tls_deep_result = next((r for r in current_results if r.module_name == 'tls_deep_scanner'), None)
+    banner_grabber_result = next((r for r in current_results if r.module_name == 'banner_grabber'), None)
+    asn_result = next((r for r in current_results if r.module_name == 'asn_scanner'), None)
+    login_scanner_result = next((r for r in current_results if r.module_name == 'login_scanner'), None)
+    ipv6_result = next((r for r in current_results if r.module_name == 'ipv6_scanner'), None)
+    dns_history_result = next((r for r in current_results if r.module_name == 'dns_history_scanner'), None)
+    phishing_result = next((r for r in current_results if r.module_name == 'phishing_scanner'), None)
+    ct_monitor_result = next((r for r in current_results if r.module_name == 'ct_monitor'), None)
+    email_harvester_result = next((r for r in current_results if r.module_name == 'email_harvester'), None)
+    dependency_confusion_result = next((r for r in current_results if r.module_name == 'dependency_confusion'), None)
+    graphql_result = next((r for r in current_results if r.module_name == 'graphql_scanner'), None)
+    websocket_result = next((r for r in current_results if r.module_name == 'websocket_scanner'), None)
+    password_spray_result = next((r for r in current_results if r.module_name == 'password_spray_mapper'), None)
+    leaked_credentials_result = next((r for r in current_results if r.module_name == 'leaked_credentials'), None)
+    api_security_result = next((r for r in current_results if r.module_name == 'api_security_scanner'), None)
+    mobile_app_result = next((r for r in current_results if r.module_name == 'mobile_app_discovery'), None)
 
     # -- Compliance & Grading --
     comp_input = {
@@ -1489,6 +1506,23 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "rpki_scanner_result": rpki_scanner_result,
         "dsgvo_scanner_result": dsgvo_scanner_result,
         "waf_result": waf_result,
+        "open_redirect_result": open_redirect_result,
+        "tls_deep_result": tls_deep_result,
+        "banner_grabber_result": banner_grabber_result,
+        "asn_result": asn_result,
+        "login_scanner_result": login_scanner_result,
+        "ipv6_result": ipv6_result,
+        "dns_history_result": dns_history_result,
+        "phishing_result": phishing_result,
+        "ct_monitor_result": ct_monitor_result,
+        "email_harvester_result": email_harvester_result,
+        "dependency_confusion_result": dependency_confusion_result,
+        "graphql_result": graphql_result,
+        "websocket_result": websocket_result,
+        "password_spray_result": password_spray_result,
+        "leaked_credentials_result": leaked_credentials_result,
+        "api_security_result": api_security_result,
+        "mobile_app_result": mobile_app_result,
         "security_grade": security_grade,
         "compliance_report": compliance_report,
         "history_entries": history_entries, # Pass full history
