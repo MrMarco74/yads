@@ -807,10 +807,6 @@ class ProdDeployPage(QWidget):
         self.progress_bar.setVisible(False)
         progress_layout.addWidget(self.progress_bar)
         
-        self.indeterminate_progress = IndeterminateProgressBar(self)
-        self.indeterminate_progress.setVisible(False)
-        progress_layout.addWidget(self.indeterminate_progress)
-        
         layout.addLayout(progress_layout)
 
         # Log Card
@@ -891,7 +887,6 @@ class ProdDeployPage(QWidget):
         self.cancel_btn.setEnabled(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        self.indeterminate_progress.setVisible(False)
         self.log_view.clear()
 
         # Store a reference to avoid early garbage collection
@@ -905,13 +900,9 @@ class ProdDeployPage(QWidget):
         self.progress_bar.setValue(current)
         self.progress_label.setText(description)
         if current > 0 and current < 100:
-            self.indeterminate_progress.stop()
-            self.indeterminate_progress.setVisible(False)
             self.progress_bar.setVisible(True)
         elif current == 0:
             self.progress_bar.setVisible(False)
-            self.indeterminate_progress.setVisible(True)
-            self.indeterminate_progress.start()
 
     def _on_cancel(self):
         if hasattr(self, '_active_worker') and self._active_worker:
@@ -931,8 +922,6 @@ class ProdDeployPage(QWidget):
         self.deploy_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.progress_bar.setVisible(False)
-        self.indeterminate_progress.stop()
-        self.indeterminate_progress.setVisible(False)
         self.progress_label.setText("Complete" if success else "Failed")
 
         if success:
