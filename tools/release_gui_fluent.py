@@ -1411,6 +1411,33 @@ class TestLabPage(QWidget):
         action_layout.addStretch()
         layout.addWidget(action_card)
 
+        # ── Worker Network Card ──
+        net_card = CardWidget(self)
+        net_layout = QHBoxLayout(net_card)
+        net_layout.setContentsMargins(20, 14, 20, 14)
+        net_layout.setSpacing(16)
+
+        net_info = BodyLabel(
+            "Worker network:  connect the running yads-worker container to the testlab network so it can scan targets.",
+            self,
+        )
+        net_info.setWordWrap(True)
+        net_layout.addWidget(net_info, 1)
+
+        self.worker_connect_btn = PushButton(FIF.LINK, "Connect Worker", self)
+        self.worker_connect_btn.setFixedWidth(160)
+        self.worker_connect_btn.setToolTip("docker network connect yads-testlab yads-worker")
+        self.worker_connect_btn.clicked.connect(lambda: self._worker_net("connect"))
+
+        self.worker_disconnect_btn = PushButton(FIF.CANCEL_MEDIUM, "Disconnect Worker", self)
+        self.worker_disconnect_btn.setFixedWidth(160)
+        self.worker_disconnect_btn.setToolTip("docker network disconnect yads-testlab yads-worker")
+        self.worker_disconnect_btn.clicked.connect(lambda: self._worker_net("disconnect"))
+
+        net_layout.addWidget(self.worker_connect_btn)
+        net_layout.addWidget(self.worker_disconnect_btn)
+        layout.addWidget(net_card)
+
         # ── Progress ──
         self.progress_label = BodyLabel("Ready — no action running.", self)
         layout.addWidget(self.progress_label)
@@ -1489,8 +1516,35 @@ class TestLabPage(QWidget):
         else:
             InfoBar.error("Error", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
 
+    def _worker_net(self, action: str):
+        """Connect or disconnect yads-worker from the yads-testlab network."""
+        container = "yads-worker"
+        network = "yads-testlab"
+        cmd = ["docker", "network", action, network, container]
+        self._log(f"▶ {' '.join(cmd)}", "info")
+        self.worker_connect_btn.setEnabled(False)
+        self.worker_disconnect_btn.setEnabled(False)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                verb = "connected to" if action == "connect" else "disconnected from"
+                self._log(f"✅ Worker {verb} {network}", "success")
+                InfoBar.success("Done", f"Worker {verb} {network}",
+                                parent=self, position=InfoBarPosition.TOP, duration=4000)
+            else:
+                msg = (result.stderr.strip() or result.stdout.strip()) or f"exit code {result.returncode}"
+                self._log(f"❌ {msg}", "error")
+                InfoBar.error("Failed", msg, parent=self, position=InfoBarPosition.TOP, duration=6000)
+        except Exception as e:
+            self._log(f"Error: {e}", "error")
+            InfoBar.error("Error", str(e), parent=self, position=InfoBarPosition.TOP, duration=6000)
+        finally:
+            self.worker_connect_btn.setEnabled(True)
+            self.worker_disconnect_btn.setEnabled(True)
+
     def _set_busy(self, busy: bool, action: str = ""):
-        for btn in (self.init_btn, self.start_btn, self.stop_btn, self.status_btn):
+        for btn in (self.init_btn, self.start_btn, self.stop_btn, self.status_btn,
+                    self.worker_connect_btn, self.worker_disconnect_btn):
             btn.setEnabled(not busy)
         self.cancel_btn.setEnabled(busy)
         self.busy_bar.setVisible(busy)
