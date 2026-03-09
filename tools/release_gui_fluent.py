@@ -17,8 +17,11 @@ from typing import Optional
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 
-# Global crash log — catches ALL unhandled Python exceptions regardless of how the app is launched
+# Global crash log — catches Python exceptions AND C/Qt segfaults
+import faulthandler
 _CRASH_LOG = Path("/tmp/release_manager_crash.log")
+_crash_log_fh = open(_CRASH_LOG, "w")
+faulthandler.enable(file=_crash_log_fh)
 
 def _excepthook(exc_type, exc_value, exc_tb):
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -901,14 +904,14 @@ class ProdDeployPage(QWidget):
     def _on_progress(self, current: int, total: int, description: str):
         self.progress_bar.setValue(current)
         self.progress_label.setText(description)
-        # If it's a long static step, show indeterminate instead? 
-        # For now rsync gives real progress.
         if current > 0 and current < 100:
-            self.progress_bar.setVisible(True)
+            self.indeterminate_progress.stop()
             self.indeterminate_progress.setVisible(False)
+            self.progress_bar.setVisible(True)
         elif current == 0:
-            self.indeterminate_progress.setVisible(True)
             self.progress_bar.setVisible(False)
+            self.indeterminate_progress.setVisible(True)
+            self.indeterminate_progress.start()
 
     def _on_cancel(self):
         if hasattr(self, '_active_worker') and self._active_worker:
