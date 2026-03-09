@@ -253,6 +253,68 @@ def send_daily_digests():
         logger.error(f"[Worker] send_daily_digests failed: {e}")
 
 
+# ── Data Retention ────────────────────────────────────────────────────────────
+
+@celery_app.task(name="yads.worker.prune_old_scan_results")
+def prune_old_scan_results():
+    """
+    Delete ScanResult rows older than DATA_RETENTION_DAYS (default 90).
+    Skips if DATA_RETENTION_DAYS is 0 (retain forever).
+    Also prunes associated ChangeEvent and ModuleState rows without ScanResults.
+    """
+    from datetime import timedelta
+    from sqlalchemy import text
+    from yads.models import ChangeEvent, ModuleState
+
+    logger.info("[Worker] Starting data retention pruning...")
+    try:
+        with Session(engine) as session:
+            conf = session.get(SystemConfig, "DATA_RETENTION_DAYS")
+            try:
+                days = int(conf.value) if conf and conf.value else 90
+            except ValueError:
+                days = 90
+
+            if days == 0:
+                logger.info("[Worker] DATA_RETENTION_DAYS=0 — retention pruning skipped.")
+                return
+
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            # Delete old change events first (FK dependency)
+            old_scan_ids = session.exec(
+                select(ScanResult.id).where(ScanResult.scanned_at < cutoff)
+            ).all()
+            if not old_scan_ids:
+                logger.info("[Worker] Data retention: nothing to prune.")
+                return
+
+            deleted_events = 0
+            for chunk_start in range(0, len(old_scan_ids), 200):
+                chunk = old_scan_ids[chunk_start:chunk_start + 200]
+                rows = session.exec(
+                    select(ChangeEvent).where(ChangeEvent.scan_result_id.in_(chunk))
+                ).all()
+                for row in rows:
+                    session.delete(row)
+                    deleted_events += 1
+
+            # Delete old scan results
+            old_results = session.exec(
+                select(ScanResult).where(ScanResult.scanned_at < cutoff)
+            ).all()
+            deleted_results = len(old_results)
+            for row in old_results:
+                session.delete(row)
+
+            session.commit()
+            logger.info(
+                f"[Worker] Data retention pruning done: removed {deleted_results} ScanResult(s) "
+                f"and {deleted_events} ChangeEvent(s) older than {days} days."
+            )
+    except Exception as e:
+        logger.error(f"[Worker] Data retention pruning failed: {e}")
+
+
 # ── Main Scan Task ────────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True)
