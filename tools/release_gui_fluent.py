@@ -654,9 +654,22 @@ class ProdDeployWorker(QThread):
                 if not self._run_cmd(["scp", "yads_deploy.tgz", "yads_backup_deploy.tgz", f"{self.remote_host}:{self.remote_deploy_dir}/"]):
                     return self.signals.operation_finished.emit(False, "Transfer failed")
 
-            # 3. Load
+            # 3. Load — pre-flight: ensure enough disk space on remote (need ~20GB for image extraction)
             self._log("Step 5/8: Loading images on remote host (combined session)...", "info")
             self.signals.progress_update.emit(80, 100, "Loading images on remote...")
+            disk_check = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host,
+                    "df --output=avail -BG / | tail -1 | tr -d 'G '"]),
+                capture_output=True, text=True
+            )
+            try:
+                avail_gb = int(disk_check.stdout.strip())
+                self._log(f"Remote disk free: {avail_gb}GB", "info")
+                if avail_gb < 15:
+                    self._log(f"⚠️  Only {avail_gb}GB free — pruning unused Docker images first...", "warning")
+                    self._run_cmd(["ssh", self.remote_host, "docker image prune -af"])
+            except (ValueError, TypeError):
+                self._log("Could not determine remote disk space, proceeding anyway.", "warning")
             # Suppress per-layer output (can be hundreds of lines) — only show final summary
             load_cmd = (
                 f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)' && "
