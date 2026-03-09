@@ -9,12 +9,25 @@ import re
 import threading
 import queue
 import subprocess
+import traceback
 from pathlib import Path
 from typing import Optional
 
 # Add the tools directory to path
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
+
+# Global crash log — catches ALL unhandled Python exceptions regardless of how the app is launched
+_CRASH_LOG = Path("/tmp/release_manager_crash.log")
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    _CRASH_LOG.write_text(msg)
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _excepthook
+
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]|\r')
 
 from PySide6.QtCore import Qt, Signal, QObject, QThread, QTimer, QSize, Slot
 from PySide6.QtGui import QIcon, QFont, QColor
@@ -513,7 +526,12 @@ class ProdDeployWorker(QThread):
                 if self.cancelled:
                     self.current_process.terminate()
                     break
-                
+
+                # Strip ANSI escape codes and bare carriage returns
+                line = _ANSI_RE.sub('', line)
+                if not line.strip():
+                    continue
+
                 # Filter noise (mostly from initial master connection attempt)
                 if any(x in line for x in ["channel_setup_fwd_listener_tcpip", "cannot listen to port", "Address already in use"]):
                     continue
