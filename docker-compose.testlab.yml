@@ -1,0 +1,164 @@
+# YADS Test Lab — Isolated vulnerable target stack
+# Usage (via Release Manager "Test Lab" page, or manually):
+#   docker compose -f docker-compose.testlab.yml up -d
+#
+# Network topology:
+#   yads-testlab: bridge network, no default route for target containers.
+#   YADS worker/api connects to this network to scan the targets.
+#   Target containers are NOT reachable from the internet (no port mappings on host).
+#
+# DNS: add to /etc/hosts on the Docker host for browser access:
+#   172.30.0.20  dvwa.testlab.local
+#   172.30.0.21  juice.testlab.local
+#   172.30.0.22  badssl.testlab.local
+#   172.30.0.23  badheaders.testlab.local
+#   172.30.0.24  graphql.testlab.local
+#   172.30.0.25  ws.testlab.local
+#   172.30.0.26  gitexpose.testlab.local
+#   172.30.0.27  loginpage.testlab.local
+#   172.30.0.10  dns.testlab.local
+#   172.30.0.30  mockapis.testlab.local
+#
+# CoreDNS is configured with AXFR enabled and a CNAME subdomain-takeover record.
+# Register targets in YADS under Tenant "Frischkorn" (test-only tenant).
+
+networks:
+  yads-testlab:
+    name: yads-testlab
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
+services:
+
+  # ── DNS (CoreDNS) — AXFR enabled, subdomain takeover CNAME ─────────────────
+  testlab-dns:
+    image: coredns/coredns:1.11.3
+    container_name: testlab-dns
+    restart: unless-stopped
+    command: -conf /etc/coredns/Corefile
+    volumes:
+      - ./testlab/dns:/etc/coredns:ro
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.10
+
+  # ── DVWA (SQL Injection, XSS, Open Redirect, bad Cookies) ──────────────────
+  testlab-dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: testlab-dvwa
+    restart: unless-stopped
+    environment:
+      - MYSQL_HOSTNAME=testlab-dvwa-db
+      - MYSQL_DATABASE=dvwa
+      - MYSQL_USERNAME=dvwa
+      - MYSQL_PASSWORD=p@ssw0rd
+    depends_on:
+      - testlab-dvwa-db
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.20
+
+  testlab-dvwa-db:
+    image: mysql:8.0
+    container_name: testlab-dvwa-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: dvwa
+      MYSQL_USER: dvwa
+      MYSQL_PASSWORD: p@ssw0rd
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.19
+
+  # ── OWASP Juice Shop (CORS, missing auth, API security) ────────────────────
+  testlab-juiceshop:
+    image: bkimminich/juice-shop:latest
+    container_name: testlab-juiceshop
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.21
+
+  # ── Bad TLS (TLS 1.0, RC4, self-signed cert, no HSTS) ──────────────────────
+  testlab-badssl:
+    build:
+      context: ./testlab/badssl
+      dockerfile: Dockerfile
+    container_name: testlab-badssl
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.22
+
+  # ── Bad HTTP Headers (no CSP/HSTS/X-Frame-Options, no WAF) ─────────────────
+  testlab-badheaders:
+    image: nginx:1.25-alpine
+    container_name: testlab-badheaders
+    restart: unless-stopped
+    volumes:
+      - ./testlab/badheaders/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./testlab/badheaders/html:/usr/share/nginx/html:ro
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.23
+
+  # ── GraphQL API (introspection enabled, field suggestions) ─────────────────
+  testlab-graphql:
+    build:
+      context: ./testlab/graphql
+      dockerfile: Dockerfile
+    container_name: testlab-graphql
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.24
+
+  # ── WebSocket server (ws://, no auth, no origin check) ─────────────────────
+  testlab-websocket:
+    build:
+      context: ./testlab/websocket
+      dockerfile: Dockerfile
+    container_name: testlab-websocket
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.25
+
+  # ── Git/File Exposure (/.git, /.env, /backup.sql, JS secrets) ──────────────
+  testlab-gitexpose:
+    image: nginx:1.25-alpine
+    container_name: testlab-gitexpose
+    restart: unless-stopped
+    volumes:
+      - ./testlab/gitexpose/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./testlab/gitexpose/html:/usr/share/nginx/html:ro
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.26
+
+  # ── Login / Password Spray Surface ─────────────────────────────────────────
+  testlab-loginpage:
+    build:
+      context: ./testlab/loginpage
+      dockerfile: Dockerfile
+    container_name: testlab-loginpage
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.27
+
+  # ── Mock External APIs (AbuseIPDB, HIBP, OTX, VirusTotal) ──────────────────
+  testlab-mockapis:
+    build:
+      context: ./testlab/mockapis
+      dockerfile: Dockerfile
+    container_name: testlab-mockapis
+    restart: unless-stopped
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.30
