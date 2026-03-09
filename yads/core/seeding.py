@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlmodel import Session
 from yads.database import engine
 from yads.models import ChangelogEntry, Notification, ReportTemplate
