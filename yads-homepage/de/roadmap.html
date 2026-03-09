@@ -680,6 +680,106 @@
                 </div>
             </div>
 
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">☸️</span>
+                    <h2 class="section-title">Kubernetes &amp; Cloud-Native Deployment <span class="status-badge planned">Geplant</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Nativer Kubernetes-Support für enterprise-taugliche horizontale Skalierung, Hochverfügbarkeit und GitOps-basierte Deployments — ohne das Multi-Tenant-Isolationsmodell von YADS zu beeinträchtigen.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Helm Chart <span class="status-badge planned">Geplant</span></td>
+                                <td>Offizielles Helm Chart zur Bereitstellung des vollständigen YADS-Stacks (API, Worker, PostgreSQL, Redis) auf jedem Kubernetes-Cluster.</td>
+                            </tr>
+                            <tr>
+                                <td>Horizontale Worker-Autoskalierung <span class="status-badge planned">Geplant</span></td>
+                                <td>HPA-basierte Autoskalierung für YADS-Worker-Pods anhand der Scan-Queue-Tiefe (Custom Celery Queue Length Metric via KEDA).</td>
+                            </tr>
+                            <tr>
+                                <td>Namespace-Isolation pro Tenant <span class="status-badge planned">Geplant</span></td>
+                                <td>Optionale Kubernetes-Namespace-Isolation pro Tenant für regulierte Umgebungen (DSGVO, SOC 2).</td>
+                            </tr>
+                            <tr>
+                                <td>Ingress &amp; TLS-Automatisierung <span class="status-badge planned">Geplant</span></td>
+                                <td>Vorkonfigurierte Ingress-Manifeste für nginx-ingress und Traefik, cert-manager-Integration für automatische Let's-Encrypt-Zertifikate.</td>
+                            </tr>
+                            <tr>
+                                <td>Persistent Volume Claims <span class="status-badge planned">Geplant</span></td>
+                                <td>StorageClass-fähige PVC-Templates für Scan-Daten, Screenshots, Logs und verschlüsselte Backups.</td>
+                            </tr>
+                            <tr>
+                                <td>GitOps / ArgoCD-Integration <span class="status-badge planned">Geplant</span></td>
+                                <td>Application-Manifest für ArgoCD/Flux — ermöglicht vollautomatische, diff-basierte Rollouts aus Ihrem Git-Repository.</td>
+                            </tr>
+                            <tr>
+                                <td>Kubernetes Operator (Zukunft) <span class="status-badge planned">Geplant</span></td>
+                                <td>CRD-basierter YADS-Operator für deklaratives Management von Tenants, Scan-Schedules und Worker-Flotten direkt via kubectl.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🛡️</span>
+                    <h2 class="section-title">Aktive Pentest-Tool-Integration <span class="status-badge planned">Geplant</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Kontrollierte Orchestrierung professioneller Offensiv-Security-Tools direkt aus der YADS-Oberfläche — auf autorisierte Targets beschränkt, mit vollständigem Audit-Logging und Tenant-seitigem Zugriffsmanagement. Erfordert explizite Autorisierung pro Target.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Metasploit-Integration <span class="status-badge planned">Geplant</span></td>
+                                <td>RPC-basierte Metasploit-Steuerung: Module starten, Payloads wählen, Session-Output einsehen — beschränkt auf autorisierte YADS-Targets. Ergebnisse werden als Scan-Findings mit CVSS-Bewertung gespeichert.</td>
+                            </tr>
+                            <tr>
+                                <td>Erweiterte Nmap-Profile <span class="status-badge planned">Geplant</span></td>
+                                <td>Erweiterte Nmap-Scan-Profile über die aktuelle Service-Detection hinaus — SYN-Scan, OS-Fingerprinting, Script Engine (NSE) mit Freigabe-Gating pro Target.</td>
+                            </tr>
+                            <tr>
+                                <td>Hydra / Passwort-Audit <span class="status-badge planned">Geplant</span></td>
+                                <td>Autorisiertes Credential-Brute-Force-Audit gegen vom Login-Scanner erkannte Anmeldeseiten. Rate-limitiert, target-beschränkt, vollständiger Audit-Trail.</td>
+                            </tr>
+                            <tr>
+                                <td>SQLMap-Integration <span class="status-badge planned">Geplant</span></td>
+                                <td>SQLMap gegen Endpunkte starten, die von Nuclei oder dem Crawler als verdächtig markiert wurden — kontrollierte Ausführung mit strukturiertem Findings-Output.</td>
+                            </tr>
+                            <tr>
+                                <td>Burp Suite Collaboration <span class="status-badge planned">Geplant</span></td>
+                                <td>YADS-Target-Scope und erkannte Endpunkte via REST API an Burp Suite Pro übergeben. Aktive Scan-Findings zurück in YADS ziehen für einheitliches Reporting.</td>
+                            </tr>
+                            <tr>
+                                <td>Autorisierungsdurchsetzung <span class="status-badge planned">Geplant</span></td>
+                                <td>Pentest-Autorisierungs-Flag pro Target — aktive Tools können nur gegen Targets ausgeführt werden, die explizit für Offensiv-Tests freigegeben sind. Durchgesetzt auf API-Ebene mit RBAC (tenant_admin+).</td>
+                            </tr>
+                            <tr>
+                                <td>Pentest-Berichtsgenerierung <span class="status-badge planned">Geplant</span></td>
+                                <td>Dediziertes Pentest-Report-Template, das passive YADS-Findings mit aktiven Tool-Ergebnissen kombiniert — exportierbar als PDF und DOCX zur Kundenübergabe.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </div>
 

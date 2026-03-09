@@ -679,6 +679,106 @@
                 </div>
             </div>
 
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">☸️</span>
+                    <h2 class="section-title">Kubernetes &amp; Cloud-Native Deployment <span class="status-badge planned">Planned</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Native Kubernetes support for enterprise-grade horizontal scaling, high availability, and GitOps-driven deployments — without compromising YADS's multi-tenant isolation model.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Helm Chart <span class="status-badge planned">Planned</span></td>
+                                <td>Official Helm chart for deploying the full YADS stack (API, Worker, PostgreSQL, Redis) to any Kubernetes cluster.</td>
+                            </tr>
+                            <tr>
+                                <td>Horizontal Worker Autoscaling <span class="status-badge planned">Planned</span></td>
+                                <td>HPA-based autoscaling for YADS worker pods based on scan queue depth (custom Celery queue length metric via KEDA).</td>
+                            </tr>
+                            <tr>
+                                <td>Namespace Isolation per Tenant <span class="status-badge planned">Planned</span></td>
+                                <td>Optional per-tenant Kubernetes namespace isolation for regulated environments (DSGVO, SOC 2).</td>
+                            </tr>
+                            <tr>
+                                <td>Ingress &amp; TLS Automation <span class="status-badge planned">Planned</span></td>
+                                <td>Pre-configured Ingress manifests for nginx-ingress and Traefik, cert-manager integration for automatic Let's Encrypt certificates.</td>
+                            </tr>
+                            <tr>
+                                <td>Persistent Volume Claims <span class="status-badge planned">Planned</span></td>
+                                <td>StorageClass-aware PVC templates for scan data, screenshots, logs, and encrypted backups.</td>
+                            </tr>
+                            <tr>
+                                <td>GitOps / ArgoCD Integration <span class="status-badge planned">Planned</span></td>
+                                <td>Application manifest for ArgoCD/Flux — enables fully automated, diff-based rollouts from your Git repository.</td>
+                            </tr>
+                            <tr>
+                                <td>Kubernetes Operator (future) <span class="status-badge planned">Planned</span></td>
+                                <td>CRD-based YADS Operator for declarative management of tenants, scan schedules, and worker fleets directly from kubectl.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🛡️</span>
+                    <h2 class="section-title">Active Pentest Toolchain Integration <span class="status-badge planned">Planned</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Controlled orchestration of professional offensive security tools directly from the YADS interface — scoped to authorized targets, with full audit logging and tenant-level access control. Requires explicit authorization per target.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Metasploit Integration <span class="status-badge planned">Planned</span></td>
+                                <td>RPC-based Metasploit control: launch modules, select payloads, view session output — all scoped to authorized YADS targets. Results stored as scan findings with CVSS scoring.</td>
+                            </tr>
+                            <tr>
+                                <td>Nmap Advanced Profiles <span class="status-badge planned">Planned</span></td>
+                                <td>Extended Nmap scan profiles beyond the current service detection — SYN scan, OS fingerprinting, script engine (NSE) execution with per-target approval gating.</td>
+                            </tr>
+                            <tr>
+                                <td>Hydra / Password Audit <span class="status-badge planned">Planned</span></td>
+                                <td>Authorized credential brute-force audit against login surfaces detected by the login scanner. Rate-limited, target-scoped, full audit trail.</td>
+                            </tr>
+                            <tr>
+                                <td>SQLMap Integration <span class="status-badge planned">Planned</span></td>
+                                <td>Trigger SQLMap against endpoints flagged by Nuclei or the crawler — controlled execution with output parsed into structured findings.</td>
+                            </tr>
+                            <tr>
+                                <td>Burp Suite Collaboration <span class="status-badge planned">Planned</span></td>
+                                <td>Push YADS target scope and discovered endpoints to Burp Suite Pro via REST API. Pull active scan findings back into YADS for unified reporting.</td>
+                            </tr>
+                            <tr>
+                                <td>Authorization Enforcement <span class="status-badge planned">Planned</span></td>
+                                <td>Per-target pentest authorization flag — active tools can only run against targets explicitly marked as authorized for offensive testing. Enforced at API level with RBAC (tenant_admin+).</td>
+                            </tr>
+                            <tr>
+                                <td>Pentest Report Generation <span class="status-badge planned">Planned</span></td>
+                                <td>Dedicated pentest report template combining passive YADS findings with active tool results — exportable as PDF and DOCX for client delivery.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </div>
 
