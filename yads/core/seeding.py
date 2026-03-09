@@ -25369,10 +25369,8 @@ def seed_changelog():
         if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.42.0").first():
             entry_1420 = ChangelogEntry(
                 version="1.42.0",
-                channel="stable",
-                released_at=datetime(2026, 3, 9),
                 title="Full Scanner Coverage — All 18 Modules Wired",
-                body="""
+                content="""
                 <h3>🚀 New Features</h3>
                 <ul>
                     <li><strong>18 Scanner Modules — Full UI Integration</strong> — All previously backend-only modules now have result cards in the target detail view: Open Redirect, TLS Deep Scan, Service Fingerprinting, ASN/IP Ranges, Login &amp; Auth Surface, IPv6 Attack Surface, DNS History, Phishing Detection, CT Log Monitor, Email Harvesting, Dependency Confusion, GraphQL Security, WebSocket Security, Password Spray Surface, Leaked Credentials, API Security (OWASP API Top 10), Mobile App Discovery, WAF/CDN Detection</li>
@@ -25389,6 +25387,7 @@ def seed_changelog():
                 """,
             )
             session.add(entry_1420)
+
 
         session.commit()
         print("Changelog seeded successfully.")
