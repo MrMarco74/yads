@@ -89,13 +89,90 @@ def calculate_target_score(target: Any, latest_results: Dict[str, Any]) -> Tuple
         if isinstance(data, str):
             try: data = json.loads(data)
             except: data = {}
-            
+
         scheme = data.get("scheme")
         if scheme == "http":
             score -= 10
             factors.append("Plain HTTP")
 
+    # 4. Leaked Credentials (critical)
+    lc_res = latest_results.get("leaked_credentials")
+    if lc_res and lc_res.data:
+        data = lc_res.data if not isinstance(lc_res.data, str) else {}
+        breaches = data.get("breach_details", [])
+        if breaches:
+            score -= min(25, len(breaches) * 8)
+            factors.append(f"Leaked Credentials ({len(breaches)} breach(es))")
+
+    # 5. Phishing listed
+    ph_res = latest_results.get("phishing_scanner")
+    if ph_res and ph_res.data:
+        data = ph_res.data if not isinstance(ph_res.data, str) else {}
+        if data.get("phishing_listed"):
+            score -= 20
+            factors.append("Domain Listed in Phishing Database")
+
+    # 6. Open Redirect
+    or_res = latest_results.get("open_redirect_scanner")
+    if or_res and or_res.data:
+        data = or_res.data if not isinstance(or_res.data, str) else {}
+        vuln = data.get("summary", {}).get("vulnerable_params", 0)
+        if vuln:
+            score -= min(15, vuln * 5)
+            factors.append(f"Open Redirect ({vuln} parameter(s))")
+
+    # 7. TLS Deep Scan — penalize by grade
+    tls_res = latest_results.get("tls_deep_scanner")
+    if tls_res and tls_res.data:
+        data = tls_res.data if not isinstance(tls_res.data, str) else {}
+        grade = data.get("summary", {}).get("grade", "A")
+        penalty = {"A+": 0, "A": 0, "B": 5, "C": 10, "D": 15, "F": 20}.get(grade, 0)
+        if penalty:
+            score -= penalty
+            factors.append(f"TLS Configuration Grade {grade}")
+
+    # 8. Dependency Confusion — supply chain risk
+    dc_res = latest_results.get("dependency_confusion")
+    if dc_res and dc_res.data:
+        data = dc_res.data if not isinstance(dc_res.data, str) else {}
+        high_findings = [f for f in data.get("findings", []) if f.get("severity") in ("critical", "high")]
+        if high_findings:
+            score -= min(20, len(high_findings) * 8)
+            factors.append(f"Dependency Confusion Risk ({len(high_findings)} package(s))")
+
+    # 9. API Security — critical/high findings
+    api_res = latest_results.get("api_security_scanner")
+    if api_res and api_res.data:
+        data = api_res.data if not isinstance(api_res.data, str) else {}
+        crit = [f for f in data.get("findings", []) if f.get("severity") == "critical"]
+        high = [f for f in data.get("findings", []) if f.get("severity") == "high"]
+        if crit:
+            score -= min(20, len(crit) * 10)
+            factors.append(f"Critical API Security Issues ({len(crit)})")
+        elif high:
+            score -= min(10, len(high) * 5)
+            factors.append(f"High API Security Issues ({len(high)})")
+
+    # 10. Generic finding modules — deduct for critical/high findings
+    _generic_penalize = {
+        "subdomain_takeover": (15, "Subdomain Takeover Risk"),
+        "waf_detector": (0, ""),  # WAF is good, no penalty
+        "graphql_scanner": (8, "GraphQL Security Issues"),
+        "websocket_scanner": (8, "WebSocket Security Issues"),
+        "password_spray_mapper": (5, "Password Spray Surface Exposed"),
+    }
+    for mod_name, (max_pen, label) in _generic_penalize.items():
+        if max_pen == 0:
+            continue
+        mod_res = latest_results.get(mod_name)
+        if mod_res and mod_res.data:
+            data = mod_res.data if not isinstance(mod_res.data, str) else {}
+            crit_high = [f for f in data.get("findings", []) if f.get("severity") in ("critical", "high")]
+            if crit_high:
+                score -= min(max_pen, len(crit_high) * 4)
+                factors.append(f"{label} ({len(crit_high)} finding(s))")
+
     # Cap score
     score = max(0, min(100, score))
-    
+
     return score, get_grade(score), factors
