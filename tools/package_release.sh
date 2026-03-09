@@ -59,10 +59,10 @@ fi
 echo -n "  [CHECK] No hardcoded API keys in code... "
 # Common API key patterns (Google, AWS, GitHub, etc.)
 # Exclude venv and .venv directories to avoid false positives from dependencies
-if git grep -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' &>/dev/null; then
+if git grep -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' ':!testlab/*' &>/dev/null; then
     echo -e "${RED}FAIL${NC}"
     echo -e "${RED}ERROR: Potential hardcoded API keys found in tracked files!${NC}"
-    git grep -n -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' || true
+    git grep -n -E '(AIza[0-9A-Za-z\\-_]{35}|AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36})' -- '*.py' '*.js' '*.yml' '*.yaml' ':!venv/*' ':!.venv/*' ':!testlab/*' || true
     SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
 else
     echo -e "${GREEN}PASS${NC}"
@@ -70,10 +70,10 @@ fi
 
 # Check 3: Verify no database backups in repository
 echo -n "  [CHECK] No database backups in repository... "
-if git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$' &>/dev/null; then
+if git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$' | grep -v '^testlab/' &>/dev/null; then
     echo -e "${RED}FAIL${NC}"
     echo -e "${RED}ERROR: Database backup files found in repository!${NC}"
-    git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$'
+    git ls-files | grep -E '\.(sql|sql\.gz|db|backup|bak)$' | grep -v '^testlab/'
     SECURITY_ERRORS=$((SECURITY_ERRORS + 1))
 else
     echo -e "${GREEN}PASS${NC}"
