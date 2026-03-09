@@ -153,6 +153,42 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.43.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.43.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & Testbarkeit</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>TestLab-Umgebung für isolierte Validierung des Scanner-Moduls hinzugefügt, einschließlich verschiedener anfälliger Dienste und Tools für umfassende Tests.</li>
+                    <li>Einen Onboarding-Assistenten implementiert, um neue Benutzer durch die Ersteinrichtung zu führen.</li>
+                    <li>Datenaufbewahrungseinstellungen eingeführt, um alte Scanergebnisse automatisch zu bereinigen.</li>
+                    <li>Kubernetes-Bereitstellungsfunktionen implementiert, einschließlich Helm-Chart, HPA-Autoscaling, Namespace-Isolation, Ingress/TLS, PVCs und GitOps/ArgoCD-Integration.</li>
+                    <li>Sprachumschalter in der Seitenleiste und TestLab-Worker-Verbindungsbuttons zur Benutzeroberfläche hinzugefügt.</li>
+                    <li>Integration mit Pentesting-Tools wie Metasploit, Nmap, Hydra, SQLMap und Burp Suite aktiviert.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Sicherheitsbewertung erweitert, um mehr Modulfaktoren wie durchgesickerte Anmeldedaten und Phishing-Einträge einzubeziehen.</li>
+                    <li>Unterstützung für 18 neue Scanner-Module in der Ziel-Detail-UI, PDF-Berichten und Excel-Exporten hinzugefügt.</li>
+                    <li>Den Release-Manager mit Image-Cache-Prüfung, Rollback-Funktionalität, Zeitablaufverfolgung, Smoke-Tests und Log-Filterung verbessert.</li>
+                    <li>Worker-Prozesse für verbesserte Organisation und Wartbarkeit refaktorisiert.</li>
+                    <li>API-Ratenbegrenzung für externe Dienste implementiert, um Missbrauch zu verhindern.</li>
+                    <li>Change Detection UX mit gelben Bannern auf Zieldetails verbessert.</li>
+                    <li>Setup-Assistent mit Fortschrittsanzeige und abschließendem Übersichtsfenster für alle Anmeldedaten und Befehle optimiert.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Probleme im Release-Manager behoben, die Abstürze aufgrund von Race Conditions, Qt-Objektlöschfehlern und HTML-Escaping verursacht haben.</li>
+                    <li>Docker-Image-Ladeprozess korrigiert, indem übermäßige Ausgabe unterdrückt und Probleme mit dem Festplattenspeicher behoben wurden.</li>
+                    <li>Seeding-Probleme behoben, indem der Changelog-Eintrag korrigiert und ein fehlender Datetime-Import hinzugefügt wurde.</li>
+                    <li>Das Verzeichnis testlab/ wurde von den Sicherheits-Pre-Flight-Prüfungen während der Release-Paketierung ausgeschlossen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: daee55bbe015a2b3deb76459d56c8d60c6cbe408ff2ca5f465262e945690b96b</p>
+            </div>
+        </div>
+
         <!-- Version 1.42.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.42.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>

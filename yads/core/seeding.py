@@ -25389,6 +25389,151 @@ def seed_changelog():
             session.add(entry_1420)
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.43.0").first():
+
+
+
+            entry_1430 = ChangelogEntry(
+
+
+
+                title="YADS v1.43.0: Enhanced Security & Testability (Beta)",
+
+
+
+                version="1.43.0",
+
+
+
+                content="""
+
+
+
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Beta Release</span>
+
+
+
+                <h3>🚀 New Features</h3>
+
+
+
+                <ul>
+
+
+
+                    <li>Added TestLab environment for isolated scanner module validation, including various vulnerable services and tools for comprehensive testing</li>
+
+
+
+                    <li>Implemented an onboarding wizard to guide new users through initial setup</li>
+
+
+
+                    <li>Introduced data retention settings to automatically prune old scan results</li>
+
+
+
+                    <li>Implemented Kubernetes deployment capabilities including Helm Chart, HPA autoscaling, namespace isolation, Ingress/TLS, PVCs, and GitOps/ArgoCD integration.</li>
+
+
+
+                    <li>Added sidebar language toggle and TestLab worker connection buttons to the user interface.</li>
+
+
+
+                    <li>Enabled integration with pentesting tools like Metasploit, Nmap, Hydra, SQLMap, and Burp Suite</li>
+
+
+
+                </ul>
+
+
+
+                <h3>⚡ Improvements</h3>
+
+
+
+                <ul>
+
+
+
+                    <li>Extended security scoring to include more module factors like leaked credentials and phishing listings.</li>
+
+
+
+                    <li>Added support for 18 new scanner modules in target detail UI, PDF reports, and Excel exports</li>
+
+
+
+                    <li>Enhanced the release manager with image cache check, rollback functionality, elapsed time tracking, smoke tests, and log filtering</li>
+
+
+
+                    <li>Refactored worker processes for improved organization and maintainability</li>
+
+
+
+                    <li>Implemented API rate limiting for external services to prevent abuse</li>
+
+
+
+                    <li>Improved Change Detection UX with amber banners on target details</li>
+
+
+
+                    <li>Streamlined setup wizard with a progress indicator and a final summary screen for all credentials and commands.</li>
+
+
+
+                </ul>
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+                <ul>
+
+
+
+                    <li>Fixed issues in release manager that caused crashes due to race conditions, Qt object deletion errors, and HTML escaping</li>
+
+
+
+                    <li>Corrected docker image loading process by suppressing excessive output and addressing disk space issues.</li>
+
+
+
+                    <li>Resolved seeding issues by fixing the changelog entry and adding a missing datetime import</li>
+
+
+
+                    <li>Excluded the testlab/ directory from security pre-flight checks during release packaging.</li>
+
+
+
+                </ul>
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: daee55bbe015a2b3deb76459d56c8d60c6cbe408ff2ca5f465262e945690b96b</p>
+
+
+
+                """
+
+
+
+            )
+
+
+
+            session.add(entry_1430)
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
