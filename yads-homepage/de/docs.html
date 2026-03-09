@@ -137,6 +137,12 @@
 <li><a href="#24-einrichtungsassistent">24. Einrichtungsassistent</a></li>
 <li><a href="#25-datenspeicherung">25. Datenspeicherung</a></li>
 <li><a href="#26-excel-export">26. Excel-Export</a></li>
+<li><a href="#27-angriffspfad-visualisierer">27. Angriffspfad-Visualisierer</a></li>
+<li><a href="#28-scan-vergleich">28. Scan-Vergleich</a></li>
+<li><a href="#29-waf-analyse">29. WAF-Analyse</a></li>
+<li><a href="#30-scanner-import">30. Scanner-Import</a></li>
+<li><a href="#31-integrationen">31. Integrationen (Jira / GitHub / SIEM / Webhook)</a></li>
+<li><a href="#32-erweitertes-scanner-modul-referenz">32. Erweitertes Scanner-Modul-Referenz</a></li>
 
             </ul>
         </aside>
@@ -1227,7 +1233,164 @@ OIDC_PUBLIC_URL=https://keycloak.your-domain.com</code></pre>
 <pre><code>GET /targets/{id}/export/excel?lang=de</code></pre>
 
 <hr />
-<p><em>Verifiziert für YADS v1.41.0</em></p>
+
+<h2 id="27-angriffspfad-visualisierer">27. Angriffspfad-Visualisierer</h2>
+<p>Der <strong>Angriffspfad-Visualisierer</strong> (Intelligence → Angriffspfade) erzeugt einen gerichteten Graphen, der exponierte Dienste, Fehlkonfigurationen und bekannte Schwachstellen zu plausiblen mehrstufigen Angriffsketten verknüpft.</p>
+<h3>Funktionsweise</h3>
+<ul>
+    <li>Aggregiert Befunde aller Scanner-Module für ein Ziel.</li>
+    <li>Wendet ein Regelwerk an, das Knoten verbindet: z. B. „Offener Port 22 + schwacher SSH-Banner → Brute-Force-Einstiegspunkt → internes Pivoting".</li>
+    <li>Rendert einen interaktiven D3.js-Graphen mit schwere-farbigen Knoten (rot = kritisch, orange = hoch, gelb = mittel).</li>
+</ul>
+<h3>Bedienung</h3>
+<ol>
+    <li>Zieldetailseite öffnen und in der oberen Aktionsleiste auf <strong>Angriffspfade</strong> klicken.</li>
+    <li>Der Graph lädt automatisch. Knoten hovern für Detailansicht; klicken zum Fixieren und Kantenbeschriftungen anzeigen.</li>
+    <li>Mit <strong>SVG exportieren</strong> lässt sich der Graph in Berichte oder Präsentationen einbetten.</li>
+</ol>
+<h3>Score-Auswirkung</h3>
+<p>Ketten mit 3+ Hops und einem kritischen Einstiegsknoten erzeugen einen <code>-10</code>-Abzug im Gesamtscore (Faktor: „Mehrstufiger Angriffspfad erkannt").</p>
+
+<hr />
+
+<h2 id="28-scan-vergleich">28. Scan-Vergleich</h2>
+<p>Der Scan-Vergleich ermöglicht es, zwei historische Scan-Ergebnisse desselben Ziels zu vergleichen, um genau zu ermitteln, was sich zwischen den Läufen geändert hat.</p>
+<h3>Vergleich aufrufen</h3>
+<ol>
+    <li>Zu <strong>Ziel → Änderungshistorie</strong> navigieren.</li>
+    <li>Zwei Scan-Ergebniseinträge anwählen (Checkboxen) und <strong>Vergleichen</strong> klicken.</li>
+    <li>Eine Side-by-side-Diff-Ansicht markiert hinzugefügte/entfernte/geänderte Felder pro Modul.</li>
+</ol>
+<h3>Was verglichen wird</h3>
+<ul>
+    <li>Alle strukturierten Modul-Datenfelder (DNS-Einträge, offene Ports, Header, TLS-Grade, Score usw.).</li>
+    <li>Neue Befunde im neueren Scan sind grün hervorgehoben.</li>
+    <li>Behobene Befunde (im alten vorhanden, im neuen nicht) erscheinen rot durchgestrichen.</li>
+</ul>
+<h3>Export</h3>
+<p><strong>Diff-PDF exportieren</strong> erzeugt einen Vergleichsbericht für Kunden oder Compliance-Nachweise.</p>
+
+<hr />
+
+<h2 id="29-waf-analyse">29. WAF-Analyse</h2>
+<p>Das <strong>WAF-Detector</strong>-Modul prüft, ob ein Ziel durch eine Web Application Firewall geschützt ist, identifiziert den Hersteller und bewertet das Bypass-Risiko.</p>
+<h3>Erkennungsmethoden</h3>
+<ul>
+    <li>HTTP-Antwort-Header-Fingerprinting (Server, X-Sucuri-ID, X-Powered-By, cf-ray usw.).</li>
+    <li>Cookie-Namen-Analyse (z. B. <code>__cfduid</code>, <code>TS01...</code>, <code>incap_ses_</code>).</li>
+    <li>Response-Code-Verhalten unter gezielten Payloads (SQLi-, XSS-Sonden).</li>
+</ul>
+<h3>Ergebnisfelder</h3>
+<ul>
+    <li><strong>WAF erkannt</strong>: Ja/Nein.</li>
+    <li><strong>Hersteller</strong>: Erkanntes Produkt (Cloudflare, Sucuri, Imperva, AWS WAF, F5 BIG-IP, Barracuda, …).</li>
+    <li><strong>Konfidenz</strong>: Niedrig / Mittel / Hoch — abhängig von der Anzahl übereinstimmender Signale.</li>
+    <li><strong>Bypass-Risiko</strong>: Ob generische Bypass-Techniken die erkannte WAF umgehen können.</li>
+</ul>
+<h3>Score-Auswirkung</h3>
+<p>Keine WAF bei extern erreichbaren Webdiensten: <code>-5</code> Abzug. WAF mit hoher Konfidenz erkannt: <code>+5</code> Bonus.</p>
+
+<hr />
+
+<h2 id="30-scanner-import">30. Scanner-Import</h2>
+<p>YADS kann externe Scan-Ergebnisse gängiger Tools über die <strong>Scanner-Import</strong>-Funktion (Einstellungen → Scanner-Import) einlesen und so eine einheitliche Ansicht aller Befunde ermöglichen.</p>
+<h3>Unterstützte Formate</h3>
+<ul>
+    <li><strong>Nmap XML</strong> (<code>-oX</code>) — Port-Zustände, Dienst-Versionen, OS-Erkennungen.</li>
+    <li><strong>Nuclei JSONL</strong> — Template-IDs, Schweregrad, Matched-At-URLs.</li>
+    <li><strong>Burp Suite XML</strong> — Issue-Liste mit Schweregrad und Konfidenz.</li>
+    <li><strong>OWASP ZAP JSON</strong> — Alert-Liste.</li>
+    <li><strong>Generic CSV</strong> — konfigurierbare Spalten-Zuordnung.</li>
+</ul>
+<h3>Import-Prozess</h3>
+<ol>
+    <li>Zu <strong>Einstellungen → Scanner-Import</strong> navigieren.</li>
+    <li>Ziel aus dem Dropdown auswählen.</li>
+    <li>Dateiformat wählen und Ergebnisdatei hochladen.</li>
+    <li>YADS normalisiert die Befunde in das Standard-<code>ScanResult</code>-Schema und erstellt <code>ChangeEvent</code>-Einträge für neue Befunde.</li>
+    <li>Importierte Ergebnisse erscheinen in der Befunde-Übersicht des Ziels und fließen in die Score-Berechnung ein.</li>
+</ol>
+
+<hr />
+
+<h2 id="31-integrationen">31. Integrationen (Jira / GitHub / SIEM / Webhook)</h2>
+<p>YADS bietet erstklassige Integrationen mit Issue-Trackern, Code-Repositories und SIEM-Plattformen über ein einheitliches Webhook- und API-System.</p>
+
+<h3>Webhook-System</h3>
+<p>Webhooks werden unter <strong>Einstellungen → Webhooks</strong> konfiguriert. Jeder Webhook wird bei einem oder mehreren Ereignissen ausgelöst:</p>
+<ul>
+    <li><code>scan_finished</code> — nach jedem Scan-Durchlauf (Payload enthält Score-Delta).</li>
+    <li><code>finding_new</code> — wenn ein neuer Befund erkannt wird (Schweregrad-Filter verfügbar).</li>
+    <li><code>finding_resolved</code> — wenn ein bisher offener Befund verschwindet.</li>
+    <li><code>score_drop</code> — wenn der Sicherheits-Score um ≥ 10 Punkte fällt.</li>
+    <li><code>target_archived</code> — wenn eine tote Domain archiviert wird.</li>
+</ul>
+
+<h3>Jira-Integration</h3>
+<ul>
+    <li>Jira-URL, Projektschlüssel und API-Token unter <strong>Einstellungen → Integrationen → Jira</strong> konfigurieren.</li>
+    <li>Neue kritische/hohe Befunde erstellen automatisch Jira-Issues mit vorausgefüllter Zusammenfassung, Beschreibung und Schweregrad-Label.</li>
+    <li>Status-Synchronisation: Wenn YADS einen Befund als behoben markiert, wechselt das Jira-Issue zu „Erledigt".</li>
+</ul>
+
+<h3>GitHub-Integration</h3>
+<ul>
+    <li>GitHub-Repository über Personal Access Token unter <strong>Einstellungen → Integrationen → GitHub</strong> verbinden.</li>
+    <li>Neue Befunde öffnen GitHub-Issues mit passenden Labels (<code>security</code>, <code>high</code> usw.).</li>
+    <li>Unterstützt github.com und GitHub Enterprise Server.</li>
+</ul>
+
+<h3>SIEM / Splunk</h3>
+<ul>
+    <li>Splunk HTTP Event Collector (HEC) URL und Token unter <strong>Einstellungen → Integrationen → Splunk</strong> konfigurieren.</li>
+    <li>Alle Scan-Ergebnisse und Befund-Ereignisse werden als strukturiertes JSON an den HEC-Endpunkt weitergeleitet.</li>
+    <li>Generische Syslog-Weiterleitung ist für andere SIEM-Plattformen verfügbar.</li>
+</ul>
+
+<h3>Slack / Microsoft Teams</h3>
+<ul>
+    <li>Incoming-Webhook-URL unter <strong>Einstellungen → Benachrichtigungen</strong> eintragen.</li>
+    <li>Ereignistypen und minimalen Schweregrad-Schwellenwert wählen.</li>
+    <li>Benachrichtigungen werden als Rich-Card-Nachrichten mit Score, Befund-Anzahl und direktem Ziel-Link gesendet.</li>
+</ul>
+
+<hr />
+
+<h2 id="32-erweitertes-scanner-modul-referenz">32. Erweitertes Scanner-Modul-Referenz</h2>
+<p>Die folgenden Module wurden in v1.42.0 hinzugefügt und ergänzen die in Abschnitt 6 beschriebene Kern-Scanner-Suite.</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+<thead>
+<tr style="background:#1e3a5f;color:#7dd3fc;">
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">Modul</th>
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">Was erkannt wird</th>
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">Score-Auswirkung</th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Open Redirect Detection</strong></td><td style="padding:8px;border:1px solid #334155;">URL-Parameter, die auf beliebige externe Domains umleiten</td><td style="padding:8px;border:1px solid #334155;">−15 max</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>TLS Deep Scan</strong></td><td style="padding:8px;border:1px solid #334155;">Unterstützte Cipher Suites, Protokollversionen, HSTS-Erzwingung, Grade (A–F)</td><td style="padding:8px;border:1px solid #334155;">B=−5, C=−10, D=−15, F=−20</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Service Fingerprinting</strong></td><td style="padding:8px;border:1px solid #334155;">TCP/UDP-Banner-Grabbing für 50+ gängige Service-Ports</td><td style="padding:8px;border:1px solid #334155;">Befund-basiert</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>ASN / IP-Bereiche</strong></td><td style="padding:8px;border:1px solid #334155;">Autonome Systemnummer, CIDR-Blöcke, Hosting-Anbieter, Geolokalisierung</td><td style="padding:8px;border:1px solid #334155;">Informativ</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Login &amp; Auth Surface</strong></td><td style="padding:8px;border:1px solid #334155;">Erkannte Login-Endpunkte, Auth-Mechanismen, exponierte Admin-Panels</td><td style="padding:8px;border:1px solid #334155;">Befund-basiert</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>IPv6-Angriffsfläche</strong></td><td style="padding:8px;border:1px solid #334155;">IPv6-Adressen, offene Ports, WAF-Bypass-Potenzial via IPv6</td><td style="padding:8px;border:1px solid #334155;">Befund-basiert</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>DNS-Historie</strong></td><td style="padding:8px;border:1px solid #334155;">Historische DNS-Einträge via Passive-DNS, IP-Pivot-Fläche</td><td style="padding:8px;border:1px solid #334155;">Informativ</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Phishing-Erkennung</strong></td><td style="padding:8px;border:1px solid #334155;">Domain-Präsenz in Google Safe Browsing, PhishTank, OpenPhish</td><td style="padding:8px;border:1px solid #334155;">−20 wenn gelistet</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>CT Log Monitor</strong></td><td style="padding:8px;border:1px solid #334155;">Echtzeit-Certificate-Transparency-Log-Streaming für neue Zertifikatsausstellungen</td><td style="padding:8px;border:1px solid #334155;">Informativ</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>E-Mail-Harvesting</strong></td><td style="padding:8px;border:1px solid #334155;">Über Webseiten, Metadaten und OSINT-Quellen exponierte E-Mail-Adressen</td><td style="padding:8px;border:1px solid #334155;">Befund-basiert</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Dependency Confusion</strong></td><td style="padding:8px;border:1px solid #334155;">Interne Paketnamen, die über öffentliche Registries auflösbar sind (npm, PyPI, RubyGems)</td><td style="padding:8px;border:1px solid #334155;">−20 max (kritisch/hoch)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>GraphQL Security</strong></td><td style="padding:8px;border:1px solid #334155;">Introspection aktiv, Feld-Vorschläge, Batching, DoS-Vektoren</td><td style="padding:8px;border:1px solid #334155;">−4 pro kritisch/hoch</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>WebSocket Security</strong></td><td style="padding:8px;border:1px solid #334155;">ws:// vs wss://, Origin-Validierung, Authentifizierung beim Upgrade</td><td style="padding:8px;border:1px solid #334155;">−4 pro kritisch/hoch</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Password Spray Surface</strong></td><td style="padding:8px;border:1px solid #334155;">Aufzählbare Auth-Endpunkte, anfällig für Credential-Stuffing</td><td style="padding:8px;border:1px solid #334155;">−4 pro kritisch/hoch</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Leaked Credentials</strong></td><td style="padding:8px;border:1px solid #334155;">Domänen-bezogene E-Mail-/Passwort-Paare in öffentlichen Breach-Datensätzen (HIBP)</td><td style="padding:8px;border:1px solid #334155;">−25 max (8 Pkt./Breach)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>API Security Scanner</strong></td><td style="padding:8px;border:1px solid #334155;">Unauthentifizierte API-Endpunkte, excessive Data Exposure, Mass Assignment</td><td style="padding:8px;border:1px solid #334155;">−20 max (kritisch), −10 max (hoch)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Mobile App Discovery</strong></td><td style="padding:8px;border:1px solid #334155;">Zugehörige iOS/Android-Apps via App-Store-Lookup und Deep-Link-Probing</td><td style="padding:8px;border:1px solid #334155;">Informativ</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>WAF Detector</strong></td><td style="padding:8px;border:1px solid #334155;">WAF-Hersteller-Erkennung über Header-/Cookie-/Response-Fingerprinting</td><td style="padding:8px;border:1px solid #334155;">−5 wenn fehlt, +5 bei hoher Konfidenz</td></tr>
+</tbody>
+</table>
+<p style="margin-top:1rem;">Alle Module können pro Scan-Durchlauf oder über <a href="#23-scan-profile">Scan-Profile</a> einzeln aktiviert/deaktiviert werden. Ergebnisse aller Module werden in der <strong>Sicherheitsbefunde</strong>-Ansicht aggregiert und in PDF-/Excel-Exporte einbezogen.</p>
+
+<hr />
+<p><em>Verifiziert für YADS v1.42.0</em></p>
         </main>
     </div>
     

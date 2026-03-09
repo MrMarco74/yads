@@ -136,6 +136,12 @@
 <li><a href="#24-onboarding-wizard">24. Onboarding Wizard</a></li>
 <li><a href="#25-data-retention">25. Data Retention</a></li>
 <li><a href="#26-excel-export">26. Excel Export</a></li>
+<li><a href="#27-attack-path-visualizer">27. Attack Path Visualizer</a></li>
+<li><a href="#28-scan-comparison">28. Scan Comparison</a></li>
+<li><a href="#29-waf-analysis">29. WAF Analysis</a></li>
+<li><a href="#30-scanner-import">30. Scanner Import</a></li>
+<li><a href="#31-integrations">31. Integrations (Jira / GitHub / SIEM / Webhook)</a></li>
+<li><a href="#32-extended-scanner-reference">32. Extended Scanner Module Reference</a></li>
 
             </ul>
         </aside>
@@ -1235,7 +1241,164 @@ OIDC_PUBLIC_URL=https://keycloak.your-domain.com</code></pre>
 <pre><code>GET /targets/{id}/export/excel?lang=de</code></pre>
 
 <hr />
-<p><em>Verified for YADS v1.41.0</em></p>
+
+<h2 id="27-attack-path-visualizer">27. Attack Path Visualizer</h2>
+<p>The <strong>Attack Path Visualizer</strong> (Intelligence → Attack Paths) generates a directed graph that links exposed services, misconfigurations, and known vulnerabilities into plausible multi-step attack chains.</p>
+<h3>How it Works</h3>
+<ul>
+    <li>Aggregates findings from all scanner modules for a target.</li>
+    <li>Applies a ruleset to connect nodes: e.g., "Open port 22 + weak SSH banner → Brute-force entry point → Internal pivot".</li>
+    <li>Renders an interactive D3.js graph with severity-coloured nodes (red = critical, orange = high, yellow = medium).</li>
+</ul>
+<h3>Using the Visualizer</h3>
+<ol>
+    <li>Open a target detail page and click <strong>Attack Paths</strong> in the top action bar.</li>
+    <li>The graph loads automatically. Hover a node to see the finding detail. Click to pin and inspect the edge labels.</li>
+    <li>Use the <strong>Export SVG</strong> button to embed the graph in reports or presentations.</li>
+</ol>
+<h3>Risk Score Integration</h3>
+<p>Chains with 3+ hops and a critical entry node add a <code>-10</code> penalty to the overall security score, surfaced as the <em>"Multi-hop attack path detected"</em> factor.</p>
+
+<hr />
+
+<h2 id="28-scan-comparison">28. Scan Comparison</h2>
+<p>Scan Comparison lets you diff two historical scan results for the same target to pinpoint exactly what changed between runs.</p>
+<h3>Accessing Comparison</h3>
+<ol>
+    <li>Go to <strong>Target → Change History</strong>.</li>
+    <li>Select two scan result entries (checkboxes) and click <strong>Compare</strong>.</li>
+    <li>A side-by-side diff view highlights added/removed/changed fields per module.</li>
+</ol>
+<h3>What is Compared</h3>
+<ul>
+    <li>All structured module data fields (DNS records, open ports, headers, TLS grade, score, etc.).</li>
+    <li>New findings present in the newer scan but absent in the older one are highlighted in green.</li>
+    <li>Resolved findings (present in old, absent in new) are highlighted in red with a strikethrough.</li>
+</ul>
+<h3>Export</h3>
+<p>Use <strong>Export Diff PDF</strong> to generate a comparison report suitable for customer delivery or compliance evidence.</p>
+
+<hr />
+
+<h2 id="29-waf-analysis">29. WAF Analysis</h2>
+<p>The <strong>WAF Detector</strong> module probes whether a target is protected by a Web Application Firewall, identifies the vendor, and evaluates bypass exposure.</p>
+<h3>Detection Methods</h3>
+<ul>
+    <li>HTTP response header fingerprinting (Server, X-Sucuri-ID, X-Powered-By, cf-ray, etc.).</li>
+    <li>Cookie name analysis (e.g., <code>__cfduid</code>, <code>TS01...</code>, <code>incap_ses_</code>).</li>
+    <li>Response-code behaviour under crafted payloads (SQLi, XSS probes).</li>
+</ul>
+<h3>Result Fields</h3>
+<ul>
+    <li><strong>WAF Detected</strong>: Boolean — yes/no.</li>
+    <li><strong>Vendor</strong>: Detected product name (Cloudflare, Sucuri, Imperva, AWS WAF, F5 BIG-IP, Barracuda, …).</li>
+    <li><strong>Confidence</strong>: Low / Medium / High — based on number of matching signals.</li>
+    <li><strong>Bypass Risk</strong>: Whether generic bypass techniques may evade the detected WAF.</li>
+</ul>
+<h3>Score Impact</h3>
+<p>No WAF detected on a domain with externally reachable web services: <code>-5</code> penalty. WAF detected at High confidence: <code>+5</code> bonus.</p>
+
+<hr />
+
+<h2 id="30-scanner-import">30. Scanner Import</h2>
+<p>YADS can ingest external scan results from popular tools via the <strong>Scanner Import</strong> feature (Settings → Scanner Import), eliminating double scanning and enabling a single pane of glass.</p>
+<h3>Supported Formats</h3>
+<ul>
+    <li><strong>Nmap XML</strong> (<code>-oX</code>) — port states, service versions, OS guesses.</li>
+    <li><strong>Nuclei JSONL</strong> — template IDs, severity, matched-at URLs.</li>
+    <li><strong>Burp Suite XML</strong> — issue list with severity and confidence.</li>
+    <li><strong>OWASP ZAP JSON</strong> — alert list.</li>
+    <li><strong>Generic CSV</strong> — configurable column mapping.</li>
+</ul>
+<h3>Import Process</h3>
+<ol>
+    <li>Navigate to <strong>Settings → Scanner Import</strong>.</li>
+    <li>Select the target from the dropdown.</li>
+    <li>Choose the file format and upload the result file.</li>
+    <li>YADS normalises findings into the standard <code>ScanResult</code> schema and creates <code>ChangeEvent</code> records for any new findings.</li>
+    <li>Imported results appear in the target's Finding Overview and are included in score calculation.</li>
+</ol>
+
+<hr />
+
+<h2 id="31-integrations">31. Integrations (Jira / GitHub / SIEM / Webhook)</h2>
+<p>YADS provides first-class integrations with issue trackers, code repositories, and SIEM platforms via a unified webhook and API system.</p>
+
+<h3>Webhook System</h3>
+<p>Configure webhooks at <strong>Settings → Webhooks</strong>. Each webhook fires on one or more events:</p>
+<ul>
+    <li><code>scan_finished</code> — after every scan run (payload includes score delta).</li>
+    <li><code>finding_new</code> — when a new finding is detected (severity filter available).</li>
+    <li><code>finding_resolved</code> — when a previously open finding disappears.</li>
+    <li><code>score_drop</code> — when the security score falls by ≥ 10 points.</li>
+    <li><code>target_archived</code> — when a dead domain is archived.</li>
+</ul>
+
+<h3>Jira Integration</h3>
+<ul>
+    <li>Configure the Jira base URL, project key, and API token in <strong>Settings → Integrations → Jira</strong>.</li>
+    <li>New critical/high findings automatically create Jira issues with pre-filled summary, description, and severity label.</li>
+    <li>Issue state is synced: when YADS marks a finding resolved, the Jira issue moves to "Done".</li>
+</ul>
+
+<h3>GitHub Integration</h3>
+<ul>
+    <li>Connect a GitHub repository via personal access token in <strong>Settings → Integrations → GitHub</strong>.</li>
+    <li>New findings open GitHub Issues with appropriate labels (<code>security</code>, <code>high</code>, etc.).</li>
+    <li>Supports both github.com and GitHub Enterprise Server.</li>
+</ul>
+
+<h3>SIEM / Splunk</h3>
+<ul>
+    <li>Configure Splunk HTTP Event Collector (HEC) URL and token in <strong>Settings → Integrations → Splunk</strong>.</li>
+    <li>Every scan result and finding event is forwarded as structured JSON to the configured HEC endpoint.</li>
+    <li>Generic syslog forwarding is also available for other SIEM platforms.</li>
+</ul>
+
+<h3>Slack / Microsoft Teams</h3>
+<ul>
+    <li>Enter an Incoming Webhook URL in <strong>Settings → Notifications</strong>.</li>
+    <li>Select event types and a minimum severity threshold.</li>
+    <li>Notifications are sent as rich card messages with score, finding count, and a direct link to the target.</li>
+</ul>
+
+<hr />
+
+<h2 id="32-extended-scanner-reference">32. Extended Scanner Module Reference</h2>
+<p>The following modules were added in v1.42.0 and complement the core scanner suite described in Section 6.</p>
+<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+<thead>
+<tr style="background:#1e3a5f;color:#7dd3fc;">
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">Module</th>
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">What it Detects</th>
+    <th style="padding:8px;border:1px solid #334155;text-align:left;">Score Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Open Redirect Detection</strong></td><td style="padding:8px;border:1px solid #334155;">URL parameters that redirect to arbitrary external domains</td><td style="padding:8px;border:1px solid #334155;">−15 max</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>TLS Deep Scan</strong></td><td style="padding:8px;border:1px solid #334155;">Supported cipher suites, protocol versions, HSTS enforcement, grade (A–F)</td><td style="padding:8px;border:1px solid #334155;">B=−5, C=−10, D=−15, F=−20</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Service Fingerprinting</strong></td><td style="padding:8px;border:1px solid #334155;">TCP/UDP banner grabbing for 50+ common service ports</td><td style="padding:8px;border:1px solid #334155;">Finding-based</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>ASN / IP Ranges</strong></td><td style="padding:8px;border:1px solid #334155;">Autonomous System Number, CIDR blocks, hosting provider, geolocation</td><td style="padding:8px;border:1px solid #334155;">Informational</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Login &amp; Auth Surface</strong></td><td style="padding:8px;border:1px solid #334155;">Discovered login endpoints, auth mechanisms, exposed admin panels</td><td style="padding:8px;border:1px solid #334155;">Finding-based</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>IPv6 Attack Surface</strong></td><td style="padding:8px;border:1px solid #334155;">IPv6 addresses, open ports, WAF bypass potential via IPv6</td><td style="padding:8px;border:1px solid #334155;">Finding-based</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>DNS History</strong></td><td style="padding:8px;border:1px solid #334155;">Historical DNS records via passive DNS, IP pivoting surface</td><td style="padding:8px;border:1px solid #334155;">Informational</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Phishing Detection</strong></td><td style="padding:8px;border:1px solid #334155;">Domain presence in Google Safe Browsing, PhishTank, OpenPhish</td><td style="padding:8px;border:1px solid #334155;">−20 if listed</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>CT Log Monitor</strong></td><td style="padding:8px;border:1px solid #334155;">Real-time Certificate Transparency log streaming for new cert issuances</td><td style="padding:8px;border:1px solid #334155;">Informational</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Email Harvesting</strong></td><td style="padding:8px;border:1px solid #334155;">Email addresses exposed via web pages, metadata, and OSINT sources</td><td style="padding:8px;border:1px solid #334155;">Finding-based</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Dependency Confusion</strong></td><td style="padding:8px;border:1px solid #334155;">Internal package names resolvable via public registries (npm, PyPI, RubyGems)</td><td style="padding:8px;border:1px solid #334155;">−20 max (crit/high)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>GraphQL Security</strong></td><td style="padding:8px;border:1px solid #334155;">Introspection enabled, field suggestions, batching, DoS vectors</td><td style="padding:8px;border:1px solid #334155;">−4 per crit/high</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>WebSocket Security</strong></td><td style="padding:8px;border:1px solid #334155;">ws:// vs wss://, origin validation, authentication on upgrade</td><td style="padding:8px;border:1px solid #334155;">−4 per crit/high</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Password Spray Surface</strong></td><td style="padding:8px;border:1px solid #334155;">Enumerable auth endpoints susceptible to credential stuffing</td><td style="padding:8px;border:1px solid #334155;">−4 per crit/high</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Leaked Credentials</strong></td><td style="padding:8px;border:1px solid #334155;">Domain-related email/password pairs in public breach datasets (HIBP)</td><td style="padding:8px;border:1px solid #334155;">−25 max (8 pts/breach)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>API Security Scanner</strong></td><td style="padding:8px;border:1px solid #334155;">Unauthenticated API endpoints, excessive data exposure, mass assignment</td><td style="padding:8px;border:1px solid #334155;">−20 max (crit), −10 max (high)</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>Mobile App Discovery</strong></td><td style="padding:8px;border:1px solid #334155;">Associated iOS/Android apps via app store lookups and deep link probing</td><td style="padding:8px;border:1px solid #334155;">Informational</td></tr>
+<tr><td style="padding:8px;border:1px solid #334155;"><strong>WAF Detector</strong></td><td style="padding:8px;border:1px solid #334155;">WAF vendor identification via header/cookie/response fingerprinting</td><td style="padding:8px;border:1px solid #334155;">−5 if absent, +5 if high-confidence WAF</td></tr>
+</tbody>
+</table>
+<p style="margin-top:1rem;">All modules can be individually enabled or disabled per scan run or via <a href="#23-scan-profiles">Scan Profiles</a>. Results from all modules are aggregated in the <strong>Security Findings</strong> view and included in PDF/Excel exports.</p>
+
+<hr />
+<p><em>Verified for YADS v1.42.0</em></p>
         </main>
     </div>
     
