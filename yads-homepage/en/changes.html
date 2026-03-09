@@ -152,6 +152,28 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.42.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.42.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Full Scanner Coverage — All 18 Modules Wired</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>18 Scanner Modules — Full UI Integration</strong> — All previously backend-only modules now have result cards in the target detail view: Open Redirect, TLS Deep Scan, Service Fingerprinting, ASN/IP Ranges, Login &amp; Auth Surface, IPv6 Attack Surface, DNS History, Phishing Detection, CT Log Monitor, Email Harvesting, Dependency Confusion, GraphQL Security, WebSocket Security, Password Spray Surface, Leaked Credentials, API Security (OWASP API Top 10), Mobile App Discovery, WAF/CDN Detection</li>
+                    <li><strong>Excel Export Extended</strong> — All 18 new modules produce dedicated sheets in the per-target XLSX export with EN/DE labels</li>
+                    <li><strong>PDF Report Extended</strong> — All 18 new modules have dedicated chapters in the per-target PDF with key metrics and top findings</li>
+                    <li><strong>Enhanced Security Score</strong> — Score now factors in: leaked credentials, phishing listing, open redirect vulnerabilities, TLS grade, dependency confusion, API security findings, and module severity</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Security Findings aggregation automatically includes all new modules via the module registry</li>
+                    <li>Module Reports generic view covers all new modules at <code>/reports/module/{name}</code></li>
+                    <li>i18n keys added for all 18 new scan module labels (EN + DE)</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.41.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.41.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>

@@ -25365,6 +25365,30 @@ def seed_changelog():
             )
             session.add(entry_1410)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.42.0").first():
+            entry_1420 = ChangelogEntry(
+                version="1.42.0",
+                channel="stable",
+                released_at=datetime(2026, 3, 9),
+                title="Full Scanner Coverage — All 18 Modules Wired",
+                body="""
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>18 Scanner Modules — Full UI Integration</strong> — All previously backend-only modules now have result cards in the target detail view: Open Redirect, TLS Deep Scan, Service Fingerprinting, ASN/IP Ranges, Login &amp; Auth Surface, IPv6 Attack Surface, DNS History, Phishing Detection, CT Log Monitor, Email Harvesting, Dependency Confusion, GraphQL Security, WebSocket Security, Password Spray Surface, Leaked Credentials, API Security (OWASP API Top 10), Mobile App Discovery, WAF/CDN Detection</li>
+                    <li><strong>Excel Export Extended</strong> — All 18 new modules now produce dedicated sheets in the per-target XLSX export (EN/DE labels)</li>
+                    <li><strong>PDF Report Extended</strong> — All 18 new modules have dedicated chapters in the per-target PDF with key metrics and findings</li>
+                    <li><strong>Enhanced Security Score</strong> — Score now factors in: leaked credentials, phishing listing, open redirect vulnerabilities, TLS grade, dependency confusion, API security findings, and generic finding module severity</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Security Findings aggregation automatically includes all new <code>finding_module=True</code> modules via the module registry</li>
+                    <li>Module Reports generic view covers all new modules at <code>/reports/module/{name}</code></li>
+                    <li>i18n keys added for all 18 new scan module labels (EN + DE)</li>
+                </ul>
+                """,
+            )
+            session.add(entry_1420)
+
         session.commit()
         print("Changelog seeded successfully.")
 
