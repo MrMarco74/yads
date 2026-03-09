@@ -894,6 +894,8 @@ class ProdDeployPage(QWidget):
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.signals.progress_update.connect(self._on_progress)
+        # Clean up only after the thread has fully finished to avoid SIGABRT
+        self._active_worker.finished.connect(self._on_thread_finished)
         self._active_worker.start()
 
     def _on_progress(self, current: int, total: int, description: str):
@@ -923,14 +925,22 @@ class ProdDeployPage(QWidget):
         self.cancel_btn.setEnabled(False)
         self.progress_bar.setVisible(False)
         self.progress_label.setText("Complete" if success else "Failed")
+        self._deploy_success = success
+        self._deploy_message = message
 
         if success:
-            InfoBar.success("Deployment Complete", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
             self._log(message, "success")
         else:
-            InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
             self._log(message, "error")
 
+    def _on_thread_finished(self):
+        """Called after QThread.run() returns — safe to delete worker now."""
+        success = getattr(self, '_deploy_success', False)
+        message = getattr(self, '_deploy_message', "")
+        if success:
+            InfoBar.success("Deployment Complete", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
+        elif message:
+            InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
         if hasattr(self, '_active_worker') and self._active_worker:
             self._active_worker.deleteLater()
             self._active_worker = None
