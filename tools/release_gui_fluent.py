@@ -564,6 +564,56 @@ class ProdDeployWorker(QThread):
         finally:
             self.current_process = None
 
+    def _check_image_cache(self) -> bool:
+        """
+        Return True if the local yads:latest image is up-to-date
+        (image exists AND git working tree is clean AND git HEAD matches
+        the YADS_GIT_SHA label in the image).
+        """
+        try:
+            # Check if image exists
+            r = subprocess.run(
+                ["docker", "image", "inspect", "--format", "{{.Id}}", "yads:latest"],
+                capture_output=True, text=True
+            )
+            if r.returncode != 0:
+                self._log("Image cache: no local image found — will build fresh.", "info")
+                return False
+
+            # Get git SHA from image label
+            img_sha_r = subprocess.run(
+                ["docker", "image", "inspect", "--format",
+                 "{{index .Config.Labels \"YADS_GIT_SHA\"}}", "yads:latest"],
+                capture_output=True, text=True
+            )
+            img_sha = img_sha_r.stdout.strip()
+
+            # Get current git HEAD SHA
+            git_sha_r = subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                cwd=str(self.project_root)
+            )
+            git_sha = git_sha_r.stdout.strip()
+
+            # Check if working tree is dirty
+            dirty_r = subprocess.run(
+                ["git", "status", "--porcelain"], capture_output=True, text=True,
+                cwd=str(self.project_root)
+            )
+            dirty = bool(dirty_r.stdout.strip())
+
+            if dirty:
+                self._log("Image cache: working tree has uncommitted changes — rebuilding.", "info")
+                return False
+            if img_sha and git_sha and img_sha == git_sha:
+                self._log(f"Image cache: image matches HEAD {git_sha[:8]} — skipping build.", "success")
+                return True
+            self._log(f"Image cache: SHA mismatch (image={img_sha[:8] if img_sha else 'none'}, HEAD={git_sha[:8]}) — rebuilding.", "info")
+            return False
+        except Exception as e:
+            self._log(f"Image cache check failed: {e} — will rebuild.", "info")
+            return False
+
     def _elapsed(self, start: float) -> str:
         import time as _t
         s = int(_t.time() - start)
@@ -619,16 +669,25 @@ class ProdDeployWorker(QThread):
                 self._run_cmd(["ssh", self.remote_host, f"docker rmi {self.registry_image} {self.backup_registry_image}"])
                 self._log("Wipe complete.", "success")
 
-            # 1. Local Build
-            self._log("Cleaning up old local images before build...", "info")
-            self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
-            self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image, "yads-backup:latest", self.backup_registry_image])
-            self._run_cmd(["docker", "image", "prune", "-f"])
-            
-            self._log("Step 1/8: Building YADS Docker image locally...", "info")
-            self.signals.progress_update.emit(5, 100, "Building YADS image...")
-            if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
-                return self.signals.operation_finished.emit(False, "Build failed")
+            # 1. Local Build (with image cache check)
+            self.signals.progress_update.emit(3, 100, "Checking image cache...")
+            use_cached = False
+            if not self.wipe_reinstall:
+                use_cached = self._check_image_cache()
+
+            if use_cached:
+                self._log("Step 1/8: ⚡ Using cached local image (no source changes detected)", "success")
+                self.signals.progress_update.emit(15, 100, "Using cached image...")
+            else:
+                self._log("Cleaning up old local images before build...", "info")
+                self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
+                self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image, "yads-backup:latest", self.backup_registry_image])
+                self._run_cmd(["docker", "image", "prune", "-f"])
+
+                self._log("Step 1/8: Building YADS Docker image locally...", "info")
+                self.signals.progress_update.emit(5, 100, "Building YADS image...")
+                if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
+                    return self.signals.operation_finished.emit(False, "Build failed")
 
             self._log("Tagging image...", "info")
             if not self._run_cmd(["docker", "tag", "yads:latest", self.registry_image]):
@@ -835,6 +894,12 @@ class ProdDeployPage(QWidget):
         self.retry_btn.clicked.connect(self._on_retry)
         action_layout.addWidget(self.retry_btn)
 
+        self.rollback_btn = PushButton(FIF.HISTORY, "Rollback", self)
+        self.rollback_btn.setVisible(False)
+        self.rollback_btn.setToolTip("Roll back all services to their previous image (docker service update --rollback)")
+        self.rollback_btn.clicked.connect(self._on_rollback)
+        action_layout.addWidget(self.rollback_btn)
+
         self.ssh_status_label = BodyLabel("○ Checking SSH...", self)
         self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
         action_layout.addWidget(self.ssh_status_label)
@@ -1017,9 +1082,11 @@ class ProdDeployPage(QWidget):
         message = getattr(self, '_deploy_message', "")
         if success:
             self.retry_btn.setVisible(False)
+            self.rollback_btn.setVisible(False)
             InfoBar.success("Deployment Complete", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
         elif message:
             self.retry_btn.setVisible(True)
+            self.rollback_btn.setVisible(True)
             InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
         if hasattr(self, '_active_worker') and self._active_worker:
             self._active_worker.deleteLater()
@@ -1028,7 +1095,44 @@ class ProdDeployPage(QWidget):
     def _on_retry(self):
         """Re-run the deployment with same parameters."""
         self.retry_btn.setVisible(False)
+        self.rollback_btn.setVisible(False)
         self._start_worker(getattr(self, '_last_setup_token', None))
+
+    def _on_rollback(self):
+        """Roll back all stack services to their previous image."""
+        box = MessageBox(
+            "Confirm Rollback",
+            "Roll back all YADS services to their previous Docker image?\n\n"
+            "This runs: docker service update --rollback <service> for each service.",
+            self
+        )
+        if not box.exec():
+            return
+        self.rollback_btn.setVisible(False)
+        self._log("=== ROLLBACK INITIATED ===", "warning")
+
+        worker = getattr(self, '_active_worker', None)
+        services = getattr(worker, 'services_to_update', None) if worker else None
+        if not services:
+            # Fallback: use known service list
+            services = ["yads_yads-api", "yads_yads-worker-primary", "yads_yads-backup"]
+        remote_host = getattr(worker, 'remote_host', "root@prod.example.com") if worker else "root@prod.example.com"
+
+        import threading, subprocess as _sp
+        def run_rollback():
+            for svc in services:
+                self._log(f"Rolling back {svc}...", "info")
+                r = _sp.run(
+                    ["ssh", "-o", "ConnectTimeout=15", remote_host,
+                     f"docker service update --rollback {svc}"],
+                    capture_output=True, text=True, timeout=60
+                )
+                if r.returncode == 0:
+                    self._log(f"✅ {svc} rolled back", "success")
+                else:
+                    self._log(f"⚠️  {svc} rollback failed: {r.stderr.strip()}", "warning")
+            self._log("=== ROLLBACK COMPLETE ===", "success")
+        threading.Thread(target=run_rollback, daemon=True).start()
 
     def showEvent(self, event):
         super().showEvent(event)
