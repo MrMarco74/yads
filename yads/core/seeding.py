@@ -25320,6 +25320,51 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.41.0").first():
+            entry_1410 = ChangelogEntry(
+                title="YADS v1.41.0: Exports, Developer Portal, AI Integration & Platform Hardening",
+                version="1.41.0",
+                content="""
+                <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;">Stable Release</span>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>Excel Export</strong> — Multi-sheet XLSX export per target (20+ sheets covering all scanner modules: DNS, SSL, Web, Email, Headers, Cookies, CORS, Nuclei, Threat Intel and more).</li>
+                    <li><strong>Developer Portal</strong> — New <code>/developer</code> page with API key management (create/list/revoke), code examples (curl, Python, JavaScript), endpoint reference, and rate limit overview.</li>
+                    <li><strong>Scan Profiles</strong> — Save and reuse named scan configurations. Built-in profiles: Quick Recon, Standard Scan, Deep Security Audit, Recon Only, Threat Intelligence. Profile picker integrated into target detail and target table scan UIs.</li>
+                    <li><strong>Onboarding Wizard</strong> — 4-step guided setup for new tenants: Welcome → Add Target → Run First Scan → Done. Automatically shown when no targets exist; can be dismissed permanently.</li>
+                    <li><strong>Data Retention</strong> — Configurable retention policy (default 90 days). Daily Celery beat task prunes old ScanResult and ChangeEvent rows automatically.</li>
+                    <li><strong>AI Findings Prioritizer</strong> — New "AI Prioritize" button in target detail header. Ranks all findings by exploitability and business impact (AI-powered or rule-based fallback).</li>
+                    <li><strong>AI Remediation Guides</strong> — Per-module "AI Remediation Guide" buttons in SSL/TLS, Email Security, HTTP Headers, Cookie Security, CORS, and Threat Intelligence cards.</li>
+                    <li><strong>Change Detection UX</strong> — Amber banner listing all changes detected in the last 24 hours, per-card "CHANGED" badges for 13 scanner modules, and a lazy-loaded Change History section at the bottom of the target detail page.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li><strong>Worker Refactor</strong> — <code>worker.py</code> (1784 lines) split into focused modules: <code>worker_core.py</code> (Celery app, signals), <code>worker_modules.py</code> (LogCapture, helpers), <code>worker_tasks.py</code> (all task definitions). Backwards-compatible shim preserved.</li>
+                    <li><strong>PDF Report</strong> — 12 new section methods covering all scanner modules: Email Security, AXFR, Security.txt, HTTP Headers, Cookies, CORS, Cert Mismatch, Shodan/Censys, Threat Intel, Subdomain Takeover, Git Exposure, and JS Secrets. Security findings summary table placed at report start.</li>
+                    <li><strong>Email Notifications</strong> — Rewritten email service with SMTP config from database, STARTTLS, EN/DE HTML templates, fire-and-forget via ThreadPoolExecutor. Daily digest task added to Celery beat schedule.</li>
+                    <li><strong>API Rate Limiting</strong> — Redis sliding-window rate limiter for 6 external services (AbuseIPDB 60/min, VirusTotal 4/min, Shodan 1/sec, Censys 60/min, Google CSE 100/day, crt.sh 10/min). DB-configurable overrides.</li>
+                    <li><strong>Swarm Stress Test</strong> — New <code>scripts/verification/swarm_stress_test.py</code> for load testing worker scaling and task throughput.</li>
+                </ul>
+                <h3>🔧 Release Manager</h3>
+                <ul>
+                    <li>SSH connectivity pre-check with 60s polling timer and green/red status label.</li>
+                    <li>Retry button after deployment failure; Rollback button (docker service update --rollback) for all services.</li>
+                    <li>Image cache check — skips rebuild if local image matches git HEAD (saves 5–15 min per deploy).</li>
+                    <li>Post-deploy smoke test — HTTP health check against production URL.</li>
+                    <li>Deployment log filter with live text search.</li>
+                    <li>Elapsed time display in progress bar and completion message.</li>
+                    <li>Local deploy disk space warning (&lt;5 GB free).</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed scan profile picker applying wrong query parameter name (<code>profile_types</code> → <code>scan_types</code>).</li>
+                    <li>Fixed worker process init disposing DB engine correctly to prevent PostgreSQL multiprocessing errors.</li>
+                    <li>Data retention pruning now handles FK dependencies (ChangeEvent deleted before ScanResult).</li>
+                </ul>
+                """,
+            )
+            session.add(entry_1410)
+
         session.commit()
         print("Changelog seeded successfully.")
 

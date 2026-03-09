@@ -152,6 +152,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.41.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.41.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Exports, Developer Portal, AI Integration &amp; Platform Hardening</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>Excel Export</strong> — Multi-sheet XLSX export per target covering all 20+ scanner modules (DNS, SSL, Web, Email, Headers, Cookies, CORS, Nuclei, Threat Intel, and more)</li>
+                    <li><strong>Developer Portal</strong> — Dedicated <code>/developer</code> page with API key management, code examples (curl, Python, JavaScript), endpoint reference, and rate limit overview</li>
+                    <li><strong>Scan Profiles</strong> — Save and reuse named scan configurations. Built-in profiles: Quick Recon, Standard Scan, Deep Security Audit, Recon Only, Threat Intelligence. Profile picker in all scan UIs</li>
+                    <li><strong>Onboarding Wizard</strong> — Guided 4-step setup for new tenants: Welcome → Add Target → First Scan → Done. Auto-shown on first login</li>
+                    <li><strong>Data Retention</strong> — Configurable retention policy (default 90 days). Daily automated pruning of old scan results and change events</li>
+                    <li><strong>AI Findings Prioritizer</strong> — Button in target detail header ranks all findings by exploitability and business impact</li>
+                    <li><strong>AI Remediation Guides</strong> — Per-module remediation advice buttons in SSL, Email Security, HTTP Headers, Cookies, CORS, and Threat Intel cards</li>
+                    <li><strong>Change Detection UX</strong> — 24h change banner, per-card "CHANGED" badges on 13 modules, lazy-loaded Change History section</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li><strong>Worker Refactor</strong> — Monolithic worker.py (1784 lines) split into focused modules for better maintainability and testability</li>
+                    <li><strong>PDF Report</strong> — 12 new section methods covering all scanner modules; security findings summary table at report start</li>
+                    <li><strong>Email Notifications</strong> — Rewritten service with STARTTLS, EN/DE templates, fire-and-forget delivery, daily digest</li>
+                    <li><strong>API Rate Limiting</strong> — Redis sliding-window limiter for 6 external services with DB-configurable overrides</li>
+                </ul>
+                <h3>🔧 Release Manager</h3>
+                <ul>
+                    <li>SSH pre-check, retry &amp; rollback buttons, image cache detection (skip redundant builds), post-deploy smoke test, log filter, elapsed time display</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.40.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.40.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

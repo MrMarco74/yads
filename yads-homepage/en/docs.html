@@ -131,6 +131,11 @@
 <li><a href="#19-support">19. Support</a></li>
 <li><a href="#20-standalone-local-installation">20. Standalone &amp; Local Installation</a></li>
 <li><a href="#21-identity-provider-sso">21. Identity Provider &amp; SSO</a></li>
+<li><a href="#22-developer-portal">22. Developer Portal</a></li>
+<li><a href="#23-scan-profiles">23. Scan Profiles</a></li>
+<li><a href="#24-onboarding-wizard">24. Onboarding Wizard</a></li>
+<li><a href="#25-data-retention">25. Data Retention</a></li>
+<li><a href="#26-excel-export">26. Excel Export</a></li>
 
             </ul>
         </aside>
@@ -169,6 +174,11 @@
 <li><a href="#18-troubleshooting">Troubleshooting</a></li>
 <li><a href="#20-standalone-local-installation">Standalone &amp; Local Installation</a></li>
 <li><a href="#21-identity-provider-sso">Identity Provider &amp; SSO</a></li>
+<li><a href="#22-developer-portal">Developer Portal</a></li>
+<li><a href="#23-scan-profiles">Scan Profiles</a></li>
+<li><a href="#24-onboarding-wizard">Onboarding Wizard</a></li>
+<li><a href="#25-data-retention">Data Retention</a></li>
+<li><a href="#26-excel-export">Excel Export</a></li>
 </ol>
 <hr />
 <h2>1. Introduction</h2>
@@ -1144,7 +1154,88 @@ OIDC_PUBLIC_URL=https://keycloak.your-domain.com</code></pre>
     <p>Remove <code>--dry-run</code> to execute the migration. Existing local passwords are preserved as a fallback as long as <code>AUTH_MODE=local</code> is active.</p>
 </blockquote>
 <hr />
-<p><em>Verified for YADS v1.40.2</em></p>
+
+<h2 id="22-developer-portal">22. Developer Portal</h2>
+<p>The Developer Portal (<code>/developer</code>) provides everything needed to integrate YADS into CI/CD pipelines, SIEM systems, or custom tooling.</p>
+<h3>API Key Management</h3>
+<ul>
+    <li>Generate API keys with optional expiry dates (30d, 90d, 1y, or no expiry)</li>
+    <li>Keys are shown only once on creation — copy and store securely</li>
+    <li>Revoke keys at any time; revoked keys are rejected immediately</li>
+</ul>
+<h3>Authentication</h3>
+<p>Pass the API key in the <code>X-API-Key</code> header:</p>
+<pre><code>curl -H "X-API-Key: yads_your_key_here" https://your-yads-instance/api/targets</code></pre>
+<h3>Code Examples</h3>
+<p>The portal includes ready-to-use snippets for curl, Python (<code>requests</code>), and JavaScript (<code>fetch</code>) covering authentication, target listing, scan triggering, and result retrieval.</p>
+<h3>Rate Limits</h3>
+<table>
+    <thead><tr><th>Endpoint</th><th>Limit</th></tr></thead>
+    <tbody>
+        <tr><td>Most API endpoints</td><td>600 req/min</td></tr>
+        <tr><td>Scan trigger</td><td>60 req/min</td></tr>
+        <tr><td>Report generation</td><td>10 req/min</td></tr>
+    </tbody>
+</table>
+<hr />
+
+<h2 id="23-scan-profiles">23. Scan Profiles</h2>
+<p>Scan Profiles let you save and reuse named sets of scanner modules — eliminating manual module selection for every scan run.</p>
+<h3>Built-in Profiles</h3>
+<table>
+    <thead><tr><th>Profile</th><th>Description</th><th>Modules</th></tr></thead>
+    <tbody>
+        <tr><td>Quick Recon</td><td>Lightweight passive check</td><td>DNS, SSL, HTTP Headers</td></tr>
+        <tr><td>Standard Scan</td><td>Balanced security assessment</td><td>All core modules</td></tr>
+        <tr><td>Deep Security Audit</td><td>Thorough assessment</td><td>All modules incl. Nuclei</td></tr>
+        <tr><td>Recon Only</td><td>No active probing</td><td>DNS, OSINT, Wayback, crt.sh</td></tr>
+        <tr><td>Threat Intelligence</td><td>IOC &amp; reputation focus</td><td>Shodan, Censys, AbuseIPDB, OTX, VT</td></tr>
+    </tbody>
+</table>
+<h3>Custom Profiles</h3>
+<p>Navigate to <strong>Scan Profiles</strong> in the sidebar → <strong>Create Profile</strong>. Select modules, optionally mark as public (visible to all tenant users), and save. A profile can be set as the tenant default — all new scans will use it automatically.</p>
+<hr />
+
+<h2 id="24-onboarding-wizard">24. Onboarding Wizard</h2>
+<p>New tenants are guided through a 4-step wizard on first login:</p>
+<ol>
+    <li><strong>Welcome</strong> — Overview of YADS capabilities and key features</li>
+    <li><strong>Add Target</strong> — Enter the first domain to monitor</li>
+    <li><strong>First Scan</strong> — Select a scan profile and launch the initial assessment</li>
+    <li><strong>Done</strong> — Links to the dashboard, targets list, and documentation</li>
+</ol>
+<p>The wizard can be dismissed at any time via the "Skip wizard" link. Once dismissed (or completed), it does not reappear. Platform admins can re-trigger it for a tenant by removing the <code>ONBOARDING_DONE_{tenant_id}</code> key in System Settings → Configuration.</p>
+<hr />
+
+<h2 id="25-data-retention">25. Data Retention</h2>
+<p>YADS can automatically prune old scan results to keep the database size manageable in long-running deployments.</p>
+<h3>Configuration</h3>
+<p>Go to <strong>Settings → Data Retention</strong> and set the retention period in days (default: 90). Setting it to 0 disables pruning (keep forever).</p>
+<h3>Pruning Behavior</h3>
+<ul>
+    <li>A Celery beat task runs daily at midnight UTC</li>
+    <li>Deletes <code>ChangeEvent</code> rows older than the retention window first, then <code>ScanResult</code> rows</li>
+    <li>The latest scan result per module per target is never pruned (protected)</li>
+    <li>Affected rows are logged to the system log</li>
+</ul>
+<hr />
+
+<h2 id="26-excel-export">26. Excel Export</h2>
+<p>Every target detail page has an <strong>Excel Export</strong> button that generates a multi-sheet XLSX file covering all 20+ scanner modules.</p>
+<h3>Sheets Included</h3>
+<ul>
+    <li>Summary — Target metadata, security score, scan timestamps</li>
+    <li>DNS Records, Subdomains, SSL/TLS, HTTP Headers, Cookies, CORS</li>
+    <li>Email Security (SPF/DKIM/DMARC), Threat Intelligence, Shodan/Censys</li>
+    <li>Nuclei Findings, Web Technologies, External Links, Security Findings</li>
+    <li>Change Events, Compliance, and more</li>
+</ul>
+<h3>Language Support</h3>
+<p>Append <code>?lang=de</code> to the export URL for German column headers and labels. The default is English (<code>?lang=en</code>).</p>
+<pre><code>GET /targets/{id}/export/excel?lang=de</code></pre>
+
+<hr />
+<p><em>Verified for YADS v1.41.0</em></p>
         </main>
     </div>
     

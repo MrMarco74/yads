@@ -49,7 +49,10 @@
     "notifications": "Benachrichtigungen",
     "storage_analytics": "Speicher-Analyse",
     "users": "Benutzer",
-    "tenant_settings": "Mandanteneinstellungen"
+    "tenant_settings": "Mandanteneinstellungen",
+    "scan_profiles": "Scan-Profile",
+    "developer_portal": "Entwicklerportal",
+    "onboarding": "Einrichtungsassistent"
   },
   "common": {
     "save": "Speichern",
@@ -196,6 +199,76 @@
     "delete": "Ziel löschen",
     "scan_now": "Jetzt scannen",
     "view_details": "Details ansehen"
+  },
+  "developer": {
+    "title": "Entwicklerportal",
+    "subtitle": "API-Schlüssel, Code-Beispiele und Integrationsdokumentation",
+    "api_keys": "API-Schlüssel",
+    "create_key": "Schlüssel erstellen",
+    "key_name": "Schlüsselname",
+    "key_name_placeholder": "z.B. CI/CD-Pipeline",
+    "expiry": "Ablauf",
+    "no_expiry": "Kein Ablauf",
+    "revoke": "Widerrufen",
+    "new_key_notice": "Ihr neuer API-Schlüssel — jetzt kopieren, er wird nicht erneut angezeigt",
+    "no_keys": "Noch keine API-Schlüssel. Erstellen Sie oben einen.",
+    "auth_header": "Authentifizierung",
+    "code_examples": "Code-Beispiele",
+    "key_endpoints": "Wichtige Endpunkte",
+    "rate_limits": "Ratenlimits",
+    "open_api_docs": "OpenAPI-Dokumentation"
+  },
+  "onboarding": {
+    "welcome": "Willkommen bei YADS",
+    "welcome_subtitle": "Ihr automatischer Domain-Sicherheitsscanner. Einrichtung in unter 2 Minuten.",
+    "add_target": "Erstes Ziel hinzufügen",
+    "add_target_subtitle": "Geben Sie die zu überwachende Domain ein.",
+    "first_scan": "Ersten Scan starten",
+    "first_scan_subtitle": "Wählen Sie ein Scan-Profil und starten Sie Ihre erste Sicherheitsprüfung.",
+    "done_title": "Alles bereit!",
+    "done_subtitle": "YADS führt Ihren ersten Scan durch. Ergebnisse erscheinen in der Zielliste.",
+    "skip": "Assistent überspringen und zum Dashboard",
+    "get_started": "Loslegen",
+    "launch_scan": "Scan starten",
+    "go_to_dashboard": "Zum Dashboard",
+    "step_welcome": "Willkommen",
+    "step_target": "Ziel hinzufügen",
+    "step_scan": "Erster Scan",
+    "step_done": "Fertig"
+  },
+  "data_retention": {
+    "title": "Datenspeicherung",
+    "subtitle": "Alte Scan-Ergebnisse automatisch löschen, um die Datenbankgröße zu kontrollieren.",
+    "days_label": "Aufbewahrungszeitraum (Tage)",
+    "days_hint": "0 = dauerhaft behalten. Ältere Scan-Ergebnisse werden täglich gelöscht.",
+    "prune_task": "Tägliche Bereinigung läuft um Mitternacht UTC."
+  },
+  "scan_profiles": {
+    "title": "Scan-Profile",
+    "subtitle": "Benannte Scan-Konfigurationen speichern und wiederverwenden.",
+    "create": "Profil erstellen",
+    "edit": "Profil bearbeiten",
+    "delete": "Profil löschen",
+    "set_default": "Als Standard setzen",
+    "apply_profile": "Profil anwenden",
+    "builtin": "Integriert",
+    "saved": "Gespeichert",
+    "no_profiles": "Noch keine gespeicherten Profile.",
+    "name": "Profilname",
+    "description": "Beschreibung",
+    "modules": "Module",
+    "default_badge": "Standard",
+    "public_badge": "Öffentlich"
+  },
+  "changes": {
+    "banner_title": "Änderung(en) in den letzten 24 Stunden erkannt",
+    "show_hide": "Anzeigen / Ausblenden",
+    "history_title": "Änderungsverlauf",
+    "no_changes": "Kürzlich keine Änderungen erkannt.",
+    "module": "Modul",
+    "type": "Typ",
+    "description": "Beschreibung",
+    "detected_at": "Erkannt am"
   },
   "errors": {
     "not_found": "Nicht gefunden",
