@@ -742,24 +742,12 @@ class ProdDeployPage(QWidget):
         layout.addWidget(title)
 
         # Info Banner
-        self.info_bar = InfoBar.warning(
-            "Production Update",
-            "This will only update the existing stack. No data will be wiped. Destined for: root@prod.example.com",
-            parent=self,
-            isClosable=False,
-            position=InfoBarPosition.NONE
+        self.status_label = BodyLabel(
+            "⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com", self
         )
-        layout.addWidget(self.info_bar)
-        self.info_bar_wipe = InfoBar.error(
-            "Production Wipe & Reinstall",
-            "WARNING: Destructive operation. All remote data will be wiped before reinstall.",
-            parent=self,
-            isClosable=False,
-            position=InfoBarPosition.NONE
-        )
-        self.info_bar_wipe.setVisible(False)
-        layout.addWidget(self.info_bar_wipe)
-        
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
         # Checkbox overlay logic
         self.wipe_check = CheckBox("Wipe Data (NEUINSTALLATION)", self)
         self.wipe_check.setToolTip("WARNING: This will destroy all production data and database!")
@@ -829,9 +817,10 @@ class ProdDeployPage(QWidget):
         layout.addWidget(log_card, 1)
 
     def _on_wipe_toggled(self, state):
-        wipe = self.wipe_check.isChecked()
-        self.info_bar.setVisible(not wipe)
-        self.info_bar_wipe.setVisible(wipe)
+        if self.wipe_check.isChecked():
+            self.status_label.setText("🛑 WIPE & REINSTALL — ALL REMOTE DATA WILL BE DESTROYED!")
+        else:
+            self.status_label.setText("⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com")
 
     def _on_deploy(self):
         msg = (
@@ -1091,24 +1080,11 @@ class LocalDeployPage(QWidget):
         title = TitleLabel("Local Environment", self)
         layout.addWidget(title)
 
-        # Info Banner
-        self.info_bar = InfoBar.info(
-            "Local Docker Compose",
-            "Manage your local development stack. Uses the docker-compose.yml file in the project root.",
-            parent=self,
-            isClosable=False,
-            position=InfoBarPosition.NONE
+        self.status_label = BodyLabel(
+            "ℹ️  Local Docker Compose — manages your local development stack.", self
         )
-        layout.addWidget(self.info_bar)
-        self.info_bar_wipe = InfoBar.warning(
-            "Local Wipe Active",
-            "WARNING: Will wipe local databases and reset all data!",
-            parent=self,
-            isClosable=False,
-            position=InfoBarPosition.NONE
-        )
-        self.info_bar_wipe.setVisible(False)
-        layout.addWidget(self.info_bar_wipe)
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
 
         self.wipe_check = CheckBox("Wipe Data (NEUINSTALLATION / DELETE VOLUMES)", self)
         self.wipe_check.setToolTip("WARNING: This removes all local db data upon start/stop!")
@@ -1214,9 +1190,10 @@ class LocalDeployPage(QWidget):
         layout.addWidget(log_card, 1)
 
     def _on_wipe_toggled(self, state):
-        wipe = self.wipe_check.isChecked()
-        self.info_bar.setVisible(not wipe)
-        self.info_bar_wipe.setVisible(wipe)
+        if self.wipe_check.isChecked():
+            self.status_label.setText("🛑 WIPE aktiv — lokale Datenbank wird beim Start/Stop gelöscht!")
+        else:
+            self.status_label.setText("ℹ️  Local Docker Compose — manages your local development stack.")
 
     def _load_profiles_from_env(self):
         """Pre-populate profile checkboxes from COMPOSE_PROFILES in .env."""
