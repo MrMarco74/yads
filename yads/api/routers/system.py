@@ -322,6 +322,14 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     bu_conf = session.get(SystemConfig, "BASE_URL")
     if bu_conf: base_url = bu_conf.value
 
+    data_retention_days = 90
+    dr_conf = session.get(SystemConfig, "DATA_RETENTION_DAYS")
+    if dr_conf and dr_conf.value:
+        try:
+            data_retention_days = int(dr_conf.value)
+        except ValueError:
+            pass
+
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     
     # --- License Info ---
@@ -452,6 +460,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "email_notification_address": email_notification_address,
         "email_notifications_enabled": email_notifications_enabled,
         "base_url": base_url,
+        "data_retention_days": data_retention_days,
         "license_key": license_conf.value if license_conf else "",
         "license_status": license_status,
         "license_data": license_data,
@@ -499,6 +508,7 @@ async def update_settings(
     email_notification_address: Optional[str] = Form(None),
     email_notifications_enabled: bool = Form(False),
     base_url: Optional[str] = Form(None),
+    data_retention_days: int = Form(90),
 
     # License
     license_key: Optional[str] = Form(None),
@@ -650,6 +660,7 @@ async def update_settings(
     set_conf("EMAIL_NOTIFICATIONS_ENABLED", "true" if email_notifications_enabled else "false")
     if base_url is not None:
         set_conf("BASE_URL", base_url.strip())
+    set_conf("DATA_RETENTION_DAYS", str(max(0, data_retention_days)))
 
     # Prometheus Metrics Settings
     set_conf("METRICS_ENABLED", "true" if metrics_enabled else "false")

@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center">
+<div class="w-full max-w-2xl">
+
+  <!-- Progress bar -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between mb-2">
+      {% for i in range(1, 5) %}
+      <div class="flex items-center {% if not loop.last %}flex-1{% endif %}">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+          {% if step > i %}bg-emerald-600 text-white
+          {% elif step == i %}bg-indigo-600 text-white ring-2 ring-indigo-400 ring-offset-2 ring-offset-gray-900
+          {% else %}bg-gray-700 text-gray-400{% endif %}">
+          {% if step > i %}
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          {% else %}{{ i }}{% endif %}
+        </div>
+        {% if not loop.last %}
+        <div class="flex-1 h-1 mx-2 rounded {% if step > i %}bg-emerald-600{% else %}bg-gray-700{% endif %}"></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="flex justify-between text-xs text-gray-500 px-0.5">
+      <span>Welcome</span><span>Add Target</span><span>First Scan</span><span>Done</span>
+    </div>
+  </div>
+
+  <!-- Step content -->
+  <div class="bg-gray-800/60 border border-gray-700/60 rounded-2xl shadow-2xl overflow-hidden">
+
+    {% if step == 1 %}
+    <!-- ── Step 1: Welcome ── -->
+    <div class="p-8 text-center">
+      <div class="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
+        <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white mb-2">Welcome to YADS</h1>
+      <p class="text-gray-400 mb-6 max-w-md mx-auto">Your Automated Domain Security Scanner. Let's get you set up in under 2 minutes.</p>
+      <div class="grid grid-cols-3 gap-4 text-left mb-8">
+        <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+          <div class="text-indigo-400 mb-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg></div>
+          <div class="text-sm font-medium text-white">DNS & SSL</div>
+          <div class="text-xs text-gray-500 mt-1">Subdomains, certificates, MX records</div>
+        </div>
+        <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+          <div class="text-rose-400 mb-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
+          <div class="text-sm font-medium text-white">Vulnerabilities</div>
+          <div class="text-xs text-gray-500 mt-1">Nuclei scans, CVE detection</div>
+        </div>
+        <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+          <div class="text-emerald-400 mb-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+          <div class="text-sm font-medium text-white">Reports</div>
+          <div class="text-xs text-gray-500 mt-1">PDF & Excel export, trends</div>
+        </div>
+      </div>
+      <a href="/onboarding?step=2" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-3 rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
+        Get Started →
+      </a>
+    </div>
+
+    {% elif step == 2 %}
+    <!-- ── Step 2: Add first target ── -->
+    <div class="p-8">
+      <h2 class="text-xl font-bold text-white mb-1">Add your first target</h2>
+      <p class="text-gray-400 text-sm mb-6">Enter the domain you want to monitor. YADS will continuously scan it for security issues.</p>
+      <form action="/onboarding/target" method="POST" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1">Domain name</label>
+          <input type="text" name="domain" placeholder="example.com" autofocus
+                 class="w-full bg-gray-900 border border-gray-600 text-white rounded-xl px-4 py-3 text-base font-mono focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                 required>
+          <p class="text-xs text-gray-600 mt-1.5">Enter just the domain, without https://</p>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <a href="/onboarding?step=1" class="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 transition-colors">← Back</a>
+          <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2 rounded-xl transition-colors">
+            Add Target →
+          </button>
+        </div>
+      </form>
+    </div>
+
+    {% elif step == 3 %}
+    <!-- ── Step 3: First scan ── -->
+    {% set target_id = request.query_params.get('target_id', '') %}
+    <div class="p-8">
+      <h2 class="text-xl font-bold text-white mb-1">Run your first scan</h2>
+      <p class="text-gray-400 text-sm mb-6">Select a scan profile and kick off your first security assessment.</p>
+      {% if target_id %}
+      <form action="/targets/{{ target_id }}/scan" method="POST" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-2">Scan Profile</label>
+          <div class="grid grid-cols-1 gap-2">
+            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 hover:border-indigo-500/50 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-900/20 transition-all">
+              <input type="radio" name="scan_profile" value="quick" checked class="text-indigo-500">
+              <div>
+                <div class="text-sm font-medium text-white">⚡ Quick Recon <span class="text-xs text-gray-500 ml-1">(~2 min)</span></div>
+                <div class="text-xs text-gray-500">DNS, SSL, HTTP headers — fast surface overview</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 hover:border-indigo-500/50 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-900/20 transition-all">
+              <input type="radio" name="scan_profile" value="standard" class="text-indigo-500">
+              <div>
+                <div class="text-sm font-medium text-white">🔍 Standard Scan <span class="text-xs text-gray-500 ml-1">(~10 min)</span></div>
+                <div class="text-xs text-gray-500">Web analysis, email security, CORS, cookies</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 hover:border-indigo-500/50 cursor-pointer has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-900/20 transition-all">
+              <input type="radio" name="scan_profile" value="full" class="text-indigo-500">
+              <div>
+                <div class="text-sm font-medium text-white">🛡 Full Audit <span class="text-xs text-gray-500 ml-1">(~30 min)</span></div>
+                <div class="text-xs text-gray-500">All modules including Nuclei vulnerability scan</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <!-- Hidden scan_types based on profile selection -->
+        <div id="scan-type-inputs"></div>
+        <script>
+        const profiles = {
+          quick: ['dns_scanner', 'ssl_scanner', 'web_analyzer', 'http_headers_scanner'],
+          standard: ['dns_scanner', 'ssl_scanner', 'web_analyzer', 'http_headers_scanner', 'cors_scanner', 'email_security', 'cookie_scanner'],
+          full: ['full_scan']
+        };
+        document.querySelectorAll('input[name=scan_profile]').forEach(r => {
+          r.addEventListener('change', updateTypes);
+        });
+        function updateTypes() {
+          const sel = document.querySelector('input[name=scan_profile]:checked').value;
+          const container = document.getElementById('scan-type-inputs');
+          container.innerHTML = '';
+          profiles[sel].forEach(t => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'scan_types'; inp.value = t;
+            container.appendChild(inp);
+          });
+        }
+        updateTypes();
+        </script>
+        <div class="flex gap-3 pt-2">
+          <a href="/onboarding?step=2" class="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 transition-colors">← Back</a>
+          <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2 rounded-xl transition-colors">
+            Launch Scan →
+          </button>
+          <a href="/onboarding?step=4" class="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-gray-200 border border-gray-700 transition-colors">Skip</a>
+        </div>
+      </form>
+      {% else %}
+      <p class="text-gray-500 text-sm">No target found. <a href="/onboarding?step=2" class="text-indigo-400 hover:underline">Go back and add a target.</a></p>
+      {% endif %}
+    </div>
+
+    {% elif step == 4 %}
+    <!-- ── Step 4: Done ── -->
+    <div class="p-8 text-center">
+      <div class="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-5">
+        <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white mb-2">You're all set!</h1>
+      <p class="text-gray-400 mb-6 max-w-md mx-auto">YADS is running your first scan. Results will appear in the targets list as they come in.</p>
+      <div class="grid grid-cols-2 gap-3 text-left mb-8">
+        <a href="/settings" class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-500 transition-colors block">
+          <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Next step</div>
+          <div class="text-sm font-medium text-white">Configure SMTP</div>
+          <div class="text-xs text-gray-500 mt-1">Receive scan notifications by email</div>
+        </a>
+        <a href="/developer" class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-500 transition-colors block">
+          <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Optional</div>
+          <div class="text-sm font-medium text-white">API Integration</div>
+          <div class="text-xs text-gray-500 mt-1">Connect YADS to CI/CD or other tools</div>
+        </a>
+        <a href="/scan-profiles" class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-500 transition-colors block">
+          <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Customize</div>
+          <div class="text-sm font-medium text-white">Scan Profiles</div>
+          <div class="text-xs text-gray-500 mt-1">Create reusable scan configurations</div>
+        </a>
+        <a href="/help" class="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50 hover:border-gray-500 transition-colors block">
+          <div class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Learn</div>
+          <div class="text-sm font-medium text-white">Documentation</div>
+          <div class="text-xs text-gray-500 mt-1">Feature guides and best practices</div>
+        </a>
+      </div>
+      <form action="/onboarding/dismiss" method="POST">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-3 rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
+          Go to Dashboard →
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Skip wizard link -->
+  {% if step < 4 %}
+  <div class="text-center mt-4">
+    <form action="/onboarding/dismiss" method="POST" class="inline">
+      <button type="submit" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+        Skip wizard and go to dashboard
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+{% endblock %}
