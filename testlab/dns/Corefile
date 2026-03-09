@@ -1,0 +1,15 @@
+testlab.local {
+    file /etc/coredns/testlab.local.zone
+    transfer {
+        to *
+    }
+    log
+    errors
+}
+
+. {
+    forward . 8.8.8.8
+    log
+    errors
+    cache 30
+}

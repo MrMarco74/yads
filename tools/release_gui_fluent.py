@@ -1169,6 +1169,339 @@ class ProdDeployPage(QWidget):
             self.ssh_status_label.setStyleSheet("color: #ef4444; font-size: 12px;")
 
 
+class TestLabWorker(QThread):
+    """Worker thread for test-lab environment control (init/start/stop/status)"""
+
+    COMPOSE_FILE = "docker-compose.testlab.yml"
+
+    def __init__(self, project_root: Path, action: str):
+        super().__init__()
+        self.project_root = project_root
+        self.action = action
+        self.signals = LogSignals()
+        self.cancelled = False
+        self.current_process = None
+
+    # ── Cancel support ────────────────────────────────────────────────────────
+    def cancel(self):
+        self.cancelled = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except Exception:
+                pass
+
+    def run(self):
+        try:
+            self._execute()
+        except Exception as e:
+            self._log(f"Critical error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def _log(self, msg: str, level: str = "info"):
+        self.signals.log_message.emit(msg, level)
+
+    def _compose(self, *args) -> list:
+        return ["docker", "compose", "-f", self.COMPOSE_FILE] + list(args)
+
+    def _run_cmd(self, cmd: list) -> bool:
+        if self.cancelled:
+            return False
+        self._log(f"▶ {' '.join(cmd)}", "info")
+        try:
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(self.project_root),
+                bufsize=1,
+            )
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                cleaned = _ANSI_RE.sub("", line.strip())
+                if cleaned:
+                    self._log(cleaned, "info")
+            self.current_process.wait()
+            ok = self.current_process.returncode == 0
+            self.current_process = None
+            return ok
+        except Exception as e:
+            self._log(f"Command error: {e}", "error")
+            self.current_process = None
+            return False
+
+    def _compose_file_exists(self) -> bool:
+        p = self.project_root / self.COMPOSE_FILE
+        if not p.exists():
+            self._log(f"❌  {self.COMPOSE_FILE} not found in {self.project_root}", "error")
+            self._log("Run 'Init' first or check your project root.", "warning")
+            return False
+        return True
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+    def _execute(self):
+        if self.action == "init":
+            self._do_init()
+        elif self.action == "start":
+            self._do_start()
+        elif self.action == "stop":
+            self._do_stop()
+        elif self.action == "status":
+            self._do_status()
+
+    def _do_init(self):
+        """Teardown existing testlab, pull images, create containers (no start)."""
+        if not self._compose_file_exists():
+            return self.signals.operation_finished.emit(False, "Compose file missing")
+
+        self._log("── Init: stopping and removing existing testlab containers ──", "warning")
+        self._run_cmd(self._compose("down", "--remove-orphans", "-v"))
+
+        self._log("── Pulling latest images ──", "info")
+        ok = self._run_cmd(self._compose("pull"))
+        if not ok:
+            self._log("Some image pulls failed — may be intentional for local builds.", "warning")
+
+        self._log("── Building custom images (if any) ──", "info")
+        self._run_cmd(self._compose("build"))
+
+        self._log("── Creating containers (not started) ──", "info")
+        ok = self._run_cmd(self._compose("create"))
+        if not ok:
+            return self.signals.operation_finished.emit(False, "Container creation failed — check logs")
+
+        self._log("✅  Init complete. Containers are ready. Click Start to launch.", "success")
+        self.signals.operation_finished.emit(True, "Test lab initialised")
+
+    def _do_start(self):
+        if not self._compose_file_exists():
+            return self.signals.operation_finished.emit(False, "Compose file missing")
+        self._log("── Starting test-lab containers ──", "info")
+        ok = self._run_cmd(self._compose("up", "-d", "--no-build"))
+        if ok:
+            self._log("✅  Test lab started.", "success")
+            self.signals.operation_finished.emit(True, "Test lab started")
+        else:
+            self.signals.operation_finished.emit(False, "Start failed — run Init first if containers are missing")
+
+    def _do_stop(self):
+        if not self._compose_file_exists():
+            return self.signals.operation_finished.emit(False, "Compose file missing")
+        self._log("── Stopping test-lab containers ──", "info")
+        ok = self._run_cmd(self._compose("down"))
+        if ok:
+            self._log("✅  Test lab stopped.", "success")
+            self.signals.operation_finished.emit(True, "Test lab stopped")
+        else:
+            self.signals.operation_finished.emit(False, "Stop failed")
+
+    def _do_status(self):
+        if not self._compose_file_exists():
+            return self.signals.operation_finished.emit(False, "Compose file missing")
+        self._log("── Test-lab container status ──", "info")
+        ok = self._run_cmd(self._compose("ps", "--format", "table"))
+        self._log("", "info")
+        # Also show network
+        self._log("── Docker network ──", "info")
+        try:
+            result = subprocess.run(
+                ["docker", "network", "inspect", "yads-testlab",
+                 "--format", "{{.Name}} | Subnet: {{range .IPAM.Config}}{{.Subnet}}{{end}} | Internal: {{.Internal}}"],
+                capture_output=True, text=True, cwd=str(self.project_root)
+            )
+            if result.returncode == 0:
+                self._log(result.stdout.strip(), "info")
+            else:
+                self._log("Network 'yads-testlab' not found — run Init first.", "warning")
+        except Exception as e:
+            self._log(f"Network inspect error: {e}", "warning")
+        if ok:
+            self.signals.operation_finished.emit(True, "Status retrieved")
+        else:
+            self.signals.operation_finished.emit(False, "Status command failed")
+
+
+class TestLabPage(QWidget):
+    """Test-lab environment page — isolated vulnerable targets for scanner validation."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("testLabPage")
+        self._active_worker = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        # ── Title ──
+        layout.addWidget(TitleLabel("Test Lab Environment", self))
+
+        info = BodyLabel(
+            "Isolated vulnerable target stack for validating all scanner modules.\n"
+            "Network: yads-testlab (bridge, no external routing from test containers).\n"
+            "⚠  Never expose testlab containers to the internet — for internal testing only.",
+            self,
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # ── Container Status Grid ──
+        status_card = CardWidget(self)
+        status_layout = QVBoxLayout(status_card)
+        status_layout.setContentsMargins(20, 16, 20, 16)
+        status_layout.setSpacing(8)
+        status_layout.addWidget(SubtitleLabel("Included Target Services", self))
+        grid_text = BodyLabel(
+            "• dvwa.testlab.local          :8080   — DVWA (SQL Injection, XSS, Open Redirect, Cookies)\n"
+            "• juice.testlab.local         :3000   — OWASP Juice Shop (API Security, CORS, Missing Auth)\n"
+            "• badssl.testlab.local        :4443   — Weak TLS (TLS 1.0, RC4, self-signed, no HSTS)\n"
+            "• badheaders.testlab.local    :8081   — Nginx: missing CSP/HSTS/X-Frame-Options, no WAF\n"
+            "• graphql.testlab.local       :4000   — GraphQL with introspection + field suggestions\n"
+            "• ws.testlab.local            :8765   — WebSocket (ws://, no auth, no origin check)\n"
+            "• gitexpose.testlab.local     :8082   — Exposed /.git, /.env, /backup.sql, JS secrets\n"
+            "• loginpage.testlab.local     :8083   — Spray surface: /admin, /api/login, /wp-login.php\n"
+            "• dns.testlab.local           :53     — CoreDNS (AXFR enabled, CNAME takeover record)\n"
+            "• mockapis.testlab.local      :9000   — Mock AbuseIPDB / HIBP / OTX for passive scanners",
+            self,
+        )
+        grid_text.setWordWrap(True)
+        grid_text.setFont(QFont("Courier New", 9))
+        status_layout.addWidget(grid_text)
+        layout.addWidget(status_card)
+
+        # ── Action Buttons ──
+        action_card = CardWidget(self)
+        action_layout = QHBoxLayout(action_card)
+        action_layout.setContentsMargins(20, 20, 20, 20)
+        action_layout.setSpacing(16)
+
+        self.init_btn = PrimaryPushButton(FIF.DEVELOPER_TOOLS, "Init", self)
+        self.init_btn.setFixedWidth(140)
+        self.init_btn.setToolTip("First-time setup or full reset: pulls images, builds custom containers, creates (but does not start) all services.")
+        self.init_btn.clicked.connect(lambda: self._on_action("init"))
+
+        self.start_btn = PushButton(FIF.PLAY, "Start", self)
+        self.start_btn.setFixedWidth(140)
+        self.start_btn.setToolTip("Start all testlab containers. Run Init first if starting for the first time.")
+        self.start_btn.clicked.connect(lambda: self._on_action("start"))
+
+        self.stop_btn = PushButton(FIF.POWER_BUTTON, "Stop", self)
+        self.stop_btn.setFixedWidth(140)
+        self.stop_btn.setToolTip("Stop all testlab containers (data is preserved).")
+        self.stop_btn.clicked.connect(lambda: self._on_action("stop"))
+
+        self.status_btn = PushButton(FIF.SEARCH, "Status", self)
+        self.status_btn.setFixedWidth(140)
+        self.status_btn.setToolTip("Show running containers and network info.")
+        self.status_btn.clicked.connect(lambda: self._on_action("status"))
+
+        self.cancel_btn = PushButton(FIF.CLOSE, "Cancel", self)
+        self.cancel_btn.setFixedWidth(100)
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self._on_cancel)
+
+        for btn in (self.init_btn, self.start_btn, self.stop_btn, self.status_btn, self.cancel_btn):
+            action_layout.addWidget(btn)
+        action_layout.addStretch()
+        layout.addWidget(action_card)
+
+        # ── Progress ──
+        self.progress_label = BodyLabel("Ready — no action running.", self)
+        layout.addWidget(self.progress_label)
+
+        self.busy_bar = IndeterminateProgressBar(self)
+        self.busy_bar.setVisible(False)
+        layout.addWidget(self.busy_bar)
+
+        # ── Log View ──
+        log_card = CardWidget(self)
+        log_layout = QVBoxLayout(log_card)
+        log_layout.setContentsMargins(20, 16, 20, 20)
+        log_layout.setSpacing(12)
+
+        log_header = QHBoxLayout()
+        log_header.addWidget(SubtitleLabel("Output", self))
+        log_header.addStretch()
+        clear_btn = TransparentPushButton(FIF.DELETE, "Clear", self)
+        clear_btn.clicked.connect(lambda: self.log_view.clear())
+        log_header.addWidget(clear_btn)
+        log_layout.addLayout(log_header)
+
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMinimumHeight(280)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        log_layout.addWidget(self.log_view)
+        layout.addWidget(log_card, 1)
+
+    # ── Slots ─────────────────────────────────────────────────────────────────
+    def _on_action(self, action: str):
+        if action == "init":
+            msg = (
+                "Init will:\n"
+                "  1. Stop and REMOVE all existing testlab containers + volumes\n"
+                "  2. Pull latest images\n"
+                "  3. Build custom test services\n"
+                "  4. Create containers (not started)\n\n"
+                "Use this for first-time setup or to recover a broken environment.\n\n"
+                "Proceed?"
+            )
+            box = MessageBox("Init Test Lab", msg, self)
+            if not box.exec():
+                return
+        elif action in ("start", "stop", "status"):
+            pass  # no confirmation needed
+        self._start_worker(action)
+
+    def _start_worker(self, action: str):
+        from pathlib import Path as _Path
+        project_root = _Path(__file__).parent.parent
+        self._active_worker = TestLabWorker(project_root, action)
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.operation_finished.connect(self._on_finished)
+        self._active_worker.finished.connect(self._active_worker.deleteLater)
+        self._set_busy(True, action)
+        self.log_view.clear()
+        self._active_worker.start()
+
+    def _on_cancel(self):
+        if self._active_worker:
+            self._active_worker.cancel()
+            self._log("Cancel requested…", "warning")
+
+    def _on_log(self, msg: str, level: str):
+        _insert_log_line(self.log_view, msg, level)
+
+    def _log(self, msg: str, level: str = "info"):
+        _insert_log_line(self.log_view, msg, level)
+
+    def _on_finished(self, success: bool, message: str):
+        self._set_busy(False)
+        self._active_worker = None
+        if success:
+            InfoBar.success("Done", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
+        else:
+            InfoBar.error("Error", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
+
+    def _set_busy(self, busy: bool, action: str = ""):
+        for btn in (self.init_btn, self.start_btn, self.stop_btn, self.status_btn):
+            btn.setEnabled(not busy)
+        self.cancel_btn.setEnabled(busy)
+        self.busy_bar.setVisible(busy)
+        if busy:
+            self.busy_bar.start()
+            self.progress_label.setText(f"Running: {action}…")
+        else:
+            self.busy_bar.stop()
+            self.progress_label.setText("Ready")
+
+
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
     def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local", profiles: list = None):
@@ -2604,6 +2937,7 @@ class MainWindow(FluentWindow):
         self.release_page = ReleasePage(self)
         self.local_deploy_page = LocalDeployPage(self)
         self.prod_deploy_page = ProdDeployPage(self)
+        self.testlab_page = TestLabPage(self)
         self.dev_creds_page = DevCredsPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
@@ -2639,6 +2973,8 @@ class MainWindow(FluentWindow):
             self.release_page.log_view.setStyleSheet(get_log_stylesheet())
         if hasattr(self.local_deploy_page, 'log_view'):
             self.local_deploy_page.log_view.setStyleSheet(get_log_stylesheet())
+        if hasattr(self.testlab_page, 'log_view'):
+            self.testlab_page.log_view.setStyleSheet(get_log_stylesheet())
 
     def _init_navigation(self):
         """Initialize navigation sidebar"""
@@ -2646,6 +2982,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.release_page, FIF.PLAY, "Release")
         self.addSubInterface(self.local_deploy_page, FIF.APPLICATION, "Local Env")
         self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
+        self.addSubInterface(self.testlab_page, FIF.EDUCATION, "Test Lab")
         self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 

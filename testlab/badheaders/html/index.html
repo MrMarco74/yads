@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bad Headers Test</title></head>
+<body>
+<h1>Bad Headers Target</h1>
+<p>Missing: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy.</p>
+<p>Cookies set without Secure/HttpOnly/SameSite flags.</p>
+<p>CORS: Access-Control-Allow-Origin: *</p>
+
+<!-- Open redirect -->
+<p><a href="/redirect?url=http://evil.example.com">Open Redirect Test</a></p>
+
+<script>
+// Fake API key for JS secrets scanner
+var AWS_KEY = "AKIAIOSFODNN7EXAMPLE";
+var API_TOKEN = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890ABCDEF";
+var STRIPE_KEY = "sk_live_testFakeStripeKeyForScanner1234";
+</script>
+</body>
+</html>
