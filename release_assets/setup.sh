@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # YADS Customer Setup Script
 # This script helps you configure YADS for your environment.
@@ -9,132 +9,156 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BOLD='\033[1m'
 NC='\033[0m'
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+die() { echo -e "${RED}Error: $*${NC}" >&2; exit 1; }
+ask() {
+    # ask <var_name> <prompt> [default]
+    local _var="$1" _prompt="$2" _default="${3:-}"
+    local _answer
+    if [ -n "$_default" ]; then
+        read -r -p "$_prompt [default: $_default]: " _answer
+        _answer="${_answer:-$_default}"
+    else
+        read -r -p "$_prompt: " _answer
+    fi
+    printf -v "$_var" '%s' "$_answer"
+}
+
 echo -e "${BLUE}==============================================================================${NC}"
-echo -e "${BLUE}                   YADS - Yet Another Deployment System                       ${NC}"
-echo -e "${BLUE}                          Customer Setup Wizard                               ${NC}"
+echo -e "${BLUE}                   YADS — Yet Another Domain Scanner                         ${NC}"
+echo -e "${BLUE}                        Customer Setup Wizard v1.42                          ${NC}"
 echo -e "${BLUE}==============================================================================${NC}"
 echo ""
 
-# 1. Dependency Checks
-echo -e "${YELLOW}>> Checking Dependencies...${NC}"
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}Error: docker is not installed.${NC}"
-    exit 1
-fi
-if ! docker compose version &> /dev/null; then
-    echo -e "${RED}Error: docker compose is not installed or too old.${NC}"
-    exit 1
-fi
+# ── 1. Dependency Checks ──────────────────────────────────────────────────────
+echo -e "${YELLOW}[1/8] Checking Dependencies...${NC}"
+command -v docker &>/dev/null   || die "docker is not installed."
+docker compose version &>/dev/null || die "docker compose plugin is not installed or too old (need v2+)."
+command -v openssl &>/dev/null  || die "openssl is not installed."
 echo -e "${GREEN}✓ Dependencies OK${NC}"
 echo ""
 
-# 2. Docker Host Configuration
-echo -e "${YELLOW}>> Docker Host Configuration${NC}"
-echo "Where will YADS be deployed?"
+# ── 2. Docker Host ────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[2/8] Docker Host Configuration${NC}"
 echo "  1) Local Machine (localhost)"
-echo "  2) Remote Docker Host (via DOCKER_HOST env var)"
-read -p "Choose [1/2, default 1]: " HOST_CHOICE
-HOST_CHOICE=${HOST_CHOICE:-1}
+echo "  2) Remote Docker Host (via DOCKER_HOST)"
+ask HOST_CHOICE "Choose" "1"
 
 if [ "$HOST_CHOICE" == "2" ]; then
-    read -p "Enter DOCKER_HOST (e.g. ssh://user@host): " D_HOST
+    ask D_HOST "Enter DOCKER_HOST (e.g. ssh://user@host)"
     export DOCKER_HOST="$D_HOST"
-    echo -e "DOCKER_HOST set to: ${BLUE}$DOCKER_HOST${NC}"
+    echo -e "  DOCKER_HOST set to: ${BLUE}$DOCKER_HOST${NC}"
 fi
 echo ""
 
-# 3. Port and SSL Configuration
-echo -e "${YELLOW}>> Network & SSL Configuration${NC}"
-read -p "On which port should the API be accessible? [default 80]: " API_PORT
-API_PORT=${API_PORT:-80}
+# ── 3. Network & SSL ──────────────────────────────────────────────────────────
+echo -e "${YELLOW}[3/8] Network & SSL Configuration${NC}"
+ask API_PORT "API port" "80"
 
 USE_SSL="n"
-if [ "$API_PORT" == "443" ] || [ "$API_PORT" == "8443" ]; then
-    echo "Common SSL port detected."
+if [[ "$API_PORT" == "443" || "$API_PORT" == "8443" ]]; then
+    echo "  Common SSL port detected — enabling SSL."
     USE_SSL="y"
 else
-    read -p "Do you want to use SSL (https)? (y/N): " USE_SSL
+    ask USE_SSL "Enable SSL/HTTPS? (y/N)" "n"
 fi
 
+SSL_CERT_PATH=""
+SSL_KEY_PATH=""
 if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
-    echo "SSL Configuration:"
-    echo "  1) Self-signed certificate (generated now)"
-    echo "  2) Custom certificates (you provide the paths)"
-    read -p "Choose [1/2, default 1]: " SSL_CHOICE
-    SSL_CHOICE=${SSL_CHOICE:-1}
-    
+    echo "  SSL Certificate:"
+    echo "    1) Self-signed (generated now)"
+    echo "    2) Custom certificates (you provide paths)"
+    ask SSL_CHOICE "Choose" "1"
     if [ "$SSL_CHOICE" == "1" ]; then
-        echo "Generating self-signed certificate..."
+        ask YADS_CN "Common Name / hostname for cert" "localhost"
+        echo "  Generating self-signed certificate..."
         mkdir -p certs
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        openssl req -x509 -nodes -days 730 -newkey rsa:2048 \
             -keyout certs/yads.key -out certs/yads.crt \
-            -subj "/C=DE/ST=State/L=City/O=YADS/OU=IT/CN=localhost"
+            -subj "/C=DE/ST=State/L=City/O=YADS/OU=IT/CN=${YADS_CN}" 2>/dev/null
         SSL_CERT_PATH="./certs/yads.crt"
         SSL_KEY_PATH="./certs/yads.key"
+        echo -e "  ${GREEN}✓ Self-signed certificate generated (valid 2 years)${NC}"
     else
-        read -p "Path to SSL Certificate (.crt): " SSL_CERT_PATH
-        read -p "Path to SSL Key (.key): " SSL_KEY_PATH
+        ask SSL_CERT_PATH "Path to SSL Certificate (.crt)"
+        ask SSL_KEY_PATH  "Path to SSL Key (.key)"
     fi
 fi
 echo ""
 
-# 4. Credentials
-echo -e "${YELLOW}>> Secret Configuration${NC}"
+# ── 4. Credentials ────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[4/8] Secret Configuration${NC}"
 if [ -f .env ]; then
-    read -p ".env file already exists. Overwrite with new secrets? (y/N): " OVERWRITE_ENV
+    echo -e "  ${YELLOW}WARNING: .env file already exists!${NC}"
+    ask OVERWRITE_ENV "Overwrite with new secrets? This will invalidate existing sessions/passwords (y/N)" "n"
 else
     OVERWRITE_ENV="y"
 fi
 
+POSTGRES_PASSWORD=""
+SECRET_KEY=""
 if [[ "$OVERWRITE_ENV" =~ ^[Yy]$ ]]; then
     POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
     SECRET_KEY=$(openssl rand -hex 32)
+    cat > .env <<EOF
+# Generated by YADS setup.sh — $(date '+%Y-%m-%d %H:%M:%S')
+# IMPORTANT: Keep this file secure and backed up!
 
-    cat <<EOF > .env
 # --- Database ---
-POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # --- Security ---
-SECRET_KEY=$SECRET_KEY
+SECRET_KEY=${SECRET_KEY}
 
 # --- Network ---
-API_PORT=$API_PORT
+API_PORT=${API_PORT}
 EOF
-    echo -e "${GREEN}✓ Generated secure passwords in .env${NC}"
+    echo -e "  ${GREEN}✓ Generated secure credentials in .env${NC}"
+else
+    # Read existing values for summary display
+    POSTGRES_PASSWORD=$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2 || echo "(existing)")
+    SECRET_KEY=$(grep -E '^SECRET_KEY=' .env | cut -d= -f2 || echo "(existing)")
+    echo -e "  ${BLUE}✓ Using existing .env (secrets unchanged)${NC}"
 fi
 echo ""
 
-# 5. Identity Provider (Keycloak)
-echo -e "${YELLOW}>> Identity Provider (SSO/Keycloak)${NC}"
-echo "YADS supports local user accounts (built-in) and SSO via Keycloak (OIDC)."
-echo "  1) Local authentication only — no Keycloak needed (recommended for small teams)"
-echo "  2) Bundled Keycloak — YADS manages a Keycloak instance via Docker"
-echo "  3) External Keycloak — connect YADS to your existing Keycloak/OIDC server"
-read -p "Choose [1/2/3, default 1]: " KC_CHOICE
-KC_CHOICE=${KC_CHOICE:-1}
+# ── 5. Identity Provider ──────────────────────────────────────────────────────
+echo -e "${YELLOW}[5/8] Identity Provider (Authentication)${NC}"
+echo "  YADS supports local built-in accounts and SSO via Keycloak (OIDC)."
+echo "  For small teams or single-instance deployments, local auth is sufficient."
+echo "  SSO requires Keycloak (bundled or external) and adds complexity."
+echo ""
+echo "  1) Local authentication only  — simple, no extra services needed"
+echo "  2) Bundled Keycloak            — YADS starts and manages its own Keycloak"
+echo "  3) External Keycloak / OIDC    — connect to your existing IdP"
+echo ""
+ask KC_CHOICE "Choose" "1"
 
 DOCKER_PROFILES=""
 KC_ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
 KC_DB_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+KC_PORT=""
+YADS_HOST=""
+SUMMARY_IDP=""
 
 case "$KC_CHOICE" in
     2)
         echo ""
-        read -p "Keycloak port [default 8080]: " KC_PORT
-        KC_PORT=${KC_PORT:-8080}
-        read -p "YADS public hostname (e.g. yads.example.com or localhost) [default localhost]: " YADS_HOST
-        YADS_HOST=${YADS_HOST:-localhost}
+        ask KC_PORT    "Keycloak port"   "8080"
+        ask YADS_HOST  "YADS public hostname (for redirect URIs, e.g. yads.example.com)" "localhost"
         DOCKER_PROFILES="keycloak"
-        cat <<EOF >> .env
+        cat >> .env <<EOF
 
 # --- Identity Provider (Bundled Keycloak) ---
 AUTH_MODE=oidc
-KC_PORT=$KC_PORT
+KC_PORT=${KC_PORT}
 KC_ADMIN=admin
-KC_ADMIN_PASSWORD=$KC_ADMIN_PASSWORD
-KC_DB_PASSWORD=$KC_DB_PASSWORD
+KC_ADMIN_PASSWORD=${KC_ADMIN_PASSWORD}
+KC_DB_PASSWORD=${KC_DB_PASSWORD}
 OIDC_SERVER_URL=http://keycloak:8080
 OIDC_PUBLIC_URL=http://${YADS_HOST}:${KC_PORT}
 OIDC_REALM=yads
@@ -142,24 +166,21 @@ OIDC_CLIENT_ID=yads
 OIDC_CLIENT_SECRET=$(openssl rand -hex 24)
 OIDC_REDIRECT_URI=http://${YADS_HOST}:${API_PORT}/auth/oidc/callback
 EOF
-        echo -e "${GREEN}✓ Bundled Keycloak configured (port $KC_PORT)${NC}"
-        echo -e "${BLUE}  Keycloak Admin: admin / $KC_ADMIN_PASSWORD${NC}"
-        echo -e "${YELLOW}  Note: Run migration after first start:${NC}"
-        echo -e "  docker exec yads-api python /app/scripts/maintenance/migrate_users_to_keycloak.py \\"
-        echo -e "    --keycloak-url http://keycloak:8080"
+        SUMMARY_IDP="Bundled Keycloak @ port ${KC_PORT}
+  Keycloak Admin UI:  http://${YADS_HOST}:${KC_PORT}
+  Keycloak Admin:     admin / ${KC_ADMIN_PASSWORD}
+  OIDC Redirect URI:  http://${YADS_HOST}:${API_PORT}/auth/oidc/callback"
+        echo -e "  ${GREEN}✓ Bundled Keycloak configured${NC}"
         ;;
     3)
         echo ""
-        read -p "Keycloak server URL (reachable from YADS container, e.g. https://keycloak.example.com): " EXT_KC_SERVER
-        read -p "Keycloak public URL (browser-facing, often same as above): " EXT_KC_PUBLIC
-        EXT_KC_PUBLIC=${EXT_KC_PUBLIC:-$EXT_KC_SERVER}
-        read -p "Realm name: " EXT_KC_REALM
-        read -p "Client ID [default yads]: " EXT_KC_CLIENT
-        EXT_KC_CLIENT=${EXT_KC_CLIENT:-yads}
-        read -p "Client Secret: " EXT_KC_SECRET
-        read -p "YADS public hostname for redirect URI [default localhost]: " YADS_HOST
-        YADS_HOST=${YADS_HOST:-localhost}
-        cat <<EOF >> .env
+        ask EXT_KC_SERVER "Keycloak server URL (container-reachable, e.g. https://keycloak.example.com)"
+        ask EXT_KC_PUBLIC "Keycloak public URL (browser-facing)" "$EXT_KC_SERVER"
+        ask EXT_KC_REALM  "Realm name"
+        ask EXT_KC_CLIENT "Client ID" "yads"
+        ask EXT_KC_SECRET "Client Secret"
+        ask YADS_HOST     "YADS public hostname for redirect URI" "localhost"
+        cat >> .env <<EOF
 
 # --- Identity Provider (External Keycloak/OIDC) ---
 AUTH_MODE=oidc
@@ -170,152 +191,231 @@ OIDC_CLIENT_ID=${EXT_KC_CLIENT}
 OIDC_CLIENT_SECRET=${EXT_KC_SECRET}
 OIDC_REDIRECT_URI=http://${YADS_HOST}:${API_PORT}/auth/oidc/callback
 EOF
-        echo -e "${GREEN}✓ External Keycloak configured${NC}"
-        echo -e "${YELLOW}  Note: Ensure YADS client exists in realm '${EXT_KC_REALM}' with:${NC}"
+        SUMMARY_IDP="External Keycloak/OIDC
+  Server URL:         ${EXT_KC_SERVER}
+  Realm:              ${EXT_KC_REALM}
+  Client ID:          ${EXT_KC_CLIENT}
+  Redirect URI:       http://${YADS_HOST}:${API_PORT}/auth/oidc/callback"
+        echo -e "  ${GREEN}✓ External Keycloak/OIDC configured${NC}"
+        echo -e "  ${YELLOW}Action required: Ensure YADS client exists in realm '${EXT_KC_REALM}' with:${NC}"
         echo -e "    - Redirect URI: http://${YADS_HOST}:${API_PORT}/auth/oidc/callback"
         echo -e "    - Protocol mappers: 'groups' (group-membership) + 'yads_tenant' (hardcoded)"
         ;;
     *)
         echo "AUTH_MODE=local" >> .env
-        echo -e "${GREEN}✓ Local authentication selected (no Keycloak required)${NC}"
+        SUMMARY_IDP="Local authentication (no IdP)"
+        echo -e "  ${GREEN}✓ Local authentication selected${NC}"
         ;;
 esac
 echo ""
 
-# 6. Observability Stack (Prometheus/Grafana)
-echo -e "${YELLOW}>> Observability & Monitoring${NC}"
-echo "YADS exposes Prometheus metrics at /metrics for monitoring and alerting."
-echo "  1) None — no monitoring stack"
-echo "  2) Bundled stack — Prometheus + Grafana + Loki (managed by YADS Docker)"
-echo "  3) External — connect your existing Prometheus/Grafana to YADS /metrics"
-read -p "Choose [1/2/3, default 1]: " MON_CHOICE
-MON_CHOICE=${MON_CHOICE:-1}
+# ── 6. Observability ──────────────────────────────────────────────────────────
+echo -e "${YELLOW}[6/8] Observability & Monitoring${NC}"
+echo "  YADS exposes Prometheus metrics at /metrics."
+echo ""
+echo "  1) None           — no monitoring stack"
+echo "  2) Bundled stack  — Prometheus + Grafana + Loki (managed containers)"
+echo "  3) External       — connect your existing Prometheus/Grafana"
+echo ""
+ask MON_CHOICE "Choose" "1"
 
 GRAFANA_ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
 MINIO_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
 METRICS_TOKEN=$(openssl rand -hex 24)
+GRAFANA_PORT=""
+SUMMARY_MON=""
 
 case "$MON_CHOICE" in
     2)
-        read -p "Grafana port [default 3000]: " GRAFANA_PORT
-        GRAFANA_PORT=${GRAFANA_PORT:-3000}
-        DOCKER_PROFILES="${DOCKER_PROFILES:+$DOCKER_PROFILES,}monitoring"
-        cat <<EOF >> .env
+        ask GRAFANA_PORT "Grafana port" "3000"
+        DOCKER_PROFILES="${DOCKER_PROFILES:+${DOCKER_PROFILES},}monitoring"
+        cat >> .env <<EOF
 
 # --- Observability Stack (Bundled) ---
 METRICS_ENABLED=true
 METRICS_AUTH_MODE=token
-METRICS_TOKEN=$METRICS_TOKEN
-GRAFANA_PORT=$GRAFANA_PORT
-GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD
-MINIO_ROOT_PASSWORD=$MINIO_PASSWORD
+METRICS_TOKEN=${METRICS_TOKEN}
+GRAFANA_PORT=${GRAFANA_PORT}
+GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
 EOF
-        echo -e "${GREEN}✓ Bundled monitoring stack configured${NC}"
-        echo -e "${BLUE}  Grafana: http://localhost:${GRAFANA_PORT} — admin / $GRAFANA_ADMIN_PASSWORD${NC}"
+        SUMMARY_MON="Bundled Prometheus + Grafana + Loki
+  Grafana:            http://localhost:${GRAFANA_PORT}
+  Grafana Admin:      admin / ${GRAFANA_ADMIN_PASSWORD}
+  Metrics token:      ${METRICS_TOKEN}"
+        echo -e "  ${GREEN}✓ Bundled monitoring configured${NC}"
         ;;
     3)
-        read -p "Your Prometheus scrape endpoint for YADS will be http://<host>:${API_PORT}/metrics"
         echo ""
-        echo -e "${YELLOW}  Auth mode for /metrics endpoint:${NC}"
-        echo "  1) None (open — only if Prometheus is on same host/network)"
-        echo "  2) Bearer token (recommended)"
-        read -p "Choose [1/2, default 2]: " METRICS_AUTH_CHOICE
-        METRICS_AUTH_CHOICE=${METRICS_AUTH_CHOICE:-2}
+        echo "  Auth mode for /metrics endpoint:"
+        echo "    1) None (open — only if Prometheus is on same host/network)"
+        echo "    2) Bearer token (recommended)"
+        ask METRICS_AUTH_CHOICE "Choose" "2"
         if [ "$METRICS_AUTH_CHOICE" == "1" ]; then
-            METRICS_AUTH_STR="METRICS_AUTH_MODE=none"
-        else
-            METRICS_AUTH_STR="METRICS_AUTH_MODE=token
-METRICS_TOKEN=$METRICS_TOKEN"
-            echo -e "${BLUE}  Metrics token: $METRICS_TOKEN${NC}"
-            echo -e "${YELLOW}  Add this to your Prometheus scrape config:${NC}"
-            echo "    bearer_token: $METRICS_TOKEN"
-        fi
-        cat <<EOF >> .env
+            cat >> .env <<EOF
 
-# --- Observability (External Prometheus/Grafana) ---
+# --- Observability (External) ---
 METRICS_ENABLED=true
-$METRICS_AUTH_STR
+METRICS_AUTH_MODE=none
 EOF
-        echo -e "${GREEN}✓ Metrics endpoint enabled for external Prometheus${NC}"
+            SUMMARY_MON="External Prometheus (metrics endpoint open at /metrics)"
+        else
+            cat >> .env <<EOF
+
+# --- Observability (External) ---
+METRICS_ENABLED=true
+METRICS_AUTH_MODE=token
+METRICS_TOKEN=${METRICS_TOKEN}
+EOF
+            SUMMARY_MON="External Prometheus
+  Metrics token:      ${METRICS_TOKEN}
+  Prometheus config:  bearer_token: ${METRICS_TOKEN}"
+        fi
+        echo -e "  ${GREEN}✓ External metrics endpoint configured${NC}"
         ;;
     *)
         echo "# Monitoring: disabled" >> .env
-        echo -e "${GREEN}✓ No monitoring stack configured${NC}"
+        SUMMARY_MON="Monitoring disabled"
+        echo -e "  ${GREEN}✓ No monitoring stack${NC}"
         ;;
 esac
 echo ""
 
-# Write Docker Compose profiles to .env if any optional stacks selected
+# Write Docker Compose profiles
 if [ -n "$DOCKER_PROFILES" ]; then
-    echo "COMPOSE_PROFILES=$DOCKER_PROFILES" >> .env
-    echo -e "${BLUE}  Active Docker profiles: $DOCKER_PROFILES${NC}"
+    echo "COMPOSE_PROFILES=${DOCKER_PROFILES}" >> .env
 fi
 
-# 7. Application Access Mode
-echo -e "${YELLOW}>> Access Mode Configuration${NC}"
+# ── 7. Access Mode (Nginx) ────────────────────────────────────────────────────
+echo -e "${YELLOW}[7/8] Access Mode${NC}"
+HAS_NGINX="false"
 if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
-    echo "SSL is enabled. Nginx Reverse Proxy is REQUIRED."
+    echo "  SSL is enabled — Nginx reverse proxy is required."
     HAS_NGINX="true"
 else
-    echo "How should YADS be accessible?"
-    echo "  1) Via Nginx Reverse Proxy (Recommended, allows port 80)"
-    echo "  2) Direct API Access (Port $API_PORT directly to container)"
-    read -p "Choose [1/2, default 1]: " ACCESS_CHOICE
-    ACCESS_CHOICE=${ACCESS_CHOICE:-1}
-    if [ "$ACCESS_CHOICE" == "1" ]; then
-        HAS_NGINX="true"
-    else
-        HAS_NGINX="false"
-    fi
+    echo "  1) Via Nginx Reverse Proxy (recommended — handles port 80, gzip, static assets)"
+    echo "  2) Direct API access (port $API_PORT exposed directly)"
+    ask ACCESS_CHOICE "Choose" "1"
+    [ "$ACCESS_CHOICE" == "1" ] && HAS_NGINX="true"
 fi
 
-# 6. Generate Configurations
-echo -e "${YELLOW}>> Generating Configurations...${NC}"
-
-# Update .env with access mode
-{
-    echo "HAS_NGINX=$HAS_NGINX"
-} >> .env
+echo "HAS_NGINX=${HAS_NGINX}" >> .env
 
 if [ "$HAS_NGINX" == "true" ]; then
     mkdir -p nginx
-    sed "s/{{PORT}}/$API_PORT/g" nginx.conf.template > nginx/nginx.conf
-    
-    if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
-        sed -i "/listen $API_PORT;/a \    ssl_certificate /etc/nginx/certs/yads.crt;\n    ssl_certificate_key /etc/nginx/certs/yads.key;" nginx/nginx.conf
-        sed -i "s/listen $API_PORT;/listen $API_PORT ssl;/g" nginx/nginx.conf
+    if [ -f nginx.conf.template ]; then
+        sed "s/{{PORT}}/$API_PORT/g" nginx.conf.template > nginx/nginx.conf
+        if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
+            sed -i "s/listen ${API_PORT};/listen ${API_PORT} ssl;/g" nginx/nginx.conf
+        fi
+        echo -e "  ${GREEN}✓ nginx/nginx.conf created${NC}"
+    else
+        echo -e "  ${YELLOW}Notice: nginx.conf.template not found — please configure Nginx manually.${NC}"
     fi
-    echo -e "${GREEN}✓ nginx/nginx.conf created${NC}"
 else
-    echo -e "${BLUE}Notice: No Nginx configuration genenerated. API will be exposed directly on port $API_PORT.${NC}"
+    echo -e "  ${BLUE}Notice: API will be exposed directly on port ${API_PORT}.${NC}"
+fi
+echo ""
+
+# ── 8. Initial Admin Account ──────────────────────────────────────────────────
+echo -e "${YELLOW}[8/8] Initial Admin Account${NC}"
+if [[ "$KC_CHOICE" == "1" ]]; then
+    echo "  YADS will seed an admin account on first start."
+    ask ADMIN_EMAIL "Admin email" "admin@example.com"
+    ADMIN_PASSWORD=$(openssl rand -base64 12 | tr -d '/+=')
+    cat >> .env <<EOF
+
+# --- Initial Admin ---
+ADMIN_EMAIL=${ADMIN_EMAIL}
+ADMIN_PASSWORD=${ADMIN_PASSWORD}
+EOF
+    SUMMARY_ADMIN="Admin email:         ${ADMIN_EMAIL}
+  Admin password:     ${ADMIN_PASSWORD}
+  (You will be forced to change this on first login)"
+    echo -e "  ${GREEN}✓ Admin account configured${NC}"
+else
+    SUMMARY_ADMIN="Authentication via IdP — no local admin account generated.
+  Use your Keycloak admin user to access YADS on first login."
+    ADMIN_EMAIL=""
+    ADMIN_PASSWORD=""
+fi
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIGURATION SUMMARY — SAVE THIS!
+# ─────────────────────────────────────────────────────────────────────────────
+PROTO="http"
+[[ "$USE_SSL" =~ ^[Yy]$ ]] && PROTO="https"
+ACCESS_HOST="${YADS_HOST:-localhost}"
+
+echo ""
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║          YADS CONFIGURATION SUMMARY — SAVE THIS SECURELY!               ║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}  YADS Access URL:${NC}    ${PROTO}://${ACCESS_HOST}:${API_PORT}"
+echo ""
+echo -e "${BOLD}  Database:${NC}"
+echo -e "  PostgreSQL password:  ${POSTGRES_PASSWORD}"
+echo ""
+echo -e "${BOLD}  Application:${NC}"
+echo -e "  Secret Key:           ${SECRET_KEY}"
+echo ""
+echo -e "${BOLD}  Admin Account:${NC}"
+echo -e "  ${SUMMARY_ADMIN}"
+echo ""
+echo -e "${BOLD}  Identity Provider:${NC}"
+echo -e "  ${SUMMARY_IDP}"
+echo ""
+echo -e "${BOLD}  Monitoring:${NC}"
+echo -e "  ${SUMMARY_MON}"
+
+if [ -n "$DOCKER_PROFILES" ]; then
+    echo ""
+    echo -e "${BOLD}  Active Docker Profiles:${NC}  ${DOCKER_PROFILES}"
 fi
 
-# 8. Final Steps
-echo -e "${BLUE}==============================================================================${NC}"
-echo -e "${GREEN}Configuration Complete!${NC}"
+if [[ "$USE_SSL" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${BOLD}  SSL Certificate:${NC}  ${SSL_CERT_PATH}"
+    echo -e "  SSL Key:           ${SSL_KEY_PATH}"
+fi
+
 echo ""
-echo "Next steps:"
-echo "  1. Review the generated .env file"
+echo -e "${RED}  ⚠  IMPORTANT: This summary is shown ONCE. Copy it to a password manager now!${NC}"
+echo -e "${RED}  ⚠  The .env file contains all secrets — back it up securely!${NC}"
 echo ""
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# ── Next Steps ────────────────────────────────────────────────────────────────
+echo -e "${BOLD}Next Steps:${NC}"
+echo ""
+echo "  1. Start YADS:"
 if [ -n "$DOCKER_PROFILES" ]; then
-    echo "  2. Start YADS (with optional stacks):"
     echo -e "     ${BLUE}docker compose up -d${NC}"
-    echo -e "     ${YELLOW}(COMPOSE_PROFILES=$DOCKER_PROFILES is set in .env — optional services start automatically)${NC}"
+    echo -e "     ${YELLOW}     (COMPOSE_PROFILES=${DOCKER_PROFILES} — optional services start automatically)${NC}"
 else
-    echo "  2. Start YADS:"
     echo -e "     ${BLUE}docker compose up -d${NC}"
 fi
 echo ""
-if [ "$HAS_NGINX" == "true" ]; then
-    echo "  3. Access YADS at: ${BLUE}http${USE_SSL:+s}://localhost:$API_PORT${NC}"
-else
-    echo "  3. Access YADS at: ${BLUE}http://localhost:$API_PORT${NC}"
-fi
+echo "  2. Access YADS at:"
+echo -e "     ${BLUE}${PROTO}://${ACCESS_HOST}:${API_PORT}${NC}"
 echo ""
 if [ "$KC_CHOICE" == "2" ]; then
-    echo "  4. Migrate existing users to Keycloak (after first start):"
+    echo "  3. Wait ~60 seconds for Keycloak to initialize, then:"
+    echo -e "     Open Keycloak Admin: ${BLUE}http://${ACCESS_HOST}:${KC_PORT}/admin${NC}"
+    echo -e "     Login: admin / ${KC_ADMIN_PASSWORD}"
+    echo ""
+    echo "  4. After YADS starts, migrate existing local users to Keycloak:"
     echo -e "     ${BLUE}docker exec yads-api python /app/scripts/maintenance/migrate_users_to_keycloak.py \\${NC}"
     echo -e "     ${BLUE}  --keycloak-url http://keycloak:8080 --dry-run${NC}"
+    echo "     Remove --dry-run when satisfied with the preview."
+    echo ""
+fi
+if [ "$MON_CHOICE" == "2" ]; then
+    echo "  3. Access Grafana at:"
+    echo -e "     ${BLUE}http://localhost:${GRAFANA_PORT}${NC}  (admin / ${GRAFANA_ADMIN_PASSWORD})"
     echo ""
 fi
 echo "  Manual override of optional stacks:"
@@ -323,4 +423,4 @@ echo "    Keycloak only:   docker compose --profile keycloak up -d"
 echo "    Monitoring only: docker compose --profile monitoring up -d"
 echo "    All stacks:      docker compose --profile keycloak --profile monitoring up -d"
 echo ""
-echo -e "${BLUE}==============================================================================${NC}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════════════════════════${NC}"
