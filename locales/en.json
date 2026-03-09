@@ -49,7 +49,10 @@
     "notifications": "Notifications",
     "storage_analytics": "Storage Analytics",
     "users": "Users",
-    "tenant_settings": "Tenant Settings"
+    "tenant_settings": "Tenant Settings",
+    "scan_profiles": "Scan Profiles",
+    "developer_portal": "Developer Portal",
+    "onboarding": "Setup Wizard"
   },
   "common": {
     "save": "Save",
@@ -196,6 +199,76 @@
     "delete": "Delete Target",
     "scan_now": "Scan Now",
     "view_details": "View Details"
+  },
+  "developer": {
+    "title": "Developer Portal",
+    "subtitle": "API keys, code examples, and integration docs",
+    "api_keys": "API Keys",
+    "create_key": "Generate Key",
+    "key_name": "Key name",
+    "key_name_placeholder": "e.g. CI/CD pipeline",
+    "expiry": "Expiry",
+    "no_expiry": "No expiry",
+    "revoke": "Revoke",
+    "new_key_notice": "Your new API key — copy it now, it will not be shown again",
+    "no_keys": "No API keys yet. Generate one above.",
+    "auth_header": "Authentication",
+    "code_examples": "Code Examples",
+    "key_endpoints": "Key Endpoints",
+    "rate_limits": "Rate Limits",
+    "open_api_docs": "OpenAPI Docs"
+  },
+  "onboarding": {
+    "welcome": "Welcome to YADS",
+    "welcome_subtitle": "Your Automated Domain Security Scanner. Let's get you set up in under 2 minutes.",
+    "add_target": "Add your first target",
+    "add_target_subtitle": "Enter the domain you want to monitor.",
+    "first_scan": "Run your first scan",
+    "first_scan_subtitle": "Select a scan profile and kick off your first security assessment.",
+    "done_title": "You're all set!",
+    "done_subtitle": "YADS is running your first scan. Results will appear in the targets list.",
+    "skip": "Skip wizard and go to dashboard",
+    "get_started": "Get Started",
+    "launch_scan": "Launch Scan",
+    "go_to_dashboard": "Go to Dashboard",
+    "step_welcome": "Welcome",
+    "step_target": "Add Target",
+    "step_scan": "First Scan",
+    "step_done": "Done"
+  },
+  "data_retention": {
+    "title": "Data Retention",
+    "subtitle": "Automatically delete old scan results to keep database size manageable.",
+    "days_label": "Retention Period (days)",
+    "days_hint": "0 = keep forever. Scan results older than this are deleted daily.",
+    "prune_task": "Daily cleanup task runs at midnight UTC."
+  },
+  "scan_profiles": {
+    "title": "Scan Profiles",
+    "subtitle": "Save and reuse named scan configurations.",
+    "create": "Create Profile",
+    "edit": "Edit Profile",
+    "delete": "Delete Profile",
+    "set_default": "Set as Default",
+    "apply_profile": "Apply profile",
+    "builtin": "Built-in",
+    "saved": "Saved",
+    "no_profiles": "No saved profiles yet.",
+    "name": "Profile Name",
+    "description": "Description",
+    "modules": "Modules",
+    "default_badge": "Default",
+    "public_badge": "Public"
+  },
+  "changes": {
+    "banner_title": "change(s) detected in the last 24 hours",
+    "show_hide": "Show / Hide",
+    "history_title": "Change History",
+    "no_changes": "No changes detected recently.",
+    "module": "Module",
+    "type": "Type",
+    "description": "Description",
+    "detected_at": "Detected At"
   },
   "errors": {
     "not_found": "Not found",

@@ -153,6 +153,37 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.41.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.41.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Exporte, Entwicklerportal, KI-Integration &amp; Plattform-Verbesserungen</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li><strong>Excel-Export</strong> — Mehrblättrige XLSX-Exporte pro Ziel mit allen 20+ Scanner-Modulen (DNS, SSL, Web, E-Mail, Header, Cookies, CORS, Nuclei, Bedrohungsintelligenz u. v. m.)</li>
+                    <li><strong>Entwicklerportal</strong> — Dedizierte <code>/developer</code>-Seite mit API-Schlüsselverwaltung, Code-Beispielen (curl, Python, JavaScript), Endpunkt-Referenz und Rate-Limit-Übersicht</li>
+                    <li><strong>Scan-Profile</strong> — Benannte Scan-Konfigurationen speichern und wiederverwenden. Integrierte Profile: Quick Recon, Standard Scan, Deep Security Audit, Recon Only, Threat Intelligence. Profil-Auswahl in allen Scan-UIs</li>
+                    <li><strong>Einrichtungsassistent</strong> — Geführte 4-Schritte-Einrichtung für neue Mandanten: Willkommen → Ziel hinzufügen → Erster Scan → Fertig. Wird beim ersten Login automatisch angezeigt</li>
+                    <li><strong>Datenspeicherung</strong> — Konfigurierbarer Aufbewahrungszeitraum (Standard: 90 Tage). Tägliche automatische Bereinigung alter Scan-Ergebnisse und Änderungsereignisse</li>
+                    <li><strong>KI-Befundpriorisierung</strong> — Schaltfläche in der Zieldetail-Kopfzeile bewertet alle Befunde nach Ausnutzbarkeit und Geschäftsauswirkung</li>
+                    <li><strong>KI-Behebungsanleitungen</strong> — Behebungsratschläge per Modul in SSL, E-Mail-Sicherheit, HTTP-Header, Cookies, CORS und Bedrohungsintelligenz-Karten</li>
+                    <li><strong>Änderungs-UX</strong> — 24-Stunden-Änderungsbanner, „CHANGED"-Badges auf 13 Modulkarten, verzögert geladener Änderungsverlauf</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li><strong>Worker-Refaktorierung</strong> — Monolithische worker.py (1784 Zeilen) in fokussierte Module aufgeteilt für bessere Wartbarkeit und Testbarkeit</li>
+                    <li><strong>PDF-Bericht</strong> — 12 neue Abschnittsmethoden für alle Scanner-Module; Zusammenfassung der Sicherheitsbefunde am Berichtsanfang</li>
+                    <li><strong>E-Mail-Benachrichtigungen</strong> — Überarbeiteter Dienst mit STARTTLS, EN/DE-Vorlagen, nicht-blockierender Zustellung und täglichem Digest</li>
+                    <li><strong>API-Ratenbegrenzung</strong> — Redis Sliding-Window-Limiter für 6 externe Dienste mit DB-konfigurierbaren Überschreibungen</li>
+                </ul>
+                <h3>🔧 Release-Manager</h3>
+                <ul>
+                    <li>SSH-Vorabprüfung, Wiederholen- &amp; Zurücksetzen-Schaltflächen, Image-Cache-Erkennung (überspringt redundante Builds), Post-Deploy-Smoke-Test, Log-Filter, Laufzeitanzeige</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.40.2 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.40.2</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

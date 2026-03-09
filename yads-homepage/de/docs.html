@@ -132,6 +132,11 @@
 <li><a href="#19-support">19. Support</a></li>
 <li><a href="#20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</a></li>
 <li><a href="#21-identity-provider-sso">21. Identity Provider &amp; SSO</a></li>
+<li><a href="#22-entwicklerportal">22. Entwicklerportal</a></li>
+<li><a href="#23-scan-profile">23. Scan-Profile</a></li>
+<li><a href="#24-einrichtungsassistent">24. Einrichtungsassistent</a></li>
+<li><a href="#25-datenspeicherung">25. Datenspeicherung</a></li>
+<li><a href="#26-excel-export">26. Excel-Export</a></li>
 
             </ul>
         </aside>
@@ -170,6 +175,11 @@
 <li><a href="#18-fehlerbehebung">Fehlerbehebung</a></li>
 <li><a href="#20-standalone-lokale-installation">Standalone- &amp; Lokale Installation</a></li>
 <li><a href="#21-identity-provider-sso">Identity Provider &amp; SSO</a></li>
+<li><a href="#22-entwicklerportal">Entwicklerportal</a></li>
+<li><a href="#23-scan-profile">Scan-Profile</a></li>
+<li><a href="#24-einrichtungsassistent">Einrichtungsassistent</a></li>
+<li><a href="#25-datenspeicherung">Datenspeicherung</a></li>
+<li><a href="#26-excel-export">Excel-Export</a></li>
 </ol>
 <hr />
 <h2>1. Einführung</h2>
@@ -1136,7 +1146,88 @@ OIDC_PUBLIC_URL=https://keycloak.your-domain.com</code></pre>
     <p>Entfernen Sie <code>--dry-run</code>, um die Migration tatsächlich durchzuführen. Bestehende lokale Passwörter bleiben als Fallback erhalten, solange <code>AUTH_MODE=local</code> aktiv ist.</p>
 </blockquote>
 <hr />
-<p><em>Verifiziert für YADS v1.40.2</em></p>
+
+<h2 id="22-entwicklerportal">22. Entwicklerportal</h2>
+<p>Das Entwicklerportal (<code>/developer</code>) stellt alles bereit, um YADS in CI/CD-Pipelines, SIEM-Systeme oder eigene Tools zu integrieren.</p>
+<h3>API-Schlüsselverwaltung</h3>
+<ul>
+    <li>API-Schlüssel mit optionalem Ablaufdatum erstellen (30T, 90T, 1J oder kein Ablauf)</li>
+    <li>Schlüssel werden nur einmalig bei Erstellung angezeigt — sofort kopieren und sicher aufbewahren</li>
+    <li>Schlüssel jederzeit widerrufen; widerrufene Schlüssel werden sofort abgelehnt</li>
+</ul>
+<h3>Authentifizierung</h3>
+<p>API-Schlüssel im <code>X-API-Key</code>-Header übergeben:</p>
+<pre><code>curl -H "X-API-Key: yads_ihr_schluessel_hier" https://ihre-yads-instanz/api/targets</code></pre>
+<h3>Code-Beispiele</h3>
+<p>Das Portal enthält einsatzbereite Code-Snippets für curl, Python (<code>requests</code>) und JavaScript (<code>fetch</code>) — für Authentifizierung, Ziel-Auflistung, Scan-Start und Ergebnisabruf.</p>
+<h3>Ratenlimits</h3>
+<table>
+    <thead><tr><th>Endpunkt</th><th>Limit</th></tr></thead>
+    <tbody>
+        <tr><td>Die meisten API-Endpunkte</td><td>600 Anfragen/min</td></tr>
+        <tr><td>Scan-Start</td><td>60 Anfragen/min</td></tr>
+        <tr><td>Berichterstellung</td><td>10 Anfragen/min</td></tr>
+    </tbody>
+</table>
+<hr />
+
+<h2 id="23-scan-profile">23. Scan-Profile</h2>
+<p>Scan-Profile ermöglichen das Speichern und Wiederverwenden benannter Scanner-Modul-Zusammenstellungen — manuelle Modulauswahl bei jedem Scan entfällt.</p>
+<h3>Integrierte Profile</h3>
+<table>
+    <thead><tr><th>Profil</th><th>Beschreibung</th><th>Module</th></tr></thead>
+    <tbody>
+        <tr><td>Quick Recon</td><td>Leichter passiver Check</td><td>DNS, SSL, HTTP-Header</td></tr>
+        <tr><td>Standard Scan</td><td>Ausgewogene Sicherheitsprüfung</td><td>Alle Kernmodule</td></tr>
+        <tr><td>Deep Security Audit</td><td>Gründliche Prüfung</td><td>Alle Module inkl. Nuclei</td></tr>
+        <tr><td>Recon Only</td><td>Keine aktiven Sondierungen</td><td>DNS, OSINT, Wayback, crt.sh</td></tr>
+        <tr><td>Threat Intelligence</td><td>IOC &amp; Reputationsfokus</td><td>Shodan, Censys, AbuseIPDB, OTX, VT</td></tr>
+    </tbody>
+</table>
+<h3>Eigene Profile</h3>
+<p>Unter <strong>Scan-Profile</strong> in der Seitenleiste → <strong>Profil erstellen</strong>. Module auswählen, optional als öffentlich markieren (für alle Mandantenbenutzer sichtbar) und speichern. Ein Profil kann als Mandantenstandard festgelegt werden — alle neuen Scans verwenden es automatisch.</p>
+<hr />
+
+<h2 id="24-einrichtungsassistent">24. Einrichtungsassistent</h2>
+<p>Neue Mandanten werden beim ersten Login durch einen 4-Schritte-Assistenten geführt:</p>
+<ol>
+    <li><strong>Willkommen</strong> — Übersicht über YADS-Funktionen und Kernmerkmale</li>
+    <li><strong>Ziel hinzufügen</strong> — Erste zu überwachende Domain eingeben</li>
+    <li><strong>Erster Scan</strong> — Scan-Profil auswählen und erste Prüfung starten</li>
+    <li><strong>Fertig</strong> — Links zum Dashboard, zur Zielliste und zur Dokumentation</li>
+</ol>
+<p>Der Assistent kann jederzeit über den Link „Assistent überspringen" geschlossen werden. Nach dem Schließen (oder Abschließen) erscheint er nicht erneut. Plattformadmins können ihn für einen Mandanten zurücksetzen, indem der Schlüssel <code>ONBOARDING_DONE_{tenant_id}</code> unter Systemeinstellungen → Konfiguration entfernt wird.</p>
+<hr />
+
+<h2 id="25-datenspeicherung">25. Datenspeicherung</h2>
+<p>YADS kann alte Scan-Ergebnisse automatisch löschen, um die Datenbankgröße bei langfristigen Deployments überschaubar zu halten.</p>
+<h3>Konfiguration</h3>
+<p>Unter <strong>Einstellungen → Datenspeicherung</strong> den Aufbewahrungszeitraum in Tagen festlegen (Standard: 90). Wert 0 deaktiviert die Bereinigung (dauerhaft behalten).</p>
+<h3>Bereinigungsverhalten</h3>
+<ul>
+    <li>Ein Celery-Beat-Task läuft täglich um Mitternacht UTC</li>
+    <li>Löscht zunächst <code>ChangeEvent</code>-Einträge älter als der Aufbewahrungszeitraum, dann <code>ScanResult</code>-Einträge</li>
+    <li>Das jeweils neueste Scan-Ergebnis pro Modul und Ziel wird niemals gelöscht (geschützt)</li>
+    <li>Betroffene Zeilen werden im Systemprotokoll vermerkt</li>
+</ul>
+<hr />
+
+<h2 id="26-excel-export">26. Excel-Export</h2>
+<p>Jede Zieldetailseite hat eine <strong>Excel-Export</strong>-Schaltfläche, die eine mehrblättrige XLSX-Datei mit allen 20+ Scanner-Modulen erzeugt.</p>
+<h3>Enthaltene Tabellenblätter</h3>
+<ul>
+    <li>Zusammenfassung — Ziel-Metadaten, Sicherheits-Score, Scan-Zeitstempel</li>
+    <li>DNS-Einträge, Subdomains, SSL/TLS, HTTP-Header, Cookies, CORS</li>
+    <li>E-Mail-Sicherheit (SPF/DKIM/DMARC), Bedrohungsintelligenz, Shodan/Censys</li>
+    <li>Nuclei-Befunde, Web-Technologien, Externe Links, Sicherheitsbefunde</li>
+    <li>Änderungsereignisse, Compliance und mehr</li>
+</ul>
+<h3>Sprachunterstützung</h3>
+<p>Mit <code>?lang=de</code> werden Spaltenüberschriften und Bezeichnungen auf Deutsch ausgegeben (Standard: Englisch mit <code>?lang=en</code>).</p>
+<pre><code>GET /targets/{id}/export/excel?lang=de</code></pre>
+
+<hr />
+<p><em>Verifiziert für YADS v1.41.0</em></p>
         </main>
     </div>
     
