@@ -1111,9 +1111,135 @@ async def export_target_pdf(target_id: int, lang: str = "en", session: Session =
     else:
         pdf.chapter_body("No Visual OSINT data available.")
 
+    # ── New Module Sections ─────────────────────────────────────────────────
+    _new_modules = [
+        ("open_redirect_scanner", "Open Redirect", [
+            ("Score", lambda d: d.get("summary",{}).get("score", "-")),
+            ("Status", lambda d: d.get("summary",{}).get("status", "-")),
+            ("Vulnerable Params", lambda d: d.get("summary",{}).get("vulnerable_params", 0)),
+            ("URLs Tested", lambda d: d.get("tested_urls", "-")),
+        ]),
+        ("tls_deep_scanner", "TLS Deep Scan", [
+            ("Score", lambda d: d.get("summary",{}).get("score", "-")),
+            ("Grade", lambda d: d.get("summary",{}).get("grade", "-")),
+            ("TLS 1.3", lambda d: "✓" if d.get("protocol_support",{}).get("tls13") else "✗"),
+            ("TLS 1.0 (deprecated)", lambda d: "Yes" if d.get("protocol_support",{}).get("tls10") else "No"),
+            ("Forward Secrecy", lambda d: "✓" if d.get("forward_secrecy") else "✗"),
+            ("HSTS Preloaded", lambda d: "✓" if d.get("hsts_preload",{}).get("preloaded") else "✗"),
+            ("Issues", lambda d: d.get("summary",{}).get("issues", 0)),
+        ]),
+        ("banner_grabber", "Service Fingerprinting", [
+            ("Open Services", lambda d: len(d.get("open_services", []))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("asn_scanner", "ASN / IP Ranges", [
+            ("ASNs", lambda d: len(d.get("asns", []))),
+            ("Prefixes", lambda d: len(d.get("prefixes", []))),
+            ("Estimated IPs", lambda d: d.get("total_ips_estimated", "-")),
+        ]),
+        ("login_scanner", "Login & Auth Surface", [
+            ("Login Pages", lambda d: len(d.get("login_pages", []))),
+            ("Admin Pages", lambda d: len(d.get("admin_pages", []))),
+            ("Reset Pages", lambda d: len(d.get("reset_pages", []))),
+            ("Score", lambda d: d.get("summary",{}).get("score", "-")),
+        ]),
+        ("ipv6_scanner", "IPv6 Attack Surface", [
+            ("Has IPv6", lambda d: "Yes" if d.get("has_ipv6") else "No"),
+            ("IPv6 Addresses", lambda d: ", ".join(d.get("ipv6_addresses",[])[:3])),
+            ("Open Ports IPv6", lambda d: str(d.get("open_ports_ipv6",[]))),
+        ]),
+        ("dns_history_scanner", "DNS History", [
+            ("Historical Hosts", lambda d: len(d.get("historical_hosts", []))),
+            ("Unique IPs", lambda d: len(d.get("unique_ips", []))),
+            ("Unique Subdomains", lambda d: len(d.get("unique_subdomains", []))),
+        ]),
+        ("phishing_scanner", "Phishing Detection", [
+            ("Listed", lambda d: "YES" if d.get("phishing_listed") else "No"),
+            ("URIBL Listed", lambda d: "Yes" if d.get("uribl_listed") else "No"),
+            ("Sources Checked", lambda d: len(d.get("sources_checked", []))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("ct_monitor", "CT Log Monitor", [
+            ("Total Certs", lambda d: d.get("total_certs", 0)),
+            ("Unique CAs", lambda d: len(d.get("unique_cas", []))),
+            ("Unknown CAs", lambda d: len(d.get("unknown_cas", []))),
+            ("Wildcard Certs", lambda d: len(d.get("wildcard_certs", []))),
+            ("Suspicious Names", lambda d: len(d.get("suspicious_names", []))),
+        ]),
+        ("email_harvester", "Email Harvesting", [
+            ("Emails Found", lambda d: d.get("email_count", 0)),
+            ("Pattern", lambda d: d.get("email_pattern", "-")),
+        ]),
+        ("dependency_confusion", "Dependency Confusion", [
+            ("npm Packages", lambda d: len(d.get("packages",{}).get("npm",[]))),
+            ("Python Packages", lambda d: len(d.get("packages",{}).get("python",[]))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("graphql_scanner", "GraphQL Security", [
+            ("Endpoints", lambda d: len(d.get("endpoints_found", []))),
+            ("Introspection", lambda d: "Exposed" if d.get("introspection") else "Disabled"),
+            ("Playground", lambda d: "Yes" if d.get("playground_exposed") else "No"),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("websocket_scanner", "WebSocket Security", [
+            ("Endpoints", lambda d: len(d.get("endpoints_found", []))),
+            ("Unencrypted WS", lambda d: len(d.get("unencrypted_ws", []))),
+            ("CSWSH Vulnerable", lambda d: len(d.get("cswsh_vulnerable", []))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("password_spray_mapper", "Password Spray Surface", [
+            ("M365 Tenant", lambda d: d.get("m365_tenant", "None")),
+            ("SSO Endpoints", lambda d: len(d.get("sso_endpoints", []))),
+            ("Rate Limiting", lambda d: "Yes" if d.get("rate_limiting_detected") else "No"),
+        ]),
+        ("leaked_credentials", "Leaked Credentials", [
+            ("Breaches", lambda d: len(d.get("breach_details", []))),
+            ("Paste Hits", lambda d: len(d.get("paste_results", []))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("api_security_scanner", "API Security (OWASP)", [
+            ("API Endpoints", lambda d: len(d.get("api_bases", []))),
+            ("OpenAPI Spec", lambda d: d.get("openapi_spec", "None")),
+            ("Rate Limited", lambda d: "Yes" if d.get("rate_limited") else "No"),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("mobile_app_discovery", "Mobile App Discovery", [
+            ("iOS Apps", lambda d: len(d.get("ios_apps", []))),
+            ("Android Apps", lambda d: len(d.get("android_apps", []))),
+            ("Findings", lambda d: len(d.get("findings", []))),
+        ]),
+        ("waf_detector", "WAF / CDN Detection", [
+            ("WAF Detected", lambda d: "Yes" if d.get("waf_detected") else "No"),
+            ("Providers", lambda d: ", ".join(d.get("providers", [])) or "None"),
+            ("WAF Blocking", lambda d: "Yes" if d.get("waf_blocking") else "No"),
+        ]),
+    ]
+    for mod_name, mod_label, fields in _new_modules:
+        r = next((x for x in results if x.module_name == mod_name), None)
+        pdf.chapter_title(mod_label)
+        if r and r.data:
+            d = r.data
+            for label, fn in fields:
+                try:
+                    pdf.section_kv(label, str(fn(d)))
+                except Exception:
+                    pass
+            findings = d.get("findings", [])
+            if findings:
+                pdf.section_header(f"Findings ({len(findings)})")
+                for f in findings[:10]:
+                    sev = f.get("severity", "").upper()
+                    title = f.get("title", f.get("message", str(f)))
+                    pdf.set_font('Helvetica', 'B', 8)
+                    pdf.set_text_color(180, 60, 60)
+                    pdf.multi_cell(0, 5, f"[{sev}] {title}")
+                    pdf.set_text_color(0, 0, 0)
+        else:
+            pdf.chapter_body(f"No data. Run '{mod_label}' scan.")
+
     # Output
-    output_pdf = BytesIO(pdf.output()) 
-    
+    output_pdf = BytesIO(pdf.output())
+
     headers = {
         'Content-Disposition': f'attachment; filename="target_{target.domain}_report.pdf"'
     }
