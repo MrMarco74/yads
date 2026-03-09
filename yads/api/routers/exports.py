@@ -589,6 +589,205 @@ async def export_target_excel(
                 ["ID", "Name", "Schwere" if de else "Severity", "URL"],
                 [[v.get("template_id",""), v.get("name",""), v.get("severity",""), v.get("matched_at","")] for v in vulns[:500]])
 
+    d = by_module.get("open_redirect_scanner", {})
+    if d:
+        kv_sheet("Open Redirect", [
+            ("Score", d.get("summary", {}).get("score", "-")),
+            ("Status", d.get("summary", {}).get("status", "-")),
+            ("Anfällige Parameter" if de else "Vulnerable Params", d.get("summary", {}).get("vulnerable_params", 0)),
+            ("Getestete URLs" if de else "Tested URLs", d.get("tested_urls", "-")),
+        ])
+        if d.get("findings"):
+            table_sheet("Open Redirect Befunde" if de else "Open Redirect Findings",
+                ["Parameter", "URL", "Schwere" if de else "Severity"],
+                [[f.get("param",""), f.get("url",""), f.get("severity","")] for f in d["findings"]])
+
+    d = by_module.get("tls_deep_scanner", {})
+    if d:
+        ps = d.get("protocol_support", {})
+        kv_sheet("TLS Deep Scan", [
+            ("Score", d.get("summary", {}).get("score", "-")),
+            ("Grade" if not de else "Note", d.get("summary", {}).get("grade", "-")),
+            ("TLS 1.3", "✓" if ps.get("tls13") else "✗"),
+            ("TLS 1.2", "✓" if ps.get("tls12") else "✗"),
+            ("TLS 1.1 (deprecated)", "✓" if ps.get("tls11") else "✗"),
+            ("TLS 1.0 (deprecated)", "✓" if ps.get("tls10") else "✗"),
+            ("Forward Secrecy", "✓" if d.get("forward_secrecy") else "✗"),
+            ("HSTS Preloaded", "✓" if d.get("hsts_preload", {}).get("preloaded") else "✗"),
+            ("Cipher", d.get("cipher", {}).get("name", "-")),
+        ])
+
+    d = by_module.get("banner_grabber", {})
+    if d:
+        services = d.get("open_services", [])
+        kv_sheet("Service-Fingerprinting" if de else "Service Fingerprinting", [
+            ("Offene Dienste" if de else "Open Services", len(services)),
+        ])
+        if services:
+            table_sheet("Dienste" if de else "Services",
+                ["Port", "Protokoll" if de else "Protocol", "Dienst" if de else "Service", "Banner"],
+                [[s.get("port",""), s.get("protocol",""), s.get("service",""), (s.get("banner","") or "")[:100]] for s in services])
+
+    d = by_module.get("asn_scanner", {})
+    if d:
+        kv_sheet("ASN / IP-Bereiche" if de else "ASN / IP Ranges", [
+            ("IPs", ", ".join(d.get("ips", [])[:5])),
+            ("ASNs", len(d.get("asns", []))),
+            ("Präfixe" if de else "Prefixes", len(d.get("prefixes", []))),
+            ("Geschätzte IPs" if de else "Estimated IPs", d.get("total_ips_estimated", "-")),
+        ])
+        if d.get("asns"):
+            table_sheet("ASN Details",
+                ["ASN", "Name", "Land" if de else "Country", "Typ" if de else "Type"],
+                [[a.get("asn",""), a.get("name",""), a.get("country",""), a.get("type","")] for a in d["asns"]])
+
+    d = by_module.get("login_scanner", {})
+    if d:
+        kv_sheet("Login-Oberfläche" if de else "Login Surface", [
+            ("Login-Seiten" if de else "Login Pages", len(d.get("login_pages", []))),
+            ("Admin-Seiten" if de else "Admin Pages", len(d.get("admin_pages", []))),
+            ("Reset-Seiten" if de else "Reset Pages", len(d.get("reset_pages", []))),
+            ("Score", d.get("summary", {}).get("score", "-")),
+        ])
+        all_pages = d.get("login_pages", []) + d.get("admin_pages", []) + d.get("reset_pages", [])
+        if all_pages:
+            table_sheet("Auth-Seiten" if de else "Auth Pages",
+                ["URL", "Typ" if de else "Type", "Schwere" if de else "Severity"],
+                [[p.get("url",""), p.get("type",""), p.get("severity","")] for p in all_pages[:200]])
+
+    d = by_module.get("ipv6_scanner", {})
+    if d:
+        kv_sheet("IPv6-Angriffsfläche" if de else "IPv6 Attack Surface", [
+            ("Hat IPv6" if de else "Has IPv6", "Ja" if de and d.get("has_ipv6") else ("Yes" if d.get("has_ipv6") else "No")),
+            ("IPv6-Adressen" if de else "IPv6 Addresses", ", ".join(d.get("ipv6_addresses", [])[:3])),
+            ("IPv4-Adressen" if de else "IPv4 Addresses", ", ".join(d.get("ipv4_addresses", [])[:3])),
+            ("Offene Ports IPv6" if de else "Open Ports IPv6", ", ".join(map(str, d.get("open_ports_ipv6", [])))),
+        ])
+
+    d = by_module.get("dns_history_scanner", {})
+    if d:
+        kv_sheet("DNS-Historie" if de else "DNS History", [
+            ("Historische Hosts" if de else "Historical Hosts", len(d.get("historical_hosts", []))),
+            ("Einzigartige IPs" if de else "Unique IPs", len(d.get("unique_ips", []))),
+            ("Subdomains", len(d.get("unique_subdomains", []))),
+            ("Quellen" if de else "Sources", ", ".join(d.get("sources_used", []))),
+        ])
+
+    d = by_module.get("phishing_scanner", {})
+    if d:
+        kv_sheet("Phishing-Erkennung" if de else "Phishing Detection", [
+            ("Gelistet" if de else "Listed", "Ja" if de and d.get("phishing_listed") else ("Yes" if d.get("phishing_listed") else "No")),
+            ("URLHaus", d.get("urlhaus", "-")),
+            ("URIBL-Gelistet" if de else "URIBL Listed", "Ja" if de and d.get("uribl_listed") else ("Yes" if d.get("uribl_listed") else "No")),
+            ("Geprüfte Quellen" if de else "Sources Checked", len(d.get("sources_checked", []))),
+        ])
+
+    d = by_module.get("ct_monitor", {})
+    if d:
+        kv_sheet("CT-Log-Monitor" if de else "CT Log Monitor", [
+            ("Gesamt Zertifikate" if de else "Total Certs", d.get("total_certs", "-")),
+            ("Einzigartige CAs" if de else "Unique CAs", len(d.get("unique_cas", []))),
+            ("Unbekannte CAs" if de else "Unknown CAs", len(d.get("unknown_cas", []))),
+            ("Wildcard-Certs" if de else "Wildcard Certs", len(d.get("wildcard_certs", []))),
+            ("Verdächtige Namen" if de else "Suspicious Names", len(d.get("suspicious_names", []))),
+        ])
+
+    d = by_module.get("email_harvester", {})
+    if d:
+        kv_sheet("E-Mail-Erkennung" if de else "Email Harvesting", [
+            ("E-Mails gefunden" if de else "Emails Found", d.get("email_count", 0)),
+            ("Muster" if de else "Pattern", d.get("email_pattern", "-")),
+            ("Geprüfte Quellen" if de else "Sources Checked", len(d.get("sources_checked", []))),
+        ])
+        if d.get("emails"):
+            table_sheet("E-Mail-Adressen" if de else "Email Addresses",
+                ["E-Mail" if de else "Email", "Quelle" if de else "Source"],
+                [[em if isinstance(em, str) else em.get("email",""), em.get("source","") if isinstance(em, dict) else ""] for em in d["emails"][:500]])
+
+    d = by_module.get("dependency_confusion", {})
+    if d:
+        pkgs = d.get("packages", {})
+        kv_sheet("Dependency-Confusion" if de else "Dependency Confusion", [
+            ("npm-Pakete" if de else "npm Packages", len(pkgs.get("npm", []))),
+            ("Python-Pakete" if de else "Python Packages", len(pkgs.get("python", []))),
+            ("Ruby-Gems", len(pkgs.get("ruby", []))),
+            ("Go-Module" if de else "Go Modules", len(pkgs.get("go", []))),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("graphql_scanner", {})
+    if d:
+        kv_sheet("GraphQL-Sicherheit" if de else "GraphQL Security", [
+            ("Endpunkte" if de else "Endpoints", len(d.get("endpoints_found", []))),
+            ("Introspection", "Exponiert" if de and d.get("introspection") else ("Exposed" if d.get("introspection") else "Disabled")),
+            ("Playground", "Ja" if de and d.get("playground_exposed") else ("Yes" if d.get("playground_exposed") else "No")),
+            ("Batch-Queries" if de else "Batch Queries", "Ja" if de and d.get("batch_queries") else ("Yes" if d.get("batch_queries") else "No")),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("websocket_scanner", {})
+    if d:
+        kv_sheet("WebSocket-Sicherheit" if de else "WebSocket Security", [
+            ("Endpunkte" if de else "Endpoints", len(d.get("endpoints_found", []))),
+            ("Unverschlüsselte WS" if de else "Unencrypted WS", len(d.get("unencrypted_ws", []))),
+            ("CSWSH anfällig" if de else "CSWSH Vulnerable", len(d.get("cswsh_vulnerable", []))),
+            ("Token in URL", len(d.get("token_in_url", []))),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("password_spray_mapper", {})
+    if d:
+        kv_sheet("Passwort-Spray-Fläche" if de else "Password Spray Surface", [
+            ("M365-Tenant" if de else "M365 Tenant", d.get("m365_tenant", "-")),
+            ("SSO-Endpunkte" if de else "SSO Endpoints", len(d.get("sso_endpoints", []))),
+            ("Basic-Auth-Endpunkte" if de else "Basic Auth Endpoints", len(d.get("basic_auth_endpoints", []))),
+            ("Ratenbegrenzung erkannt" if de else "Rate Limiting Detected", "Ja" if de and d.get("rate_limiting_detected") else ("Yes" if d.get("rate_limiting_detected") else "No")),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("leaked_credentials", {})
+    if d:
+        kv_sheet("Gestohlene Zugangsdaten" if de else "Leaked Credentials", [
+            ("Datenpannen" if de else "Breaches", len(d.get("breach_details", []))),
+            ("Paste-Treffer" if de else "Paste Hits", len(d.get("paste_results", []))),
+            ("GitHub-Leaks" if de else "GitHub Leaks", len(d.get("github_leaks", []))),
+            ("Geprüfte Quellen" if de else "Sources Checked", len(d.get("sources_checked", []))),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+        if d.get("breach_details"):
+            table_sheet("Datenpannen-Details" if de else "Breach Details",
+                ["Name", "Datum" if de else "Date", "Betroffene Daten" if de else "Compromised Data"],
+                [[b.get("name",""), b.get("breach_date",""), ", ".join(b.get("data_classes", [])[:5])] for b in d["breach_details"]])
+
+    d = by_module.get("api_security_scanner", {})
+    if d:
+        kv_sheet("API-Sicherheit" if de else "API Security", [
+            ("API-Basisendpunkte" if de else "API Bases", len(d.get("api_bases", []))),
+            ("OpenAPI-Spec", d.get("openapi_spec", "-")),
+            ("Ratenbegrenzt" if de else "Rate Limited", "Ja" if de and d.get("rate_limited") else ("Yes" if d.get("rate_limited") else "No")),
+            ("Exponierte Felder" if de else "Exposed Fields", len(d.get("sensitive_fields_exposed", []))),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("mobile_app_discovery", {})
+    if d:
+        kv_sheet("Mobile-App-Erkennung" if de else "Mobile App Discovery", [
+            ("iOS-Apps" if de else "iOS Apps", len(d.get("ios_apps", []))),
+            ("Android-Apps" if de else "Android Apps", len(d.get("android_apps", []))),
+            ("Apple-Site-Association", "Ja" if de and d.get("apple_site_association") else ("Yes" if d.get("apple_site_association") else "No")),
+            ("Android-Asset-Links" if de else "Android Asset Links", "Ja" if de and d.get("android_asset_links") else ("Yes" if d.get("android_asset_links") else "No")),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
+    d = by_module.get("waf_detector", {})
+    if d:
+        kv_sheet("WAF / CDN-Erkennung" if de else "WAF / CDN Detection", [
+            ("WAF erkannt" if de else "WAF Detected", "Ja" if de and d.get("waf_detected") else ("Yes" if d.get("waf_detected") else "No")),
+            ("Provider", ", ".join(d.get("providers", []))),
+            ("WAF blockiert" if de else "WAF Blocking", "Ja" if de and d.get("waf_blocking") else ("Yes" if d.get("waf_blocking") else "No")),
+            ("Befunde" if de else "Findings", len(d.get("findings", []))),
+        ])
+
     output = BytesIO()
     wb.save(output)
     output.seek(0)
