@@ -530,11 +530,11 @@
             <div class="roadmap-section">
                 <div class="section-header">
                     <span class="section-icon">🔑</span>
-                    <h2 class="section-title">Identity Provider &amp; SSO-Integration <span class="status-badge planned">Geplant</span></h2>
+                    <h2 class="section-title">Identity Provider &amp; SSO-Integration <span class="status-badge available">Verfügbar</span></h2>
                 </div>
                 <div class="roadmap-card">
                     <p class="section-intro">
-                        Unternehmensweite Authentifizierung über externe Identity Provider. Ermöglicht Organisationen, ihre bestehende Unternehmensidentitätsinfrastruktur für die YADS-Anmeldung zu nutzen – ohne separates Benutzermanagement und mit zentraler Zugriffskontrolle.
+                        Enterprise-Authentifizierung über Keycloak (OIDC). Organisationen können eine von YADS verwaltete Keycloak-Instanz nutzen oder eine bestehende IdP-Infrastruktur anbinden. Der Setup-Assistent führt durch alle Optionen und erzeugt eine vollständige Konfigurationszusammenfassung.
                     </p>
                     <table class="feature-table">
                         <thead>
@@ -545,20 +545,24 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Azure AD / Entra ID <span class="status-badge planned">Geplant</span></td>
-                                <td>OAuth2/OIDC-Integration mit Microsoft Azure Active Directory (jetzt Entra ID). Benutzer melden sich mit ihrem Microsoft-Unternehmenskonto an. Unterstützt mandantenspezifische App-Registrierungen, gruppenbasiertes Rollen-Mapping (admin/scanner/auditor) und Richtlinien für bedingten Zugriff.</td>
+                                <td>Bundled Keycloak <span class="status-badge available">Verfügbar</span></td>
+                                <td>YADS liefert einen vorkonfigurierten Keycloak-Container (Docker-Profil). Der Setup-Assistent generiert alle Credentials, konfiguriert Realm und Client automatisch und zeigt Admin-URL und Passwort in der abschließenden Zusammenfassung.</td>
                             </tr>
                             <tr>
-                                <td>SAML 2.0 (Generisch) <span class="status-badge planned">Geplant</span></td>
-                                <td>SAML 2.0 Service Provider-Unterstützung für Kompatibilität mit Okta, Ping Identity, ADFS, Keycloak und anderen Enterprise-IdPs. Konfigurierbares Attribut-Mapping für Benutzername, E-Mail und Rollenansprüche.</td>
+                                <td>Externer Keycloak / OIDC <span class="status-badge available">Verfügbar</span></td>
+                                <td>Anbindung an jeden bestehenden Keycloak oder standardkonformen OIDC-Provider. Konfigurierbarer Realm, Client-ID, Client-Secret und Redirect-URI — alles wird automatisch in .env geschrieben.</td>
                             </tr>
                             <tr>
-                                <td>OIDC (Generisch) <span class="status-badge planned">Geplant</span></td>
-                                <td>Generische OpenID Connect-Providerunterstützung. Funktioniert mit Google Workspace, GitHub Enterprise, GitLab und allen standardkonformen IdPs. Pro-Mandant-IdP-Konfiguration für Multi-Tenant-Deployments.</td>
+                                <td>Gruppenbasiertes Rollen-Mapping <span class="status-badge available">Verfügbar</span></td>
+                                <td>YADS-Rollen (admin, tenant_admin, scanner, auditor) werden aus Keycloak-Gruppen-Claims abgeleitet. Keine manuelle Benutzerpflege nach der initialen Migration.</td>
                             </tr>
                             <tr>
-                                <td>Gruppenbasiertes Rollen-Mapping <span class="status-badge planned">Geplant</span></td>
-                                <td>Automatische Zuweisung von YADS-Rollen (admin, tenant_admin, scanner, auditor) auf Basis von IdP-Gruppenmitgliedschaften. Keine manuelle Benutzerbereitstellung erforderlich – der Zugriff wird vollständig durch Unternehmensverzeichnisgruppen gesteuert.</td>
+                                <td>Benutzermigrations-Skript <span class="status-badge available">Verfügbar</span></td>
+                                <td>Ein-Befehl-Migration vorhandener YADS-Nutzer nach Keycloak mit Dry-Run-Modus, Tenant-Filter und idempotenter Wiederholbarkeit.</td>
+                            </tr>
+                            <tr>
+                                <td>Azure AD / Entra ID, SAML 2.0 <span class="status-badge research">Evaluierung</span></td>
+                                <td>Direkte Azure AD OAuth2-Integration und SAML 2.0 SP-Unterstützung (Okta, Ping Identity, ADFS) sind für ein zukünftiges Enterprise-Release in Evaluierung.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -569,7 +573,7 @@
             <div class="roadmap-section">
                 <div class="section-header">
                     <span class="section-icon">🔗</span>
-                    <h2 class="section-title">Automatisierung & Integrationen</h2>
+                    <h2 class="section-title">Automatisierung &amp; Integrationen <span class="status-badge available">Verfügbar</span></h2>
                 </div>
                 <div class="roadmap-card">
                     <table class="feature-table">
@@ -581,17 +585,72 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Jira</td>
-                                <td>Automatische Erstellung und Aktualisierung von Issues basierend auf Scan-Ergebnissen, mit konfigurierbarem Severity-Mapping und Projekt-Zuweisung.</td>
+                                <td>Webhook-System <span class="status-badge available">Verfügbar</span></td>
+                                <td>Konfigurierbare Webhooks für scan_finished, finding_new, finding_resolved, score_drop und target_archived. Pro-Webhook-Schweregrad-Filter und HMAC-SHA256-signierte Payloads.</td>
                             </tr>
                             <tr>
-                                <td>ServiceNow</td>
-                                <td>Push von Security-Incidents an ServiceNow ITSM für Ticketing, Workflow-Automatisierung und Change-Management-Integration.</td>
+                                <td>Jira <span class="status-badge available">Verfügbar</span></td>
+                                <td>Automatische Erstellung und Schließung von Jira-Issues basierend auf Befunden. Konfigurierbarer Projektschlüssel, Severity-Mapping und Issue-Typ. Status-Synchronisation wenn YADS einen Befund als behoben markiert.</td>
                             </tr>
                             <tr>
-                                <td>Cortex XSOAR</td>
-                                <td>Bidirektionale Integration für SOAR-Playbook-Orchestrierung, automatisierte Response und Incident-Anreicherung.</td>
+                                <td>GitHub Issues <span class="status-badge available">Verfügbar</span></td>
+                                <td>Neue Befunde öffnen automatisch GitHub-Issues mit Security-Labels. Unterstützt github.com und GitHub Enterprise Server. Issues werden automatisch geschlossen, wenn Befunde behoben sind.</td>
                             </tr>
+                            <tr>
+                                <td>Splunk / SIEM <span class="status-badge available">Verfügbar</span></td>
+                                <td>Alle Scan-Ergebnisse und Befunde werden als strukturiertes JSON an Splunk HEC weitergeleitet. Generische Syslog-Weiterleitung für andere SIEM-Plattformen verfügbar.</td>
+                            </tr>
+                            <tr>
+                                <td>Slack / Microsoft Teams <span class="status-badge available">Verfügbar</span></td>
+                                <td>Rich-Card-Benachrichtigungen mit Score, Befund-Anzahl und Direktlinks. Konfigurierbar nach Ereignistyp und Schweregrad-Schwellenwert.</td>
+                            </tr>
+                            <tr>
+                                <td>Scanner-Import <span class="status-badge available">Verfügbar</span></td>
+                                <td>Ergebnisse aus Nmap XML, Nuclei JSONL, Burp Suite XML, OWASP ZAP JSON und generischem CSV importieren. Normalisierung in das YADS-Schema, Erzeugung von Change-Events und Einbezug in das Scoring.</td>
+                            </tr>
+                            <tr>
+                                <td>ServiceNow, Cortex XSOAR <span class="status-badge research">Evaluierung</span></td>
+                                <td>ServiceNow ITSM und Cortex XSOAR bidirektionale Integration sind für ein zukünftiges Enterprise-Release in Evaluierung.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Erweitertes Scanner-Paket (v1.42) -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">🔬</span>
+                    <h2 class="section-title">Erweitertes Scanner-Paket (v1.42) <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">18 zusätzliche Scanner-Module in v1.42.0, vollständig integriert in Sicherheitsbefunde, Scoring, PDF/Excel-Export und EN/DE-Sprachunterstützung.</p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Modul</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Open Redirect Detection <span class="status-badge available">Verfügbar</span></td><td>Erkennt URL-Parameter, die auf beliebige externe Domains umleiten. Score-Abzug bis −15.</td></tr>
+                            <tr><td>TLS Deep Scan <span class="status-badge available">Verfügbar</span></td><td>Vollständige Cipher-Suite-Enumeration, Protokollversion, HSTS-Erzwingung und TLS-Grade (A–F). Score-Abzug: B=−5, F=−20.</td></tr>
+                            <tr><td>Service Fingerprinting <span class="status-badge available">Verfügbar</span></td><td>TCP/UDP-Banner-Grabbing auf 50+ häufigen Service-Ports zur Hersteller- und Versions-Erkennung.</td></tr>
+                            <tr><td>ASN / IP-Bereiche <span class="status-badge available">Verfügbar</span></td><td>ASN-Lookup, CIDR-Block-Mapping, Hosting-Anbieter-Erkennung und Geolokalisierung.</td></tr>
+                            <tr><td>Login &amp; Auth Surface <span class="status-badge available">Verfügbar</span></td><td>Erkennt Login-Endpunkte, Authentifizierungsmechanismen und exponierte Admin-Panels.</td></tr>
+                            <tr><td>IPv6-Angriffsfläche <span class="status-badge available">Verfügbar</span></td><td>Kartiert IPv6-Adressen, offene Ports und bewertet WAF-Bypass-Potenzial via IPv6.</td></tr>
+                            <tr><td>DNS-Historie <span class="status-badge available">Verfügbar</span></td><td>Historische DNS-Einträge via Passive DNS für IP-Pivot- und Infrastrukturhistorie-Analyse.</td></tr>
+                            <tr><td>Phishing-Erkennung <span class="status-badge available">Verfügbar</span></td><td>Prüft Domain in Google Safe Browsing, PhishTank und OpenPhish. Score-Abzug −20 wenn gelistet.</td></tr>
+                            <tr><td>CT Log Monitor <span class="status-badge available">Verfügbar</span></td><td>Echtzeit-Certificate-Transparency-Streaming zur Erkennung neuer Zertifikatsausstellungen für die Domain.</td></tr>
+                            <tr><td>E-Mail-Harvesting <span class="status-badge available">Verfügbar</span></td><td>Findet exponierte E-Mail-Adressen über Webseiten, Dokumenten-Metadaten und OSINT-Quellen.</td></tr>
+                            <tr><td>Dependency Confusion <span class="status-badge available">Verfügbar</span></td><td>Prüft ob interne Paketnamen (npm, PyPI, RubyGems) über öffentliche Registries auflösbar sind. Abzug bis −20.</td></tr>
+                            <tr><td>GraphQL Security <span class="status-badge available">Verfügbar</span></td><td>Testet Introspection, Feld-Vorschläge, Query-Batching-Missbrauch und DoS-Vektoren.</td></tr>
+                            <tr><td>WebSocket Security <span class="status-badge available">Verfügbar</span></td><td>Prüft ws:// vs wss://, Origin-Validierung und Authentifizierung beim WebSocket-Upgrade.</td></tr>
+                            <tr><td>Password Spray Surface <span class="status-badge available">Verfügbar</span></td><td>Kartiert aufzählbare Auth-Endpunkte die für Credential-Stuffing anfällig sind.</td></tr>
+                            <tr><td>Leaked Credentials <span class="status-badge available">Verfügbar</span></td><td>Abgleich domänen-bezogener E-Mails gegen öffentliche Breach-Datensätze (HIBP). Abzug bis −25.</td></tr>
+                            <tr><td>API Security Scanner <span class="status-badge available">Verfügbar</span></td><td>Testet unauthentifizierte Endpunkte, Excessive Data Exposure und Mass Assignment in REST APIs.</td></tr>
+                            <tr><td>Mobile App Discovery <span class="status-badge available">Verfügbar</span></td><td>Findet zugehörige iOS/Android-Apps via App-Store-Lookup und Deep-Link-Probing.</td></tr>
+                            <tr><td>WAF Detector <span class="status-badge available">Verfügbar</span></td><td>Erkennt WAF-Hersteller via Header-, Cookie- und Response-Fingerprinting. −5 wenn fehlend, +5 bei hoher Konfidenz.</td></tr>
                         </tbody>
                     </table>
                 </div>
