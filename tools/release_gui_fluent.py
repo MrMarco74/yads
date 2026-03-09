@@ -804,22 +804,36 @@ class ProdDeployPage(QWidget):
         self.cancel_btn.clicked.connect(self._on_cancel)
         action_layout.addWidget(self.cancel_btn)
 
+        self.retry_btn = PushButton(FIF.SYNC, "Retry / Wiederholen", self)
+        self.retry_btn.setVisible(False)
+        self.retry_btn.clicked.connect(self._on_retry)
+        action_layout.addWidget(self.retry_btn)
+
+        self.ssh_status_label = BodyLabel("○ Checking SSH...", self)
+        self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
+        action_layout.addWidget(self.ssh_status_label)
+
         action_layout.addStretch()
         layout.addWidget(action_card)
+
+        # SSH pre-check timer (60s interval)
+        self._ssh_check_timer = QTimer(self)
+        self._ssh_check_timer.setInterval(60000)
+        self._ssh_check_timer.timeout.connect(self._check_ssh)
 
         # Progress
         progress_layout = QVBoxLayout()
         progress_layout.setSpacing(4)
-        
+
         self.progress_label = BodyLabel("Ready", self)
         progress_layout.addWidget(self.progress_label)
-        
+
         self.progress_bar = ProgressBar(self)
         self.progress_bar.setValue(0)
         self.progress_bar.setMinimumHeight(16)
         self.progress_bar.setVisible(False)
         progress_layout.addWidget(self.progress_bar)
-        
+
         layout.addLayout(progress_layout)
 
         # Log Card
@@ -896,8 +910,10 @@ class ProdDeployPage(QWidget):
                 self._start_worker(None)
 
     def _start_worker(self, setup_token=None):
+        self._last_setup_token = setup_token
         self.deploy_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
+        self.retry_btn.setVisible(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.log_view.clear()
@@ -951,12 +967,53 @@ class ProdDeployPage(QWidget):
         success = getattr(self, '_deploy_success', False)
         message = getattr(self, '_deploy_message', "")
         if success:
+            self.retry_btn.setVisible(False)
             InfoBar.success("Deployment Complete", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
         elif message:
+            self.retry_btn.setVisible(True)
             InfoBar.error("Deployment Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
         if hasattr(self, '_active_worker') and self._active_worker:
             self._active_worker.deleteLater()
             self._active_worker = None
+
+    def _on_retry(self):
+        """Re-run the deployment with same parameters."""
+        self.retry_btn.setVisible(False)
+        self._start_worker(getattr(self, '_last_setup_token', None))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._check_ssh()
+        self._ssh_check_timer.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._ssh_check_timer.stop()
+
+    def _check_ssh(self):
+        """Check SSH connectivity to prod host in background."""
+        import threading
+        def run():
+            try:
+                result = subprocess.run(
+                    ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+                     "root@prod.example.com", "echo", "ok"],
+                    capture_output=True, text=True, timeout=8
+                )
+                ok = result.returncode == 0
+            except Exception:
+                ok = False
+            # Update label from main thread
+            QTimer.singleShot(0, lambda: self._update_ssh_status(ok))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _update_ssh_status(self, ok: bool):
+        if ok:
+            self.ssh_status_label.setText("✓ SSH Connected")
+            self.ssh_status_label.setStyleSheet("color: #22c55e; font-size: 12px;")
+        else:
+            self.ssh_status_label.setText("✗ SSH Unreachable")
+            self.ssh_status_label.setStyleSheet("color: #ef4444; font-size: 12px;")
 
 
 class LocalDeployWorker(QThread):
@@ -1290,6 +1347,19 @@ class LocalDeployPage(QWidget):
                     InfoBar.success("Copied", "Setup token copied to clipboard", parent=self, position=InfoBarPosition.TOP)
                 else:
                     return
+            # Disk space check before starting a build
+            if action == "start":
+                import shutil
+                free_bytes = shutil.disk_usage("/").free
+                free_gb = free_bytes / (1024 ** 3)
+                if free_gb < 5.0:
+                    warn_box = MessageBox(
+                        "Low Disk Space",
+                        f"Only {free_gb:.1f} GB free on /.\nDocker builds may fail. Continue anyway?",
+                        self
+                    )
+                    if not warn_box.exec():
+                        return
             self._start_worker(action, setup_token)
 
     def _start_worker(self, action: str, setup_token=None):

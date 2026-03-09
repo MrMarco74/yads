@@ -7,11 +7,11 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from yads.database import get_session, redis_client
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
-from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig
+from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig, ChangeEvent
 from yads.api.templating import templates
 
 from yads.core.scoring import calculate_target_score, get_grade_color
@@ -1427,7 +1427,32 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
     # Fetch Schedule
     from yads.models import ScanSchedule
     schedule = session.exec(select(ScanSchedule).where(ScanSchedule.target_id == target_id)).first()
-    
+
+    # Fetch recent ChangeEvents (last 24h) for the "What changed" banner
+    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+    recent_scan_result_ids = [r.id for r in history_entries]
+    recent_changes: list = []
+    if recent_scan_result_ids:
+        recent_changes = session.exec(
+            select(ChangeEvent, ScanResult.module_name)
+            .join(ScanResult, ChangeEvent.scan_result_id == ScanResult.id)
+            .where(
+                ChangeEvent.scan_result_id.in_(recent_scan_result_ids),
+                ChangeEvent.created_at >= cutoff_24h,
+            )
+            .order_by(ChangeEvent.created_at.desc())
+            .limit(30)
+        ).all()
+        # Attach module_name onto each ChangeEvent for template convenience
+        enriched = []
+        for ce, mod_name in recent_changes:
+            ce.module_name = mod_name  # dynamic attribute, not in model
+            enriched.append(ce)
+        recent_changes = enriched
+
+    # Build a set of module names that have changes (for per-card badges)
+    changed_modules = {ce.module_name for ce in recent_changes}
+
     return templates.TemplateResponse("target_detail.html", {
         "user": user,
         "request": request,
@@ -1472,9 +1497,45 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "approved_ciphers": approved_ciphers_set,
         "schedule": schedule,
         "scan_categories": _get_scan_categories_for_user(session, user, "sc"),
+        "recent_changes": recent_changes,
+        "changed_modules": changed_modules,
     })
 
 
+
+
+# -- Change Events API --
+
+@router.get("/targets/{target_id}/changes")
+async def get_target_changes(
+    target_id: int,
+    limit: int = Query(default=30, le=100),
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+):
+    """Return recent ChangeEvent records for a target as JSON."""
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    rows = session.exec(
+        select(ChangeEvent, ScanResult.module_name)
+        .join(ScanResult, ChangeEvent.scan_result_id == ScanResult.id)
+        .where(ScanResult.target_id == target_id)
+        .order_by(ChangeEvent.created_at.desc())
+        .limit(limit)
+    ).all()
+
+    result = []
+    for ce, mod_name in rows:
+        result.append({
+            "id": ce.id,
+            "module_name": mod_name,
+            "event_type": ce.event_type,
+            "description": ce.description,
+            "detected_at": ce.created_at.isoformat(),
+        })
+    return JSONResponse(content=result)
 
 
 # -- API Endpoints (Legacy/JSON) --

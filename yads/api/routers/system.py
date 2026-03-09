@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Red
 from sqlmodel import Session, select, func, text
 from datetime import datetime
 
-from yads.database import get_session
+from yads.database import get_session, redis_client
 from yads.auth.deps import RoleChecker, get_current_user_html
 from yads.models import User, Target, ScanResult, ModuleState, SystemConfig
 from yads.api.templating import templates
@@ -306,6 +306,22 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     spass_conf = session.get(SystemConfig, "SMTP_PASSWORD")
     if spass_conf: smtp_password = spass_conf.value
 
+    smtp_from = ""
+    sf_conf = session.get(SystemConfig, "SMTP_FROM")
+    if sf_conf: smtp_from = sf_conf.value
+
+    email_notification_address = ""
+    ena_conf = session.get(SystemConfig, "EMAIL_NOTIFICATION_ADDRESS")
+    if ena_conf: email_notification_address = ena_conf.value
+
+    email_notifications_enabled = False
+    ene_conf = session.get(SystemConfig, "EMAIL_NOTIFICATIONS_ENABLED")
+    if ene_conf: email_notifications_enabled = ene_conf.value.lower() == "true"
+
+    base_url = ""
+    bu_conf = session.get(SystemConfig, "BASE_URL")
+    if bu_conf: base_url = bu_conf.value
+
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     
     # --- License Info ---
@@ -432,6 +448,10 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "smtp_port": smtp_port,
         "smtp_user": smtp_user,
         "smtp_password": smtp_password,
+        "smtp_from": smtp_from,
+        "email_notification_address": email_notification_address,
+        "email_notifications_enabled": email_notifications_enabled,
+        "base_url": base_url,
         "license_key": license_conf.value if license_conf else "",
         "license_status": license_status,
         "license_data": license_data,
@@ -475,7 +495,11 @@ async def update_settings(
     smtp_port: str = Form(None),
     smtp_user: Optional[str] = Form(None),
     smtp_password: Optional[str] = Form(None),
-    
+    smtp_from: Optional[str] = Form(None),
+    email_notification_address: Optional[str] = Form(None),
+    email_notifications_enabled: bool = Form(False),
+    base_url: Optional[str] = Form(None),
+
     # License
     license_key: Optional[str] = Form(None),
 
@@ -610,6 +634,23 @@ async def update_settings(
         client_key_path = client_key_path.strip()
         set_conf("CLIENT_KEY_PATH", client_key_path)
 
+    # Email / SMTP Settings
+    if smtp_host is not None:
+        set_conf("SMTP_HOST", smtp_host.strip())
+    if smtp_port is not None:
+        set_conf("SMTP_PORT", smtp_port.strip())
+    if smtp_user is not None:
+        set_conf("SMTP_USER", smtp_user.strip())
+    if smtp_password is not None and smtp_password.strip():
+        set_conf("SMTP_PASSWORD", smtp_password.strip())
+    if smtp_from is not None:
+        set_conf("SMTP_FROM", smtp_from.strip())
+    if email_notification_address is not None:
+        set_conf("EMAIL_NOTIFICATION_ADDRESS", email_notification_address.strip())
+    set_conf("EMAIL_NOTIFICATIONS_ENABLED", "true" if email_notifications_enabled else "false")
+    if base_url is not None:
+        set_conf("BASE_URL", base_url.strip())
+
     # Prometheus Metrics Settings
     set_conf("METRICS_ENABLED", "true" if metrics_enabled else "false")
     set_conf("METRICS_AUTH_MODE", metrics_auth_mode)
@@ -662,6 +703,23 @@ async def update_settings(
         logger.debug(f"Failed to autoscale worker: {e}")
 
     return RedirectResponse(url="/settings?saved=true", status_code=303)
+
+@router.post("/settings/email/test")
+async def test_email(
+    request: Request,
+    user: User = Depends(RoleChecker(["admin"])),
+    session: Session = Depends(get_session)
+):
+    from yads.core.email_service import EmailService
+    from fastapi.responses import JSONResponse
+    to_addr = getattr(user, "email", None) or ""
+    if not to_addr:
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Admin user has no email address configured."})
+    success = EmailService.send_test(to_addr)
+    if success:
+        return JSONResponse(content={"ok": True, "message": f"Test email sent to {to_addr}"})
+    return JSONResponse(status_code=500, content={"ok": False, "message": "Email send failed — check SMTP settings and logs."})
+
 
 @router.post("/settings/wordlist/upload", response_class=RedirectResponse)
 async def upload_custom_wordlist(
@@ -831,5 +889,32 @@ async def admin_reset_system(request: Request, session: Session = Depends(get_se
     session.exec(text("DELETE FROM modulestate"))
     session.exec(text("DELETE FROM target"))
     session.commit()
-    
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit status endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/api/rate-limit/status")
+async def get_rate_limit_status(
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+) -> JSONResponse:
+    """
+    Return current sliding-window usage for all external API rate limiters.
+
+    Useful for monitoring whether YADS is close to hitting third-party API quotas.
+    Accessible to platform admins and tenant admins.
+    """
+    try:
+        from yads.core.api_rate_limiter import get_api_rate_limiter
+        limiter = get_api_rate_limiter()
+        status = limiter.get_status()
+        return JSONResponse(content={"status": "ok", "services": status})
+    except Exception as exc:
+        logger.error("Failed to retrieve rate-limit status: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": str(exc)},
+        )
+
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)

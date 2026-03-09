@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.api_rate_limiter import get_api_rate_limiter
 from yads.config import settings
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,10 @@ class ShodanCensysScanner(BaseScannerModule):
 
     def _query_shodan(self, ip: str, domain: str) -> Dict[str, Any]:
         """Fetch host data from Shodan API."""
+        limiter = get_api_rate_limiter()
+        if not limiter.acquire("shodan", timeout=10.0):
+            logger.warning("[ShodanCensys] Shodan rate limit exceeded, skipping")
+            return {"error": "Rate limit exceeded", "status": "rate_limited"}
         try:
             resp = requests.get(
                 self.SHODAN_HOST_URL.format(ip=ip),
@@ -190,6 +195,10 @@ class ShodanCensysScanner(BaseScannerModule):
 
     def _query_censys(self, ip: str) -> Dict[str, Any]:
         """Fetch host data from Censys v2 API."""
+        limiter = get_api_rate_limiter()
+        if not limiter.acquire("censys", timeout=10.0):
+            logger.warning("[ShodanCensys] Censys rate limit exceeded, skipping")
+            return {"error": "Rate limit exceeded", "status": "rate_limited"}
         try:
             resp = requests.get(
                 self.CENSYS_HOST_URL.format(ip=ip),

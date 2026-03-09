@@ -183,6 +183,61 @@ async def delete_profile(
     return RedirectResponse(url="/scan-profiles?msg=Profile+deleted", status_code=303)
 
 
+@router.post("/scan-profiles/{profile_id}/update", response_class=HTMLResponse)
+async def update_profile(
+    profile_id: int,
+    name: str = Form(...),
+    description: str = Form(default=""),
+    scan_types: List[str] = Form(default=[]),
+    color: str = Form(default="blue"),
+    is_default: bool = Form(default=False),
+    is_public: bool = Form(default=False),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Update an existing scan profile owned by the current tenant."""
+    profile = session.exec(
+        select(ScanProfile).where(
+            ScanProfile.id == profile_id,
+            ScanProfile.tenant_id == user.tenant_id,
+        )
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    name = name.strip()[:80]
+    if not name:
+        return RedirectResponse(url="/scan-profiles?error=Name+required", status_code=303)
+
+    valid = {k for k in REGISTRY}
+    scan_types = [t for t in scan_types if t in valid or t == "full_scan"]
+
+    if is_default:
+        existing_defaults = session.exec(
+            select(ScanProfile).where(
+                ScanProfile.tenant_id == user.tenant_id,
+                ScanProfile.is_default == True,
+                ScanProfile.id != profile_id,
+            )
+        ).all()
+        for ep in existing_defaults:
+            ep.is_default = False
+            session.add(ep)
+
+    profile.name = name
+    profile.description = description[:300] if description else None
+    profile.scan_types = scan_types
+    profile.color = color
+    profile.is_default = is_default
+    profile.is_public = is_public and (user.role in ("admin", "tenant_admin"))
+    from datetime import datetime as _dt
+    profile.updated_at = _dt.utcnow()
+    session.add(profile)
+    session.commit()
+
+    return RedirectResponse(url="/scan-profiles?msg=Profile+updated", status_code=303)
+
+
 @router.post("/scan-profiles/{profile_id}/set-default", response_class=HTMLResponse)
 async def set_default_profile(
     profile_id: int,
@@ -209,6 +264,22 @@ async def set_default_profile(
 
     session.commit()
     return RedirectResponse(url="/scan-profiles?msg=Default+profile+set", status_code=303)
+
+
+@router.get("/api/scan-profiles")
+async def list_profiles_json(
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Return all accessible profiles as JSON — used by the Apply Profile picker in scan panels."""
+    profiles = session.exec(
+        select(ScanProfile).where(
+            (ScanProfile.tenant_id == user.tenant_id) | (ScanProfile.is_public == True)
+        ).order_by(ScanProfile.is_default.desc(), ScanProfile.name)
+    ).all()
+    builtin = [{"id": f"builtin:{p['name']}", "name": p["name"], "scan_types": p["scan_types"], "is_builtin": True} for p in BUILTIN_PROFILES]
+    saved = [{"id": p.id, "name": p.name, "scan_types": p.scan_types, "is_default": p.is_default, "is_builtin": False} for p in profiles]
+    return {"builtin": builtin, "saved": saved}
 
 
 @router.get("/api/scan-profiles/{profile_id}")
