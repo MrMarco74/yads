@@ -53,7 +53,16 @@ def _verify_module_signature(zip_bytes: bytes, signature_b64: Optional[str]) -> 
 
     pubkey_b64 = settings.MODULE_SIGNING_PUBLIC_KEY
     if not pubkey_b64:
-        return  # Signing not enforced
+        if settings.MODULE_SIGNING_DISABLED:
+            return  # Signing explicitly disabled by operator
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Module signing is enforced by default. "
+                "Configure MODULE_SIGNING_PUBLIC_KEY or set MODULE_SIGNING_DISABLED=true "
+                "to explicitly allow unsigned uploads."
+            )
+        )
 
     if not signature_b64:
         raise HTTPException(
