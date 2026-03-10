@@ -185,3 +185,23 @@ async def get_api_key(
     session.commit()
 
     return db_key
+
+
+class RequireScope:
+    """
+    FastAPI dependency that verifies the authenticated API key has a required scope.
+
+    Usage:
+        @router.post("/scan", dependencies=[Depends(RequireScope("scan_execute"))])
+        async def trigger_scan(key: APIKey = Depends(get_api_key)): ...
+    """
+    def __init__(self, required_scope: str):
+        self.required_scope = required_scope
+
+    def __call__(self, api_key: APIKey = Depends(get_api_key)) -> APIKey:
+        if not api_key.scopes or self.required_scope not in api_key.scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key does not have the required scope: '{self.required_scope}'"
+            )
+        return api_key

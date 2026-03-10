@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime
@@ -12,9 +12,12 @@ router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 # Management permissions: Admins and Tenant Admins
 manager_only = RoleChecker(["admin", "tenant_admin"])
 
+VALID_SCOPES = {"read", "write", "scan_execute"}
+
 @router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(manager_only)])
 async def create_key(
     name: str,
+    scopes: List[str] = None,
     expires_in_days: Optional[int] = None,
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
@@ -22,9 +25,19 @@ async def create_key(
     """
     Generate a new API Key for the current tenant.
     The plain key is returned ONLY once.
+
+    scopes: list of permissions — valid values: read, write, scan_execute
     """
+    # Validate and sanitize requested scopes
+    requested = set(scopes) if scopes else {"read"}
+    invalid = requested - VALID_SCOPES
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid scopes: {sorted(invalid)}. Valid: {sorted(VALID_SCOPES)}")
+    if not requested:
+        raise HTTPException(status_code=400, detail="At least one scope must be selected.")
+
     plain_key, prefix, key_hash = generate_api_key()
-    
+
     expires_at = None
     if expires_in_days:
         from datetime import timedelta
@@ -36,7 +49,7 @@ async def create_key(
         key_prefix=prefix,
         key_hash=key_hash,
         expires_at=expires_at,
-        scopes=["read", "write"] # Default scopes for now
+        scopes=sorted(requested)
     )
     
     session.add(new_key)
