@@ -1,3 +1,4 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
@@ -14,6 +15,30 @@ from yads.core.security_audit import (
 )
 
 router = APIRouter(prefix="/users")
+
+# ---------------------------------------------------------------------------
+# Rate limiter for sensitive admin actions (reset_password, reset_mfa)
+# Sliding-window via Redis: max 10 calls per 60 seconds per admin user id.
+# ---------------------------------------------------------------------------
+_SENSITIVE_LIMIT = 10
+_SENSITIVE_WINDOW = 60  # seconds
+
+def _sensitive_action_allowed(admin_user_id: int, action: str) -> bool:
+    """Returns True if the action is within the rate limit, False otherwise."""
+    try:
+        from yads.database import redis_client
+        now = time.time()
+        key = f"rl:admin_action:{action}:{admin_user_id}"
+        pipe = redis_client.pipeline()
+        pipe.zremrangebyscore(key, 0, now - _SENSITIVE_WINDOW)
+        pipe.zadd(key, {str(now): now})
+        pipe.zcard(key)
+        pipe.expire(key, _SENSITIVE_WINDOW * 2)
+        results = pipe.execute()
+        count = results[2]
+        return count <= _SENSITIVE_LIMIT
+    except Exception:
+        return True  # fail open if Redis unavailable
 from yads.api.templating import templates
 # Inject Globals
 templates.env.globals['settings'] = settings
@@ -199,6 +224,8 @@ async def reset_password(
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ):
+    if not _sensitive_action_allowed(current_user.id, "reset_password"):
+        raise HTTPException(status_code=429, detail="Too many password reset attempts. Please wait and try again.")
     user = session.get(User, user_id)
     if user:
         # Permission Check
@@ -228,6 +255,8 @@ async def reset_mfa(
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
 ):
+    if not _sensitive_action_allowed(current_user.id, "reset_mfa"):
+        raise HTTPException(status_code=429, detail="Too many MFA reset attempts. Please wait and try again.")
     user = session.get(User, user_id)
     if user:
         # Permission Check
