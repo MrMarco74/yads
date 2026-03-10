@@ -9,7 +9,8 @@ import markdown
 from markdown.extensions.tables import TableExtension
 from markdown.extensions.fenced_code import FencedCodeExtension
 from markdown.extensions.toc import TocExtension
-from jinja2 import Environment, BaseLoader, exceptions as jinja_exceptions, select_autoescape
+from jinja2 import BaseLoader, exceptions as jinja_exceptions, select_autoescape
+from jinja2.sandbox import SandboxedEnvironment
 from fpdf import FPDF
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -55,7 +56,7 @@ def render_markdown_with_data(
         # markdown_to_html() which uses the `markdown` library's own sanitization.
         # Enabling HTML autoescape here would corrupt Markdown syntax like
         # `**bold**`, `{{ variable }}` etc.
-        env = Environment(loader=BaseLoader(), autoescape=False)  # nosec B701
+        env = SandboxedEnvironment(loader=BaseLoader(), autoescape=False)
 
         # Add custom filters
         env.filters['date'] = format_date
