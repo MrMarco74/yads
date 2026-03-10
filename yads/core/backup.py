@@ -322,11 +322,16 @@ def restore_backup_from_zip(session: Session, zip_bytes: bytes, target_tenant_id
     with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
         # Restore Screenshots logic... (omitted for brevity, unchanged)
         count_files = 0
+        screenshot_dir_abs = os.path.abspath(SCREENSHOT_DIR)
         for member in zf.namelist():
             if member.startswith("screenshots/"):
                 rel_path = member[len("screenshots/"):]
-                if not rel_path: continue
-                target_path = os.path.join(SCREENSHOT_DIR, rel_path)
+                if not rel_path:
+                    continue
+                target_path = os.path.abspath(os.path.join(SCREENSHOT_DIR, rel_path))
+                if not target_path.startswith(screenshot_dir_abs + os.sep):
+                    logger.warning(f"Blocked path traversal attempt in backup: {member}")
+                    continue
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 with open(target_path, "wb") as f:
                     f.write(zf.read(member))
