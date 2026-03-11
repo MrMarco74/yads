@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, text
 from passlib.context import CryptContext
 
 from yads.models import WorkerNode, WorkerTask, ResourceQuota, Target, SystemConfig
@@ -215,33 +215,32 @@ class WorkerManager:
         node_id = self._generate_node_id(hostname, is_primary=True)
 
         with self._get_session() as session:
-            existing = session.exec(
-                select(WorkerNode).where(WorkerNode.node_id == node_id)
-            ).first()
-
-            if existing:
-                existing.status = "active"
-                existing.is_active = True
-                existing.last_heartbeat = datetime.utcnow()
-                session.add(existing)
-                session.commit()
-                logger.info(f"Primary worker re-activated: {node_id}")
-            else:
-                # Create primary worker with placeholder token (not used for auth)
-                worker = WorkerNode(
-                    node_id=node_id,
-                    hostname=hostname,
-                    ip_address=ip_address,
-                    is_primary=True,
-                    auth_token_hash=pwd_context.hash("primary-worker-no-auth"),
-                    status="active",
-                    is_active=True,
-                    capabilities=["all"],  # Primary can run all scan types
-                    max_concurrent_tasks=4
-                )
-                session.add(worker)
-                session.commit()
-                logger.info(f"Registered primary worker: {node_id}")
+            # Atomic upsert — safe against race conditions when multiple
+            # Celery worker processes start simultaneously.
+            session.exec(text("""
+                INSERT INTO workernode
+                    (node_id, hostname, ip_address, is_primary, is_active,
+                     registered_at, last_heartbeat, max_concurrent_tasks,
+                     max_network_mbps, current_load, current_tasks,
+                     auth_token_hash, status, capabilities, assigned_tenant_ids)
+                VALUES
+                    (:node_id, :hostname, :ip_address, true, true,
+                     now(), now(), 4,
+                     100.0, 0.0, 0,
+                     :token_hash, 'active', '["all"]'::jsonb, '[]'::jsonb)
+                ON CONFLICT (node_id) DO UPDATE SET
+                    status        = 'active',
+                    is_active     = true,
+                    last_heartbeat = now(),
+                    ip_address    = EXCLUDED.ip_address
+            """), {
+                "node_id": node_id,
+                "hostname": hostname,
+                "ip_address": ip_address,
+                "token_hash": pwd_context.hash("primary-worker-no-auth"),
+            })
+            session.commit()
+            logger.info(f"Registered primary worker: {node_id}")
 
         return node_id
 
