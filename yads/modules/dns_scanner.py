@@ -373,7 +373,7 @@ class SubdomainScanner(DNSRecordScanner):
             from yads.modules.ssl_scanner import SSLScanner
             from yads.modules.crtSH_client import search_by_org
 
-            ssl_data = SSLScanner(db_session=self.db_session).run_scan(domain)
+            ssl_data = SSLScanner(db_session=self.db).run_scan(domain)
             org = ssl_data.get("ct_org")
             email = ssl_data.get("ct_email")
 
