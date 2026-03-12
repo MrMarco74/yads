@@ -1,6 +1,6 @@
 logs/
 yads/api/static/screenshots/
-tests/
+# tests/ — removed from ignore so the test suite is tracked in git
 releases/
 release_build/
 product_screenshots/
