@@ -1,11 +1,37 @@
+import socket
 import requests
 import logging
+from requests.adapters import HTTPAdapter
+from urllib3.util.connection import create_connection as _orig_create_connection
 from typing import Optional, Dict
 from yads.config import settings
 from yads.database import redis_client
 from datetime import datetime, timedelta
 
 logger = logging.getLogger("yads.api.update")
+
+
+def _ipv4_create_connection(address, *args, **kwargs):
+    """Resolve hostname to IPv4 only — avoids IPv6 failures in Docker overlay networks."""
+    host, port = address
+    try:
+        infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        if infos:
+            return _orig_create_connection(infos[0][4], *args, **kwargs)
+    except socket.gaierror:
+        pass
+    return _orig_create_connection(address, *args, **kwargs)
+
+
+class _IPv4Adapter(HTTPAdapter):
+    def send(self, *args, **kwargs):
+        import urllib3.util.connection as _conn
+        _orig = _conn.create_connection
+        _conn.create_connection = _ipv4_create_connection
+        try:
+            return super().send(*args, **kwargs)
+        finally:
+            _conn.create_connection = _orig
 
 class UpdateService:
     VERSION_URL = "https://yads-security.com/releases/version.json"
@@ -36,7 +62,9 @@ class UpdateService:
         # 2. Fetch Remote
         try:
             # Use requests (already a dependency)
-            response = requests.get(UpdateService.VERSION_URL, timeout=5.0)
+            session = requests.Session()
+            session.mount("https://", _IPv4Adapter())
+            response = session.get(UpdateService.VERSION_URL, timeout=5.0)
             response.raise_for_status()
             
             try:
