@@ -162,8 +162,8 @@ def run_scheduler_loop(celery_app):
                 due_configs = session.exec(
                     select(TenantScanConfig).where(
                         TenantScanConfig.auto_scan_enabled == True,
-                        (TenantScanConfig.next_auto_run_at <= now) |
-                        (TenantScanConfig.next_auto_run_at == None)
+                        TenantScanConfig.next_auto_run_at != None,
+                        TenantScanConfig.next_auto_run_at <= now,
                     )
                 ).all()
 
