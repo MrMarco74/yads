@@ -1556,6 +1556,535 @@ class TestLabPage(QWidget):
             self.progress_label.setText("Ready")
 
 
+class DanaDeployWorker(QThread):
+    """Worker thread for deploying/controlling the YADS test environment on dana via SSH."""
+
+    def __init__(self, action: str, ssh_host: str, ssh_user: str, ssh_port: str,
+                 ssh_key: str, remote_path: str, project_root: Path):
+        super().__init__()
+        self.action = action
+        self.ssh_host = ssh_host
+        self.ssh_user = ssh_user
+        self.ssh_port = ssh_port or "22"
+        self.ssh_key = ssh_key
+        self.remote_path = remote_path.rstrip("/") or "~/yads-testenv"
+        self.project_root = project_root
+        self.signals = LogSignals()
+        self.cancelled = False
+
+    def cancel(self):
+        self.cancelled = True
+
+    def run(self):
+        try:
+            self._execute()
+        except Exception as e:
+            self.signals.log_message.emit(f"Critical error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _log(self, msg: str, level: str = "info"):
+        self.signals.log_message.emit(msg, level)
+
+    @property
+    def _remote(self):
+        return f"{self.ssh_user}@{self.ssh_host}"
+
+    def _ssh_opts(self) -> list:
+        opts = [
+            "-o", "ConnectTimeout=15",
+            "-o", "ServerAliveInterval=30",
+            "-o", "ServerAliveCountMax=3",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-p", self.ssh_port,
+        ]
+        if self.ssh_key:
+            opts += ["-i", str(Path(self.ssh_key).expanduser())]
+        return opts
+
+    def _run_ssh(self, command: str) -> bool:
+        if self.cancelled:
+            return False
+        cmd = ["ssh"] + self._ssh_opts() + [self._remote, command]
+        self._log(f"▶ {self._remote}: {command}", "info")
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1,
+            )
+            for line in proc.stdout:
+                if self.cancelled:
+                    proc.terminate()
+                    break
+                cleaned = _ANSI_RE.sub("", line.strip())
+                if cleaned:
+                    self._log(cleaned, "info")
+            proc.wait()
+            return proc.returncode == 0
+        except Exception as e:
+            self._log(f"SSH error: {e}", "error")
+            return False
+
+    def _run_rsync(self, local_src: str, remote_dest: str) -> bool:
+        if self.cancelled:
+            return False
+        rsync_ssh = "ssh " + " ".join(self._ssh_opts())
+        cmd = ["rsync", "-avz", "--progress", "-e", rsync_ssh,
+               local_src, f"{self._remote}:{remote_dest}"]
+        self._log(f"▶ rsync {local_src} → {self._remote}:{remote_dest}", "info")
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1,
+            )
+            for line in proc.stdout:
+                if self.cancelled:
+                    proc.terminate()
+                    break
+                cleaned = _ANSI_RE.sub("", line.strip())
+                if cleaned:
+                    self._log(cleaned, "info")
+            proc.wait()
+            return proc.returncode == 0
+        except FileNotFoundError:
+            self._log("rsync not found, falling back to scp…", "warning")
+            return self._run_scp(local_src, remote_dest)
+        except Exception as e:
+            self._log(f"rsync error: {e}", "error")
+            return False
+
+    def _run_scp(self, local_src: str, remote_dest: str) -> bool:
+        cmd = ["scp"] + self._ssh_opts() + [local_src, f"{self._remote}:{remote_dest}"]
+        self._log(f"▶ scp {local_src} → {self._remote}:{remote_dest}", "info")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.stdout.strip():
+                self._log(result.stdout.strip(), "info")
+            return result.returncode == 0
+        except Exception as e:
+            self._log(f"scp error: {e}", "error")
+            return False
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+
+    def _execute(self):
+        if self.action == "deploy":
+            self._do_deploy()
+        elif self.action == "start":
+            self._do_start()
+        elif self.action == "stop":
+            self._do_stop()
+        elif self.action == "status":
+            self._do_status()
+        else:
+            self.signals.operation_finished.emit(False, f"Unknown action: {self.action}")
+
+    def _do_deploy(self):
+        self._log("── Step 1: Ensure remote directory ──", "info")
+        if not self._run_ssh(f"mkdir -p {self.remote_path}"):
+            return self.signals.operation_finished.emit(False, "Could not create remote directory")
+
+        compose_src = str(self.project_root / "docker-compose.test.yml")
+        if not Path(compose_src).exists():
+            self._log(f"❌ docker-compose.test.yml not found at {compose_src}", "error")
+            return self.signals.operation_finished.emit(
+                False, "docker-compose.test.yml not found locally — create it first"
+            )
+
+        self._log("── Step 2: Transfer docker-compose.test.yml ──", "info")
+        if not self._run_rsync(compose_src, self.remote_path + "/"):
+            return self.signals.operation_finished.emit(False, "File transfer failed")
+
+        env_src = str(self.project_root / ".env.test")
+        if Path(env_src).exists():
+            self._log("── Step 2b: Transfer .env.test ──", "info")
+            self._run_rsync(env_src, self.remote_path + "/")
+
+        self._log("── Step 3: Pull images on dana ──", "info")
+        self._run_ssh(
+            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml pull"
+        )
+
+        self._log("── Step 4: Start services on dana ──", "info")
+        ok = self._run_ssh(
+            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml up -d --remove-orphans"
+        )
+        if ok:
+            self._log("✅  Test environment deployed and started on dana.", "success")
+            self.signals.operation_finished.emit(True, "Deployed to dana successfully")
+        else:
+            self.signals.operation_finished.emit(False, "docker compose up failed on dana")
+
+    def _do_start(self):
+        self._log("── Starting test environment on dana ──", "info")
+        ok = self._run_ssh(
+            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml up -d"
+        )
+        if ok:
+            self._log("✅  Test environment started on dana.", "success")
+            self.signals.operation_finished.emit(True, "Test environment started on dana")
+        else:
+            self.signals.operation_finished.emit(
+                False, "Start failed — run Deploy first if not yet deployed"
+            )
+
+    def _do_stop(self):
+        self._log("── Stopping test environment on dana ──", "info")
+        ok = self._run_ssh(
+            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml down"
+        )
+        if ok:
+            self._log("✅  Test environment stopped on dana.", "success")
+            self.signals.operation_finished.emit(True, "Test environment stopped on dana")
+        else:
+            self.signals.operation_finished.emit(False, "Stop failed")
+
+    def _do_status(self):
+        self._log("── Container status on dana ──", "info")
+        self._run_ssh(
+            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml ps"
+        )
+        self._log("── Resource usage ──", "info")
+        self._run_ssh(
+            "docker stats --no-stream "
+            "--format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' 2>/dev/null | head -20"
+        )
+        self.signals.operation_finished.emit(True, "Status retrieved")
+
+
+class DanaDeployPage(QWidget):
+    """Deploy and control the YADS test environment on the dana server."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("danaDeployPage")
+        self._active_worker = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        layout.addWidget(TitleLabel("Test Env · Dana", self))
+
+        info = BodyLabel(
+            "Deploy and manage the YADS test environment on the dana server via SSH.\n"
+            "Uses docker-compose.test.yml from the project root.",
+            self,
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # ── SSH Connection Card ──
+        conn_card = CardWidget(self)
+        conn_layout = QVBoxLayout(conn_card)
+        conn_layout.setContentsMargins(20, 16, 20, 16)
+        conn_layout.setSpacing(10)
+        conn_layout.addWidget(SubtitleLabel("SSH Connection", self))
+
+        row1 = QHBoxLayout()
+        row1.addWidget(BodyLabel("Host:", self))
+        self.host_edit = LineEdit(self)
+        self.host_edit.setPlaceholderText("dana or dana.lan.example.internal")
+        self.host_edit.setFixedWidth(220)
+        row1.addWidget(self.host_edit)
+        row1.addSpacing(12)
+        row1.addWidget(BodyLabel("Port:", self))
+        self.port_edit = LineEdit(self)
+        self.port_edit.setText("22")
+        self.port_edit.setFixedWidth(60)
+        row1.addWidget(self.port_edit)
+        row1.addSpacing(12)
+        row1.addWidget(BodyLabel("User:", self))
+        self.user_edit = LineEdit(self)
+        self.user_edit.setPlaceholderText("root")
+        self.user_edit.setFixedWidth(120)
+        row1.addWidget(self.user_edit)
+        row1.addStretch()
+        conn_layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        row2.addWidget(BodyLabel("Key File:", self))
+        self.key_edit = LineEdit(self)
+        self.key_edit.setPlaceholderText("~/.ssh/id_rsa  (leave empty for default)")
+        self.key_edit.setMinimumWidth(260)
+        row2.addWidget(self.key_edit)
+        row2.addSpacing(12)
+        row2.addWidget(BodyLabel("Remote Path:", self))
+        self.path_edit = LineEdit(self)
+        self.path_edit.setPlaceholderText("~/yads-testenv")
+        self.path_edit.setFixedWidth(200)
+        row2.addWidget(self.path_edit)
+        row2.addStretch()
+        conn_layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        save_btn = PushButton(FIF.SAVE, "Save", self)
+        save_btn.setFixedWidth(100)
+        save_btn.clicked.connect(self._save_connection)
+        row3.addWidget(save_btn)
+        row3.addSpacing(16)
+        self.ssh_status_label = BodyLabel("○ Not checked", self)
+        self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
+        row3.addWidget(self.ssh_status_label)
+        row3.addStretch()
+        check_btn = PushButton(FIF.SYNC, "Test SSH", self)
+        check_btn.setFixedWidth(100)
+        check_btn.clicked.connect(self._check_ssh)
+        row3.addWidget(check_btn)
+        conn_layout.addLayout(row3)
+
+        layout.addWidget(conn_card)
+
+        # ── Action Buttons ──
+        action_card = CardWidget(self)
+        action_layout = QHBoxLayout(action_card)
+        action_layout.setContentsMargins(20, 20, 20, 20)
+        action_layout.setSpacing(16)
+
+        self.deploy_btn = PrimaryPushButton(FIF.SEND, "Deploy & Start", self)
+        self.deploy_btn.setFixedWidth(160)
+        self.deploy_btn.setToolTip(
+            "Transfer docker-compose.test.yml to dana and start all test services."
+        )
+        self.deploy_btn.clicked.connect(lambda: self._on_action("deploy"))
+
+        self.start_btn = PushButton(FIF.PLAY, "Start", self)
+        self.start_btn.setFixedWidth(120)
+        self.start_btn.setToolTip("Start already-deployed services on dana.")
+        self.start_btn.clicked.connect(lambda: self._on_action("start"))
+
+        self.stop_btn = PushButton(FIF.POWER_BUTTON, "Stop", self)
+        self.stop_btn.setFixedWidth(120)
+        self.stop_btn.setToolTip("Stop all test services on dana (data preserved).")
+        self.stop_btn.clicked.connect(lambda: self._on_action("stop"))
+
+        self.status_btn = PushButton(FIF.SEARCH, "Status", self)
+        self.status_btn.setFixedWidth(120)
+        self.status_btn.setToolTip("Show running containers and resource usage on dana.")
+        self.status_btn.clicked.connect(lambda: self._on_action("status"))
+
+        self.cancel_btn = PushButton(FIF.CLOSE, "Cancel", self)
+        self.cancel_btn.setFixedWidth(100)
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self._on_cancel)
+
+        for btn in (self.deploy_btn, self.start_btn, self.stop_btn,
+                    self.status_btn, self.cancel_btn):
+            action_layout.addWidget(btn)
+        action_layout.addStretch()
+        layout.addWidget(action_card)
+
+        # ── Progress ──
+        self.progress_label = BodyLabel("Ready", self)
+        layout.addWidget(self.progress_label)
+
+        self.busy_bar = IndeterminateProgressBar(self)
+        self.busy_bar.setVisible(False)
+        layout.addWidget(self.busy_bar)
+
+        # ── Log View ──
+        log_card = CardWidget(self)
+        log_layout = QVBoxLayout(log_card)
+        log_layout.setContentsMargins(20, 16, 20, 20)
+        log_layout.setSpacing(12)
+
+        log_header = QHBoxLayout()
+        log_header.addWidget(SubtitleLabel("Output", self))
+        log_header.addStretch()
+        clear_btn = TransparentPushButton(FIF.DELETE, "Clear", self)
+        clear_btn.clicked.connect(lambda: self.log_view.clear())
+        log_header.addWidget(clear_btn)
+        log_layout.addLayout(log_header)
+
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMinimumHeight(280)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        log_layout.addWidget(self.log_view)
+        layout.addWidget(log_card, 1)
+
+        self._load_connection()
+
+        # Periodic SSH reachability check (60 s)
+        self._ssh_timer = QTimer(self)
+        self._ssh_timer.setInterval(60000)
+        self._ssh_timer.timeout.connect(self._check_ssh)
+
+    # ── Config persistence ────────────────────────────────────────────────────
+
+    def _config_path(self) -> Path:
+        return Path.home() / ".yads" / "release_gui.yaml"
+
+    def _load_connection(self):
+        p = self._config_path()
+        if not p.exists():
+            return
+        try:
+            import yaml
+            with open(p) as f:
+                d = yaml.safe_load(f) or {}
+            self.host_edit.setText(d.get("dana_host", ""))
+            self.port_edit.setText(str(d.get("dana_port", "22")))
+            self.user_edit.setText(d.get("dana_user", "root"))
+            self.key_edit.setText(d.get("dana_key", ""))
+            self.path_edit.setText(d.get("dana_remote_path", "~/yads-testenv"))
+        except Exception:
+            pass
+
+    def _save_connection(self):
+        import yaml
+        p = self._config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if p.exists():
+            try:
+                with open(p) as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception:
+                pass
+        data["dana_host"] = self.host_edit.text().strip()
+        data["dana_port"] = self.port_edit.text().strip() or "22"
+        data["dana_user"] = self.user_edit.text().strip() or "root"
+        data["dana_key"] = self.key_edit.text().strip()
+        data["dana_remote_path"] = self.path_edit.text().strip() or "~/yads-testenv"
+        try:
+            with open(p, "w") as f:
+                yaml.dump(data, f)
+            InfoBar.success("Saved", "Dana connection settings saved.",
+                            parent=self, position=InfoBarPosition.TOP, duration=3000)
+        except Exception as e:
+            InfoBar.error("Error", str(e), parent=self, position=InfoBarPosition.TOP)
+
+    # ── SSH reachability ──────────────────────────────────────────────────────
+
+    def _check_ssh(self):
+        host = self.host_edit.text().strip()
+        if not host:
+            self.ssh_status_label.setText("⚠ No host configured")
+            self.ssh_status_label.setStyleSheet("color: orange; font-size: 12px;")
+            return
+        user = self.user_edit.text().strip() or "root"
+        port = self.port_edit.text().strip() or "22"
+        key = self.key_edit.text().strip()
+        self.ssh_status_label.setText("○ Checking…")
+        self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
+
+        opts = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes", "-p", port]
+        if key:
+            opts += ["-i", str(Path(key).expanduser())]
+
+        import threading
+        def run():
+            try:
+                r = subprocess.run(
+                    ["ssh"] + opts + [f"{user}@{host}", "echo ok"],
+                    capture_output=True, text=True, timeout=8,
+                )
+                ok = r.returncode == 0
+            except Exception:
+                ok = False
+            QTimer.singleShot(0, lambda: self._update_ssh_status(ok))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _update_ssh_status(self, ok: bool):
+        if ok:
+            self.ssh_status_label.setText("✓ SSH Connected")
+            self.ssh_status_label.setStyleSheet("color: #22c55e; font-size: 12px;")
+        else:
+            self.ssh_status_label.setText("✗ SSH Unreachable")
+            self.ssh_status_label.setStyleSheet("color: #ef4444; font-size: 12px;")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._check_ssh()
+        self._ssh_timer.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._ssh_timer.stop()
+
+    # ── Action dispatch ───────────────────────────────────────────────────────
+
+    def _on_action(self, action: str):
+        host = self.host_edit.text().strip()
+        if not host:
+            InfoBar.warning("No Host", "Configure a dana hostname first.",
+                            parent=self, position=InfoBarPosition.TOP)
+            return
+        if action == "deploy":
+            box = MessageBox(
+                "Deploy to Dana",
+                f"Transfer docker-compose.test.yml to {host} and start all test services.\n\nProceed?",
+                self,
+            )
+            if not box.exec():
+                return
+        elif action == "stop":
+            box = MessageBox(
+                "Stop Test Env on Dana",
+                f"Stop all test services on {host}?\n(Data is preserved.)",
+                self,
+            )
+            if not box.exec():
+                return
+        self._start_worker(action)
+
+    def _start_worker(self, action: str):
+        from pathlib import Path as _Path
+        project_root = _Path(__file__).parent.parent
+        self._active_worker = DanaDeployWorker(
+            action=action,
+            ssh_host=self.host_edit.text().strip(),
+            ssh_user=self.user_edit.text().strip() or "root",
+            ssh_port=self.port_edit.text().strip() or "22",
+            ssh_key=self.key_edit.text().strip(),
+            remote_path=self.path_edit.text().strip() or "~/yads-testenv",
+            project_root=project_root,
+        )
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.operation_finished.connect(self._on_finished)
+        self._active_worker.finished.connect(self._active_worker.deleteLater)
+        self._set_busy(True, action)
+        self.log_view.clear()
+        self._active_worker.start()
+
+    def _on_cancel(self):
+        if self._active_worker:
+            self._active_worker.cancel()
+            self._log("Cancel requested…", "warning")
+
+    def _on_log(self, msg: str, level: str):
+        _insert_log_line(self.log_view, msg, level)
+
+    def _log(self, msg: str, level: str = "info"):
+        _insert_log_line(self.log_view, msg, level)
+
+    def _on_finished(self, success: bool, message: str):
+        self._set_busy(False)
+        self._active_worker = None
+        if success:
+            InfoBar.success("Done", message, parent=self,
+                            position=InfoBarPosition.TOP, duration=5000)
+        else:
+            InfoBar.error("Error", message, parent=self,
+                          position=InfoBarPosition.TOP, duration=8000)
+
+    def _set_busy(self, busy: bool, action: str = ""):
+        for btn in (self.deploy_btn, self.start_btn, self.stop_btn, self.status_btn):
+            btn.setEnabled(not busy)
+        self.cancel_btn.setEnabled(busy)
+        self.busy_bar.setVisible(busy)
+        if busy:
+            self.busy_bar.start()
+            self.progress_label.setText(f"Running: {action}…")
+        else:
+            self.busy_bar.stop()
+            self.progress_label.setText("Ready")
+
+
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
     def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local", profiles: list = None):
@@ -2992,6 +3521,7 @@ class MainWindow(FluentWindow):
         self.local_deploy_page = LocalDeployPage(self)
         self.prod_deploy_page = ProdDeployPage(self)
         self.testlab_page = TestLabPage(self)
+        self.dana_deploy_page = DanaDeployPage(self)
         self.dev_creds_page = DevCredsPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
@@ -3029,6 +3559,8 @@ class MainWindow(FluentWindow):
             self.local_deploy_page.log_view.setStyleSheet(get_log_stylesheet())
         if hasattr(self.testlab_page, 'log_view'):
             self.testlab_page.log_view.setStyleSheet(get_log_stylesheet())
+        if hasattr(self.dana_deploy_page, 'log_view'):
+            self.dana_deploy_page.log_view.setStyleSheet(get_log_stylesheet())
 
     def _init_navigation(self):
         """Initialize navigation sidebar"""
@@ -3037,6 +3569,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.local_deploy_page, FIF.APPLICATION, "Local Env")
         self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
         self.addSubInterface(self.testlab_page, FIF.EDUCATION, "Test Lab")
+        self.addSubInterface(self.dana_deploy_page, FIF.CLOUD, "Dana Test")
         self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
