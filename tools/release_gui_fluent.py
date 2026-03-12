@@ -1685,14 +1685,14 @@ class DanaDeployWorker(QThread):
         if not self._run_ssh(f"mkdir -p {self.remote_path}"):
             return self.signals.operation_finished.emit(False, "Could not create remote directory")
 
-        compose_src = str(self.project_root / "docker-compose.test.yml")
+        compose_src = str(self.project_root / "docker-compose.testlab.yml")
         if not Path(compose_src).exists():
-            self._log(f"❌ docker-compose.test.yml not found at {compose_src}", "error")
+            self._log(f"❌ docker-compose.testlab.yml not found at {compose_src}", "error")
             return self.signals.operation_finished.emit(
-                False, "docker-compose.test.yml not found locally — create it first"
+                False, "docker-compose.testlab.yml not found locally — create it first"
             )
 
-        self._log("── Step 2: Transfer docker-compose.test.yml ──", "info")
+        self._log("── Step 2: Transfer docker-compose.testlab.yml ──", "info")
         if not self._run_rsync(compose_src, self.remote_path + "/"):
             return self.signals.operation_finished.emit(False, "File transfer failed")
 
@@ -1703,12 +1703,12 @@ class DanaDeployWorker(QThread):
 
         self._log("── Step 3: Pull images on dana ──", "info")
         self._run_ssh(
-            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml pull"
+            f"cd {self.remote_path} && docker compose -f docker-compose.testlab.yml pull"
         )
 
         self._log("── Step 4: Start services on dana ──", "info")
         ok = self._run_ssh(
-            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml up -d --remove-orphans"
+            f"cd {self.remote_path} && docker compose -f docker-compose.testlab.yml up -d --remove-orphans"
         )
         if ok:
             self._log("✅  Test environment deployed and started on dana.", "success")
@@ -1719,7 +1719,7 @@ class DanaDeployWorker(QThread):
     def _do_start(self):
         self._log("── Starting test environment on dana ──", "info")
         ok = self._run_ssh(
-            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml up -d"
+            f"cd {self.remote_path} && docker compose -f docker-compose.testlab.yml up -d"
         )
         if ok:
             self._log("✅  Test environment started on dana.", "success")
@@ -1732,7 +1732,7 @@ class DanaDeployWorker(QThread):
     def _do_stop(self):
         self._log("── Stopping test environment on dana ──", "info")
         ok = self._run_ssh(
-            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml down"
+            f"cd {self.remote_path} && docker compose -f docker-compose.testlab.yml down"
         )
         if ok:
             self._log("✅  Test environment stopped on dana.", "success")
@@ -1743,7 +1743,7 @@ class DanaDeployWorker(QThread):
     def _do_status(self):
         self._log("── Container status on dana ──", "info")
         self._run_ssh(
-            f"cd {self.remote_path} && docker compose -f docker-compose.test.yml ps"
+            f"cd {self.remote_path} && docker compose -f docker-compose.testlab.yml ps"
         )
         self._log("── Resource usage ──", "info")
         self._run_ssh(
@@ -1771,7 +1771,7 @@ class DanaDeployPage(QWidget):
 
         info = BodyLabel(
             "Deploy and manage the YADS test environment on the dana server via SSH.\n"
-            "Uses docker-compose.test.yml from the project root.",
+            "Uses docker-compose.testlab.yml from the project root.",
             self,
         )
         info.setWordWrap(True)
@@ -1847,7 +1847,7 @@ class DanaDeployPage(QWidget):
         self.deploy_btn = PrimaryPushButton(FIF.SEND, "Deploy & Start", self)
         self.deploy_btn.setFixedWidth(160)
         self.deploy_btn.setToolTip(
-            "Transfer docker-compose.test.yml to dana and start all test services."
+            "Transfer docker-compose.testlab.yml to dana and start all test services."
         )
         self.deploy_btn.clicked.connect(lambda: self._on_action("deploy"))
 
@@ -2030,7 +2030,7 @@ class DanaDeployPage(QWidget):
         if action == "deploy":
             box = MessageBox(
                 "Deploy to Dana",
-                f"Transfer docker-compose.test.yml to {host} and start all test services.\n\nProceed?",
+                f"Transfer docker-compose.testlab.yml to {host} and start all test services.\n\nProceed?",
                 self,
             )
             if not box.exec():
