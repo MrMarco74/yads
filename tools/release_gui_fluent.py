@@ -1965,12 +1965,15 @@ class DanaDeployPage(QWidget):
         if not host:
             self.ssh_status_label.setText("⚠ No host configured")
             self.ssh_status_label.setStyleSheet("color: orange; font-size: 12px;")
+            InfoBar.warning("No Host", "Enter a hostname before testing SSH.",
+                            parent=self, position=InfoBarPosition.TOP, duration=4000)
             return
         user = self.user_edit.text().strip() or "root"
         port = self.port_edit.text().strip() or "22"
         key = self.key_edit.text().strip()
         self.ssh_status_label.setText("○ Checking…")
         self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
+        self._log(f"Testing SSH connection to {user}@{host}:{port} …", "info")
 
         opts = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes", "-p", port]
         if key:
@@ -1978,24 +1981,34 @@ class DanaDeployPage(QWidget):
 
         import threading
         def run():
+            stderr_out = ""
             try:
                 r = subprocess.run(
                     ["ssh"] + opts + [f"{user}@{host}", "echo ok"],
                     capture_output=True, text=True, timeout=8,
                 )
                 ok = r.returncode == 0
-            except Exception:
+                stderr_out = r.stderr.strip()
+            except Exception as e:
                 ok = False
-            QTimer.singleShot(0, lambda: self._update_ssh_status(ok))
+                stderr_out = str(e)
+            QTimer.singleShot(0, lambda: self._update_ssh_status(ok, host, stderr_out))
         threading.Thread(target=run, daemon=True).start()
 
-    def _update_ssh_status(self, ok: bool):
+    def _update_ssh_status(self, ok: bool, host: str = "", detail: str = ""):
         if ok:
             self.ssh_status_label.setText("✓ SSH Connected")
             self.ssh_status_label.setStyleSheet("color: #22c55e; font-size: 12px;")
+            self._log(f"✅ SSH connection to {host} successful.", "success")
+            InfoBar.success("SSH OK", f"Connected to {host}",
+                            parent=self, position=InfoBarPosition.TOP, duration=4000)
         else:
             self.ssh_status_label.setText("✗ SSH Unreachable")
             self.ssh_status_label.setStyleSheet("color: #ef4444; font-size: 12px;")
+            msg = f"Cannot reach {host}" + (f": {detail}" if detail else "")
+            self._log(f"❌ {msg}", "error")
+            InfoBar.error("SSH Failed", msg[:120],
+                          parent=self, position=InfoBarPosition.TOP, duration=6000)
 
     def showEvent(self, event):
         super().showEvent(event)
