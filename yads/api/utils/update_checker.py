@@ -10,7 +10,7 @@ logger = logging.getLogger("yads.api.update")
 class UpdateService:
     VERSION_URL = "https://yads-security.com/releases/version.json"
     CACHE_KEY = "yads_latest_version_cache"
-    CACHE_TTL = 3600 # 1 hour
+    CACHE_TTL = 21600 # 6 hours
 
     @staticmethod
     def check_for_updates() -> Optional[Dict]:
