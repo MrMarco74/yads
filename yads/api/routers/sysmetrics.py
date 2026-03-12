@@ -348,7 +348,7 @@ async def system_alerts_page(
     request: Request,
     user: User = Depends(PlatformAdminChecker()),
 ):
-    from datetime import timedelta
+    from datetime import datetime, timedelta
     from sqlmodel import Session, select
     from yads.database import engine
     from yads.models import SystemAlertLog
