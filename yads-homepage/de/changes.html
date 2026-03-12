@@ -154,6 +154,48 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.44.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.44.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & Tests</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Einführung von System Resilience & Health Watcher und verbesserte Funktionen für Deception Detection Module sowie System Administration & Monitoring.</li>
+                    <li>Hinzugefügt: Systemressourcenprüfungen für Worker, neue Systemmetriken, Watcher und Tenant-Konfiguration.</li>
+                    <li>Implementierung einer Test Manager-Seite zum Auffinden und Ausführen von Integrationstests mit Live-Statusverfolgung.</li>
+                    <li>Hinzugefügt: Infrastruktur zur Ausführung von Integrationstests mit Docker, einschließlich Smoke-Tests, Authentifizierungstests, Target- und Queue-Tests, User-Tests und API-Tests.</li>
+                    <li>Hinzugefügt: Eine Dana Test Environment Deploy-Seite zur Bereitstellung und Steuerung der YADS-Testumgebung auf einem Remote-Server via SSH.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung eines Garbage-Collection-Absturzes im Release Manager im Zusammenhang mit dem Discover Worker.</li>
+                    <li>Sichergestellt, dass Testlab-Build-Kontexte während der Dana-Bereitstellung korrekt übertragen werden.</li>
+                    <li>Korrektur des für die Dana-Bereitstellung verwendeten Compose-Dateinamens.</li>
+                    <li>Verbesserte Rückmeldung für Dana-SSH-Tests durch Anzeige einer InfoBar und Schreiben der Ergebnisse in die Protokollansicht.</li>
+                    <li>Erzwungene IPv4 für Update-Prüfungen in Docker, um IPv6-Fehler zu vermeiden.</li>
+                    <li>Verhindert, dass automatische Sweeps sofort bei jedem Tick ausgelöst werden, indem eine explizite nächste automatische Laufzeit erforderlich ist.</li>
+                    <li>Korrektur des Release-Manager-Symbols.</li>
+                    <li>Implementierung von atomarem Upsert für die primäre Worker-Registrierung, um Race Conditions und veraltete Einträge zu verhindern.</li>
+                    <li>Verwendung der korrekten Datenbank-Sitzungsvariable im DNS-Scanner-Modul.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Implementierung von granularen API-Key-Bereichen mit expliziter Bereichsauswahl und einem Standardwert von 'read' für Least Privilege. Die Signierung wird nun standardmäßig erzwungen, wenn kein öffentlicher Schlüssel konfiguriert ist.</li>
+                    <li>Ratenbegrenzung für die Endpunkte reset_password und reset_mfa, um Bulk Credential Cycling Attacks zu verhindern.</li>
+                    <li>Patch für eine Path-Traversal-Schwachstelle in der Backup-Wiederherstellung und eine Server-Side Template Injection (SSTI)-Schwachstelle im Report Generator.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Aktualisierte Homepage-Navigation mit Editionen.</li>
+                    <li>Erhöhung des Update-Check-Cache-TTL zur Reduzierung von Log-Noise.</li>
+                    <li>Hinzugefügt: Umfassende technische Dokumentation für alle Scanner-Module.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.43.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.43.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

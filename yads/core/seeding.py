@@ -25534,6 +25534,259 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.44.0").first():
+
+
+
+
+
+            entry_1440 = ChangelogEntry(
+
+
+
+
+
+                title="YADS v1.44.0: Enhanced Security & Testing (Beta)",
+
+
+
+
+
+                version="1.44.0",
+
+
+
+
+
+                content="""
+
+
+
+
+
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Beta Release</span>
+
+
+
+
+
+                <h3>🚀 New Features</h3>
+
+
+
+
+
+                <ul>
+
+
+
+
+
+                    <li>Introduced System Resilience & Health Watcher and enhanced Deception Detection Module and System Administration & Monitoring features.</li>
+
+
+
+
+
+                    <li>Added system resource checks for workers, new system metrics, watcher, and tenant configuration.</li>
+
+
+
+
+
+                    <li>Implemented a Test Manager page for discovering and running integration tests with live status tracking.</li>
+
+
+
+
+
+                    <li>Added infrastructure for running integration tests using Docker, including smoke tests, authentication tests, target and queue tests, user tests, and API tests.</li>
+
+
+
+
+
+                    <li>Added a Dana Test Environment deploy page for deploying and controlling the YADS test environment on a remote server via SSH.</li>
+
+
+
+
+
+                </ul>
+
+
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+
+
+                <ul>
+
+
+
+
+
+                    <li>Fixed a garbage collection crash in the release manager related to the discover worker.</li>
+
+
+
+
+
+                    <li>Ensured that testlab build contexts are transferred correctly during Dana deployment.</li>
+
+
+
+
+
+                    <li>Corrected the compose filename used for Dana deployment.</li>
+
+
+
+
+
+                    <li>Improved feedback for Dana SSH tests by displaying an InfoBar and writing results to the log view.</li>
+
+
+
+
+
+                    <li>Forced IPv4 for update checks in Docker to avoid IPv6 failures.</li>
+
+
+
+
+
+                    <li>Prevented automatic sweeps from firing immediately on every tick by requiring an explicit next auto run time.</li>
+
+
+
+
+
+                    <li>Corrected the release manager icon.</li>
+
+
+
+
+
+                    <li>Implemented atomic upsert for primary worker registration to prevent race conditions and stale entries.</li>
+
+
+
+
+
+                    <li>Used the correct database session variable in the DNS scanner module.</li>
+
+
+
+
+
+                </ul>
+
+
+
+
+
+                <h3>🔒 Security</h3>
+
+
+
+
+
+                <ul>
+
+
+
+
+
+                    <li>Implemented granular API key scopes with explicit scope selection and a default of 'read' for least privilege. Signing is now enforced by default when no public key is configured.</li>
+
+
+
+
+
+                    <li>Rate-limited the reset_password and reset_mfa endpoints to prevent bulk credential cycling attacks.</li>
+
+
+
+
+
+                    <li>Patched a path traversal vulnerability in backup restore and a server-side template injection (SSTI) vulnerability in the report generator.</li>
+
+
+
+
+
+                </ul>
+
+
+
+
+
+                <h3>⚡ Improvements</h3>
+
+
+
+
+
+                <ul>
+
+
+
+
+
+                    <li>Updated homepage navigation with editions.</li>
+
+
+
+
+
+                    <li>Increased update check cache TTL to reduce log noise.</li>
+
+
+
+
+
+                    <li>Added comprehensive technical documentation for all scanner modules.</li>
+
+
+
+
+
+                </ul>
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: [SHA256_HASH_TBD]</p>
+
+
+
+
+
+                """
+
+
+
+
+
+            )
+
+
+
+
+
+            session.add(entry_1440)
+
+
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
