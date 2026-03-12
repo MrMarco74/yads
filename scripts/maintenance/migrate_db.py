@@ -852,6 +852,28 @@ def migrate():
         except Exception as e:
             print(f"   Error: {e}")
 
+        # SystemAlertLog table (Health Watcher)
+        print(">> Creating systemalertlog table (Health Watcher)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS systemalertlog (
+                    id          SERIAL PRIMARY KEY,
+                    check_name  VARCHAR NOT NULL,
+                    severity    VARCHAR NOT NULL,
+                    message     TEXT NOT NULL,
+                    detail      TEXT,
+                    fired_at    TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
+                    resolved_at TIMESTAMP WITHOUT TIME ZONE,
+                    notified    BOOLEAN NOT NULL DEFAULT false
+                )
+            """))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_systemalertlog_check_name ON systemalertlog (check_name)'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_systemalertlog_fired_at   ON systemalertlog (fired_at)'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print("\nMigration Complete!")
 
 

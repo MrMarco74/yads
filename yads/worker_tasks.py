@@ -339,19 +339,23 @@ def run_all_scans(
 
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
-    # --- License Enforcement ---
+    # --- License / CE Enforcement ---
     from yads.core.license import license_manager
+    from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
     try:
         with Session(engine) as session:
-            lc = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
-            valid_license = False
-            if lc and lc.value:
-                if license_manager.verify(lc.value):
-                    valid_license = True
-
-            if not valid_license:
-                logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
-                return
+            ce_state = get_ce_state(session)
+            if ce_state["edition"] == "community":
+                allowed, reason = ce_check_scan(session)
+                if not allowed:
+                    logger.warning(f"[Worker] CE read-only — discarding task for {domain}: {reason}")
+                    return
+            else:
+                lc = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
+                valid_license = bool(lc and lc.value and license_manager.verify(lc.value))
+                if not valid_license:
+                    logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
+                    return
     except Exception as e:
         logger.error(f"[Worker] License check failed: {e}")
         return

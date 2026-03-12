@@ -63,33 +63,67 @@
         </div>
 
         <!-- Limits Section -->
-        <div class="grid grid-cols-3 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-2">Max Concurrent Tasks</label>
-                <input type="number" name="max_concurrent_tasks"
-                       value="{{ worker.max_concurrent_tasks }}"
-                       min="1" max="50"
-                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                <p class="text-xs text-slate-500 mt-1">Simultaneous scans</p>
+        <div class="space-y-3">
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Max Concurrent Tasks</label>
+                    <input type="number" name="max_concurrent_tasks"
+                           id="input-tasks-{{ worker.node_id }}"
+                           value="{{ worker.max_concurrent_tasks }}"
+                           min="1" max="500"
+                           oninput="yadsResourceCheck('{{ worker.node_id }}')"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <p class="text-xs text-slate-500 mt-1">Simultaneous scans</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Max Network (Mbps)</label>
+                    <input type="number" name="max_network_mbps"
+                           id="input-net-{{ worker.node_id }}"
+                           value="{{ worker.max_network_mbps }}"
+                           min="1" max="100000" step="1"
+                           oninput="yadsResourceCheck('{{ worker.node_id }}')"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <p class="text-xs text-slate-500 mt-1">Bandwidth limit</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Max Daily Scans</label>
+                    <input type="number" name="max_daily_scans"
+                           value="{{ worker.max_daily_scans or '' }}"
+                           min="0" max="100000"
+                           placeholder="Unlimited"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <p class="text-xs text-slate-500 mt-1">0 = unlimited</p>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-2">Max Network (Mbps)</label>
-                <input type="number" name="max_network_mbps"
-                       value="{{ worker.max_network_mbps }}"
-                       min="1" max="10000" step="0.1"
-                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                <p class="text-xs text-slate-500 mt-1">Bandwidth limit</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-2">Max Daily Scans</label>
-                <input type="number" name="max_daily_scans"
-                       value="{{ worker.max_daily_scans or '' }}"
-                       min="0" max="100000"
-                       placeholder="Unlimited"
-                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                <p class="text-xs text-slate-500 mt-1">0 = unlimited</p>
+
+            <!-- Resource Warnings (populated on input change + on modal open) -->
+            <div id="resource-warnings-{{ worker.node_id }}" class="min-h-[1.5rem]">
+                <div class="text-xs text-slate-600 animate-pulse">Checking resources…</div>
             </div>
         </div>
+
+        <script>
+        (function() {
+            var _rcTimer = null;
+            window.yadsResourceCheck = function(nodeId) {
+                clearTimeout(_rcTimer);
+                _rcTimer = setTimeout(function() {
+                    var tasks   = document.getElementById('input-tasks-' + nodeId).value;
+                    var net     = document.getElementById('input-net-' + nodeId).value;
+                    var target  = document.getElementById('resource-warnings-' + nodeId);
+                    if (!tasks || !net || !target) return;
+                    htmx.ajax('GET',
+                        '/api/system/resource-check?node_id=' + encodeURIComponent(nodeId)
+                        + '&tasks=' + encodeURIComponent(tasks)
+                        + '&net_mbps=' + encodeURIComponent(net),
+                        { target: target, swap: 'outerHTML' }
+                    );
+                }, 600);
+            };
+            // Initial check on modal open
+            yadsResourceCheck('{{ worker.node_id }}');
+        })();
+        </script>
 
         <!-- Capabilities Section -->
         <div>

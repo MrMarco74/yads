@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlmodel import Session, select
 from typing import Optional
+import io
 
 from typing import List
 from yads.database import get_session
@@ -285,3 +286,190 @@ async def update_scan_automation(
     session.add(config)
     session.commit()
     return RedirectResponse("/tenant-settings#automation", status_code=303)
+
+
+# =============================================================================
+# Tenant Config Export / Import (.ytcfg)
+# =============================================================================
+
+@router.get("/export-config", response_class=StreamingResponse)
+async def export_tenant_config(
+    password: str,
+    request: Request,
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session),
+):
+    """Download tenant config as encrypted .ytcfg file."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant context selected")
+    if not password or len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    from yads.core.tenant_config import export_tenant_config as _export
+    from yads.models import Tenant
+
+    tenant = session.get(Tenant, user.tenant_id)
+    safe_name = "".join(c if c.isalnum() else "_" for c in (tenant.name if tenant else "tenant"))
+    filename = f"tenant_config_{safe_name}_{__import__('datetime').datetime.utcnow().strftime('%Y%m%d')}.ytcfg"
+
+    file_bytes = _export(user.tenant_id, password, session)
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import-config/preview", response_class=HTMLResponse)
+async def import_config_preview(
+    request: Request,
+    config_file: UploadFile = File(...),
+    import_password: str = Form(...),
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session),
+):
+    """Parse the uploaded .ytcfg and return an HTML diff preview (HTMX fragment)."""
+    if not user.tenant_id:
+        return HTMLResponse('<div class="text-red-400 text-sm">No tenant context selected.</div>')
+
+    from yads.core.tenant_config import parse_ytcfg, build_preview
+
+    file_bytes = await config_file.read()
+    try:
+        config = parse_ytcfg(file_bytes, import_password)
+    except ValueError as e:
+        return HTMLResponse(
+            f'<div class="p-3 bg-red-900/40 border border-red-700/60 rounded-lg text-red-300 text-sm">'
+            f'<strong>Fehler:</strong> {e}</div>'
+        )
+
+    preview = build_preview(config, user.tenant_id, session)
+
+    # Store parsed config in session via hidden field approach:
+    # We pass the raw file + password back in the apply form via hidden inputs.
+    # (Simpler than server-side session storage — file is small.)
+
+    def _change_row(label, from_val, to_val):
+        return (
+            f'<tr class="border-b border-slate-800">'
+            f'<td class="py-1.5 pr-4 text-slate-400 text-xs font-mono">{label}</td>'
+            f'<td class="py-1.5 pr-4 text-slate-500 text-xs line-through">{from_val}</td>'
+            f'<td class="py-1.5 text-emerald-400 text-xs">{to_val}</td>'
+            f'</tr>'
+        )
+
+    key_rows = "".join(
+        _change_row(c["field"], c["from"], c["to"])
+        for c in preview.get("api_key_changes", [])
+    )
+    setting_rows = "".join(
+        _change_row(c["field"], c.get("from", "—"), c.get("to", "—"))
+        for c in preview.get("setting_changes", [])
+    )
+
+    wh = preview["webhooks"]
+    pr = preview["scan_profiles"]
+
+    html = f'''
+<div id="import-preview" class="space-y-4 mt-4">
+  <div class="flex items-center gap-2 text-sm text-slate-300">
+    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    Datei entschlüsselt · Exportiert von <strong class="text-white ml-1">{preview["source_tenant"]}</strong>
+    <span class="text-slate-600 text-xs ml-1">({preview["exported_at"][:10]})</span>
+  </div>
+
+  {"".join([
+      f'<div class="overflow-x-auto bg-slate-950 rounded-lg border border-slate-800 p-3">',
+      f'<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">API Key Änderungen</p>',
+      f'<table class="w-full"><tbody>{key_rows}</tbody></table></div>'
+  ]) if key_rows else ""}
+
+  {"".join([
+      f'<div class="overflow-x-auto bg-slate-950 rounded-lg border border-slate-800 p-3">',
+      f'<p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Einstellungen</p>',
+      f'<table class="w-full"><tbody>{setting_rows}</tbody></table></div>'
+  ]) if setting_rows else ""}
+
+  <div class="grid grid-cols-3 gap-3 text-xs">
+    <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-center">
+      <div class="text-slate-500 mb-1">Webhooks</div>
+      <div class="text-white font-semibold">{wh["current_count"]} → {wh["import_count"]}</div>
+      <div class="text-amber-400 text-[10px] mt-1">wird ersetzt</div>
+    </div>
+    <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-center">
+      <div class="text-slate-500 mb-1">Scan Profile</div>
+      <div class="text-white font-semibold">{pr["current_count"]} → {pr["import_count"]}</div>
+      <div class="text-amber-400 text-[10px] mt-1">wird ersetzt</div>
+    </div>
+    <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-center">
+      <div class="text-slate-500 mb-1">Scan Config</div>
+      <div class="text-white font-semibold">{"Ja" if preview["scan_config"]["importing"] else "Nein"}</div>
+      <div class="text-[10px] mt-1 {"text-amber-400" if preview["scan_config"]["importing"] else "text-slate-600"}">{"wird importiert" if preview["scan_config"]["importing"] else "keine Änderung"}</div>
+    </div>
+  </div>
+
+  <div class="p-3 bg-amber-900/30 border border-amber-700/50 rounded-lg text-amber-300 text-xs">
+    <strong>Hinweis:</strong> Webhooks und Scan-Profile werden vollständig ersetzt.
+    Targets und Scan-Ergebnisse bleiben unberührt.
+  </div>
+
+  <div class="flex justify-end">
+    <button type="button" onclick="doApplyConfig()"
+            class="px-6 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      Jetzt importieren
+    </button>
+  </div>
+</div>
+'''
+    return HTMLResponse(html)
+
+
+@router.post("/import-config/apply", response_class=HTMLResponse)
+async def import_config_apply(
+    request: Request,
+    config_file: UploadFile = File(...),
+    import_password: str = Form(...),
+    user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
+    session: Session = Depends(get_session),
+):
+    """Apply the uploaded .ytcfg to the current tenant."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant context")
+
+    from yads.core.tenant_config import parse_ytcfg, apply_config
+
+    file_bytes = await config_file.read()
+    try:
+        config = parse_ytcfg(file_bytes, import_password)
+        summary = apply_config(config, user.tenant_id, session)
+    except ValueError as e:
+        return HTMLResponse(
+            f'<div class="p-4 bg-red-900/40 border border-red-700/60 rounded-lg text-red-300 text-sm">'
+            f'<strong>Import fehlgeschlagen:</strong> {e}</div>'
+        )
+
+    return HTMLResponse(f'''
+<div class="p-4 bg-emerald-900/30 border border-emerald-700/50 rounded-xl text-emerald-300 text-sm space-y-1">
+  <div class="flex items-center gap-2 font-semibold text-emerald-200">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>
+    Konfiguration erfolgreich importiert
+  </div>
+  <ul class="list-disc list-inside text-xs text-emerald-400 ml-1 space-y-0.5">
+    <li>{summary["webhooks_imported"]} Webhook(s) importiert</li>
+    <li>{summary["profiles_imported"]} Scan-Profil(e) importiert</li>
+    <li>{summary["module_overrides_imported"]} Modul-Override(s) importiert</li>
+    {"<li>Scan-Automation importiert</li>" if summary["scan_config_imported"] else ""}
+  </ul>
+  <a href="/tenant-settings" class="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline">
+    Einstellungen neu laden →
+  </a>
+</div>
+''')

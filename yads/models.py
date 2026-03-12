@@ -676,3 +676,20 @@ class IntegrationConfig(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class SystemAlertLog(SQLModel, table=True):
+    """
+    Persistent log of health-watcher alerts.
+    One open row per (check_name, severity) pair — resolved_at is set when the
+    condition clears.  New rows are only created after the previous entry for the
+    same check was resolved, preventing duplicate spam.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    check_name: str = Field(index=True)          # e.g. "worker_heartbeat"
+    severity: str                                 # "warning" | "error"
+    message: str
+    detail: Optional[str] = Field(default=None)  # JSON context (node_id, domain, …)
+    fired_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    resolved_at: Optional[datetime] = Field(default=None)
+    notified: bool = Field(default=False)         # webhook already sent
