@@ -465,6 +465,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "license_status": license_status,
         "license_data": license_data,
         "license_limit": license_limit,
+        "ce_state": __import__('yads.core.community_edition', fromlist=['get_ce_state']).get_ce_state(session),
         "global_max_concurrent_scans": global_max_concurrent_scans,
         "global_max_network_mbps": global_max_network_mbps,
         "default_wordlist_count": default_wordlist_count,
@@ -929,3 +930,39 @@ async def get_rate_limit_status(
         )
 
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
+
+
+# ── Community Edition endpoints ───────────────────────────────────────────────
+
+@router.post("/admin/ce/activate", response_class=HTMLResponse)
+async def ce_activate(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"])),
+):
+    from yads.core.community_edition import activate, get_ce_state
+    already = get_ce_state(session)["edition"] == "community"
+    activate(session)
+    state = get_ce_state(session)
+    msg = "bereits aktiv" if already else "Community Edition aktiviert"
+    return templates.TemplateResponse("_ce_card.html", {
+        "request": request,
+        "ce_state": state,
+        "msg": msg,
+    })
+
+
+@router.post("/admin/ce/extend", response_class=HTMLResponse)
+async def ce_extend(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"])),
+):
+    from yads.core.community_edition import extend, get_ce_state
+    ok, msg = extend(session)
+    state = get_ce_state(session)
+    return templates.TemplateResponse("_ce_card.html", {
+        "request": request,
+        "ce_state": state,
+        "msg": msg,
+    })

@@ -195,33 +195,47 @@ async def view_queue(
         print(f"Redis Inspection Error: {e}")
 
     # --- Database Fallback/Sync ---
-    # Fetch tasks that are marked as 'queued' in DB.
-    # This covers items that might be queued but not yet in Redis (e.g. if worker is paused/down)
-    # or if Redis inspection failed.
+    # Fetch targets marked as 'queued' in DB that aren't already decoded from Redis.
+    # This covers items when the worker is paused/down (tasks in DB but not yet dispatched to Redis).
     from yads.models import Target
+    from sqlmodel import func as sqlfunc
     db_queued = []
+    db_queued_total = 0
     try:
-        stmt = select(Target).where(Target.tenant_id == user.tenant_id, Target.scan_status == "queued").limit(100)
+        redis_domains = {q['domain'] for q in queued_tasks}
+        stmt = select(Target).where(
+            Target.tenant_id == user.tenant_id,
+            Target.scan_status == "queued",
+            Target.is_archived == False,
+        ).limit(100)
         results = session.exec(stmt).all()
         for t in results:
-             # Check if this target is already in Redis list to avoid duplicates (by domain)
-             # Basic dedup based on domain name
-             if not any(q['domain'] == t.domain for q in queued_tasks):
-                 db_queued.append({
-                     "id": f"db-{t.id}", # Pseudo ID
-                     "name": "Standard Scan", # Use pretty name directly
-                     "args": f"{t.domain}",
-                     "domain": t.domain,
-                     "scan_types": [], # We don't store types easily in target table for display yet without joining
-                     "tenant_id": t.tenant_id,
-                     "source": "database"
-                 })
+            if t.domain not in redis_domains:
+                db_queued.append({
+                    "id": f"db-{t.id}",
+                    "name": "Standard Scan",
+                    "args": t.domain,
+                    "domain": t.domain,
+                    "scan_types": [],
+                    "tenant_id": t.tenant_id,
+                    "source": "database"
+                })
+        # Authoritative count from DB (all statuses, not just top-100)
+        db_queued_total = session.exec(
+            select(sqlfunc.count()).select_from(Target).where(
+                Target.tenant_id == user.tenant_id,
+                Target.scan_status == "queued",
+                Target.is_archived == False,
+            )
+        ).one()
     except Exception as e:
         print(f"DB Queue Fetch Error: {e}")
 
-    # Merge or Append?
-    # Let's append them to queued_tasks, distinct by source
     all_queued = queued_tasks + db_queued
+
+    # queue_length: use DB as authoritative total (avoids Redis top-100 cap)
+    # db_queued_total already covers everything; Redis-decoded tasks are a subset of those.
+    queue_length = db_queued_total
 
     return templates.TemplateResponse("queue.html", {
         "request": request,
@@ -230,7 +244,7 @@ async def view_queue(
         "reserved_tasks": reserved_tasks,
         "scheduled_tasks": scheduled_tasks,
         "queued_tasks": all_queued,
-        "queue_length": tenant_queue_len + len(db_queued),  # Show combined count
+        "queue_length": queue_length,
         "queue_active": queue_active,
         "settings": settings
     })
@@ -241,27 +255,38 @@ scanner_only = RoleChecker(["admin", "tenant_admin", "scanner"])
 
 
 def _widget_context(request, session, user, queue_active: bool) -> dict:
-    """Build context dict for queue_widget.html including live counts."""
+    """Build context dict for queue_widget.html including live counts.
+
+    Uses DB as source of truth so the count is:
+    - tenant-scoped
+    - correct even when the queue is paused (tasks stuck as 'queued' in DB, not in Redis)
+    - consistent with the dashboard counter
+    """
     from yads.models import Target
     from sqlmodel import func
-    queue_length = 0
+    queued_count = 0
     active_count = 0
     try:
-        queue_length = redis_client.llen("celery")
-    except Exception:
-        pass
-    try:
-        where_clause = [Target.scan_status == "running"]
+        where_clause = [Target.scan_status.in_(["queued", "running"]), Target.is_archived == False]
         if user.tenant_id:
             where_clause.append(Target.tenant_id == user.tenant_id)
         stmt = select(func.count()).select_from(Target).where(*where_clause)
-        active_count = session.exec(stmt).one()
+        total = session.exec(stmt).one()
+
+        active_where = [Target.scan_status == "running", Target.is_archived == False]
+        if user.tenant_id:
+            active_where.append(Target.tenant_id == user.tenant_id)
+        active_count = session.exec(
+            select(func.count()).select_from(Target).where(*active_where)
+        ).one()
+
+        queued_count = total - active_count
     except Exception:
         pass
     return {
         "request": request,
         "queue_active": queue_active,
-        "queue_length": queue_length,
+        "queue_length": queued_count,
         "active_count": active_count,
     }
 

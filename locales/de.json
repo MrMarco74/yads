@@ -16,6 +16,7 @@
     "single_target_graph": "Einzelziel-Graph",
     "spiderweb": "Spinnennetz",
     "scan_queue": "Scan-Warteschlange",
+    "workers": "Worker Monitor",
     "osint_search": "OSINT-Suche",
     "schedules": "Zeitpläne",
     "reports": "Berichte",

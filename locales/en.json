@@ -16,6 +16,7 @@
     "single_target_graph": "Single Target Graph",
     "spiderweb": "Spiderweb",
     "scan_queue": "Scan Queue",
+    "workers": "Worker Monitor",
     "osint_search": "OSINT Search",
     "schedules": "Schedules",
     "reports": "Reports",
