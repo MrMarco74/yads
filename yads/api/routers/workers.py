@@ -294,7 +294,7 @@ async def list_workers(
                         <button hx-post="/api/workers/{w["node_id"]}/resume" hx-swap="none"
                                 class="text-[9px] text-green-400 hover:text-green-300">Resume</button>
                     '''
-                elif w["status"] in ["offline", "draining"]:
+                elif w["status"] in ["offline", "draining", "suspended"]:
                     actions += f'''
                         <span class="text-gray-600">|</span>
                         <button hx-delete="/api/workers/{w["node_id"]}" hx-swap="none" hx-confirm="Remove worker {w["hostname"]}?"
