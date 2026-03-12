@@ -3382,6 +3382,571 @@ class AboutPage(QWidget):
         layout.addStretch()
 
 
+class TestManagerSignals(QObject):
+    log_message     = Signal(str, str)   # message, level
+    tests_found     = Signal(list)       # list of dicts {node_id, name}
+    test_status     = Signal(str, str)   # node_id, status
+    summary         = Signal(int, int, int, float)  # passed, failed, skipped, secs
+    finished        = Signal(bool, str)
+
+
+class TestManagerWorker(QThread):
+    """Discovers tests via AST scan; runs them via docker compose."""
+
+    RESULT_RE  = re.compile(r'(tests/\S+::\S+)\s+(PASSED|FAILED|ERROR|SKIPPED)')
+    SUMMARY_RE = {
+        "passed":  re.compile(r'(\d+) passed'),
+        "failed":  re.compile(r'(\d+) failed'),
+        "skipped": re.compile(r'(\d+) skipped'),
+    }
+
+    def __init__(self, action: str, project_root: Path, args: list = None):
+        super().__init__()
+        self.action       = action        # "discover" | "run" | "run_marker"
+        self.project_root = project_root
+        self.args         = args or []    # node_ids  OR  [marker_string]
+        self.signals      = TestManagerSignals()
+        self.cancelled    = False
+        self._proc        = None
+
+    def cancel(self):
+        self.cancelled = True
+        if self._proc:
+            try: self._proc.terminate()
+            except Exception: pass
+
+    def run(self):
+        try:
+            if self.action == "discover":
+                self._do_discover()
+            elif self.action == "run":
+                self._do_run(self.args)
+            elif self.action == "run_marker":
+                self._do_run_marker(self.args[0] if self.args else "")
+        except Exception as e:
+            self.signals.log_message.emit(f"Critical error: {e}", "error")
+            self.signals.finished.emit(False, str(e))
+
+    def _log(self, msg: str, level: str = "info"):
+        self.signals.log_message.emit(msg, level)
+
+    # ── Discover ──────────────────────────────────────────────────────────────
+
+    def _do_discover(self):
+        import ast as _ast
+        tests_dir = self.project_root / "tests"
+        if not tests_dir.exists():
+            self._log("❌ tests/ directory not found in project root.", "error")
+            return self.signals.finished.emit(False, "tests/ not found")
+
+        nodes = []
+        for test_file in sorted(tests_dir.glob("test_*.py")):
+            rel = test_file.relative_to(self.project_root).as_posix()
+            self._log(f"  scanning {rel}", "info")
+            try:
+                tree = _ast.parse(test_file.read_text())
+            except SyntaxError as e:
+                self._log(f"  ⚠ Syntax error in {rel}: {e}", "warning")
+                continue
+
+            # Top-level test functions
+            for node in _ast.iter_child_nodes(tree):
+                if isinstance(node, _ast.FunctionDef) and node.name.startswith("test_"):
+                    nodes.append({"node_id": f"{rel}::{node.name}", "name": node.name})
+
+            # Class-based tests
+            for node in _ast.walk(tree):
+                if isinstance(node, _ast.ClassDef) and node.name.startswith("Test"):
+                    for item in node.body:
+                        if isinstance(item, _ast.FunctionDef) and item.name.startswith("test_"):
+                            nid = f"{rel}::{node.name}::{item.name}"
+                            nodes.append({"node_id": nid, "name": item.name})
+
+        n = len(nodes)
+        self._log(f"✅ Found {n} test{'s' if n != 1 else ''}.", "success")
+        self.signals.tests_found.emit(nodes)
+        self.signals.finished.emit(True, f"{n} tests discovered")
+
+    # ── Run ───────────────────────────────────────────────────────────────────
+
+    def _pytest_cmd(self, extra: str) -> list:
+        return [
+            "docker", "compose",
+            "-f", str(self.project_root / "docker-compose.test.yml"),
+            "run", "--rm", "test-runner",
+            "sh", "-c",
+            f"pip install -q pytest pytest-asyncio pytest-cov anyio && "
+            f"python -m pytest -v --tb=short --no-header {extra}",
+        ]
+
+    def _stream(self, cmd: list, node_ids_to_mark: list) -> tuple:
+        """Run cmd, stream output, parse results. Returns (passed, failed, skipped, duration)."""
+        import time
+        passed = failed = skipped = 0
+        t0 = time.time()
+
+        for nid in node_ids_to_mark:
+            self.signals.test_status.emit(nid, "running")
+
+        try:
+            self._proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=str(self.project_root),
+            )
+            for line in self._proc.stdout:
+                if self.cancelled:
+                    self._proc.terminate()
+                    break
+                clean = _ANSI_RE.sub("", line.rstrip())
+                if not clean:
+                    continue
+                self._log(clean, "info")
+                m = self.RESULT_RE.search(clean)
+                if m:
+                    nid, st = m.group(1), m.group(2).lower()
+                    self.signals.test_status.emit(nid, st)
+                    if st == "passed":     passed  += 1
+                    elif st in ("failed", "error"): failed  += 1
+                    elif st == "skipped":  skipped += 1
+            self._proc.wait()
+            ok = self._proc.returncode == 0
+            self._proc = None
+        except Exception as e:
+            self._log(f"Subprocess error: {e}", "error")
+            return 0, 1, 0, time.time() - t0
+
+        duration = time.time() - t0
+        return passed, failed, skipped, duration
+
+    def _do_run(self, node_ids: list):
+        if not node_ids:
+            self._log("No tests selected.", "warning")
+            return self.signals.finished.emit(False, "Nothing to run")
+
+        self._log(f"▶ Running {len(node_ids)} test(s) via docker compose…", "info")
+        cmd = self._pytest_cmd(" ".join(node_ids))
+        passed, failed, skipped, dur = self._stream(cmd, node_ids)
+
+        self.signals.summary.emit(passed, failed, skipped, dur)
+        msg = f"{passed} passed, {failed} failed, {skipped} skipped in {dur:.1f}s"
+        self._log(f"{'✅' if failed == 0 else '❌'} {msg}", "success" if failed == 0 else "error")
+        self.signals.finished.emit(failed == 0, msg)
+
+    def _do_run_marker(self, marker: str):
+        self._log(f"▶ Running tests marked '{marker}' via docker compose…", "info")
+        cmd = self._pytest_cmd(f"-m {marker}")
+        passed, failed, skipped, dur = self._stream(cmd, [])
+
+        self.signals.summary.emit(passed, failed, skipped, dur)
+        msg = f"{passed} passed, {failed} failed, {skipped} skipped in {dur:.1f}s"
+        self._log(f"{'✅' if failed == 0 else '❌'} {msg}", "success" if failed == 0 else "error")
+        self.signals.finished.emit(failed == 0, msg)
+
+
+class TestManagerPage(QWidget):
+    """Discover and run YADS integration tests with live status tracking."""
+
+    _STATUS = {
+        "idle":    ("—",  "#94a3b8"),
+        "running": ("⟳",  "#3b82f6"),
+        "passed":  ("✓",  "#22c55e"),
+        "failed":  ("✗",  "#ef4444"),
+        "error":   ("✗",  "#ef4444"),
+        "skipped": ("⊘",  "#f59e0b"),
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("testManagerPage")
+        self._worker      = None
+        self._all_nodes   = []      # list of {node_id, name}
+        self._tree_items  = {}      # node_id → QTreeWidgetItem
+        self._done_count  = 0
+        self._setup_ui()
+
+    # ── UI construction ───────────────────────────────────────────────────────
+
+    def _setup_ui(self):
+        from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QSplitter
+        from qfluentwidgets import SearchLineEdit
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(16)
+
+        layout.addWidget(TitleLabel("Test Manager", self))
+
+        info = BodyLabel(
+            "Discover and run YADS integration tests. "
+            "Tests execute inside the dev Docker image via docker-compose.test.yml.",
+            self,
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # ── Toolbar ──────────────────────────────────────────────────────────
+        tb_card = CardWidget(self)
+        tb = QHBoxLayout(tb_card)
+        tb.setContentsMargins(16, 12, 16, 12)
+        tb.setSpacing(10)
+
+        self.discover_btn = PushButton(FIF.SEARCH, "Discover", self)
+        self.discover_btn.setFixedWidth(120)
+        self.discover_btn.setToolTip("Scan tests/ with AST — instant, no Docker needed")
+        self.discover_btn.clicked.connect(self._on_discover)
+
+        self.run_all_btn = PrimaryPushButton(FIF.PLAY, "Run All", self)
+        self.run_all_btn.setFixedWidth(110)
+        self.run_all_btn.setEnabled(False)
+        self.run_all_btn.clicked.connect(self._on_run_all)
+
+        self.run_sel_btn = PushButton(FIF.PLAY, "Run Selected", self)
+        self.run_sel_btn.setFixedWidth(130)
+        self.run_sel_btn.setEnabled(False)
+        self.run_sel_btn.clicked.connect(self._on_run_selected)
+
+        marker_lbl = BodyLabel("Marker:", self)
+        self.marker_combo = ComboBox(self)
+        self.marker_combo.addItems(
+            ["(all)", "smoke", "auth", "targets", "queue", "users", "integration"]
+        )
+        self.marker_combo.setFixedWidth(130)
+
+        self.run_marked_btn = PushButton(FIF.FILTER, "Run Marked", self)
+        self.run_marked_btn.setFixedWidth(120)
+        self.run_marked_btn.setEnabled(False)
+        self.run_marked_btn.clicked.connect(self._on_run_marked)
+
+        self.stop_btn = PushButton(FIF.CLOSE, "Stop", self)
+        self.stop_btn.setFixedWidth(90)
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.clicked.connect(self._on_stop)
+
+        self.toolbar_status = BodyLabel("○ Not discovered", self)
+        self.toolbar_status.setStyleSheet("color: gray; font-size: 12px;")
+
+        for w in (self.discover_btn, self.run_all_btn, self.run_sel_btn,
+                  marker_lbl, self.marker_combo, self.run_marked_btn, self.stop_btn):
+            tb.addWidget(w)
+        tb.addSpacing(12)
+        tb.addWidget(self.toolbar_status)
+        tb.addStretch()
+        layout.addWidget(tb_card)
+
+        # ── Tree + Log (splitter) ─────────────────────────────────────────────
+        splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        splitter.setChildrenCollapsible(False)
+
+        # Left: test tree
+        tree_card = CardWidget(self)
+        tree_vbox = QVBoxLayout(tree_card)
+        tree_vbox.setContentsMargins(12, 12, 12, 12)
+        tree_vbox.setSpacing(8)
+
+        tree_hdr = QHBoxLayout()
+        self.tree_title = SubtitleLabel("Tests (0)", self)
+        tree_hdr.addWidget(self.tree_title)
+        tree_hdr.addStretch()
+        chk_all = TransparentPushButton(FIF.ACCEPT, "All", self)
+        chk_all.setFixedWidth(48)
+        chk_all.clicked.connect(lambda: self._set_all_checked(True))
+        unchk_all = TransparentPushButton(FIF.CANCEL_MEDIUM, "None", self)
+        unchk_all.setFixedWidth(52)
+        unchk_all.clicked.connect(lambda: self._set_all_checked(False))
+        tree_hdr.addWidget(chk_all)
+        tree_hdr.addWidget(unchk_all)
+        tree_vbox.addLayout(tree_hdr)
+
+        self._tree_filter = SearchLineEdit(self)
+        self._tree_filter.setPlaceholderText("Filter tests…")
+        self._tree_filter.setFixedHeight(28)
+        self._tree_filter.textChanged.connect(self._apply_tree_filter)
+        tree_vbox.addWidget(self._tree_filter)
+
+        self.tree = QTreeWidget(self)
+        self.tree.setHeaderLabels(["Test", "Status"])
+        self.tree.setColumnWidth(0, 300)
+        self.tree.setColumnWidth(1, 70)
+        self.tree.setMinimumWidth(400)
+        self.tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
+        self.tree.itemChanged.connect(self._on_item_checked)
+        self.tree.setStyleSheet("QTreeWidget { font-size: 12px; }")
+        tree_vbox.addWidget(self.tree, 1)
+        splitter.addWidget(tree_card)
+
+        # Right: log
+        log_card = CardWidget(self)
+        log_vbox = QVBoxLayout(log_card)
+        log_vbox.setContentsMargins(12, 12, 12, 12)
+        log_vbox.setSpacing(8)
+
+        log_hdr = QHBoxLayout()
+        log_hdr.addWidget(SubtitleLabel("Output", self))
+        log_hdr.addStretch()
+        clear_btn = TransparentPushButton(FIF.DELETE, "Clear", self)
+        clear_btn.clicked.connect(lambda: self.log_view.clear())
+        log_hdr.addWidget(clear_btn)
+        log_vbox.addLayout(log_hdr)
+
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        log_vbox.addWidget(self.log_view, 1)
+        splitter.addWidget(log_card)
+
+        splitter.setSizes([420, 620])
+        splitter.setMinimumHeight(420)
+        layout.addWidget(splitter, 1)
+
+        # ── Summary bar ───────────────────────────────────────────────────────
+        sum_card = CardWidget(self)
+        sum_row = QHBoxLayout(sum_card)
+        sum_row.setContentsMargins(16, 10, 16, 10)
+        sum_row.setSpacing(24)
+
+        self.lbl_passed  = BodyLabel("✅  0 passed",  self)
+        self.lbl_failed  = BodyLabel("❌  0 failed",  self)
+        self.lbl_skipped = BodyLabel("⏭  0 skipped", self)
+        self.lbl_time    = BodyLabel("⏱  —",         self)
+        self.lbl_passed.setStyleSheet("color: #94a3b8; font-weight: bold;")
+        self.lbl_failed.setStyleSheet("color: #94a3b8; font-weight: bold;")
+        self.lbl_skipped.setStyleSheet("color: #94a3b8;")
+        self.lbl_time.setStyleSheet("color: gray;")
+
+        self.prog = ProgressBar(self)
+        self.prog.setValue(0)
+        self.prog.setFixedWidth(180)
+        self.prog.setVisible(False)
+
+        for w in (self.lbl_passed, self.lbl_failed, self.lbl_skipped, self.lbl_time):
+            sum_row.addWidget(w)
+        sum_row.addStretch()
+        sum_row.addWidget(self.prog)
+        layout.addWidget(sum_card)
+
+    # ── Tree helpers ──────────────────────────────────────────────────────────
+
+    def _populate_tree(self, nodes: list):
+        from PySide6.QtWidgets import QTreeWidgetItem
+        self.tree.blockSignals(True)
+        self.tree.clear()
+        self._tree_items.clear()
+        self._all_nodes = nodes
+
+        # Group: file → class (or __top__ for bare functions)
+        files: dict = {}
+        for n in nodes:
+            parts = n["node_id"].split("::")
+            fname = parts[0]
+            if fname not in files:
+                files[fname] = {}
+            key = parts[1] if len(parts) == 3 else "__top__"
+            files[fname].setdefault(key, []).append(n)
+
+        for fname, groups in files.items():
+            fi = QTreeWidgetItem([fname.split("/")[-1], ""])
+            fi.setFlags(fi.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            fi.setCheckState(0, Qt.CheckState.Checked)
+            fi.setExpanded(True)
+            self.tree.addTopLevelItem(fi)
+
+            for group, group_nodes in groups.items():
+                if group == "__top__":
+                    parent = fi
+                else:
+                    ci = QTreeWidgetItem([group, ""])
+                    ci.setFlags(ci.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    ci.setCheckState(0, Qt.CheckState.Checked)
+                    ci.setExpanded(True)
+                    fi.addChild(ci)
+                    parent = ci
+
+                for n in group_nodes:
+                    ti = QTreeWidgetItem([n["name"], "—"])
+                    ti.setFlags(ti.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    ti.setCheckState(0, Qt.CheckState.Checked)
+                    ti.setForeground(1, QColor("#94a3b8"))
+                    ti.setData(0, Qt.ItemDataRole.UserRole, n["node_id"])
+                    parent.addChild(ti)
+                    self._tree_items[n["node_id"]] = ti
+
+        self.tree.blockSignals(False)
+        self.tree_title.setText(f"Tests ({len(nodes)})")
+        for btn in (self.run_all_btn, self.run_sel_btn, self.run_marked_btn):
+            btn.setEnabled(True)
+
+    def _set_item_status(self, node_id: str, status: str):
+        item = self._tree_items.get(node_id)
+        if not item:
+            return
+        icon, color = self._STATUS.get(status, self._STATUS["idle"])
+        item.setText(1, icon)
+        item.setForeground(1, QColor(color))
+
+    def _get_checked_ids(self) -> list:
+        return [
+            nid for nid, item in self._tree_items.items()
+            if item.checkState(0) == Qt.CheckState.Checked
+        ]
+
+    def _set_all_checked(self, state: bool):
+        self.tree.blockSignals(True)
+        cs = Qt.CheckState.Checked if state else Qt.CheckState.Unchecked
+        for i in range(self.tree.topLevelItemCount()):
+            fi = self.tree.topLevelItem(i)
+            fi.setCheckState(0, cs)
+            for j in range(fi.childCount()):
+                ci = fi.child(j)
+                ci.setCheckState(0, cs)
+                for k in range(ci.childCount()):
+                    ci.child(k).setCheckState(0, cs)
+        self.tree.blockSignals(False)
+
+    def _apply_tree_filter(self, text: str):
+        for i in range(self.tree.topLevelItemCount()):
+            fi = self.tree.topLevelItem(i)
+            fi_vis = False
+            for j in range(fi.childCount()):
+                ci = fi.child(j)
+                if ci.childCount():
+                    ci_vis = False
+                    for k in range(ci.childCount()):
+                        ti = ci.child(k)
+                        match = not text or text.lower() in ti.text(0).lower()
+                        ti.setHidden(not match)
+                        if match: ci_vis = True
+                    ci.setHidden(not ci_vis)
+                    if ci_vis: fi_vis = True
+                else:
+                    match = not text or text.lower() in ci.text(0).lower()
+                    ci.setHidden(not match)
+                    if match: fi_vis = True
+            fi.setHidden(not fi_vis)
+
+    def _on_item_checked(self, item, column):
+        if column != 0:
+            return
+        state = item.checkState(0)
+        self.tree.blockSignals(True)
+        for j in range(item.childCount()):
+            child = item.child(j)
+            child.setCheckState(0, state)
+            for k in range(child.childCount()):
+                child.child(k).setCheckState(0, state)
+        self.tree.blockSignals(False)
+
+    # ── Busy state ────────────────────────────────────────────────────────────
+
+    def _set_busy(self, busy: bool):
+        has_tests = bool(self._all_nodes)
+        self.discover_btn.setEnabled(not busy)
+        self.run_all_btn.setEnabled(not busy and has_tests)
+        self.run_sel_btn.setEnabled(not busy and has_tests)
+        self.run_marked_btn.setEnabled(not busy and has_tests)
+        self.stop_btn.setEnabled(busy)
+        self.prog.setVisible(busy)
+
+    def _log(self, msg: str, level: str = "info"):
+        _insert_log_line(self.log_view, msg, level)
+
+    # ── Slots ─────────────────────────────────────────────────────────────────
+
+    def _on_discover(self):
+        self.log_view.clear()
+        self._log("Scanning tests/ directory…", "info")
+        from pathlib import Path as _P
+        w = TestManagerWorker("discover", _P(__file__).parent.parent)
+        w.signals.log_message.connect(self._log)
+        w.signals.tests_found.connect(self._on_tests_found)
+        w.signals.finished.connect(self._on_discover_finished)
+        w.finished.connect(w.deleteLater)
+        w.start()
+
+    def _on_tests_found(self, nodes: list):
+        self._populate_tree(nodes)
+
+    def _on_discover_finished(self, ok: bool, msg: str):
+        self.toolbar_status.setText(f"{'✓' if ok else '✗'} {msg}")
+        self.toolbar_status.setStyleSheet(
+            "color: #22c55e; font-size: 12px;" if ok
+            else "color: #ef4444; font-size: 12px;"
+        )
+
+    def _start_run(self, action: str, args: list):
+        self.log_view.clear()
+        self._set_busy(True)
+        self._done_count = 0
+        self.lbl_passed.setText("✅  0 passed");  self.lbl_passed.setStyleSheet("color: #94a3b8; font-weight: bold;")
+        self.lbl_failed.setText("❌  0 failed");  self.lbl_failed.setStyleSheet("color: #94a3b8; font-weight: bold;")
+        self.lbl_skipped.setText("⏭  0 skipped"); self.lbl_skipped.setStyleSheet("color: #94a3b8;")
+        self.lbl_time.setText("⏱  running…")
+        if action == "run":
+            self.prog.setRange(0, len(args))
+        else:
+            self.prog.setRange(0, 0)   # indeterminate for marker runs
+        self.prog.setValue(0)
+
+        from pathlib import Path as _P
+        self._worker = TestManagerWorker(action, _P(__file__).parent.parent, args)
+        self._worker.signals.log_message.connect(self._log)
+        self._worker.signals.test_status.connect(self._on_test_status)
+        self._worker.signals.summary.connect(self._on_summary)
+        self._worker.signals.finished.connect(self._on_run_finished)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.start()
+
+    def _on_run_all(self):
+        self._start_run("run", [n["node_id"] for n in self._all_nodes])
+
+    def _on_run_selected(self):
+        ids = self._get_checked_ids()
+        if not ids:
+            InfoBar.warning("Nothing selected", "Check at least one test.",
+                            parent=self, position=InfoBarPosition.TOP, duration=3000)
+            return
+        self._start_run("run", ids)
+
+    def _on_run_marked(self):
+        marker = self.marker_combo.currentText()
+        if marker == "(all)":
+            self._on_run_all()
+        else:
+            self._start_run("run_marker", [marker])
+
+    def _on_stop(self):
+        if self._worker:
+            self._worker.cancel()
+            self._log("Stop requested…", "warning")
+
+    def _on_test_status(self, node_id: str, status: str):
+        self._set_item_status(node_id, status)
+        if status in ("passed", "failed", "error", "skipped"):
+            self._done_count += 1
+            if self.prog.maximum() > 0:
+                self.prog.setValue(min(self._done_count, self.prog.maximum()))
+
+    def _on_summary(self, passed: int, failed: int, skipped: int, duration: float):
+        self.lbl_passed.setText(f"✅  {passed} passed")
+        self.lbl_failed.setText(f"❌  {failed} failed")
+        self.lbl_skipped.setText(f"⏭  {skipped} skipped")
+        self.lbl_time.setText(f"⏱  {duration:.1f}s")
+        self.lbl_passed.setStyleSheet(
+            f"color: {'#22c55e' if passed > 0 else '#94a3b8'}; font-weight: bold;")
+        self.lbl_failed.setStyleSheet(
+            f"color: {'#ef4444' if failed > 0 else '#94a3b8'}; font-weight: bold;")
+
+    def _on_run_finished(self, ok: bool, msg: str):
+        self._set_busy(False)
+        self._worker = None
+        self.prog.setVisible(False)
+        if ok:
+            InfoBar.success("Tests passed", msg, parent=self,
+                            position=InfoBarPosition.TOP, duration=5000)
+        else:
+            InfoBar.error("Tests failed", msg, parent=self,
+                          position=InfoBarPosition.TOP, duration=8000)
+
+
 class DevCredsPage(SmoothScrollArea):
     """Dev credentials and URLs overview page"""
 
@@ -3544,6 +4109,7 @@ class MainWindow(FluentWindow):
         self.prod_deploy_page = ProdDeployPage(self)
         self.testlab_page = TestLabPage(self)
         self.dana_deploy_page = DanaDeployPage(self)
+        self.test_manager_page = TestManagerPage(self)
         self.dev_creds_page = DevCredsPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
@@ -3583,6 +4149,8 @@ class MainWindow(FluentWindow):
             self.testlab_page.log_view.setStyleSheet(get_log_stylesheet())
         if hasattr(self.dana_deploy_page, 'log_view'):
             self.dana_deploy_page.log_view.setStyleSheet(get_log_stylesheet())
+        if hasattr(self.test_manager_page, 'log_view'):
+            self.test_manager_page.log_view.setStyleSheet(get_log_stylesheet())
 
     def _init_navigation(self):
         """Initialize navigation sidebar"""
@@ -3592,6 +4160,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.prod_deploy_page, FIF.SEND, "Update PROD")
         self.addSubInterface(self.testlab_page, FIF.EDUCATION, "Test Lab")
         self.addSubInterface(self.dana_deploy_page, FIF.CLOUD, "Dana Test")
+        self.addSubInterface(self.test_manager_page, FIF.CHECKBOX, "Test Manager")
         self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
