@@ -3855,12 +3855,12 @@ class TestManagerPage(QWidget):
         self.log_view.clear()
         self._log("Scanning tests/ directory…", "info")
         from pathlib import Path as _P
-        w = TestManagerWorker("discover", _P(__file__).parent.parent)
-        w.signals.log_message.connect(self._log)
-        w.signals.tests_found.connect(self._on_tests_found)
-        w.signals.finished.connect(self._on_discover_finished)
-        w.finished.connect(w.deleteLater)
-        w.start()
+        self._worker = TestManagerWorker("discover", _P(__file__).parent.parent)
+        self._worker.signals.log_message.connect(self._log)
+        self._worker.signals.tests_found.connect(self._on_tests_found)
+        self._worker.signals.finished.connect(self._on_discover_finished)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.start()
 
     def _on_tests_found(self, nodes: list):
         self._populate_tree(nodes)
