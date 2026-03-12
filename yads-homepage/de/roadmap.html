@@ -428,7 +428,7 @@
                 </div>
                 <div class="roadmap-card">
                     <p class="section-intro">
-                        Ein neues Erkennungsmodul zur Identifikation defensiver Täuschungsinfrastruktur mit Konfidenz-Bewertung (0-100) und Risikostufen (niedrig/mittel/hoch/kritisch). Hilft bei der Einschätzung, ob eine Zielumgebung Honeypots, Sinkholes oder andere Täuschungstechnologien enthält.
+                        Ein hochspezialisiertes Erkennungsmodul zur Identifikation defensiver Täuschungsinfrastruktur. YADS analysiert Zielumgebungen auf Honeypots, Sinkholes und Tarpits, um die Legitimität von Zielen zu bewerten und Fehlschlüsse bei der Aufklärung zu vermeiden.
                     </p>
                     <table class="feature-table">
                         <thead>
@@ -439,16 +439,55 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Honeypot-Erkennung <span class="status-badge available">Verfügbar</span></td>
-                                <td>Identifikation von Web-Honeypots (Glastopf, SNARE, Cowrie), SSH-Honeypots (Cowrie, Kippo) und Service-Honeypots (Dionaea, Mailoney) durch Verhaltensanalyse, Banner-Fingerprinting und Response-Pattern-Matching.</td>
+                                <td>Fortschrittliche Honeypot-Erkennung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Multilevel-Erkennung von Web- (Glastopf, SNARE) und Service-Honeypots (Cowrie, Dionaea, Mailoney). Nutzt Banner-Fingerprinting, Response-Timing und Verhaltensanalyse bei "Fake Vulnerabilities".</td>
                             </tr>
                             <tr>
-                                <td>DNS-Sinkhole-Erkennung <span class="status-badge available">Verfügbar</span></td>
-                                <td>Erkennung von Domains auf Sinkhole-Infrastruktur mittels Datenbank bekannter Sinkhole-IPs (Spamhaus, Microsoft DCU, Shadowserver), ASN-Matching und Landing-Page-Analyse.</td>
+                                <td>DNS-Sinkhole & Seized Domain Detection <span class="status-badge available">Verfügbar</span></td>
+                                <td>Automatischer Abgleich gegen Datenbanken bekannter Sinkhole-Infrastrukturen (Spamhaus, Microsoft DCU, Shadowserver). Erkennt von Strafverfolgungsbehörden übernommene Domains.</td>
                             </tr>
                             <tr>
-                                <td>Tarpit-Erkennung <span class="status-badge available">Verfügbar</span></td>
-                                <td>Identifikation von HTTP-, SMTP- und TCP-Tarpits durch Timing-Analyse, Erkennung von langsamen Antworten, tröpfelnden Daten und absichtlichen Verbindungsverzögerungen.</td>
+                                <td>Tarpit- & Timing-Analyse <span class="status-badge available">Verfügbar</span></td>
+                                <td>Identifiziert "Teergruben" (HTTP/TCP Tarpits), die Scanner durch künstliche Latenz und "Trickle-Data" binden. Schützt die Scan-Queue vor Blockaden durch gezielte Zeitverschwendung.</td>
+                            </tr>
+                            <tr>
+                                <td>Confidence Scoring & Risiko <span class="status-badge available">Verfügbar</span></td>
+                                <td>Jede Erkennung erhält einen Konfidenz-Score (0-100) und eine Risiko-Einstufung (Low bis Critical). Inklusive automatischer Blacklist-Empfehlung für hochgradig verdächtige Deception-Ziele.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System-Resilienz & Health Watcher -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">💓</span>
+                    <h2 class="section-title">System-Resilienz &amp; Health Watcher <span class="status-badge available">Verfügbar</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        Der YADS Health Watcher ist ein proaktives Monitoring-System, das die Integrität Ihres Scan-Clusters rund um die Uhr überwacht und bei Anomalien sofort alarmiert.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Wächter-Funktion</th>
+                                <th>Beschreibung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Proaktives Alerting <span class="status-badge available">Verfügbar</span></td>
+                                <td>Echtzeit-Alarmierung bei Worker-Ausfällen (Heartbeat), hängenden Tasks (>2h), Queue-Staus oder vollen Festplatten. Benachrichtigung erfolgt via Webhook (system_alert) oder direkt in der Admin-Oberfläche.</td>
+                            </tr>
+                            <tr>
+                                <td>Selbstheilung & Optimierung <span class="status-badge available">Verfügbar</span></td>
+                                <td>Automatisches Erkennen von "orphaned tasks" und Deduzierung von Alarmen. Integrierter "Redis-Dedup"-Mechanismus verhindert Alarm-Müdigkeit (Alert Fatigue) durch redundante Meldungen.</td>
+                            </tr>
+                            <tr>
+                                <td>Infrastruktur-Check <span class="status-badge available">Verfügbar</span></td>
+                                <td>Kontinuierliche Prüfung der Konnektivität zu Redis, PostgreSQL und den verteilten Celery-Queues, um Datenverlust und Scan-Unterbrechungen zu verhindern.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -508,11 +547,11 @@
                             </tr>
                             <tr>
                                 <td>System-Administrations-Dashboard <span class="status-badge available">Verfügbar</span></td>
-                                <td>Zentrale Übersicht aller Worker mit Echtzeit-Status, Cluster-Statistiken (aktive Worker, Kapazität, Auslastung), Task-Queue-Tiefe und Worker-Management (Suspend, Resume, Drain, Remove).</td>
+                                <td>Zentrale Übersicht aller Worker mit Echtzeit-Metriken (CPU, RAM, Disk), Cluster-Statistiken (aktive Worker, Kapazität, Auslastung), Task-Queue-Tiefe und Worker-Management (Suspend, Resume, Drain, Remove).</td>
                             </tr>
                             <tr>
-                                <td>Speicher-Analyse <span class="status-badge available">Verfügbar</span></td>
-                                <td>Überwachung der Festplattennutzung für Screenshots, Logs, Backups und Scan-Artefakte. Inklusive Bereinigungsempfehlungen und One-Click-Aktionen zum Löschen alter Dateien, Komprimieren von Logs und Bereinigen von Backups.</td>
+                                <td>Speicher-Analyse & Smart Cleanup <span class="status-badge available">Verfügbar</span></td>
+                                <td>Intelligente Überwachung der Festplattennutzung für Screenshots, Logs, Backups und Scan-Artefakte. Inklusive Bereinigungsempfehlungen und One-Click-Aktionen zum Löschen verwaister Dateien und Komprimieren alter Logs.</td>
                             </tr>
                             <tr>
                                 <td>Prometheus/Grafana Export <span class="status-badge available">Verfügbar</span></td>

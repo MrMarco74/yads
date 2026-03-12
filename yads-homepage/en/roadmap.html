@@ -427,7 +427,7 @@
                 </div>
                 <div class="roadmap-card">
                     <p class="section-intro">
-                        A new detection module that identifies defensive deception infrastructure with confidence scoring (0-100) and risk ratings (low/medium/high/critical). Helps assess whether a target environment includes honeypots, sinkholes, or other deception technologies.
+                        A highly specialized detection module designed to identify defensive deception infrastructure. YADS analyzes target environments for honeypots, sinkholes, and tarpits to assess target legitimacy and prevent reconnaissance pitfalls.
                     </p>
                     <table class="feature-table">
                         <thead>
@@ -438,16 +438,55 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Honeypot Detection <span class="status-badge available">Available</span></td>
-                                <td>Identify web honeypots (Glastopf, SNARE, Cowrie), SSH honeypots (Cowrie, Kippo), and service honeypots (Dionaea, Mailoney) through behavioral analysis, banner fingerprinting, and response pattern matching.</td>
+                                <td>Advanced Honeypot Detection <span class="status-badge available">Available</span></td>
+                                <td>Multilevel detection of web (Glastopf, SNARE) and service honeypots (Cowrie, Dionaea, Mailoney). Utilizes banner fingerprinting, response timing, and behavioral analysis of "fake vulnerabilities".</td>
                             </tr>
                             <tr>
-                                <td>DNS Sinkhole Identification <span class="status-badge available">Available</span></td>
-                                <td>Detect domains redirected to sinkhole infrastructure using a database of known sinkhole IPs (Spamhaus, Microsoft DCU, Shadowserver), ASN matching, and landing page analysis.</td>
+                                <td>DNS Sinkhole & Seized Domain Detection <span class="status-badge available">Available</span></td>
+                                <td>Automatic cross-referencing against databases of known sinkhole infrastructures (Spamhaus, Microsoft DCU, Shadowserver). Detects domains seized by law enforcement agencies.</td>
                             </tr>
                             <tr>
-                                <td>Tarpit Recognition <span class="status-badge available">Available</span></td>
-                                <td>Identify HTTP, SMTP, and TCP tarpits through timing analysis, detecting slow responses, trickling data, and deliberate connection delays designed to slow down scanners.</td>
+                                <td>Tarpit & Timing Analysis <span class="status-badge available">Available</span></td>
+                                <td>Identifies "tar pits" (HTTP/TCP tarpits) that bind scanners through artificial latency and "trickle data". Protects the scan queue from being blocked by intentional time-wasting defenses.</td>
+                            </tr>
+                            <tr>
+                                <td>Confidence Scoring & Risk Assessment <span class="status-badge available">Available</span></td>
+                                <td>Every detection receives a confidence score (0-100) and a risk rating (Low to Critical). Includes automatic blacklist recommendations for highly suspicious deception targets.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Resilience & Health Watcher -->
+            <div class="roadmap-section">
+                <div class="section-header">
+                    <span class="section-icon">💓</span>
+                    <h2 class="section-title">System Resilience &amp; Health Watcher <span class="status-badge available">Available</span></h2>
+                </div>
+                <div class="roadmap-card">
+                    <p class="section-intro">
+                        The YADS Health Watcher is a proactive monitoring system that oversees the integrity of your scan cluster 24/7 and alerts immediately on anomalies.
+                    </p>
+                    <table class="feature-table">
+                        <thead>
+                            <tr>
+                                <th>Watcher Function</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Proactive Alerting <span class="status-badge available">Available</span></td>
+                                <td>Real-time alerting for worker failures (heartbeat), hanging tasks (>2h), queue congestion, or full disks. Notifications via webhook (system_alert) or directly within the admin interface.</td>
+                            </tr>
+                            <tr>
+                                <td>Self-Healing & Optimization <span class="status-badge available">Available</span></td>
+                                <td>Automatic detection of "orphaned tasks" and alert deduplication. Integrated "Redis Dedup" mechanism prevents alert fatigue caused by redundant notifications.</td>
+                            </tr>
+                            <tr>
+                                <td>Infrastructure Integrity Checks <span class="status-badge available">Available</span></td>
+                                <td>Continuous connectivity monitoring for Redis, PostgreSQL, and distributed Celery queues to prevent data loss and scan interruptions.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -507,11 +546,11 @@
                             </tr>
                             <tr>
                                 <td>System Administration Dashboard <span class="status-badge available">Available</span></td>
-                                <td>Central view of all workers with real-time status, cluster statistics (active workers, capacity, utilization), task queue depth, and worker management (suspend, resume, drain, remove).</td>
+                                <td>Central view of all workers with real-time metrics (CPU, RAM, Disk), cluster statistics (active workers, capacity, utilization), task queue depth, and worker management (suspend, resume, drain, remove).</td>
                             </tr>
                             <tr>
-                                <td>Storage Analytics <span class="status-badge available">Available</span></td>
-                                <td>Monitor disk usage across screenshot folders, logs, backups, and scan artifacts. Includes cleanup recommendations and one-click actions to delete old files, compress logs, and prune backups.</td>
+                                <td>Storage Analytics & Smart Cleanup <span class="status-badge available">Available</span></td>
+                                <td>Intelligent disk usage monitoring for screenshots, logs, backups, and scan artifacts. Includes cleanup recommendations and one-click actions to prune orphaned files and compress old logs.</td>
                             </tr>
                             <tr>
                                 <td>Prometheus/Grafana Export <span class="status-badge available">Available</span></td>
