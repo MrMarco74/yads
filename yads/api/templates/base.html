@@ -16,6 +16,56 @@
         background-color: #0b0f19; /* Very deep blue/black */
         color: #e5e7eb;
       }
+
+      /* ── Light Mode Overrides ──────────────────────────────────────────────
+         Applied when .dark is removed from <html>.
+         Maps dark slate palette → clean light slate palette.
+         ------------------------------------------------------------------- */
+      html:not(.dark) body                       { background-color: #f1f5f9; color: #1e293b; }
+      html:not(.dark) .bg-slate-950              { background-color: #ffffff !important; }
+      html:not(.dark) .bg-slate-900              { background-color: #f8fafc !important; }
+      html:not(.dark) .bg-slate-800              { background-color: #e2e8f0 !important; }
+      html:not(.dark) .bg-slate-800\/50          { background-color: rgba(226,232,240,.5) !important; }
+      html:not(.dark) .bg-slate-800\/30          { background-color: rgba(226,232,240,.3) !important; }
+      html:not(.dark) .bg-slate-700              { background-color: #cbd5e1 !important; }
+      html:not(.dark) .bg-slate-950\/50          { background-color: rgba(248,250,252,.8) !important; }
+      html:not(.dark) .bg-slate-950\/80          { background-color: rgba(248,250,252,.9) !important; }
+
+      html:not(.dark) .border-slate-800          { border-color: #e2e8f0 !important; }
+      html:not(.dark) .border-slate-700          { border-color: #cbd5e1 !important; }
+      html:not(.dark) .border-slate-700\/50      { border-color: rgba(203,213,225,.5) !important; }
+
+      html:not(.dark) .text-white                { color: #0f172a !important; }
+      html:not(.dark) .text-slate-50             { color: #0f172a !important; }
+      html:not(.dark) .text-slate-300            { color: #334155 !important; }
+      html:not(.dark) .text-slate-400            { color: #475569 !important; }
+      html:not(.dark) .text-slate-500            { color: #64748b !important; }
+      html:not(.dark) .text-slate-600            { color: #94a3b8 !important; }
+
+      html:not(.dark) aside                      { background-color: #ffffff; border-color: #e2e8f0; }
+      html:not(.dark) header                     { background-color: rgba(255,255,255,.9) !important; border-color: #e2e8f0 !important; }
+
+      html:not(.dark) .hover\:bg-slate-800:hover { background-color: #e2e8f0 !important; }
+      html:not(.dark) .hover\:bg-slate-700:hover { background-color: #cbd5e1 !important; }
+
+      html:not(.dark) input,
+      html:not(.dark) select,
+      html:not(.dark) textarea                   { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+
+      html:not(.dark) .divide-slate-800 > * + * { border-color: #e2e8f0 !important; }
+      html:not(.dark) .divide-slate-700 > * + * { border-color: #cbd5e1 !important; }
+
+      /* Keep accent colors readable in light mode */
+      html:not(.dark) .bg-indigo-900\/50         { background-color: rgba(224,231,255,.6) !important; }
+      html:not(.dark) .bg-emerald-900\/50        { background-color: rgba(209,250,229,.6) !important; }
+      html:not(.dark) .bg-red-900\/50            { background-color: rgba(254,226,226,.6) !important; }
+      html:not(.dark) .bg-amber-900\/50          { background-color: rgba(254,243,199,.6) !important; }
+      html:not(.dark) .bg-cyan-900\/50           { background-color: rgba(207,250,254,.6) !important; }
+
+      /* Scrollbar for light mode */
+      html:not(.dark) .log-container::-webkit-scrollbar-track { background: #f1f5f9; }
+      html:not(.dark) .log-container::-webkit-scrollbar-thumb { background: #94a3b8; }
+
       /* Ghost Mode for Unlicensed Features */
       .ghost-mode {
           filter: grayscale(100%) opacity(0.8);
@@ -49,6 +99,19 @@
         border-radius: 4px;
       }
     </style>
+    <!-- Theme initialisation: runs before paint to prevent flash -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem('yads-theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark = stored ? stored === 'dark' : prefersDark;
+        if (dark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-50 font-sans antialiased selection:bg-cyan-500/30">
     
@@ -88,6 +151,46 @@
             <div class="flex items-center gap-4">
                 <!-- Queue Widget (Polls every 30s) -->
                 <div hx-get="/queue/widget" hx-trigger="load, every 30s" hx-swap="outerHTML"></div>
+
+                <!-- System Alerts Banner (platform admin only, polls every 30s) -->
+                {% if user and user.role == 'admin' %}
+                <div hx-get="/api/system/alerts" hx-trigger="load" hx-swap="outerHTML"></div>
+                {% endif %}
+
+                <!-- System Metrics Widget -->
+                <div hx-get="/api/system/metrics" hx-trigger="load" hx-swap="outerHTML"></div>
+
+                <!-- Dark/Light Mode Toggle -->
+                <button id="theme-toggle"
+                        onclick="toggleYadsTheme()"
+                        title="Theme wechseln"
+                        class="p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800">
+                  <!-- Moon icon (shown in light mode → click to go dark) -->
+                  <svg id="theme-icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                  </svg>
+                  <!-- Sun icon (shown in dark mode → click to go light) -->
+                  <svg id="theme-icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+                  </svg>
+                </button>
+                <script>
+                  function toggleYadsTheme() {
+                    var html = document.documentElement;
+                    var isDark = html.classList.toggle('dark');
+                    localStorage.setItem('yads-theme', isDark ? 'dark' : 'light');
+                    document.getElementById('theme-icon-sun').classList.toggle('hidden', !isDark);
+                    document.getElementById('theme-icon-moon').classList.toggle('hidden', isDark);
+                  }
+                  // Set correct icon on load
+                  (function () {
+                    var dark = document.documentElement.classList.contains('dark');
+                    document.getElementById('theme-icon-sun').classList.toggle('hidden', !dark);
+                    document.getElementById('theme-icon-moon').classList.toggle('hidden', dark);
+                  })();
+                </script>
 
                 <!-- Tenant Switcher -->
                 {% if user.allowed_tenants or user.role == 'admin' %}
@@ -215,6 +318,30 @@
                 </div>
             </div>
         </header>
+        {% endif %}
+
+        <!-- CE Read-Only Banner -->
+        {% if request.state.ce_state and request.state.ce_state.status == 'read_only' %}
+        <div class="bg-red-900/80 border-b border-red-700/60 px-4 py-2 flex items-center justify-center gap-3 text-sm text-red-200">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            </svg>
+            <span><strong>Community Edition abgelaufen</strong> — YADS ist im Lesemodus. Neue Scans und Targets sind deaktiviert.</span>
+            {% if user and user.role == 'admin' %}
+            <a href="/settings#license" class="underline hover:text-white transition-colors ml-2">Lizenz verwalten →</a>
+            {% endif %}
+        </div>
+        {% elif request.state.ce_state and request.state.ce_state.status == 'active' and request.state.ce_state.days_remaining <= 5 %}
+        <div class="bg-amber-900/70 border-b border-amber-700/50 px-4 py-2 flex items-center justify-center gap-3 text-sm text-amber-200">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
+            </svg>
+            <span>Community Edition läuft in <strong>{{ request.state.ce_state.days_remaining }} Tag{{ 'en' if request.state.ce_state.days_remaining != 1 else '' }}</strong> ab.</span>
+            {% if user and user.role == 'admin' %}
+            <a href="/settings#license" class="underline hover:text-white transition-colors ml-2">Verlängerung →</a>
+            {% endif %}
+        </div>
         {% endif %}
 
         <!-- Main Content Area -->

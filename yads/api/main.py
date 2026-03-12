@@ -325,7 +325,21 @@ async def lifespan(app: FastAPI):
                 raise
             logger.warning(f"Database/Startup not ready... retrying ({i+1}/{max_retries}). Error: {e}")
             time.sleep(2)
-            
+
+    # --- Start system metrics collector ---
+    try:
+        from yads.core import system_metrics
+        system_metrics.start(settings.REDIS_URL)
+    except Exception as e:
+        logger.warning(f"Could not start system metrics collector: {e}")
+
+    # --- Start health watcher ---
+    try:
+        from yads.core import watcher
+        watcher.start(settings.REDIS_URL)
+    except Exception as e:
+        logger.warning(f"Could not start health watcher: {e}")
+
     yield
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
@@ -411,6 +425,18 @@ async def language_middleware(request: Request, call_next):
     set_lang(normalize_lang(lang))
     return await call_next(request)
 
+
+@app.middleware("http")
+async def ce_state_middleware(request: Request, call_next):
+    """Attach CE state to request.state so all templates can access it."""
+    try:
+        from yads.core.community_edition import get_ce_state
+        with Session(engine) as _s:
+            request.state.ce_state = get_ce_state(_s)
+    except Exception:
+        request.state.ce_state = None
+    return await call_next(request)
+
 # -- Prometheus Metrics Middleware --
 import time as _time
 from yads.core.metrics import get_metrics as _get_metrics
@@ -478,7 +504,7 @@ async def setup_middleware(request: Request, call_next):
     return RedirectResponse(url="/setup")
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics
 
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
@@ -532,6 +558,8 @@ app.include_router(mobile.router)
 app.include_router(storage.router)
 app.include_router(updates.router)
 app.include_router(metrics.router)
+app.include_router(sysmetrics.router)
+app.include_router(sysmetrics.ui_router)
 app.include_router(v1.router)
 app.include_router(dashboard.router)
 app.include_router(graphs.router)

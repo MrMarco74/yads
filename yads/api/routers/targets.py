@@ -119,13 +119,19 @@ async def bulk_scan_targets(
             tid = int(tid_str)
             target = session.exec(select(Target).where(Target.id == tid, Target.tenant_id == user.tenant_id)).first()
             if target:
-                # --- License Check ---
+                # --- License / CE Check ---
                 from yads.models import SystemConfig
                 from yads.core.license import license_manager
-                lc = session.get(SystemConfig, "license_key")
-                if not lc or not lc.value or not license_manager.verify(lc.value):
-                     return RedirectResponse(url="/targets/table?msg=Error:+License+Required+for+Scanning", status_code=303)
-                # ---------------------
+                from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
+                _ce = get_ce_state(session)
+                if _ce["edition"] == "community":
+                    _ok, _reason = ce_check_scan(session)
+                    if not _ok:
+                        return RedirectResponse(url=f"/targets/table?msg=Error:+{_reason}", status_code=303)
+                else:
+                    lc = session.get(SystemConfig, "license_key")
+                    if not lc or not lc.value or not license_manager.verify(lc.value):
+                        return RedirectResponse(url="/targets/table?msg=Error:+License+Required+for+Scanning", status_code=303)
 
                 # Respect global concurrent scan limit
                 if active_count >= max_concurrent:
@@ -230,41 +236,29 @@ async def bulk_import_targets(
             duplicate_count += 1
             continue
             
-        # --- License Check ---
-        # 1. Get current count (Tenant Scoped or Global? License is usually Global per instance)
-        # But if we license per customer name, and customer name == tenant name? 
-        # For simplicity in this Single-Instance model: Global Count.
+        # --- License / CE Check ---
         total_active_targets = session.exec(select(func.count()).select_from(Target)).one()
-        
-        # 2. Verify License
+
+        from yads.core.community_edition import get_ce_state, check_can_add_target
         from yads.models import SystemConfig
         from yads.core.license import license_manager
-        import time
-        
-        license_conf = session.get(SystemConfig, "license_key")
-        limit = 0
-        valid_license = False
-        
-        if license_conf and license_conf.value:
-            data = license_manager.verify(license_conf.value)
-            if data:
-                limit = data.get("max_targets", 0)
-                valid_license = True
-        
-        # 3. Enforce
-        # If no license or invalid -> Limit is 0? Or default free tier?
-        # Let's say Default Free Tier = 5 targets if no license.
-        if not valid_license:
-            limit = 5 
-        
-        if total_active_targets >= limit:
-            # Check if this specific domain is what pushes us over?
-            # We are creating one by one in loop.
-            # If we reached limit, stop importing.
-            skipped_dns_count += 0 # metric hack
-            # LOG/Notify?
-            msg = f"License Limit Reached ({limit}). Upgrade license to add more targets."
-            return RedirectResponse(url=f"{next_url}?error={msg}", status_code=303)
+
+        ce_state = get_ce_state(session)
+        if ce_state["edition"] == "community":
+            allowed, reason = check_can_add_target(session, total_active_targets)
+            if not allowed:
+                return RedirectResponse(url=f"{next_url}?error={reason}", status_code=303)
+        else:
+            # Legacy commercial license enforcement
+            license_conf = session.get(SystemConfig, "license_key")
+            limit = 5  # default free tier
+            if license_conf and license_conf.value:
+                data = license_manager.verify(license_conf.value)
+                if data:
+                    limit = data.get("max_targets", 0)
+            if total_active_targets >= limit:
+                msg = f"License Limit Reached ({limit}). Upgrade license to add more targets."
+                return RedirectResponse(url=f"{next_url}?error={msg}", status_code=303)
 
         # Create
         # Create
@@ -471,14 +465,20 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         # mass auto-queuing of subdomains and must always be an explicit choice.
         selected_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
     
-    # --- License Check ---
+    # --- License / CE Check ---
     from yads.models import SystemConfig
     from yads.core.license import license_manager
-    lc = session.get(SystemConfig, "license_key")
-    if not lc or not lc.value or not license_manager.verify(lc.value):
-         msg = "Error: Scanning requires a valid license."
-         return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
-    # ---------------------
+    from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
+    ce_state = get_ce_state(session)
+    if ce_state["edition"] == "community":
+        allowed, reason = ce_check_scan(session)
+        if not allowed:
+            return RedirectResponse(url=f"/targets/{target_id}?error={reason}", status_code=303)
+    else:
+        lc = session.get(SystemConfig, "license_key")
+        if not lc or not lc.value or not license_manager.verify(lc.value):
+            msg = "Error: Scanning requires a valid license."
+            return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
 
     if not selected_types:
         msg = "Error: No valid scan types selected."

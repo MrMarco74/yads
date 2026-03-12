@@ -71,6 +71,17 @@ async def view_user_guide(
         "settings": settings  # Fix: Pass settings for base.html footer
     })
 
+@router.get("/about", response_class=HTMLResponse)
+async def view_about(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """About page with credits and acknowledgements."""
+    from yads.config import settings
+    return templates.TemplateResponse("about.html", {
+        "request": request,
+        "user": user,
+        "settings": settings
+    })
+
+
 @router.get("/roadmap", response_class=HTMLResponse)
 async def view_roadmap(request: Request, user: User = Depends(get_current_user_html_optional)):
     """

@@ -835,6 +835,54 @@ async def reset_daily_quotas(user: User = Depends(PlatformAdminChecker())):
 # UI Pages
 # =============================================================================
 
+@ui_router.get("", response_class=HTMLResponse)
+async def worker_monitor_page(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Live worker monitor page."""
+    import os
+    from sqlmodel import Session, select
+    from yads.database import engine
+    from yads.models import WorkerTask, WorkerNode, Target
+
+    workers = worker_manager.get_worker_list()
+    stats = worker_manager.get_cluster_stats()
+
+    # Fetch running tasks from DB with target domain
+    running_tasks = []
+    with Session(engine) as session:
+        db_tasks = session.exec(
+            select(WorkerTask).where(WorkerTask.status == "running")
+        ).all()
+        for t in db_tasks:
+            domain = None
+            tgt = session.get(Target, t.target_id) if t.target_id else None
+            domain = tgt.domain if tgt else None
+            # Resolve worker node_id (string) from integer FK
+            wnode = session.get(WorkerNode, t.worker_node_id) if t.worker_node_id else None
+            running_tasks.append({
+                "task_id": t.task_id,
+                "target_domain": domain,
+                "current_module": t.current_module,
+                "progress_percent": t.progress_percent,
+                "worker_node_id": wnode.node_id if wnode else None,
+                "worker_hostname": wnode.hostname if wnode else None,
+                "started_at": t.started_at.strftime("%H:%M:%S") if t.started_at else None,
+            })
+
+    worker_mode = os.getenv("WORKER_MODE", "standalone").lower()
+
+    return templates.TemplateResponse("workers.html", {
+        "request": request,
+        "user": user,
+        "workers": workers,
+        "stats": stats,
+        "running_tasks": running_tasks,
+        "worker_mode": worker_mode,
+    })
+
+
 @ui_router.get("/logs", response_class=HTMLResponse)
 async def unified_logs_page(
     request: Request,

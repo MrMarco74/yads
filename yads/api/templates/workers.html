@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6" id="workers-live-view" hx-get="/workers" hx-trigger="every 5s" hx-select="#workers-live-view" hx-swap="outerHTML">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Worker Monitor</h1>
+            <p class="text-slate-400 text-sm">Real-time status of the distributed scanner cluster.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Cluster mode badge -->
+            <div class="flex items-center gap-2 px-4 py-2 bg-slate-900 rounded-lg border border-slate-800">
+                <span class="text-xs font-semibold text-slate-500 uppercase">Mode</span>
+                <span class="text-sm font-bold {% if worker_mode == 'standalone' %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                    {{ worker_mode | upper }}
+                </span>
+            </div>
+            <a href="/workers" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors" title="Refresh">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    <!-- Cluster Stats Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- Active Workers -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Workers</span>
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                </svg>
+            </div>
+            <div class="text-3xl font-bold text-white">{{ stats.active_workers }}</div>
+            <div class="text-xs text-slate-500 mt-1">of {{ stats.total_workers }} registered</div>
+        </div>
+
+        <!-- Running Tasks -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Running Tasks</span>
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <div class="text-3xl font-bold text-white">{{ stats.total_running_tasks }}</div>
+            <div class="text-xs text-slate-500 mt-1">capacity: {{ stats.total_capacity }}</div>
+        </div>
+
+        <!-- Cluster Utilization -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Utilization</span>
+                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </div>
+            {% set util = stats.utilization_percent | default(0) | round | int %}
+            <div class="text-3xl font-bold {% if util < 60 %}text-emerald-400{% elif util < 85 %}text-amber-400{% else %}text-red-400{% endif %}">
+                {{ util }}%
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                <div class="h-1.5 rounded-full {% if util < 60 %}bg-emerald-500{% elif util < 85 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+                     style="width: {{ [util, 100] | min }}%"></div>
+            </div>
+        </div>
+
+        <!-- Queued Tasks -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Queued</span>
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                </svg>
+            </div>
+            <div class="text-3xl font-bold text-white">{{ stats.queued_tasks }}</div>
+            <div class="text-xs text-slate-500 mt-1">waiting for a worker</div>
+        </div>
+    </div>
+
+    <!-- Worker Cards -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                </svg>
+                Registered Workers
+            </h2>
+            <span class="bg-emerald-900/50 text-emerald-300 text-xs font-bold px-2 py-1 rounded-full border border-emerald-700/50">{{ workers | length }}</span>
+        </div>
+
+        {% if workers %}
+        <div class="divide-y divide-slate-800">
+            {% for w in workers %}
+            {% set status_colors = {
+                'active': 'bg-emerald-500',
+                'offline': 'bg-red-500',
+                'suspended': 'bg-amber-500',
+                'draining': 'bg-orange-500',
+                'pending': 'bg-slate-500'
+            } %}
+            {% set badge_colors = {
+                'active': 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50',
+                'offline': 'bg-red-900/50 text-red-300 border-red-700/50',
+                'suspended': 'bg-amber-900/50 text-amber-300 border-amber-700/50',
+                'draining': 'bg-orange-900/50 text-orange-300 border-orange-700/50',
+                'pending': 'bg-slate-800 text-slate-300 border-slate-700'
+            } %}
+            {% set load_pct = w.current_load | default(0) | round | int %}
+            <div class="px-6 py-5 hover:bg-slate-800/30 transition-colors">
+                <div class="flex flex-col md:flex-row md:items-center gap-4">
+                    <!-- Left: identity -->
+                    <div class="flex items-start gap-3 flex-1 min-w-0">
+                        <!-- Status dot (animated for active) -->
+                        <div class="mt-1 flex-shrink-0">
+                            {% if w.status == 'active' %}
+                            <span class="flex h-3 w-3 relative">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                            </span>
+                            {% else %}
+                            <span class="inline-flex rounded-full h-3 w-3 {{ status_colors.get(w.status, 'bg-slate-500') }}"></span>
+                            {% endif %}
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-semibold text-white text-sm">{{ w.hostname }}</span>
+                                {% if w.is_primary %}
+                                <span class="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-600/80 text-indigo-100 rounded uppercase tracking-wide">Primary</span>
+                                {% endif %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border {{ badge_colors.get(w.status, 'bg-slate-800 text-slate-300 border-slate-700') }}">
+                                    {{ w.status | capitalize }}
+                                </span>
+                                {% if w.version %}
+                                <span class="text-[10px] text-slate-600">v{{ w.version }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-center gap-3 mt-1 text-xs text-slate-500 flex-wrap">
+                                <span>{{ w.ip_address }}</span>
+                                <span class="text-slate-700">•</span>
+                                <span>{{ w.current_tasks }}/{{ w.max_concurrent_tasks }} tasks</span>
+                                {% if w.cpu_count %}
+                                <span class="text-slate-700">•</span>
+                                <span>{{ w.cpu_count }} CPU</span>
+                                {% endif %}
+                                {% if w.memory_mb %}
+                                <span class="text-slate-700">•</span>
+                                <span>{{ (w.memory_mb / 1024) | round(1) }} GB RAM</span>
+                                {% endif %}
+                                {% if w.last_heartbeat %}
+                                <span class="text-slate-700">•</span>
+                                <span>Last seen: {{ w.last_heartbeat }}</span>
+                                {% endif %}
+                            </div>
+                            <!-- Load bar -->
+                            <div class="mt-2 flex items-center gap-2">
+                                <div class="flex-1 max-w-48 bg-slate-800 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full transition-all {% if load_pct < 60 %}bg-emerald-500{% elif load_pct < 85 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+                                         style="width: {{ [load_pct, 100] | min }}%"></div>
+                                </div>
+                                <span class="text-[10px] text-slate-500">{{ load_pct }}% load</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: actions -->
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <!-- Capabilities -->
+                        {% if w.capabilities and w.capabilities != ['all'] %}
+                        <div class="hidden md:flex gap-1 flex-wrap max-w-48">
+                            {% for cap in w.capabilities[:3] %}
+                            <span class="px-1.5 py-0.5 text-[9px] bg-slate-800 text-slate-400 border border-slate-700 rounded">{{ cap }}</span>
+                            {% endfor %}
+                            {% if w.capabilities | length > 3 %}
+                            <span class="px-1.5 py-0.5 text-[9px] text-slate-600">+{{ w.capabilities | length - 3 }}</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Action buttons -->
+                        <button
+                            hx-get="/api/workers/{{ w.node_id }}/config"
+                            hx-target="#worker-config-modal-content"
+                            hx-swap="innerHTML"
+                            onclick="document.getElementById('worker-config-modal').classList.remove('hidden')"
+                            class="px-3 py-1.5 text-xs text-blue-400 hover:text-blue-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+                        >Configure</button>
+
+                        {% if not w.is_primary %}
+                            {% if w.status == 'active' %}
+                            <button
+                                hx-post="/api/workers/{{ w.node_id }}/suspend"
+                                hx-swap="none"
+                                hx-confirm="Suspend worker {{ w.hostname }}? It will stop accepting new tasks."
+                                class="px-3 py-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+                            >Suspend</button>
+                            <button
+                                hx-post="/api/workers/{{ w.node_id }}/drain"
+                                hx-swap="none"
+                                hx-confirm="Drain worker {{ w.hostname }}? It will finish current tasks then go offline."
+                                class="px-3 py-1.5 text-xs text-orange-400 hover:text-orange-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+                            >Drain</button>
+                            {% elif w.status == 'suspended' %}
+                            <button
+                                hx-post="/api/workers/{{ w.node_id }}/resume"
+                                hx-swap="none"
+                                class="px-3 py-1.5 text-xs text-emerald-400 hover:text-emerald-300 bg-slate-800 hover:bg-emerald-950 border border-slate-700 hover:border-emerald-900 rounded-lg transition-colors"
+                            >Resume</button>
+                            {% endif %}
+                            {% if w.status in ['offline', 'draining'] %}
+                            <button
+                                hx-delete="/api/workers/{{ w.node_id }}"
+                                hx-swap="none"
+                                hx-confirm="Remove worker {{ w.hostname }} from the cluster?"
+                                class="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-slate-800 hover:bg-red-950 border border-slate-700 hover:border-red-900 rounded-lg transition-colors"
+                            >Remove</button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Running tasks for this worker -->
+                {% set worker_tasks = running_tasks | selectattr('worker_node_id', 'equalto', w.node_id) | list %}
+                {% if worker_tasks %}
+                <div class="mt-3 ml-6 space-y-1">
+                    {% for task in worker_tasks %}
+                    <div class="flex items-center gap-3 text-xs bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2">
+                        <svg class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        <span class="text-slate-300 font-mono truncate">{{ task.target_domain or task.task_id[:16] }}</span>
+                        {% if task.current_module %}
+                        <span class="text-slate-500">→</span>
+                        <span class="text-cyan-400">{{ task.current_module }}</span>
+                        {% endif %}
+                        {% if task.progress_percent is not none %}
+                        <div class="ml-auto flex items-center gap-2">
+                            <div class="w-20 bg-slate-700 rounded-full h-1">
+                                <div class="h-1 rounded-full bg-indigo-500" style="width: {{ task.progress_percent }}%"></div>
+                            </div>
+                            <span class="text-slate-500 w-8 text-right">{{ task.progress_percent }}%</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-16 text-center">
+            <svg class="w-12 h-12 mx-auto mb-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+            </svg>
+            <p class="text-slate-500 font-medium">No workers registered</p>
+            <p class="text-slate-600 text-xs mt-1">Workers will appear here once they connect to the cluster.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Running Tasks (all workers) -->
+    {% if running_tasks %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                Running Tasks
+            </h2>
+            <span class="bg-indigo-900/50 text-indigo-300 text-xs font-bold px-2 py-1 rounded-full border border-indigo-700/50">{{ running_tasks | length }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950 text-xs uppercase font-medium text-slate-500">
+                    <tr>
+                        <th class="px-6 py-3">Task</th>
+                        <th class="px-6 py-3">Target</th>
+                        <th class="px-6 py-3">Module</th>
+                        <th class="px-6 py-3">Worker</th>
+                        <th class="px-6 py-3">Progress</th>
+                        <th class="px-6 py-3">Started</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for task in running_tasks %}
+                    <tr class="hover:bg-slate-800/50 transition-colors">
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.task_id[:12] }}…</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ task.target_domain or '—' }}</td>
+                        <td class="px-6 py-3 text-cyan-400 text-xs">{{ task.current_module or '—' }}</td>
+                        <td class="px-6 py-3 text-slate-400 text-xs">{{ task.worker_hostname or task.worker_node_id[:8] if task.worker_node_id else '—' }}</td>
+                        <td class="px-6 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-24 bg-slate-800 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full bg-indigo-500" style="width: {{ task.progress_percent or 0 }}%"></div>
+                                </div>
+                                <span class="text-xs text-slate-500">{{ task.progress_percent or 0 }}%</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-3 text-slate-500 text-xs">
+                            {% if task.started_at %}{{ task.started_at }}{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Admin: Registration Token -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 bg-slate-950/50">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+                Worker Registration Token
+            </h2>
+            <p class="text-slate-500 text-xs mt-1">Secondary workers use this pre-shared token to authenticate when joining the cluster.</p>
+        </div>
+        <div class="px-6 py-5 flex flex-col md:flex-row md:items-center gap-4">
+            <div class="flex-1 flex items-center gap-3 font-mono text-sm bg-slate-950 border border-slate-800 rounded-lg px-4 py-3"
+                 id="token-display"
+                 hx-get="/api/workers/token/current"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <span class="text-slate-500 animate-pulse">Loading…</span>
+            </div>
+            <button
+                hx-post="/api/workers/token/regenerate"
+                hx-target="#token-display"
+                hx-swap="innerHTML"
+                hx-confirm="Regenerate registration token? Existing workers will need to re-register."
+                class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-amber-950 text-amber-400 hover:text-amber-300 border border-slate-700 hover:border-amber-900 rounded-lg transition-all text-sm font-medium"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Regenerate
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick links -->
+    <div class="flex gap-3">
+        <a href="/workers/logs" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Unified Logs
+        </a>
+        <a href="/queue" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+            Scan Queue
+        </a>
+    </div>
+</div>
+
+<!-- Worker Config Modal (reuse existing component) -->
+<div id="worker-config-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div id="worker-config-modal-content">
+            <div class="p-8 text-center text-slate-500">Loading…</div>
+        </div>
+    </div>
+</div>
+<script>
+    document.getElementById('worker-config-modal').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.add('hidden');
+    });
+</script>
+{% endblock %}
