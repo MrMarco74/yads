@@ -1696,9 +1696,18 @@ class DanaDeployWorker(QThread):
         if not self._run_rsync(compose_src, self.remote_path + "/"):
             return self.signals.operation_finished.emit(False, "File transfer failed")
 
+        testlab_dir = self.project_root / "testlab"
+        if testlab_dir.exists():
+            self._log("── Step 2b: Transfer testlab/ build contexts ──", "info")
+            # trailing slash on src = sync contents into remote testlab/
+            if not self._run_rsync(str(testlab_dir) + "/", self.remote_path + "/testlab/"):
+                return self.signals.operation_finished.emit(False, "testlab/ transfer failed")
+        else:
+            self._log("⚠ testlab/ directory not found locally — custom builds may fail.", "warning")
+
         env_src = str(self.project_root / ".env.test")
         if Path(env_src).exists():
-            self._log("── Step 2b: Transfer .env.test ──", "info")
+            self._log("── Step 2c: Transfer .env.test ──", "info")
             self._run_rsync(env_src, self.remote_path + "/")
 
         self._log("── Step 3: Pull images on dana ──", "info")
