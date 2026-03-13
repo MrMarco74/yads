@@ -160,6 +160,7 @@
 <li><a href="#14-finding-management--vulnerability-tracking">Finding Management &amp; Vulnerability Tracking</a></li>
 <li><a href="#15-asset-tagging--organization">Asset Tagging &amp; Organization</a></li>
 <li><a href="#16-executive-report--portfolio-view">Executive Report &amp; Portfolio View</a></li>
+<li><a href="#20-standalone-local-installation">20. Standalone &amp; Local Installation</a></li>
 </ol>
 <hr />
 <h2>1. Introduction</h2>
@@ -194,13 +195,14 @@
     <li><strong>Admin Creation</strong>: Create the first System Administrator account.</li>
 </ol>
 
-<h3 id="2-2-interactive-setup-script">2.2 Interactive Setup Script (New)</h3>
-<p>For simplified deployment, use the provided <code>setup.sh</code> script. It automates the configuration of ports, SSL, and environment variables.</p>
+<h3 id="2-2-interactive-setup-script">2.2 Interactive Setup Script</h3>
+<p>For simplified deployment, use the provided <code>setup.sh</code> script. It automates registry login, port configuration, SSL, and environment variables.</p>
 <ol>
-    <li>Navigate to your release directory.</li>
+    <li>Unzip the release package and navigate to the directory.</li>
     <li>Run <code>chmod +x setup.sh && ./setup.sh</code></li>
-    <li>Follow the interactive prompts to configure your instance.</li>
-    <li>The script will generate a <code>.env</code> file and a optimized <code>docker-compose.yml</code>.</li>
+    <li>When prompted, enter your <strong>registry token</strong> (included in your license email). The script logs Docker in to <code>registry.yads-security.com</code> and pulls the images automatically.</li>
+    <li>Follow the remaining interactive prompts to configure ports, SSL, and environment.</li>
+    <li>The script generates a <code>.env</code> file and an optimized <code>docker-compose.yml</code>.</li>
 </ol>
 
 <blockquote>
@@ -954,6 +956,61 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
     <li><strong>View as Tenant</strong>: A quick impersonation link that switches your context to that tenant's dashboard for deeper investigation.</li>
     <li>Inline search: filter the tenant list by name in real-time.</li>
 </ul>
+
+<hr />
+
+<h2 id="20-standalone-local-installation">20. Standalone &amp; Local Installation</h2>
+<p>YADS is distributed as a ready-to-run Docker Compose stack via the YADS Container Registry at <code>registry.yads-security.com</code>. No self-compiled builds are required.</p>
+
+<h3>Prerequisites</h3>
+<ul>
+    <li>Docker Engine 24+ and Docker Compose v2</li>
+    <li>Linux host (Ubuntu 22.04 / Debian 12 recommended) or Docker Desktop on macOS/Windows</li>
+    <li>Registry token (provided with your license via email)</li>
+    <li>Minimum: 2 CPU cores, 4 GB RAM, 20 GB disk</li>
+</ul>
+
+<h3>Step 1: Download the Release Package</h3>
+<p>Download the latest release ZIP from the <a href="support.html#download">Support page</a>. The archive contains configuration templates, <code>setup.sh</code>, and documentation — Docker images are pulled from the registry during setup.</p>
+
+<h3>Step 2: Run setup.sh</h3>
+<div class="code-block">
+unzip yads_v*_customer_pkg.zip
+cd yads_v*_customer_pkg
+chmod +x setup.sh
+./setup.sh
+</div>
+<p>The script will:</p>
+<ol>
+    <li>Prompt for your <strong>registry token</strong> and run <code>docker login registry.yads-security.com -u yads-readonly</code></li>
+    <li>Pull <code>yads-api</code> and <code>yads-worker</code> images from the registry</li>
+    <li>Ask for your domain, ports, and SSL preference</li>
+    <li>Generate <code>.env</code> and <code>docker-compose.yml</code></li>
+</ol>
+
+<h3>Step 3: Start</h3>
+<div class="code-block">
+docker compose up -d
+</div>
+<p>Navigate to <code>http://&lt;your-host&gt;:8000</code> (or your configured domain) to complete the in-app setup wizard.</p>
+
+<h3>Manual Image Pull</h3>
+<p>If you need to pull images separately (e.g. air-gapped pre-staging):</p>
+<div class="code-block">
+docker login registry.yads-security.com -u yads-readonly
+# enter registry token when prompted
+
+docker pull registry.yads-security.com/yads/yads-api:latest
+docker pull registry.yads-security.com/yads/yads-worker:latest
+</div>
+
+<h3>Updates</h3>
+<div class="code-block">
+docker pull registry.yads-security.com/yads/yads-api:latest
+docker pull registry.yads-security.com/yads/yads-worker:latest
+docker compose up -d --force-recreate
+</div>
+<p>Always create a backup before updating (Settings → Backup &amp; Restore).</p>
 
 <hr />
 <p style="margin-top: 2rem; padding: 1rem; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 8px;">
