@@ -12,7 +12,7 @@ RUN npm run build:css
 
 # ── Stage 2: Python base — API-only dependencies ──────────────────────────────
 # Lightweight base with only what the API server needs.
-# No scanner tools (Playwright, Nuclei, Nmap) — those live in base-scanner.
+# No scanner tools (Playwright, Nuclei, Nmap) — those live in Dockerfile.tools.
 FROM python:3.11-slim AS base-api
 
 ARG YADS_GIT_SHA
@@ -25,13 +25,15 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 
 
 # ── Stage 3: Scanner-tools layer ──────────────────────────────────────────────
-# Extends base-api with Nuclei, Playwright/Chromium and Nmap.
-# Used by the Celery worker. Rebuilt only when tool versions change.
+# Extends base-api with Nuclei, Playwright/Chromium and Nmap + full requirements.
+# Used for local dev builds (docker-compose.yml --target dev).
+# Production worker builds use Dockerfile.worker + pre-baked yads-tools image.
+# Nuclei templates are NOT baked in — provided via volume (nuclei_templates:/root/nuclei-templates).
 FROM base-api AS base-scanner
 
 RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
@@ -41,15 +43,16 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Nuclei (ProjectDiscovery)
+# Nuclei binary only — templates come from the nuclei_templates Docker volume
 RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \
     && unzip nuclei_3.3.4_linux_amd64.zip \
     && mv nuclei /usr/local/bin/ \
-    && rm nuclei_3.3.4_linux_amd64.zip \
-    && nuclei -ut
+    && rm nuclei_3.3.4_linux_amd64.zip
 
-# Playwright / Chromium
-RUN playwright install --with-deps chromium
+# Full worker deps (imagehash, mmh3, ipwhois, Pillow, psutil, etc.) + Playwright/Chromium
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && playwright install --with-deps chromium
 
 
 # ── Stage 4: API image (production, no scanner tools) ─────────────────────────
