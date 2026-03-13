@@ -12,13 +12,7 @@ import io
 import zipfile
 import json
 from datetime import datetime
-from yads.modules.visual_osint import VisualOSINT
-from yads.modules.report_generator import generate_report
-from yads.modules.visual_osint import VisualOSINT
-from yads.modules.report_generator import generate_report
-from yads.modules.brand_monitor import BrandMonitor
 from yads.core.seeding import seed_changelog, seed_default_report_templates
-from yads.modules.compliance import ComplianceScorer
 
 from yads.config import settings
 from yads.models import Target, ScanResult, ModuleState, SystemConfig, Notification, SecurityTrend, HTTPTraffic

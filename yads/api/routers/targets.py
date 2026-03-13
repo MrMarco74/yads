@@ -18,6 +18,7 @@ from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
+from yads.modules.brand_monitor import BrandMonitor
 from yads.models import SecurityAuditLog
 
 
