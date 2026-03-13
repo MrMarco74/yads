@@ -381,10 +381,14 @@ class FileUpdater:
         changelog_html_en: str,
         changelog_html_de: str,
         notification_code: Optional[str] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
+        channel: str = 'stable'
     ) -> List[Dict[str, any]]:
         """
         Update all files for a release.
+
+        For beta channel: only updates changes.html (EN+DE) — skips config.py,
+        USER_GUIDE.md, docs.html, and seeding.py since betas are preview-only.
 
         Args:
             version: New version string
@@ -393,6 +397,7 @@ class FileUpdater:
             changelog_html_de: German HTML for changes.html
             notification_code: Optional notification code
             dry_run: If True, only preview changes
+            channel: Release channel ('stable' or 'beta')
 
         Returns:
             List of update results for each file
@@ -400,6 +405,17 @@ class FileUpdater:
         results = []
 
         try:
+            if channel == 'beta':
+                # Beta: only announce on the homepage changelog, nothing else
+                results.append(self.insert_changelog_in_html(
+                    version, changelog_html_en, 'en', dry_run
+                ))
+                results.append(self.insert_changelog_in_html(
+                    version, changelog_html_de, 'de', dry_run
+                ))
+                return results
+
+            # Stable release: update all files
             # Update version in config.py
             results.append(self.update_version_in_config(version, dry_run))
 

@@ -183,6 +183,15 @@ class ReleaseUploader:
         de = paths.get('homepage_de', '/public_html/yads-security/de/').rstrip('/') + '/'
         rel = paths.get('releases', '/public_html/yads-security/en/releases/').rstrip('/') + '/'
 
+        if channel == 'beta':
+            # Beta: only upload the changelog pages + version-beta.json
+            # No Docker images were built, so no zip/BOM/assets to upload
+            return [
+                (version_json_file, rel),
+                ('yads-homepage/en/changes.html', en),
+                ('yads-homepage/de/changes.html', de),
+            ]
+
         files = [
             # Release package
             (f'releases/yads_v{version}_customer_pkg.zip', rel),

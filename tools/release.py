@@ -295,7 +295,8 @@ class ReleaseOrchestrator:
                 changelog_html_en=html_en,
                 changelog_html_de=html_de,
                 notification_code=notification_code,
-                dry_run=dry_run
+                dry_run=dry_run,
+                channel=channel
             )
             # Display results
             for result in results:
@@ -306,54 +307,72 @@ class ReleaseOrchestrator:
                 print("\n✅ Dry run completed! Use --no-dry-run to execute.\n")
                 return True
 
-            # Step 6: Packaging
+            # Step 6: Packaging (skipped for beta — only homepage announcement needed)
             print("\n" + "="*60)
             print("  STEP 6: Packaging")
             print("="*60 + "\n")
 
-            package_script = self.project_root / "tools" / "package_release.sh"
-            print(f"Executing: {package_script} (channel: {channel})\n")
+            if channel == 'beta':
+                print("⏭️  Skipping Docker build for beta release (homepage-only announcement)\n")
+                # Generate a lightweight version-beta.json without Docker/SHA256
+                import json as _json
+                releases_dir = self.project_root / "releases"
+                releases_dir.mkdir(exist_ok=True)
+                beta_json = {
+                    "version": new_version_str,
+                    "channel": "beta",
+                    "text": changelog_en.get('title', f'Beta preview of v{new_version_str}'),
+                    "url": "",
+                    "sha256": ""
+                }
+                beta_json_path = releases_dir / "version-beta.json"
+                with open(beta_json_path, 'w') as f:
+                    _json.dump(beta_json, f, indent=2)
+                print(f"✅ Generated releases/version-beta.json")
+            else:
+                package_script = self.project_root / "tools" / "package_release.sh"
+                print(f"Executing: {package_script} (channel: {channel})\n")
 
-            # Pass channel as environment variable to packaging script
-            env = os.environ.copy()
-            env['RELEASE_CHANNEL'] = channel
+                # Pass channel as environment variable to packaging script
+                env = os.environ.copy()
+                env['RELEASE_CHANNEL'] = channel
 
-            result = subprocess.run(
-                [str(package_script)],
-                cwd=self.project_root,
-                check=False,
-                capture_output=True,
-                text=True,
-                env=env
-            )
+                result = subprocess.run(
+                    [str(package_script)],
+                    cwd=self.project_root,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    env=env
+                )
 
-            # Re-emit output to our log redirector
-            print(result.stdout)
-            if result.stderr:
-                print(result.stderr)
+                # Re-emit output to our log redirector
+                print(result.stdout)
+                if result.stderr:
+                    print(result.stderr)
 
-            if result.returncode != 0:
-                print("\n❌ Packaging failed!")
-                print("Rolling back file changes...")
-                self.file_updater.rollback()
-                return False
+                if result.returncode != 0:
+                    print("\n❌ Packaging failed!")
+                    print("Rolling back file changes...")
+                    self.file_updater.rollback()
+                    return False
 
-            print("\n✅ Packaging completed successfully")
+                print("\n✅ Packaging completed successfully")
 
-            # Extract SHA256 from output
-            sha256 = None
-            for line in result.stdout.splitlines():
-                if "SHA256:" in line:
-                    # Strip ANSI colors and get the hash
-                    clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
-                    if "SHA256:" in clean_line:
-                        sha256 = clean_line.split("SHA256:")[1].strip()
-                        break
-            
-            if sha256:
-                print(f"\nCaptured SHA256 checksum: {sha256}")
-                print("Finalizing metadata in files...")
-                self.file_updater.finalize_checksum(new_version_str, sha256, dry_run=False)
+                # Extract SHA256 from output
+                sha256 = None
+                for line in result.stdout.splitlines():
+                    if "SHA256:" in line:
+                        # Strip ANSI colors and get the hash
+                        clean_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+                        if "SHA256:" in clean_line:
+                            sha256 = clean_line.split("SHA256:")[1].strip()
+                            break
+
+                if sha256:
+                    print(f"\nCaptured SHA256 checksum: {sha256}")
+                    print("Finalizing metadata in files...")
+                    self.file_updater.finalize_checksum(new_version_str, sha256, dry_run=False)
 
             # Step 7: Upload
             if not skip_upload:
