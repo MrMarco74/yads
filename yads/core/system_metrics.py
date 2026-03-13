@@ -11,7 +11,11 @@ import time
 import json
 import logging
 
-import psutil
+try:
+    import psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    _PSUTIL_AVAILABLE = False
 
 logger = logging.getLogger("yads.system_metrics")
 
@@ -24,6 +28,9 @@ _INTERVAL = 2  # seconds between samples
 
 def _collect_loop(redis_client) -> None:
     """Background loop: sample psutil every _INTERVAL seconds."""
+    if not _PSUTIL_AVAILABLE:
+        logger.warning("psutil not available — system metrics collection disabled.")
+        return
     prev_net = psutil.net_io_counters()
     prev_time = time.monotonic()
 
