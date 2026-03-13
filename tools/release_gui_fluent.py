@@ -931,16 +931,31 @@ class ProdDeployWorker(QThread):
 
             # ── Step 1b: Build Worker image (optional) ─────────────────────────
             if self.deploy_worker:
-                self._log("Step 1b: Building YADS Worker image (with Playwright/Nuclei/Nmap)...", "info")
-                self._log("  ℹ️  Worker image only needs rebuild when scanner tools or Python deps change.", "info")
+                self._log("Step 1b: Building YADS Worker image...", "info")
                 self.signals.progress_update.emit(8, 100, "Building Worker image...")
-                worker_build_cmd = [
-                    "docker", "build",
-                    "--target", "worker",
-                    "-t", "yads-worker:latest",
-                    "-t", self.worker_registry_image,
-                    "."
-                ]
+                # Use Dockerfile.worker (pre-baked tools base) if available — much faster.
+                # Falls back to --target worker (inline full build) if Dockerfile.worker is missing.
+                tools_image = f"{RebuildToolsWorker.TOOLS_REGISTRY_IMAGE}:{getattr(self, 'tools_tag', '1.0')}"
+                worker_dockerfile = self.project_root / "Dockerfile.worker"
+                if worker_dockerfile.exists():
+                    self._log(f"  Using Dockerfile.worker with pre-baked tools image ({tools_image})...", "info")
+                    worker_build_cmd = [
+                        "docker", "build",
+                        "-f", "Dockerfile.worker",
+                        "--build-arg", f"TOOLS_IMAGE={tools_image}",
+                        "-t", "yads-worker:latest",
+                        "-t", self.worker_registry_image,
+                        "."
+                    ]
+                else:
+                    self._log("  Dockerfile.worker not found — falling back to inline build (slow).", "warning")
+                    worker_build_cmd = [
+                        "docker", "build",
+                        "--target", "worker",
+                        "-t", "yads-worker:latest",
+                        "-t", self.worker_registry_image,
+                        "."
+                    ]
                 if not self._run_cmd(worker_build_cmd):
                     return self.signals.operation_finished.emit(False, "Worker build failed")
                 self._log("Step 1b: Worker image built.", "success")
@@ -1102,6 +1117,90 @@ class ProdDeployWorker(QThread):
                     pass
 
 
+class RebuildToolsWorker(QThread):
+    """
+    Builds and pushes the pre-baked yads-tools base image (Dockerfile.tools).
+    Only needed when Playwright, Nuclei, or Nmap versions change — not on every code push.
+    """
+
+    TOOLS_REGISTRY_IMAGE = "gitlab.example.internal:5050/apps/yads/yads-tools"
+
+    def __init__(self, project_root: Path, tools_tag: str = "1.0"):
+        super().__init__()
+        self.project_root = project_root
+        self.tools_tag = tools_tag
+        self.signals = LogSignals()
+        self.cancelled = False
+        self.current_process = None
+
+    def _log(self, message: str, level: str = "info"):
+        self.signals.log_message.emit(message, level)
+
+    def _run_cmd(self, cmd: list, shell: bool = False, cwd=None) -> bool:
+        if self.cancelled:
+            return False
+        cwd = cwd or self.project_root
+        self._log(f"$ {cmd if shell else ' '.join(str(c) for c in cmd)}", "cmd")
+        try:
+            self.current_process = subprocess.Popen(
+                cmd, shell=shell, cwd=cwd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1
+            )
+            for line in self.current_process.stdout:
+                self._log(line.rstrip(), "info")
+            self.current_process.wait()
+            ok = self.current_process.returncode == 0
+            if not ok:
+                self._log(f"Command failed (exit {self.current_process.returncode})", "error")
+            return ok
+        except Exception as e:
+            self._log(f"Error running command: {e}", "error")
+            return False
+
+    def run(self):
+        import time
+        start = time.time()
+        local_tag = f"yads-tools:{self.tools_tag}"
+        registry_tag = f"{self.TOOLS_REGISTRY_IMAGE}:{self.tools_tag}"
+
+        self._log(f"=== Rebuild Scanner Tools Base Image (tag: {self.tools_tag}) ===", "info")
+        self._log("This takes 15-20 min (Playwright/Chromium download). Run only when tool versions change.", "warning")
+
+        self.signals.progress_update.emit(0, 100, "Building yads-tools image...")
+
+        # Step 1: Build
+        self._log("Step 1/3: Building Dockerfile.tools...", "info")
+        if not self._run_cmd([
+            "docker", "build",
+            "-f", "Dockerfile.tools",
+            "-t", local_tag,
+            "-t", registry_tag,
+            "."
+        ]):
+            return self.signals.operation_finished.emit(False, "Tools image build failed")
+
+        self.signals.progress_update.emit(70, 100, "Pushing to registry...")
+
+        # Step 2: Push
+        self._log("Step 2/3: Pushing to registry...", "info")
+        if not self._run_cmd(["docker", "push", registry_tag]):
+            return self.signals.operation_finished.emit(False, "Tools image push failed")
+
+        self.signals.progress_update.emit(95, 100, "Verifying...")
+
+        # Step 3: Verify
+        self._log("Step 3/3: Verifying image in registry...", "info")
+        if not self._run_cmd(["docker", "manifest", "inspect", registry_tag]):
+            self._log("Manifest check skipped (not critical)", "warning")
+
+        elapsed = f"{int(time.time() - start) // 60}m {int(time.time() - start) % 60}s"
+        self.signals.progress_update.emit(100, 100, f"Done! ({elapsed})")
+        self._log(f"✅ yads-tools:{self.tools_tag} built and pushed in {elapsed}", "success")
+        self._log(f"ℹ️  Next worker build will use this image via Dockerfile.worker.", "info")
+        self.signals.operation_finished.emit(True, f"Tools image {self.tools_tag} ready")
+
+
 class ProdDeployPage(QWidget):
     """Production deployment page"""
 
@@ -1145,8 +1244,8 @@ class ProdDeployPage(QWidget):
         self.deploy_worker_check = CheckBox("Deploy Worker image", self)
         self.deploy_worker_check.setChecked(False)
         self.deploy_worker_check.setToolTip(
-            "Build & deploy the Worker image (with Playwright/Nuclei/Nmap, ~2 GB).\n"
-            "Only needed when scanner tools or Python dependencies change."
+            "Build & deploy the Worker image (Dockerfile.worker, uses pre-baked yads-tools base).\n"
+            "Only needed when Python dependencies change. Build time: ~2-3 min."
         )
         selection_group.addWidget(self.deploy_worker_check)
 
@@ -1157,6 +1256,38 @@ class ProdDeployPage(QWidget):
 
         selection_group.addStretch()
         layout.addLayout(selection_group)
+
+        # Scanner Tools rebuild card (rare — only when Playwright/Nuclei/Nmap versions change)
+        tools_card = CardWidget(self)
+        tools_layout = QHBoxLayout(tools_card)
+        tools_layout.setContentsMargins(20, 12, 20, 12)
+        tools_layout.setSpacing(12)
+
+        tools_label = BodyLabel(
+            "Scanner Tools Base Image (yads-tools)  —  rebuild only when Playwright / Nuclei / Nmap version changes",
+            self
+        )
+        tools_label.setStyleSheet("color: #888; font-size: 12px;")
+        tools_layout.addWidget(tools_label)
+
+        tools_layout.addStretch()
+
+        self.tools_tag_input = LineEdit(self)
+        self.tools_tag_input.setText("1.0")
+        self.tools_tag_input.setFixedWidth(60)
+        self.tools_tag_input.setToolTip("Image version tag, e.g. 1.0, 1.1")
+        tools_layout.addWidget(self.tools_tag_input)
+
+        self.rebuild_tools_btn = PushButton(FIF.UPDATE, "Rebuild & Push Tools Image", self)
+        self.rebuild_tools_btn.setFixedWidth(240)
+        self.rebuild_tools_btn.setToolTip(
+            "Build Dockerfile.tools → yads-tools:<tag> and push to the registry.\n"
+            "Takes 15-20 min. Run this before deploying a Worker with updated tool versions."
+        )
+        self.rebuild_tools_btn.clicked.connect(self._on_rebuild_tools)
+        tools_layout.addWidget(self.rebuild_tools_btn)
+
+        layout.addWidget(tools_card)
 
         # Action Card
         action_card = CardWidget(self)
@@ -1409,6 +1540,57 @@ class ProdDeployPage(QWidget):
         self.retry_btn.setVisible(False)
         self.rollback_btn.setVisible(False)
         self._start_worker(getattr(self, '_last_setup_token', None))
+
+    def _on_rebuild_tools(self):
+        """Build and push the pre-baked yads-tools base image (Dockerfile.tools)."""
+        tag = self.tools_tag_input.text().strip() or "1.0"
+        box = MessageBox(
+            "Rebuild Scanner Tools Base Image",
+            f"This will build Dockerfile.tools → yads-tools:{tag} and push it to the registry.\n\n"
+            f"This takes 15-20 minutes (Playwright/Chromium download).\n"
+            f"Run only when Playwright, Nuclei, or Nmap versions change.\n\n"
+            "Proceed?",
+            self
+        )
+        if not box.exec():
+            return
+
+        self.rebuild_tools_btn.setEnabled(False)
+        self.deploy_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.progress_bar.setVisible(True)
+        self.log_view.clear()
+        self._all_log_lines.clear()
+
+        self._active_worker = RebuildToolsWorker(script_dir.parent, tools_tag=tag)
+        self._active_worker.signals.log_message.connect(self._on_log)
+        self._active_worker.signals.progress_update.connect(self._on_progress)
+        self._active_worker.signals.operation_finished.connect(self._on_tools_rebuild_finished)
+        self._active_worker.finished.connect(self._on_tools_rebuild_thread_finished)
+        self._active_worker.start()
+
+    def _on_tools_rebuild_finished(self, success: bool, message: str):
+        self._tools_rebuild_success = success
+        self._tools_rebuild_message = message
+        if success:
+            self._log(message, "success")
+        else:
+            self._log(message, "error")
+
+    def _on_tools_rebuild_thread_finished(self):
+        self.rebuild_tools_btn.setEnabled(True)
+        self.deploy_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.progress_bar.setVisible(False)
+        success = getattr(self, '_tools_rebuild_success', False)
+        message = getattr(self, '_tools_rebuild_message', "")
+        if success:
+            InfoBar.success("Tools Image Ready", message, parent=self, position=InfoBarPosition.TOP, duration=5000)
+        else:
+            InfoBar.error("Tools Image Build Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
+        if hasattr(self, '_active_worker') and self._active_worker:
+            self._active_worker.deleteLater()
+            self._active_worker = None
 
     def _on_rollback(self):
         """Roll back all stack services to their previous image."""
