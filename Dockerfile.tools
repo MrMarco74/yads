@@ -1,0 +1,37 @@
+# ── YADS Scanner Tools Base Image ─────────────────────────────────────────────
+#
+# Pre-baked base for the Celery worker. Contains all heavy scanner tools
+# (Playwright/Chromium, Nuclei, Nmap) that change rarely.
+#
+# Build & push (only needed when tool versions change):
+#   docker build -f Dockerfile.tools -t yads-tools:1.0 \
+#     -t gitlab.fritz.box:5050/apps/yads/yads-tools:1.0 .
+#   docker push gitlab.fritz.box:5050/apps/yads/yads-tools:1.0
+#
+# The worker image (Dockerfile --target worker) builds FROM this image.
+# Nuclei templates are NOT baked in — they are provided via Docker volume
+# (nuclei_templates:/root/nuclei-templates) and auto-updated on worker start.
+
+FROM python:3.11-slim
+
+RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
+    graphviz \
+    postgresql-client \
+    libgomp1 \
+    wget \
+    gnupg \
+    nmap \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Nuclei (ProjectDiscovery) — binary only, templates come from volume
+RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \
+    && unzip nuclei_3.3.4_linux_amd64.zip \
+    && mv nuclei /usr/local/bin/ \
+    && rm nuclei_3.3.4_linux_amd64.zip
+
+# Playwright / Chromium — the heavy layer (~1.5 GB)
+RUN pip install --no-cache-dir playwright \
+    && playwright install --with-deps chromium
+
+WORKDIR /app

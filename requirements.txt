@@ -30,11 +30,6 @@ markdown
 croniter==6.0.0
 networkx
 matplotlib
-
-# Release automation dependencies
-
-pyyaml>=6.0
-rich>=13.7.0
 psutil
 
 # Metrics

@@ -53,6 +53,7 @@ yads/api/static/screenshots_locked/
 
 # Dev/CI artefacts
 tests/
+testlab/
 product_screenshots/
 yads-homepage/
 docs/
