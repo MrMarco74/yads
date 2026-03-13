@@ -233,7 +233,7 @@ class ProductionDeployer:
                 deployed = True
             else:
                 pull_ok = self._ssh_run(
-                    f"docker service update --image $(docker service inspect {stack_name}_yads-api "
+                    f"docker service update --with-registry-auth --image $(docker service inspect {stack_name}_yads-api "
                     f"--format '{{{{.Spec.TaskTemplate.ContainerSpec.Image}}}}' | cut -d: -f1):{version} "
                     f"{stack_name}_yads-api"
                 )
