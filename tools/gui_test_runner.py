@@ -44,6 +44,8 @@ class GuiTestRunner:
         self.session_dir = self.results_dir / self.session_id
         self.screenshot_dir = self.session_dir / "Screenshots"
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
+        self.failure_dir = self.session_dir / "Failures"
+        self.failure_dir.mkdir(parents=True, exist_ok=True)
 
     def _load_version(self):
         """Loads version from releases/version.json"""
@@ -413,7 +415,7 @@ class GuiTestRunner:
 
     async def record_failure(self, title, message, page):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = self.session_dir / f"failure_{timestamp}.png"
+        screenshot_path = self.failure_dir / f"failure_{timestamp}.png"
         
         try:
             # Also save a debug screenshot of the current state
