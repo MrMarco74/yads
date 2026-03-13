@@ -52,7 +52,7 @@
         <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
             <h2 style="margin-top: 0; color: #fff;">1. Release Download</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
-                Download the release package. It contains all Docker images, configuration templates, and documentation for offline installation.
+                Download the setup package. It contains configuration templates, setup scripts, and documentation. Docker images are pulled automatically from the YADS Container Registry during setup.
             </p>
 
             <!-- Release Channels Grid -->
@@ -121,19 +121,18 @@
                 <li>License Key (sent via email)</li>
             </ul>
 
-            <h3 style="margin-top: 2rem;">Step 1: Load Images</h3>
-            <p>Unzip the archive and load the Docker images:</p>
+            <h3 style="margin-top: 2rem;">Step 1: Run Setup Script</h3>
+            <p>Unzip the archive and run the interactive setup script. It will authenticate against the YADS Container Registry and configure your environment:</p>
             <div class="code-block">
-docker load < yads-images.tar.gz
+unzip yads_v*_customer_pkg.zip
+cd yads_v*_customer_pkg
+chmod +x setup.sh
+./setup.sh
             </div>
-            <p>Verification:</p>
-            <div class="code-block">
-docker images | grep yads
-# Should list yads-api and yads-worker
-            </div>
+            <p>The setup script will prompt for your <strong>registry token</strong> (included in your license email) and automatically pull the Docker images from <code>registry.yads-security.com</code>.</p>
 
-            <h3 style="margin-top: 2rem;">Step 2: Launch</h3>
-            <p>Navigate to the directory and start the stack:</p>
+            <h3 style="margin-top: 2rem;">Step 2: Start</h3>
+            <p>After setup.sh completes, start the stack:</p>
             <div class="code-block">
 docker compose up -d
             </div>
