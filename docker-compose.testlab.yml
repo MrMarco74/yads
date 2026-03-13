@@ -47,6 +47,12 @@ services:
         ipv4_address: 172.30.0.200
     tmpfs:
       - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yads -d yads"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -54,6 +60,12 @@ services:
     networks:
       yads-testlab:
         ipv4_address: 172.30.0.210
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   # ── YADS API (The system under test) ───────────────────────────────────────
   yads-api:
@@ -75,8 +87,16 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8085/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       yads-testlab:
         ipv4_address: 172.30.0.250
@@ -221,8 +241,11 @@ services:
       - .:/app
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app
-    entrypoint: ["sh", "-c", "apt-get update && apt-get install -y docker.io && pip install playwright==1.39.0 && tail -f /dev/null"]
+    entrypoint: ["sh", "-c", "apt-get update && apt-get install -y curl docker.io && pip install playwright==1.39.0 && tail -f /dev/null"]
     extra_hosts:
       - "dana:172.30.0.250"
+    depends_on:
+      yads-api:
+        condition: service_healthy
     networks:
       - yads-testlab

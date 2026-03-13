@@ -109,7 +109,7 @@ class GuiTestRunner:
             if "error" in line_str.lower() or "exception" in line_str.lower():
                 print(f"Detected potential error in Dana logs: {line_str}")
 
-    async def wait_for_url(self, timeout=30):
+    async def wait_for_url(self, timeout=120):
         """Wait for the target URL to be accessible."""
         import urllib.request
         import time
@@ -131,6 +131,58 @@ class GuiTestRunner:
         print(f"Timeout waiting for {self.target_url}")
         return False
 
+    async def login_step(self, page) -> bool:
+        """
+        Pre-step: navigate to the app and perform login (no MFA).
+        Returns True if login succeeded, False otherwise.
+        All subsequent tests must be aborted when this returns False.
+        """
+        print("PRE-STEP: Login...")
+        try:
+            await page.goto(self.target_url)
+            await page.wait_for_load_state("networkidle")
+
+            # If not redirected to login, we might already be logged in
+            if "login" not in page.url.lower() and not await page.query_selector('input[name="username"]'):
+                await self.capture_screenshot(page, "login_skipped_already_authenticated")
+                print("  Already authenticated — skipping login.")
+                return True
+
+            await self.capture_screenshot(page, "login_page_empty")
+            await page.fill('input[name="username"]', "admin")
+            await page.fill('input[name="password"]', "admin")
+            await self.capture_screenshot(page, "login_page_filled")
+            await page.click('button[type="submit"]')
+            await page.wait_for_load_state("networkidle")
+
+            # Handle force-password-change screen
+            if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
+                print("  Force password change detected — updating...")
+                await self.capture_screenshot(page, "force_password_change")
+                await page.fill("input[name='new_password']", "adminAdmin123!")
+                await page.fill("input[name='confirm_password']", "adminAdmin123!")
+                await page.click("button[type='submit']")
+                await page.wait_for_load_state("networkidle")
+
+            await self.capture_screenshot(page, "after_login")
+
+            if "login" in page.url.lower():
+                print("CRITICAL: Login failed — still on login page.")
+                await self.record_failure(
+                    "Login Pre-Step Failed",
+                    "Still on login page after credentials submission. All tests aborted.",
+                    page
+                )
+                return False
+
+            print("  Login successful.")
+            return True
+
+        except Exception as e:
+            print(f"CRITICAL: Login pre-step raised exception: {e}")
+            await self.record_failure("Login Pre-Step Exception", str(e), page)
+            return False
+
     async def run_tests(self):
         if not await self.ensure_dana_running():
             print("Aborting tests due to environment failure.")
@@ -145,40 +197,19 @@ class GuiTestRunner:
         log_task = asyncio.create_task(self.monitor_logs(stop_event))
 
         async with async_playwright() as p:
-            # Launch with a standard viewport
             browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(viewport={'width': 1280, 'height': 800})
             page = await context.new_page()
 
             try:
-                # 1. Login if needed
-                await page.goto(self.target_url)
-                await page.wait_for_load_state("networkidle")
-                
-                if await page.query_selector('input[name="username"]'):
-                    print("Attempting login...")
-                    await self.capture_screenshot(page, "login_page_empty")
-                    await page.fill('input[name="username"]', "admin")
-                    await page.fill('input[name="password"]', "admin")
-                    await self.capture_screenshot(page, "login_page_filled")
-                    await page.click('button[type="submit"]')
-                
-                # Verify login success
-                await page.wait_for_load_state("networkidle")
-                await self.capture_screenshot(page, "after_login_attempt")
-                if "login" in page.url.lower():
-                    print("CRITICAL: Login appears to have failed (still on login page).")
-                    await self.record_failure("Login Failed", "Still on login page after credentials submission.", page)
-
-                # 1b. Handle Force Password Change
-                if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
-                    print("Force password change detected. Updating...")
-                    await self.capture_screenshot(page, "before_password_change")
-                    await page.fill("input[name='new_password']", "adminAdmin123!")
-                    await page.fill("input[name='confirm_password']", "adminAdmin123!")
-                    await page.click("button[type='submit']")
-                    await page.wait_for_load_state("networkidle")
-                    await self.capture_screenshot(page, "after_password_change")
+                # PRE-STEP: Login — abort everything if this fails
+                if not await self.login_step(page):
+                    print("Aborting all GUI tests: login pre-step failed.")
+                    self.generate_report()
+                    stop_event.set()
+                    await browser.close()
+                    await log_task
+                    return
 
                 # 2. Extract Sidebar Links
                 try:
@@ -376,77 +407,6 @@ class GuiTestRunner:
             "screenshot": str(screenshot_path)
         })
         print(f"FAILURE: {title} - {message}")
-
-    def generate_report(self):
-        timestamp_now = datetime.datetime.now()
-        timestamp = timestamp_now.strftime("%Y-%m-%d %H:%M:%S")
-        timestamp_str = timestamp_now.strftime("%Y%m%d_%H%M%S")
-        report_file = self.results_dir / f"test_result_{timestamp_str}.md"
-        
-        with open(report_file, "w") as f:
-            f.write(f"# YADS GUI Test Report - {timestamp}\n\n")
-            f.write(f"- **Target:** {self.target_url}\n")
-            f.write(f"- **YADS Version:** {self.version}\n")
-            f.write(f"- **Tests Run:** {len(self.visited_urls)}\n")
-            f.write(f"- **Failures:** {len(self.failures)}\n\n")
-            
-            # --- Component List ---
-            f.write("## Tested Components\n\n")
-            for url in sorted(list(self.visited_urls)):
-                # Skip the base URL itself in the list
-                if url == self.target_url or url == f"{self.target_url}/":
-                    continue
-                path = url.replace(self.target_url, "")
-                if not path: path = "/"
-                
-                # Check for failure on this URL
-                failed = any(f["url"] == url for f in self.failures)
-                status = "❌" if failed else "✅"
-                f.write(f"- {status} `{path}`\n")
-            f.write("\n")
-            
-            # --- Session Screenshots ---
-            f.write("## Session Screenshots\n\n")
-            f.write(f"All screenshots for this session are stored in: `{self.screenshot_dir.relative_to(self.results_dir.parent.parent)}`\n\n")
-            
-            screenshot_files = sorted(list(self.screenshot_dir.glob("*.png")))
-            if screenshot_files:
-                for shot in screenshot_files:
-                    f.write(f"- [{shot.name}]({shot.relative_to(self.results_dir)})\n")
-            else:
-                f.write("No screenshots captured.\n")
-            f.write("\n")
-            
-            if self.failures:
-                f.write("## Failures\n\n")
-                for fail in self.failures:
-                    f.write(f"### {fail['title']}\n")
-                    f.write(f"- **URL:** {fail['url']}\n")
-                    f.write(f"- **Message:** {fail['message']}\n")
-                    f.write(f"- **Timestamp:** {fail['timestamp']}\n")
-                    f.write(f"![Failure Screenshot]({fail['screenshot']})\n\n")
-                    
-                f.write("## System Logs (Relevant Snippet)\n\n")
-                f.write("```\n")
-                # Write last 50 lines of logs
-                for line in self.logs[-50:]:
-                    f.write(f"{line}\n")
-                f.write("```\n\n")
-                
-                f.write("## AI Debugging Prompt\n\n")
-                f.write("> [!TIP]\n")
-                f.write("> Copy the block below to an LLM to get a fix proposal.\n\n")
-                f.write("```text\n")
-                f.write("Ich habe einen automatisierten GUI-Test für YADS durchgeführt und Fehler gefunden.\n")
-                f.write(f"Fehler: {json.dumps(self.failures, indent=2)}\n")
-                f.write("Logs:\n")
-                f.write("\n".join(self.logs[-30:]))
-                f.write("\n\nBitte analysiere diese Fehler und schlage eine Korrektur vor.\n")
-                f.write("```\n")
-            else:
-                f.write("✅ All tests passed successfully.\n")
-
-        print(f"Report generated: {report_file}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
