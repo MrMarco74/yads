@@ -56,10 +56,10 @@
                 Laden Sie das Setup-Paket herunter. Es enthält Konfigurationsvorlagen, Setup-Skripte und Dokumentation. Docker-Images werden während der Einrichtung automatisch aus der YADS Container Registry geladen.
             </p>
 
-            <!-- Release Channels Grid -->
+            <!-- Release-Karten (Version dynamisch aus version.json geladen) -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
 
-                <!-- STABLE CHANNEL -->
+                <!-- STABLE -->
                 <div style="background: rgba(16, 185, 129, 0.1); border: 2px solid rgba(16, 185, 129, 0.4); border-radius: 1rem; padding: 1.5rem; position: relative;">
                     <div style="position: absolute; top: -12px; left: 20px; background: #10b981; color: #fff; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
                         Empfohlen
@@ -69,18 +69,18 @@
                         <h3 style="margin: 0; color: #10b981; font-size: 1.25rem;">Stabile Version</h3>
                     </div>
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Produktionsreife Version. Gründlich getestet und für die meisten Benutzer empfohlen.
+                        Produktionsreife Version. Gründlich getestet und für alle Benutzer empfohlen. Enthält Konfigurationsvorlagen, <code>setup.sh</code> und Dokumentation. Docker-Images werden während der Einrichtung aus der Registry geladen.
                     </p>
-                    <a id="download-stable" href="https://yads-security.com/releases/yads_v1.21.3_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #10b981;">
+                    <a id="download-stable" href="#" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #10b981;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Download v1.21.3 Stable (.zip)
+                        <span id="download-stable-label">Wird geladen…</span>
                     </a>
                     <div style="margin-top: 1rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all;">
-                        <strong style="color: #10b981;">SHA256 Stable:</strong> d1149a0793d8b4a999f15b710258f99e7ddb62065840a91eb2c97b2849a21fab
+                        <strong style="color: #10b981;">SHA256:</strong> <span id="stable-sha256">—</span>
                     </div>
                 </div>
 
-                <!-- BETA CHANNEL -->
+                <!-- BETA -->
                 <div style="background: rgba(99, 102, 241, 0.1); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 1rem; padding: 1.5rem; position: relative;">
                     <div style="position: absolute; top: -12px; left: 20px; background: #6366f1; color: #fff; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
                         Vorschau
@@ -92,16 +92,39 @@
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
                         Neueste Funktionen und Verbesserungen. Kann Fehler enthalten. Für Tests und Early Adopters.
                     </p>
-                    <a id="download-beta" href="https://yads-security.com/releases/yads_v1.43.0_customer_pkg.zip" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #6366f1;">
+                    <a id="download-beta" href="#" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #6366f1;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Download v1.43.0 Beta (.zip)
+                        <span id="download-beta-label">Wird geladen…</span>
                     </a>
                     <div style="margin-top: 1rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.75rem; color: #94a3b8; word-break: break-all;">
-                        <strong style="color: #6366f1;">SHA256 Beta:</strong> daee55bbe015a2b3deb76459d56c8d60c6cbe408ff2ca5f465262e945690b96b[SHA256_HASH_TBD]
+                        <strong style="color: #6366f1;">SHA256:</strong> <span id="beta-sha256">—</span>
                     </div>
                 </div>
 
             </div>
+
+            <script>
+            fetch('https://yads-security.com/releases/version.json')
+                .then(r => r.json())
+                .then(d => {
+                    const sv = d.version;
+                    const surl = d.url || ('https://yads-security.com/releases/yads_v' + sv + '_customer_pkg.zip');
+                    document.getElementById('download-stable').href = surl;
+                    document.getElementById('download-stable-label').textContent = 'Download v' + sv + ' Stable (.zip)';
+                    document.getElementById('stable-sha256').textContent = d.sha256 || 'siehe Release-Notes';
+                })
+                .catch(() => { document.getElementById('download-stable-label').textContent = 'Download Stable (.zip)'; });
+            fetch('https://yads-security.com/releases/version_beta.json')
+                .then(r => r.json())
+                .then(d => {
+                    const bv = d.version;
+                    const burl = d.url || ('https://yads-security.com/releases/yads_v' + bv + '_beta_pkg.zip');
+                    document.getElementById('download-beta').href = burl;
+                    document.getElementById('download-beta-label').textContent = 'Download v' + bv + ' Beta (.zip)';
+                    document.getElementById('beta-sha256').textContent = d.sha256 || 'siehe Release-Notes';
+                })
+                .catch(() => { document.getElementById('download-beta-label').textContent = 'Aktuell kein Beta verfügbar'; document.getElementById('download-beta').style.opacity='0.5'; document.getElementById('download-beta').style.pointerEvents='none'; });
+            </script>
 
             <div style="margin-top: 1.5rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1rem; border-radius: 0.5rem;">
                 <strong style="color: #fbbf24;">💡 Welche Version sollte ich wählen?</strong>
