@@ -321,26 +321,16 @@
         </header>
         {% endif %}
 
-        <!-- CE Read-Only Banner -->
-        {% if request.state.ce_state and request.state.ce_state.status == 'read_only' %}
-        <div class="bg-red-900/80 border-b border-red-700/60 px-4 py-2 flex items-center justify-center gap-3 text-sm text-red-200">
+        <!-- License & Capacity Banner -->
+        {% set lic = get_license_status() %}
+        {% if lic and lic.status != 'active' %}
+        <div class="{% if lic.status == 'error' %}bg-red-900/80 border-red-700/60 text-red-100{% else %}bg-amber-900/70 border-amber-700/50 text-amber-100{% endif %} border-b px-4 py-2 flex items-center justify-center gap-3 text-sm z-[100] sticky top-16">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             </svg>
-            <span><strong>Community Edition abgelaufen</strong> — YADS ist im Lesemodus. Neue Scans und Targets sind deaktiviert.</span>
+            <span><strong>{{ lic.tier }}:</strong> {{ lic.message }}</span>
             {% if user and user.role == 'admin' %}
             <a href="/settings#license" class="underline hover:text-white transition-colors ml-2">Lizenz verwalten →</a>
-            {% endif %}
-        </div>
-        {% elif request.state.ce_state and request.state.ce_state.status == 'active' and request.state.ce_state.days_remaining <= 5 %}
-        <div class="bg-amber-900/70 border-b border-amber-700/50 px-4 py-2 flex items-center justify-center gap-3 text-sm text-amber-200">
-            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01"/>
-            </svg>
-            <span>Community Edition läuft in <strong>{{ request.state.ce_state.days_remaining }} Tag{{ 'en' if request.state.ce_state.days_remaining != 1 else '' }}</strong> ab.</span>
-            {% if user and user.role == 'admin' %}
-            <a href="/settings#license" class="underline hover:text-white transition-colors ml-2">Verlängerung →</a>
             {% endif %}
         </div>
         {% endif %}

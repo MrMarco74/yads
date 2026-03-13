@@ -142,9 +142,19 @@ class ProductionDeployer:
             return True
         cmd = self.migrations_cfg.get(
             "command",
-            "docker exec yads-api python scripts/maintenance/migrate_db.py"
+            "docker exec yads_yads-api python scripts/maintenance/migrate_db.py"
         )
         print(f"\n  🗄  Running migrations: {cmd}")
+        return self._ssh_run(cmd, dry_run=dry_run)
+
+    # ─── Cleanup ─────────────────────────────────────────────────────────────
+
+    def cleanup(self, dry_run: bool = False) -> bool:
+        """Run docker system prune -af on prod via SSH to free up space."""
+        print(f"\n  🧹 Cleaning up production disk space (docker system prune)...")
+        # -a prunes all unused images, not just dangling ones
+        # -f forces without confirmation
+        cmd = "docker system prune -af"
         return self._ssh_run(cmd, dry_run=dry_run)
 
     # ─── Public API ──────────────────────────────────────────────────────────
@@ -266,6 +276,10 @@ class ProductionDeployer:
                 print(f"  ⚠️  Health check failed: {e}")
         elif dry_run:
             print(f"\n  [DRY RUN] Would health-check: {health_url}")
+
+        # --- Step 6: Cleanup (Optional but enabled by default) ---
+        if self.ssh_cfg.get("cleanup_enabled", True):
+            self.cleanup(dry_run=dry_run)
 
         print(f"\n  🎉 Deploy v{version} completed!\n")
         return True
