@@ -239,43 +239,12 @@ ZIP_FILE="$OUTPUT_DIR/${RELEASE_NAME}.zip"
 SHA256=$(sha256sum "$ZIP_FILE" | awk '{print $1}')
 echo -e "Hash: ${GREEN}${SHA256}${NC}"
 
-# 8. Update Homepage
-echo -e "${BLUE}>> Updating Homepage (DE & EN)...${NC}"
-
-if [ "$RELEASE_CHANNEL" = "beta" ]; then
-    # BETA RELEASE: Only update the beta section, keep stable section unchanged
-    echo -e "  Updating BETA download section..."
-
-    # Update DE (beta section)
-    sed -i "s/id=\"download-beta\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-beta\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/de/support.html
-    sed -i "s/Download v[0-9.]* Beta (.zip)/Download v${VERSION} Beta (.zip)/g" yads-homepage/de/support.html
-    sed -i "s/SHA256 Beta:<\/strong> [a-f0-9]*/SHA256 Beta:<\/strong> ${SHA256}/g" yads-homepage/de/support.html
-
-    # Update EN (beta section)
-    sed -i "s/id=\"download-beta\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-beta\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/en/support.html
-    sed -i "s/Download v[0-9.]* Beta (.zip)/Download v${VERSION} Beta (.zip)/g" yads-homepage/en/support.html
-    sed -i "s/SHA256 Beta:<\/strong> [a-f0-9]*/SHA256 Beta:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
-else
-    # STABLE RELEASE: Update the stable section
-    echo -e "  Updating STABLE download section..."
-
-    # Update DE (stable section)
-    sed -i "s/id=\"download-stable\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-stable\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/de/support.html
-    sed -i "s/Download v[0-9.]* Stable (.zip)/Download v${VERSION} Stable (.zip)/g" yads-homepage/de/support.html
-    sed -i "s/SHA256 Stable:<\/strong> [a-f0-9]*/SHA256 Stable:<\/strong> ${SHA256}/g" yads-homepage/de/support.html
-
-    # Update EN (stable section)
-    sed -i "s/id=\"download-stable\".*yads_v[0-9.]*_customer_pkg.zip/id=\"download-stable\" href=\"https:\/\/yads-security.com\/releases\/${RELEASE_NAME}.zip/g" yads-homepage/en/support.html
-    sed -i "s/Download v[0-9.]* Stable (.zip)/Download v${VERSION} Stable (.zip)/g" yads-homepage/en/support.html
-    sed -i "s/SHA256 Stable:<\/strong> [a-f0-9]*/SHA256 Stable:<\/strong> ${SHA256}/g" yads-homepage/en/support.html
-fi
-
-# Update placehoders in Changelog & Seeding
+# 8. Update Changelog placeholders (download buttons populated dynamically via version.json)
+echo -e "${BLUE}>> Updating Changelog SHA256 placeholders...${NC}"
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads/core/seeding.py
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/de/changes.html
 sed -i "s/\[SHA256_HASH_TBD\]/${SHA256}/g" yads-homepage/en/changes.html
-
-echo -e "Homepage and changelogs updated with version ${VERSION} (${RELEASE_CHANNEL}) and current hash."
+echo -e "  Changelog SHA256 updated. Download buttons are populated dynamically via version.json."
 
 # 9. Generate version.json for Update Checker
 echo -e "${BLUE}>> Generating version.json for Update Checker...${NC}"
@@ -324,7 +293,8 @@ cat <<EOF > "$OUTPUT_DIR/$VERSION_FILE"
   "version": "$VERSION",
   "channel": "$RELEASE_CHANNEL",
   "text": "$CHANGELOG_TEXT",
-  "url": "https://yads-security.com/releases/${RELEASE_NAME}.zip"
+  "url": "https://yads-security.com/releases/${RELEASE_NAME}.zip",
+  "sha256": "$SHA256"
 }
 EOF
 
