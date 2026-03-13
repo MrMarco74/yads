@@ -339,7 +339,7 @@ class GuiTestRunner:
         timestamp_now = datetime.datetime.now()
         timestamp = timestamp_now.strftime("%Y-%m-%d %H:%M:%S")
         timestamp_str = timestamp_now.strftime("%Y%m%d_%H%M%S")
-        report_file = self.results_dir / f"test_result_{timestamp_str}.md"
+        report_file = self.session_dir / f"test_result_{timestamp_str}.md"
         with open(report_file, "w") as f:
             self._write_report_header(f, timestamp)
             self._write_component_list(f)
@@ -413,7 +413,7 @@ class GuiTestRunner:
 
     async def record_failure(self, title, message, page):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = self.results_dir / f"failure_{timestamp}.png"
+        screenshot_path = self.session_dir / f"failure_{timestamp}.png"
         
         try:
             # Also save a debug screenshot of the current state
