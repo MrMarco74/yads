@@ -592,11 +592,11 @@ class ProdDeployWorker(QThread):
         import tempfile
         self.control_socket = Path(tempfile.gettempdir()) / f"yads_deploy_{os.getpid()}.sock"
 
-        # Image names — split api/worker for smaller, faster deploys
+        # Image names — pushed to registry.yads-security.com for prod pulls
         self.docker_compose_file = "docker-compose.swarm.yml"
-        self.registry_image        = "gitlab.example.internal:5050/apps/yads/yads:latest"        # api image
-        self.worker_registry_image = "gitlab.example.internal:5050/apps/yads/yads-worker:latest"  # worker image
-        self.backup_registry_image = "gitlab.example.internal:5050/apps/yads/yads-backup:latest"
+        self.registry_image        = "registry.yads-security.com/yads/yads-api:latest"
+        self.worker_registry_image = "registry.yads-security.com/yads/yads-worker:latest"
+        self.backup_registry_image = "registry.yads-security.com/yads/yads-backup:latest"
 
         self.services_to_update = [
             f"{self.stack_name}_yads-api",
@@ -886,18 +886,6 @@ class ProdDeployWorker(QThread):
                                f"docker rmi {self.registry_image} {self.worker_registry_image} {self.backup_registry_image}"])
                 self._log("Wipe complete.", "success")
 
-            # Detect fastest available compressor (pigz > gzip)
-            _cpr_r = subprocess.run(["which", "pigz"], capture_output=True)
-            _compressor = "pigz -T0" if _cpr_r.returncode == 0 else "gzip"
-            self._log(f"Compressor: {_compressor.split()[0]}", "info")
-
-            # Check pigz availability on remote too
-            _rem_pigz = subprocess.run(
-                self._inject_ssh_opts(["ssh", self.remote_host, "which pigz"]),
-                capture_output=True
-            )
-            _decompressor = "pigz -d -c" if _rem_pigz.returncode == 0 else "gunzip -c"
-
             # ── Step 1: Build API image ────────────────────────────────────────
             self.signals.progress_update.emit(3, 100, "Checking image cache...")
             use_cached_api = False
@@ -973,38 +961,32 @@ class ProdDeployWorker(QThread):
             else:
                 self._log("Step 2: Skipping Backup build.", "warning")
 
-            # ── Step 3+4: Stream-transfer each image via SSH pipe ──────────────
-            # Format: docker save IMAGE | pigz | ssh remote 'pigz -d | docker load'
-            # No temp file, no separate rsync — compress + transfer + load in one pipeline.
-            self.signals.progress_update.emit(20, 100, "Streaming images to PROD...")
+            # ── Step 3+4: Push images to registry.yads-security.com ──────────
+            # Prod server pulls directly from registry during service update.
+            self.signals.progress_update.emit(20, 100, "Pushing images to registry...")
             self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
 
-            images_to_stream = []
+            images_to_push = []
             if self.deploy_app and not use_cached_api:
-                images_to_stream.append((self.registry_image, "API"))
+                images_to_push.append((self.registry_image, "API"))
             if self.deploy_worker:
-                images_to_stream.append((self.worker_registry_image, "Worker"))
+                images_to_push.append((self.worker_registry_image, "Worker"))
             if self.deploy_backup:
-                images_to_stream.append((self.backup_registry_image, "Backup"))
+                images_to_push.append((self.backup_registry_image, "Backup"))
 
-            if not images_to_stream:
-                self._log("All images cached — nothing to transfer.", "success")
+            if not images_to_push:
+                self._log("All images cached — nothing to push.", "success")
             else:
-                total_imgs = len(images_to_stream)
-                for idx, (img, label) in enumerate(images_to_stream, 1):
+                total_imgs = len(images_to_push)
+                for idx, (img, label) in enumerate(images_to_push, 1):
                     pct = 20 + int((idx / total_imgs) * 55)
-                    self._log(f"Step 3-4/{total_imgs}: Streaming {label} image to PROD...", "info")
-                    self.signals.progress_update.emit(pct, 100, f"Streaming {label} image...")
-                    stream_cmd = (
-                        f"docker save {img} | {_compressor} | "
-                        f"ssh {' '.join(self._ssh_opts())} {self.remote_host} "
-                        f"'{_decompressor} | docker load 2>&1 | grep -E \"(Loaded image|error)\"'"
-                    )
-                    if not self._run_cmd(stream_cmd, shell=True):
-                        return self.signals.operation_finished.emit(False, f"{label} image transfer failed")
-                    self._log(f"  ✅ {label} image loaded on remote.", "success")
+                    self._log(f"Step 3/{total_imgs}: Pushing {label} image to registry...", "info")
+                    self.signals.progress_update.emit(pct, 100, f"Pushing {label} image...")
+                    if not self._run_cmd(["docker", "push", img]):
+                        return self.signals.operation_finished.emit(False, f"{label} image push failed")
+                    self._log(f"  ✅ {label} image pushed.", "success")
 
-            self._log("Step 5: All images on remote.", "success")
+            self._log("Step 4: All images in registry.", "success")
 
             # 4. Config
             self._log("Step 6/8: Transferring configuration...", "info")
@@ -1123,7 +1105,7 @@ class RebuildToolsWorker(QThread):
     Only needed when Playwright, Nuclei, or Nmap versions change — not on every code push.
     """
 
-    TOOLS_REGISTRY_IMAGE = "gitlab.example.internal:5050/apps/yads/yads-tools"
+    TOOLS_REGISTRY_IMAGE = "registry.yads-security.com/yads/yads-tools"
 
     def __init__(self, project_root: Path, tools_tag: str = "1.0"):
         super().__init__()
