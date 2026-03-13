@@ -83,6 +83,7 @@ def _cycle(rc):
     alerts += _check_worker_heartbeats(engine)
     alerts += _check_hanging_tasks(engine)
     alerts += _check_celery_queue(rc, engine)
+    _check_scan_log_errors(rc, engine)  # tenant-scoped, written separately
 
     # Write active alerts to Redis (for the topbar fragment)
     ttl = max(120, _get_cfg_int("WATCHER_INTERVAL_S", _DEFAULT_INTERVAL_S) * 2)
@@ -334,6 +335,114 @@ def _fire_webhook(alert: dict):
                 logger.debug(f"Webhook delivery failed {hook.url}: {exc}")
     except Exception:
         logger.debug("Webhook fire failed", exc_info=True)
+
+
+# ── Scan Log Error Check (tenant-scoped) ─────────────────────────────────────
+
+REDIS_KEY_SCAN_ERRORS = "yads:scan_errors:tenant:"   # + tenant_id
+_SCAN_ERROR_TTL = 3600   # suppress re-notification for 1h per target
+_SCAN_ERROR_DEDUP = "yads:scan_errors:dedup:"        # + target_id
+
+
+def _check_scan_log_errors(rc, engine):
+    """
+    Scan Redis log buffers of recently-active targets for ERROR/CRITICAL lines.
+    Results are written per-tenant to Redis so the HTMX fragment can show them
+    to the right user without exposing cross-tenant data.
+    Dedup key prevents the same target from re-alerting within 1h.
+    """
+    try:
+        import json as _json
+        from sqlmodel import Session, select
+        from yads.models import Target
+
+        # Only check targets that have scan logs in Redis
+        pattern = "scan:logs:*"
+        keys = rc.keys(pattern)
+        if not keys:
+            return
+
+        # Group errors by tenant_id
+        tenant_errors: dict[int, list[dict]] = {}
+
+        with Session(engine) as session:
+            for key in keys:
+                try:
+                    target_id = int(key.decode().split(":")[-1])
+                except (ValueError, AttributeError):
+                    continue
+
+                # Dedup: skip if we already notified for this target recently
+                dedup_key = f"{_SCAN_ERROR_DEDUP}{target_id}"
+                if rc.exists(dedup_key):
+                    continue
+
+                # Read last 50 log lines
+                entries = rc.lrange(key, -50, -1)
+                error_lines = []
+                for raw in entries:
+                    try:
+                        entry = _json.loads(raw)
+                        if entry.get("level") in ("ERROR", "CRITICAL"):
+                            error_lines.append(entry.get("message", "")[:200])
+                    except Exception:
+                        continue
+
+                if not error_lines:
+                    continue
+
+                # Lookup tenant for this target
+                target = session.get(Target, target_id)
+                if not target or not target.tenant_id:
+                    continue
+
+                tid = target.tenant_id
+                if tid not in tenant_errors:
+                    tenant_errors[tid] = []
+                tenant_errors[tid].append({
+                    "target_id": target_id,
+                    "domain": target.domain,
+                    "errors": error_lines[:3],   # max 3 lines per target
+                    "count": len(error_lines),
+                })
+
+                # Mark as notified for 1h
+                rc.setex(dedup_key, _SCAN_ERROR_TTL, "1")
+
+        # Write per-tenant result to Redis
+        for tenant_id, errors in tenant_errors.items():
+            rkey = f"{REDIS_KEY_SCAN_ERRORS}{tenant_id}"
+            existing_raw = rc.get(rkey)
+            existing = _json.loads(existing_raw) if existing_raw else []
+            # Merge: add new entries, avoid duplicate target_ids
+            known_ids = {e["target_id"] for e in existing}
+            for e in errors:
+                if e["target_id"] not in known_ids:
+                    existing.append(e)
+            rc.setex(rkey, _SCAN_ERROR_TTL, _json.dumps(existing))
+
+    except Exception:
+        logger.debug("scan log error check failed", exc_info=True)
+
+
+def get_scan_errors_for_tenant(rc, tenant_id: int) -> list[dict]:
+    """Return pending scan error notifications for a tenant (fast, no DB)."""
+    try:
+        raw = rc.get(f"{REDIS_KEY_SCAN_ERRORS}{tenant_id}")
+        if raw:
+            import json as _json
+            return _json.loads(raw)
+    except Exception:
+        pass
+    return []
+
+
+def clear_scan_errors_for_tenant(rc, tenant_id: int):
+    """Dismiss all scan error notifications for a tenant."""
+    try:
+        rc.delete(f"{REDIS_KEY_SCAN_ERRORS}{tenant_id}")
+    except Exception:
+        pass
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

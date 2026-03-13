@@ -2,6 +2,7 @@
 System Metrics & Resource-Check Endpoints
 
 /api/system/metrics        — HTMX topbar fragment (CPU / RAM / net)
+/api/system/scan-errors    — HTMX topbar fragment (scan error badge, tenant-scoped)
 /api/system/resource-check — Inline validation warnings for worker config modal
 """
 
@@ -83,9 +84,11 @@ async def system_metrics_fragment(
     m = system_metrics.get(_redis_client())
 
     if not m:
-        # Redis unavailable or first poll hasn't written yet
+        # Redis unavailable or metrics not yet collected — keep polling
         return HTMLResponse(
-            '<div id="sysmetrics-widget" class="hidden md:flex items-center gap-3 text-xs text-slate-600 font-mono">'
+            '<div id="sysmetrics-widget"'
+            ' class="hidden md:flex items-center gap-3 text-xs text-slate-600 font-mono"'
+            ' hx-get="/api/system/metrics" hx-trigger="every 5s" hx-swap="outerHTML">'
             '<span>— / — / —</span>'
             '</div>'
         )
@@ -145,6 +148,107 @@ async def system_metrics_fragment(
 
 </div>
 ''')
+
+
+# ── /api/system/scan-errors ───────────────────────────────────────────────────
+
+@router.get("/scan-errors", response_class=HTMLResponse)
+async def scan_errors_fragment(
+    request: Request,
+    user: User = Depends(get_current_user_html),
+):
+    """
+    HTMX fragment: scan error badge for the topbar.
+    Tenant-scoped — only shows errors from the user's own tenant.
+    Polled every 30s. Empty div when no errors.
+    """
+    from yads.core.watcher import get_scan_errors_for_tenant
+
+    tenant_id = user.tenant_id
+    if not tenant_id:
+        # Platform admins have no tenant — skip
+        return HTMLResponse(
+            '<div id="scan-errors-badge"'
+            ' hx-get="/api/system/scan-errors" hx-trigger="every 30s" hx-swap="outerHTML">'
+            '</div>'
+        )
+
+    errors = get_scan_errors_for_tenant(_redis_client(), tenant_id)
+
+    if not errors:
+        return HTMLResponse(
+            '<div id="scan-errors-badge"'
+            ' hx-get="/api/system/scan-errors" hx-trigger="every 30s" hx-swap="outerHTML">'
+            '</div>'
+        )
+
+    total_errors = sum(e.get("count", 1) for e in errors)
+    affected = len(errors)
+    label = f"{affected} Scan{'s' if affected > 1 else ''} fehlgeschlagen"
+
+    # Build dropdown items
+    items_html = ""
+    for e in errors:
+        domain = e.get("domain", "?")
+        count = e.get("count", 1)
+        first_err = e.get("errors", [""])[0][:120]
+        target_id = e.get("target_id")
+        items_html += f'''
+        <a href="/targets/{target_id}" class="flex gap-2 py-2 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/50 rounded px-1 transition-colors">
+          <span class="text-red-400 font-bold flex-shrink-0">✗</span>
+          <div class="min-w-0">
+            <div class="text-slate-200 text-xs font-semibold truncate">{domain}</div>
+            <div class="text-slate-400 text-[10px] truncate">{first_err}</div>
+            {'<div class="text-slate-500 text-[10px]">+' + str(count-1) + ' weitere Fehler</div>' if count > 1 else ''}
+          </div>
+        </a>'''
+
+    return HTMLResponse(f'''
+<div id="scan-errors-badge"
+     hx-get="/api/system/scan-errors" hx-trigger="every 30s" hx-swap="outerHTML"
+     class="relative"
+     x-data="{{ open: false }}">
+
+  <button @click="open = !open"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-700/60 bg-red-900/40 text-red-300 text-xs font-semibold transition-colors hover:bg-red-900/60">
+    <span class="text-red-400">✗</span>
+    <span>{label}</span>
+    <svg class="w-3 h-3 transition-transform" :class="open ? \'rotate-180\' : \'\'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+    </svg>
+  </button>
+
+  <div x-show="open" @click.outside="open = false"
+       x-transition:enter="transition ease-out duration-100"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       class="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-3">
+    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Scan-Fehler</p>
+    {items_html}
+    <form hx-post="/api/system/scan-errors/dismiss" hx-target="#scan-errors-badge" hx-swap="outerHTML" class="mt-3">
+      <button type="submit" class="w-full text-center text-xs text-slate-400 hover:text-slate-200 transition-colors py-1">
+        Alle ausblenden
+      </button>
+    </form>
+  </div>
+</div>
+''')
+
+
+@router.post("/scan-errors/dismiss", response_class=HTMLResponse)
+async def dismiss_scan_errors(
+    request: Request,
+    user: User = Depends(get_current_user_html),
+):
+    """Dismiss all scan error notifications for the current tenant."""
+    from yads.core.watcher import clear_scan_errors_for_tenant
+    if user.tenant_id:
+        clear_scan_errors_for_tenant(_redis_client(), user.tenant_id)
+    return HTMLResponse(
+        '<div id="scan-errors-badge"'
+        ' hx-get="/api/system/scan-errors" hx-trigger="every 30s" hx-swap="outerHTML">'
+        '</div>'
+    )
 
 
 # ── /api/system/resource-check ────────────────────────────────────────────────
