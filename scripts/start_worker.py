@@ -35,13 +35,20 @@ def main():
         print(f"[Startup] Failed to read settings from DB: {e}. Using default concurrency (8).")
         concurrency = 8
 
-    # 2. Construct Command
+    # 2. Determine which queues to consume
+    # Default: celery (standard scans) + discovery (recursive discovery sessions)
+    # Override via WORKER_QUEUES env var, e.g. WORKER_QUEUES=celery to disable discovery
+    queues = os.getenv("WORKER_QUEUES", "celery,discovery")
+    print(f"[Startup] Worker queues: {queues}")
+
+    # 3. Construct Command
     cmd = [
         "celery",
         "-A", "yads.worker",
         "worker",
         "--loglevel=info",
-        "--autoscale", f"{concurrency},{concurrency}"
+        "--autoscale", f"{concurrency},{concurrency}",
+        "-Q", queues,
     ]
     
     print(f"[Startup] Executing: {' '.join(cmd)}")
