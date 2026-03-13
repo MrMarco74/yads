@@ -1213,12 +1213,20 @@ def run_all_scans(
 def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int):
     """
     Run a discovery-scoped scan on a single target as part of a DiscoverySession.
-    Extracts candidate domains from results and writes them to DiscoveryCandidate.
-    Finally signals the orchestrator that this target is done.
+
+    Phase 1 — structured scans (DNS, SSL, CT logs):
+      Re-uses existing scanner modules and extracts candidates via DiscoveryScannerAdapter.
+
+    Phase 2 — passive hunters (SPF traversal, Wayback CDX, VirusTotal passive DNS,
+      SRV enumeration, CORS/CSP headers, Robots/Sitemap, Favicon/Shodan):
+      Safe, zero-impact techniques that consult public data sources only.
+
+    All candidates are written to DiscoveryCandidate and scored by the orchestrator.
     """
     from yads.core.discovery_scanner_adapter import DiscoveryScannerAdapter
     from yads.core.discovery_orchestrator import DiscoveryOrchestrator
-    from yads.models import DiscoverySession, DiscoveryCandidate, ScanResult
+    from yads.core.discovery_passive_hunters import run_all_passive_hunters
+    from yads.models import DiscoverySession, DiscoveryCandidate, ScanResult, Tenant
 
     logger.info(f"[Discovery] run_discovery_scan session={session_id} target={domain} depth={depth}")
 
@@ -1230,12 +1238,13 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             if not sess or sess.status in ("stopped", "failed"):
                 return
             include_typosquats = sess.include_typosquats
+            tenant = db.get(Tenant, sess.tenant_id)
+            vt_key = (tenant.virustotal_api_key or "") if tenant else ""
+            shodan_key = (tenant.shodan_api_key or "") if tenant else ""
 
-        # Run the actual scans by re-using run_all_scans logic inline
-        # (We call run_all_scans directly since it's a callable Python function)
+        # ── Phase 1: structured scanner modules ───────────────────────────────
         run_all_scans(target_id, domain, DISCOVERY_SCAN_TYPES, None)
 
-        # Extract candidates from scan results
         adapter = DiscoveryScannerAdapter(include_typosquats=include_typosquats)
 
         with Session(engine) as db:
@@ -1250,44 +1259,21 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
                 if not result or not result.data:
                     continue
 
-                candidates = adapter.extract(scanner_name, result.data)
-                for cand_domain, source_scanner, signals in candidates:
-                    if not cand_domain or cand_domain == domain:
-                        continue
-
-                    # Deduplicate within session
-                    existing = db.exec(
-                        select(DiscoveryCandidate).where(
-                            DiscoveryCandidate.session_id == session_id,
-                            DiscoveryCandidate.domain == cand_domain,
-                        )
-                    ).first()
-                    if existing:
-                        continue
-
-                    # Also check if already a Target in this session at any depth
-                    existing_target = db.exec(
-                        select(Target).where(
-                            Target.domain == cand_domain,
-                            Target.discovery_session_id == session_id,
-                        )
-                    ).first()
-                    if existing_target:
-                        continue
-
-                    cand = DiscoveryCandidate(
-                        session_id=session_id,
-                        source_target_id=target_id,
-                        domain=cand_domain,
-                        source_scanner=source_scanner,
-                        depth=depth,
-                        relevance_score=0.0,
-                        matching_signals=signals,
-                        status="pending",
-                    )
-                    db.add(cand)
+                for cand_domain, source_scanner, signals in adapter.extract(scanner_name, result.data):
+                    _upsert_candidate(db, session_id, target_id, cand_domain, domain, source_scanner, signals, depth)
 
             db.commit()
+
+        # ── Phase 2: passive hunters ───────────────────────────────────────────
+        logger.info(f"[Discovery] Running passive hunters for {domain}")
+        passive = run_all_passive_hunters(domain, vt_key, shodan_key)
+
+        with Session(engine) as db:
+            for cand_domain, signal in passive:
+                _upsert_candidate(db, session_id, target_id, cand_domain, domain, "passive_hunter", [signal], depth)
+            db.commit()
+
+        logger.info(f"[Discovery] Passive hunters complete for {domain}: {len(passive)} candidates")
 
     except Exception as e:
         logger.error(f"[Discovery] run_discovery_scan error for {domain}: {e}")
@@ -1298,6 +1284,69 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             orchestrator.on_target_complete(depth)
         except Exception as e2:
             logger.error(f"[Discovery] orchestrator signal failed: {e2}")
+
+
+def _upsert_candidate(
+    db: Session,
+    session_id: int,
+    target_id: int,
+    cand_domain: str,
+    source_domain: str,
+    source_scanner: str,
+    signals: list,
+    depth: int,
+):
+    """
+    Insert a new DiscoveryCandidate or merge signals into an existing one.
+    Skips the source domain itself and already-accepted targets.
+    """
+    from yads.models import DiscoveryCandidate
+
+    cand_domain = cand_domain.strip().lower()
+    if not cand_domain or cand_domain == source_domain:
+        return
+    if "." not in cand_domain or " " in cand_domain:
+        return
+
+    existing = db.exec(
+        select(DiscoveryCandidate).where(
+            DiscoveryCandidate.session_id == session_id,
+            DiscoveryCandidate.domain == cand_domain,
+        )
+    ).first()
+
+    if existing:
+        # Merge any new signals into the existing candidate
+        merged = list(existing.matching_signals)
+        changed = False
+        for sig in signals:
+            if sig not in merged:
+                merged.append(sig)
+                changed = True
+        if changed:
+            existing.matching_signals = merged
+            db.add(existing)
+        return
+
+    # Skip if already an accepted target in this session
+    if db.exec(
+        select(Target).where(
+            Target.domain == cand_domain,
+            Target.discovery_session_id == session_id,
+        )
+    ).first():
+        return
+
+    db.add(DiscoveryCandidate(
+        session_id=session_id,
+        source_target_id=target_id,
+        domain=cand_domain,
+        source_scanner=source_scanner,
+        depth=depth,
+        relevance_score=0.0,
+        matching_signals=signals,
+        status="pending",
+    ))
 
 
 @celery_app.task(name="yads.worker.start_discovery_session", queue="discovery")
