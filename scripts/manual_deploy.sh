@@ -160,10 +160,25 @@ if [ "$DEPLOY_BACKUP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then
 fi
 
 # ==============================================================================
-# 3. Image Transfer
+# 3. Remote Space Check & Image Transfer
 # ==============================================================================
 echo ">> Ensuring remote directory exists..."
 ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DEPLOY_DIR"
+
+echo ">> Checking remote disk space..."
+AVAIL_KB=$(ssh "$REMOTE_HOST" "df --output=avail / | tail -n 1")
+AVAIL_GB=$((AVAIL_KB / 1024 / 1024))
+echo "   Available space on remote: ${AVAIL_GB} GB"
+
+if [ "$AVAIL_GB" -lt 10 ]; then
+    echo "   ⚠️  Low disk space! YADS image requires ~5.3 GB."
+    read -p "   Run 'docker system prune -f' on remote host? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "   >> Pruning remote Docker images..."
+        ssh "$REMOTE_HOST" "docker system prune -f"
+    fi
+fi
 
 LOAD_CMDS=""
 if [ "$DEPLOY_APP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then

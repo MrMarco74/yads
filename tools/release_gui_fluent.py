@@ -204,9 +204,11 @@ class ReleaseWorker(QThread):
 
         try:
             if self.operation == "release":
-                self._execute_release()
+                self._execute_deploy()
             elif self.operation == "retry_upload":
                 self._retry_upload()
+            elif self.operation == "cleanup_prod":
+                self._execute_cleanup_prod()
             self._log("Diagnostic: Worker execution finished. Application should remain active.", "info")
         finally:
             sys.stdout.flush()
@@ -222,6 +224,35 @@ class ReleaseWorker(QThread):
 
     def _log(self, message: str, level: str = "info"):
         self.signals.log_message.emit(message, level)
+
+    def _execute_cleanup_prod(self):
+        try:
+            self._log("🧹 Manually requested cleanup on PROD...", "warning")
+            self.signals.progress_update.emit(10, 100, "Initiating cleanup...")
+            
+            # Use the same connection logic as deploy
+            if not self.control_socket.parent.exists():
+                self.control_socket.parent.mkdir(parents=True, exist_ok=True)
+                
+            self._log("Establishing persistent SSH connection for cleanup...", "info")
+            if not self._run_cmd(["ssh", "-fN", self.remote_host]):
+                self._log("Warning: Could not start ControlMaster, proceeding normally.", "warning")
+
+            self._log("Running 'docker system prune -af' on remote host...", "info")
+            self.signals.progress_update.emit(30, 100, "Pruning Docker system...")
+            
+            # Prune everything: -a (all unused images), -f (force)
+            success = self._run_cmd(["ssh", self.remote_host, "docker system prune -af"])
+            
+            if success:
+                self._log("✅ Cleanup successful. Checking disk space...", "success")
+                self._run_cmd(["ssh", self.remote_host, "df -h /"])
+                self.signals.operation_finished.emit(True, "Remote cleanup complete.")
+            else:
+                self.signals.operation_finished.emit(False, "Remote cleanup failed.")
+        except Exception as e:
+            self._log(f"Error during cleanup: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
 
     def _execute_release(self):
         try:
@@ -551,7 +582,10 @@ class ProdDeployWorker(QThread):
 
     def run(self):
         try:
-            self._execute_deploy()
+            if hasattr(self, 'operation') and self.operation == "cleanup_prod":
+                self._execute_cleanup_prod()
+            else:
+                self._execute_deploy()
             self._log("Diagnostic: Worker execution finished successfully. Application should remain active.", "info")
         except Exception as e:
             self._log(f"Critical error during deployment: {e}", "error")
@@ -738,6 +772,23 @@ class ProdDeployWorker(QThread):
             self._log("Establishing persistent SSH connection...", "info")
             if not self._run_cmd(["ssh", "-fN", self.remote_host]):
                 self._log("Warning: Could not start ControlMaster, will proceed with standard connections", "warning")
+
+            # 0.2 Automatic Cleanup if space is low
+            self._log("Step 0.1/8: Checking remote disk space...", "info")
+            check_space = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host, "df --output=avail / | tail -n 1"]),
+                capture_output=True, text=True
+            )
+            try:
+                avail_kb = int(check_space.stdout.strip())
+                avail_gb = avail_kb / (1024 * 1024)
+                self._log(f"Available space on remote: {avail_gb:.2f} GB", "info")
+                if avail_gb < 10:  # Threshold for safety (YADS image is ~5.3GB)
+                    self._log(f"⚠️  Low disk space ({avail_gb:.2f} GB). Running automatic cleanup...", "warning")
+                    self._run_cmd(["ssh", self.remote_host, "docker system prune -f"])
+                    self._log("Automatic cleanup finished.", "info")
+            except:
+                self._log("Could not determine remote disk space, proceeding anyway.", "warning")
 
             if self.wipe_reinstall:
                 import time
@@ -1035,6 +1086,11 @@ class ProdDeployPage(QWidget):
         self.rollback_btn.clicked.connect(self._on_rollback)
         action_layout.addWidget(self.rollback_btn)
 
+        self.cleanup_btn = ToolButton(FIF.DELETE, self)
+        self.cleanup_btn.setToolTip("Cleanup Disk: docker system prune -af on PROD")
+        self.cleanup_btn.clicked.connect(self._on_cleanup_request)
+        action_layout.addWidget(self.cleanup_btn)
+
         self.ssh_status_label = BodyLabel("○ Checking SSH...", self)
         self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
         action_layout.addWidget(self.ssh_status_label)
@@ -1151,10 +1207,26 @@ class ProdDeployPage(QWidget):
             else:
                 self._start_worker(None)
 
+    def _on_cleanup_request(self):
+        box = MessageBox(
+            "Confirm Remote Cleanup",
+            "This will run 'docker system prune -af' on root@prod.example.com.\n\n"
+            "This removes ALL unused containers, networks, and images (including non-dangling ones).\n"
+            "Volumes are NOT deleted.\n\n"
+            "Proceed?",
+            self
+        )
+        if box.exec():
+            self._start_worker_op("cleanup_prod")
+
     def _start_worker(self, setup_token=None):
         self._last_setup_token = setup_token
+        self._start_worker_op("release")
+
+    def _start_worker_op(self, operation: str):
         self.deploy_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
+        self.cleanup_btn.setEnabled(False)
         self.retry_btn.setVisible(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -1163,15 +1235,15 @@ class ProdDeployPage(QWidget):
         # Store a reference to avoid early garbage collection
         self._active_worker = ProdDeployWorker(
             script_dir.parent, 
-            wipe_reinstall=self.wipe_check.isChecked(), 
-            setup_token=setup_token,
-            deploy_app=self.deploy_app_check.isChecked(),
-            deploy_backup=self.deploy_backup_check.isChecked()
+            wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False, 
+            setup_token=getattr(self, '_last_setup_token', None) if operation == "release" else None,
+            deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
+            deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False
         )
+        self._active_worker.operation = operation
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.signals.progress_update.connect(self._on_progress)
-        # Clean up only after the thread has fully finished to avoid SIGABRT
         self._active_worker.finished.connect(self._on_thread_finished)
         self._active_worker.start()
 
@@ -1207,6 +1279,7 @@ class ProdDeployPage(QWidget):
     def _on_finished(self, success: bool, message: str):
         self.deploy_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
+        self.cleanup_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.progress_label.setText("Complete" if success else "Failed")
         self._deploy_success = success
