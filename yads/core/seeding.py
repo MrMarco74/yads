@@ -26031,6 +26031,105 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.45.2").first():
+
+
+
+
+
+
+            entry_1452 = ChangelogEntry(
+
+
+
+
+
+
+                title="YADS v1.45.2: Local Setup Fix",
+
+
+
+
+
+
+                version="1.45.2",
+
+
+
+
+
+
+                content="""
+
+
+
+
+
+
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+
+
+
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+                    <li>Ensured the default database URL in the configuration matches the docker-compose development password to prevent authentication failures after a fresh local install.</li>
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: a3dda88e9831ec7753125ce3b2fb9e22c4d6c5a23493bd8ddd6cd83fd5f1a7a5</p>
+
+
+
+
+
+
+                """
+
+
+
+
+
+
+            )
+
+
+
+
+
+
+            session.add(entry_1452)
+
+
+
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
