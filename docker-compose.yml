@@ -13,7 +13,7 @@ services:
     environment:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      - MFA_ENABLED=false
+      - MFA_ENABLED=${MFA_ENABLED:-true}
       - SETUP_TOKEN=${SETUP_TOKEN:-}
       # Authentication Mode: "local" (default) or "oidc" (Keycloak)
       - AUTH_MODE=${AUTH_MODE:-oidc}

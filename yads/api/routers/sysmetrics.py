@@ -8,14 +8,14 @@ System Metrics & Resource-Check Endpoints
 from typing import Optional
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from yads.api.templating import templates
 
 from yads.auth.deps import get_current_user_html, PlatformAdminChecker
 from yads.models import User
 
 router = APIRouter(prefix="/api/system", tags=["system-metrics"])
+router = APIRouter(prefix="/api/system", tags=["system-metrics"])
 ui_router = APIRouter(tags=["system-ui"])
-templates = Jinja2Templates(directory="yads/api/templates")
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 _RAM_PER_TASK_GB   = 0.5   # conservative estimate: 512 MB per concurrent scan

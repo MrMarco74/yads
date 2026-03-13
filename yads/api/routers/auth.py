@@ -149,7 +149,7 @@ async def login(
     redirect_url = "/"
     if user.force_password_change:
         redirect_url = "/auth/change-password"
-    elif not user.mfa_enabled:
+    elif not user.mfa_enabled and settings.MFA_ENABLED:
         redirect_url = "/mfa/setup"
         
     # Update Last Login
@@ -273,7 +273,7 @@ async def change_password_action(
     session.commit()
 
     # Check if MFA needs setup next
-    if not db_user.mfa_enabled:
+    if not db_user.mfa_enabled and settings.MFA_ENABLED:
         return RedirectResponse(url="/mfa/setup", status_code=303)
 
     return RedirectResponse(url="/?msg=Password+Updated", status_code=303)

@@ -48,7 +48,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
@@ -100,13 +100,14 @@ services:
     image: gitlab.fritz.box:5050/apps/yads/yads:latest
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - WORKER_MODE=primary
     volumes:
       - logs:/app/logs
+      - data:/app/data
       - nuclei_templates:/root/nuclei-templates
     networks:
       - yads-internal
@@ -137,7 +138,7 @@ services:
     image: gitlab.fritz.box:5050/apps/yads/yads:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - MANAGER_URL=http://yads-api:8000
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
@@ -147,6 +148,7 @@ services:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
     volumes:
+      - data:/app/data
       - nuclei_templates:/root/nuclei-templates
     networks:
       - yads-internal
@@ -185,7 +187,7 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-REDACTED}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme_in_env}
       - POSTGRES_DB=yads
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -273,7 +275,7 @@ services:
     image: gitlab.fritz.box:5050/apps/yads/yads:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
-      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-REDACTED}@db:5432/yads
+      - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
     networks:
       - yads-internal
