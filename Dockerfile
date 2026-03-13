@@ -1,107 +1,94 @@
-# -- Stage 1: Build CSS --
+# ── Stage 1: CSS Build ────────────────────────────────────────────────────────
 FROM node:18-alpine AS css-builder
 
 WORKDIR /app
 COPY frontend/package.json frontend/tailwind.config.js ./
-# Create yads directory structure for tailwind content scan
 COPY yads/api/templates ./yads/api/templates
 COPY yads/api/static/css/input.css ./yads/api/static/css/input.css
 
 RUN npm install
 RUN npm run build:css
 
-# -- Stage 2: Base Image (Common Deps) --
-FROM python:3.11-slim AS base
 
-# Install system dependencies
-RUN apt-get clean && apt-get update --fix-missing && apt-get install -y --no-install-recommends \
-    wget \
-    gnupg \
-    nmap \
+# ── Stage 2: Python base — API-only dependencies ──────────────────────────────
+# Lightweight base with only what the API server needs.
+# No scanner tools (Playwright, Nuclei, Nmap) — those live in base-scanner.
+FROM python:3.11-slim AS base-api
+
+ARG YADS_GIT_SHA
+LABEL YADS_GIT_SHA=${YADS_GIT_SHA}
+
+RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     graphviz \
     postgresql-client \
-    unzip \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Nuclei (ProjectDiscovery)
-RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+# ── Stage 3: Scanner-tools layer ──────────────────────────────────────────────
+# Extends base-api with Nuclei, Playwright/Chromium and Nmap.
+# Used by the Celery worker. Rebuilt only when tool versions change.
+FROM base-api AS base-scanner
+
+RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    nmap \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Nuclei (ProjectDiscovery)
+RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \
     && unzip nuclei_3.3.4_linux_amd64.zip \
     && mv nuclei /usr/local/bin/ \
     && rm nuclei_3.3.4_linux_amd64.zip \
     && nuclei -ut
 
-WORKDIR /app
-
-COPY requirements.txt .
-
-# Install Python deps
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright Browsers
+# Playwright / Chromium
 RUN playwright install --with-deps chromium
 
-# -- Stage 3: Development (Source Code) --
-FROM base AS dev
-COPY . .
-# Copy built CSS from builder
+
+# ── Stage 4: API image (production, no scanner tools) ─────────────────────────
+# Small image for the FastAPI server — ~600-800 MB vs 5+ GB previously.
+# Screenshots directory must be provided as a Docker volume at runtime:
+#   volumes: - yads_screenshots:/app/yads/api/static/screenshots
+FROM base-api AS api
+
 COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
-CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-# -- Stage 4: Compilation Builder --
-FROM base AS code-builder
-# Install build tools for Nuitka
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    python3-dev \
-    patchelf \
-    ccache \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install nuitka
-
 COPY . .
 
-# Compile 'yads' package
-# We exclude tests and migration scripts from compilation, keeping them as scripts if needed?
-# Actually migrate_db.py is outside yads/. It needs to be kept as source or compiled separately.
-# For simplicity, we compile the 'yads' package and keep top-level scripts as source.
-RUN python -m nuitka \
-    --module \
-    --include-package=yads \
-    --output-dir=/build \
-    --remove-output \
-    yads
-
-# -- Stage 5: Production (Standard) --
-FROM base AS prod
-# Copy source code directly (skipping Nuitka compilation for reliability)
-COPY . .
-# Copy built CSS (overwrite static/css/main.css)
-COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
-
-# Production Command (No reload)
 CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# -- Stage 6: Release (Compiled) --
-FROM base AS release
-WORKDIR /app
-# Copy compiled application (yads package)
-COPY --from=code-builder /build .
 
+# ── Stage 5: Worker image (production, with scanner tools) ────────────────────
+# Full image for the Celery worker — includes Playwright, Nuclei, Nmap.
+# Only needs to be redeployed when tool versions or Python deps change.
+FROM base-scanner AS worker
 
-# Copy scripts for maintenance and startup
-COPY scripts/maintenance ./scripts/maintenance
-COPY scripts/backup_db.sh ./scripts/backup_db.sh
-COPY scripts/start_worker.py ./scripts/start_worker.py
-
-# Copy templates and static assets (Nuitka excludes them by default)
-COPY yads/api/templates ./yads/api/templates
-COPY yads/api/static ./yads/api/static
-
-# Copy built CSS (overwrite static/css/main.css if it exists in compiled output, ensuring it's fresh)
-# Note: Nuitka might not include non-python resource files unless specified, so we explicitly copy CSS.
 COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+COPY . .
 
-# Production Command
+CMD ["python", "scripts/start_worker.py"]
+
+
+# ── Stage 6: Development (all-in-one, hot-reload) ─────────────────────────────
+FROM base-scanner AS dev
+
+COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+COPY . .
+
+CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+
+# ── Stage 7: Production combined (legacy / single-node fallback) ──────────────
+# Backwards-compatible all-in-one image. Use api+worker split for new deployments.
+FROM base-scanner AS prod
+
+COPY --from=css-builder /app/yads/api/static/css/main.css ./yads/api/static/css/main.css
+COPY . .
+
 CMD ["uvicorn", "yads.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

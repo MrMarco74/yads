@@ -37,3 +37,11 @@ debug.log
 
 # Tests
 tests/results/
+
+# Runtime scan artifacts — must NOT be in git or Docker images
+yads/api/static/screenshots/
+yads/api/static/screenshots_locked/
+
+# Test backups
+tests/*.zip
+tests/*.sql
