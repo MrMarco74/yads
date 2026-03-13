@@ -512,11 +512,13 @@ class GuiTestWorker(QThread):
 class ProdDeployWorker(QThread):
     """Worker thread for PROD deployment"""
 
-    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None):
+    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None, deploy_app: bool = True, deploy_backup: bool = True):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
         self.setup_token = setup_token
+        self.deploy_app = deploy_app
+        self.deploy_backup = deploy_backup
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
@@ -775,77 +777,84 @@ class ProdDeployWorker(QThread):
             # 1. Local Build (with image cache check)
             self.signals.progress_update.emit(3, 100, "Checking image cache...")
             use_cached = False
-            if not self.wipe_reinstall:
+            if not self.wipe_reinstall and self.deploy_app:
                 use_cached = self._check_image_cache()
 
-            if use_cached:
-                self._log("Step 1/8: ⚡ Using cached local image (no source changes detected)", "success")
-                self.signals.progress_update.emit(15, 100, "Using cached image...")
+            if self.deploy_app:
+                if use_cached:
+                    self._log("Step 1/8: ⚡ Using cached local image (no source changes detected)", "success")
+                    self.signals.progress_update.emit(15, 100, "Using cached image...")
+                else:
+                    self._log("Cleaning up old local images before build...", "info")
+                    self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
+                    self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image])
+                    self._run_cmd(["docker", "image", "prune", "-f"])
+
+                    self._log("Step 1/8: Building YADS Docker image locally...", "info")
+                    self.signals.progress_update.emit(5, 100, "Building YADS image...")
+                    if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
+                        return self.signals.operation_finished.emit(False, "Build failed")
+
+                self._log("Tagging image...", "info")
+                if not self._run_cmd(["docker", "tag", "yads:latest", self.registry_image]):
+                    return self.signals.operation_finished.emit(False, "Tagging failed")
             else:
-                self._log("Cleaning up old local images before build...", "info")
-                self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
-                self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image, "yads-backup:latest", self.backup_registry_image])
-                self._run_cmd(["docker", "image", "prune", "-f"])
+                self._log("Step 1/8: Skipping YADS App build as requested.", "warning")
 
-                self._log("Step 1/8: Building YADS Docker image locally...", "info")
-                self.signals.progress_update.emit(5, 100, "Building YADS image...")
-                if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
-                    return self.signals.operation_finished.emit(False, "Build failed")
+            if self.deploy_backup:
+                self._log("Step 2/8: Building backup container image...", "info")
+                self.signals.progress_update.emit(15, 100, "Building backup image...")
+                if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest", "backup/"]):
+                    return self.signals.operation_finished.emit(False, "Backup build failed")
 
-            self._log("Tagging image...", "info")
-            if not self._run_cmd(["docker", "tag", "yads:latest", self.registry_image]):
-                return self.signals.operation_finished.emit(False, "Tagging failed")
-
-            self._log("Step 2/8: Building backup container image...", "info")
-            self.signals.progress_update.emit(15, 100, "Building backup image...")
-            if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest", "backup/"]):
-                return self.signals.operation_finished.emit(False, "Backup build failed")
-
-            if not self._run_cmd(["docker", "tag", "yads-backup:latest", self.backup_registry_image]):
-                return self.signals.operation_finished.emit(False, "Backup tagging failed")
+                if not self._run_cmd(["docker", "tag", "yads-backup:latest", self.backup_registry_image]):
+                    return self.signals.operation_finished.emit(False, "Backup tagging failed")
+            else:
+                self._log("Step 2/8: Skipping Backup build as requested.", "warning")
 
             # 2. Transfer
             self._log("Step 3/8: Compressing images...", "info")
             self.signals.progress_update.emit(25, 100, "Compressing images...")
-            if not self._run_cmd(f"docker save {self.registry_image} | gzip > yads_deploy.tgz", shell=True):
-                return self.signals.operation_finished.emit(False, "Compression failed")
             
-            if not self._run_cmd(f"docker save {self.backup_registry_image} | gzip > yads_backup_deploy.tgz", shell=True):
-                return self.signals.operation_finished.emit(False, "Backup compression failed")
+            archives_to_transfer = []
+            if self.deploy_app:
+                if not self._run_cmd(f"docker save {self.registry_image} | gzip > yads_deploy.tgz", shell=True):
+                    return self.signals.operation_finished.emit(False, "Compression failed")
+                archives_to_transfer.append("yads_deploy.tgz")
+            
+            if self.deploy_backup:
+                if not self._run_cmd(f"docker save {self.backup_registry_image} | gzip > yads_backup_deploy.tgz", shell=True):
+                    return self.signals.operation_finished.emit(False, "Backup compression failed")
+                archives_to_transfer.append("yads_backup_deploy.tgz")
 
-            self._log("Step 4/8: Transferring images to PROD (rsync)...", "info")
-            self.signals.progress_update.emit(40, 100, "Transferring images...")
-            self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
-            # Use rsync for progress reporting
-            rsync_cmd = ["rsync", "--info=progress2", "yads_deploy.tgz", "yads_backup_deploy.tgz", f"{self.remote_host}:{self.remote_deploy_dir}/"]
-            if not self._run_cmd(rsync_cmd, is_rsync=True):
-                self._log("Rsync failed or not found, falling back to scp...", "warning")
-                if not self._run_cmd(["scp", "yads_deploy.tgz", "yads_backup_deploy.tgz", f"{self.remote_host}:{self.remote_deploy_dir}/"]):
-                    return self.signals.operation_finished.emit(False, "Transfer failed")
+            if not archives_to_transfer:
+                self._log("Nothing to transfer (both App and Backup skipped)!", "warning")
+            else:
+                self._log("Step 4/8: Transferring images to PROD (rsync)...", "info")
+                self.signals.progress_update.emit(40, 100, "Transferring images...")
+                self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
+                rsync_cmd = ["rsync", "--info=progress2"] + archives_to_transfer + [f"{self.remote_host}:{self.remote_deploy_dir}/"]
+                if not self._run_cmd(rsync_cmd, is_rsync=True):
+                    self._log("Rsync failed or not found, falling back to scp...", "warning")
+                    scp_cmd = ["scp"] + archives_to_transfer + [f"{self.remote_host}:{self.remote_deploy_dir}/"]
+                    if not self._run_cmd(scp_cmd):
+                        return self.signals.operation_finished.emit(False, "Transfer failed")
 
-            # 3. Load — pre-flight: ensure enough disk space on remote (need ~20GB for image extraction)
-            self._log("Step 5/8: Loading images on remote host (combined session)...", "info")
-            self.signals.progress_update.emit(80, 100, "Loading images on remote...")
-            disk_check = subprocess.run(
-                self._inject_ssh_opts(["ssh", self.remote_host,
-                    "df --output=avail -BG / | tail -1 | tr -d 'G '"]),
-                capture_output=True, text=True
-            )
-            try:
-                avail_gb = int(disk_check.stdout.strip())
-                self._log(f"Remote disk free: {avail_gb}GB", "info")
-                if avail_gb < 15:
-                    self._log(f"⚠️  Only {avail_gb}GB free — pruning unused Docker images first...", "warning")
-                    self._run_cmd(["ssh", self.remote_host, "docker image prune -af"])
-            except (ValueError, TypeError):
-                self._log("Could not determine remote disk space, proceeding anyway.", "warning")
-            # Suppress per-layer output (can be hundreds of lines) — only show final summary
-            load_cmd = (
-                f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)' && "
-                f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'"
-            )
-            if not self._run_cmd(["ssh", self.remote_host, load_cmd]):
-                return self.signals.operation_finished.emit(False, "Remote docker load failed")
+            # 3. Load
+            if archives_to_transfer:
+                self._log("Step 5/8: Loading images on remote host...", "info")
+                self.signals.progress_update.emit(80, 100, "Loading images on remote...")
+                
+                load_cmds = []
+                if "yads_deploy.tgz" in archives_to_transfer:
+                    load_cmds.append(f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'")
+                if "yads_backup_deploy.tgz" in archives_to_transfer:
+                    load_cmds.append(f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'")
+                
+                if not self._run_cmd(["ssh", self.remote_host, " && ".join(load_cmds)]):
+                    return self.signals.operation_finished.emit(False, "Remote docker load failed")
+            else:
+                self._log("Step 5/8: Skipping image load (nothing transferred).", "warning")
 
             # 4. Config
             self._log("Step 6/8: Transferring configuration...", "info")
@@ -877,8 +886,16 @@ class ProdDeployWorker(QThread):
             if not self.wipe_reinstall:
                 self._log("Forcing service updates...", "info")
                 for service in self.services_to_update:
-                    img = self.backup_registry_image if "backup" in service else self.registry_image
-                    combined_deploy_cmd.append(f"docker service update --force --image {img} {service}")
+                    if "backup" in service:
+                        if self.deploy_backup:
+                            combined_deploy_cmd.append(f"docker service update --force --image {self.backup_registry_image} {service}")
+                        else:
+                            self._log(f"Skipping update for {service} (Backup skipped)", "info")
+                    else:
+                        if self.deploy_app:
+                            combined_deploy_cmd.append(f"docker service update --force --image {self.registry_image} {service}")
+                        else:
+                            self._log(f"Skipping update for {service} (App skipped)", "info")
                 
             full_remote_cmd = " && ".join(combined_deploy_cmd)
             
@@ -975,6 +992,21 @@ class ProdDeployPage(QWidget):
         self.wipe_check.setToolTip("WARNING: This will destroy all production data and database!")
         self.wipe_check.stateChanged.connect(self._on_wipe_toggled)
         layout.addWidget(self.wipe_check)
+
+        # Component selection
+        selection_group = QHBoxLayout()
+        selection_group.setSpacing(20)
+        
+        self.deploy_app_check = CheckBox("Deploy YADS App (API & Worker)", self)
+        self.deploy_app_check.setChecked(True)
+        selection_group.addWidget(self.deploy_app_check)
+        
+        self.deploy_backup_check = CheckBox("Deploy Backup Service", self)
+        self.deploy_backup_check.setChecked(True)
+        selection_group.addWidget(self.deploy_backup_check)
+        
+        selection_group.addStretch()
+        layout.addLayout(selection_group)
 
         # Action Card
         action_card = CardWidget(self)
@@ -1129,7 +1161,13 @@ class ProdDeployPage(QWidget):
         self.log_view.clear()
 
         # Store a reference to avoid early garbage collection
-        self._active_worker = ProdDeployWorker(script_dir.parent, wipe_reinstall=self.wipe_check.isChecked(), setup_token=setup_token)
+        self._active_worker = ProdDeployWorker(
+            script_dir.parent, 
+            wipe_reinstall=self.wipe_check.isChecked(), 
+            setup_token=setup_token,
+            deploy_app=self.deploy_app_check.isChecked(),
+            deploy_backup=self.deploy_backup_check.isChecked()
+        )
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.signals.progress_update.connect(self._on_progress)
