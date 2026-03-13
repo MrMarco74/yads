@@ -24,6 +24,18 @@ class GuiTestRunner:
         self.logs = []
         self.failures = []
         self.visited_urls = set()
+        self.version = self._load_version()
+
+    def _load_version(self):
+        """Loads version from releases/version.json"""
+        v_file = Path(__file__).parent.parent / "releases" / "version.json"
+        if v_file.exists():
+            try:
+                data = json.loads(v_file.read_text())
+                return data.get("version", "Unknown")
+            except Exception:
+                pass
+        return "Unknown"
 
     async def ensure_dana_running(self):
         """Ensure the Dana test environment is up and running. Skip if in container."""
@@ -72,9 +84,35 @@ class GuiTestRunner:
             if "error" in line_str.lower() or "exception" in line_str.lower():
                 print(f"Detected potential error in Dana logs: {line_str}")
 
+    async def wait_for_url(self, timeout=30):
+        """Wait for the target URL to be accessible."""
+        import urllib.request
+        import time
+        start_time = time.time()
+        print(f"Waiting for {self.target_url} to be ready...")
+        while time.time() - start_time < timeout:
+            try:
+                # Run in thread to not block event loop
+                def check():
+                    with urllib.request.urlopen(self.target_url, timeout=2.0) as response:
+                        return response.getcode() < 500
+                
+                if await asyncio.to_thread(check):
+                    print("Target URL is up!")
+                    return True
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+        print(f"Timeout waiting for {self.target_url}")
+        return False
+
     async def run_tests(self):
         if not await self.ensure_dana_running():
             print("Aborting tests due to environment failure.")
+            return
+
+        if not await self.wait_for_url():
+            print("Aborting tests: target URL still not reachable.")
             return
 
         print(f"Starting GUI tests on {self.target_url}")
@@ -110,7 +148,7 @@ class GuiTestRunner:
                 # 2. Extract Sidebar Links
                 try:
                     await page.wait_for_selector("aside", timeout=10000)
-                except:
+                except Exception:
                     print("Warning: Sidebar (aside) not found within timeout.")
                 
                 await page.screenshot(path="static/screenshots/debug_dashboard.png")
@@ -217,14 +255,32 @@ class GuiTestRunner:
         print(f"FAILURE: {title} - {message}")
 
     def generate_report(self):
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        report_file = self.results_dir / f"test_result_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+        timestamp_now = datetime.datetime.now()
+        timestamp = timestamp_now.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp_str = timestamp_now.strftime("%Y%m%d_%H%M%S")
+        report_file = self.results_dir / f"test_result_{timestamp_str}.md"
         
         with open(report_file, "w") as f:
             f.write(f"# YADS GUI Test Report - {timestamp}\n\n")
             f.write(f"- **Target:** {self.target_url}\n")
+            f.write(f"- **YADS Version:** {self.version}\n")
             f.write(f"- **Tests Run:** {len(self.visited_urls)}\n")
             f.write(f"- **Failures:** {len(self.failures)}\n\n")
+            
+            # --- Component List ---
+            f.write("## Tested Components\n\n")
+            for url in sorted(list(self.visited_urls)):
+                # Skip the base URL itself in the list
+                if url == self.target_url or url == f"{self.target_url}/":
+                    continue
+                path = url.replace(self.target_url, "")
+                if not path: path = "/"
+                
+                # Check for failure on this URL
+                failed = any(f["url"] == url for f in self.failures)
+                status = "❌" if failed else "✅"
+                f.write(f"- {status} `{path}`\n")
+            f.write("\n")
             
             if self.failures:
                 f.write("## Failures\n\n")

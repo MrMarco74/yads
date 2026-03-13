@@ -1169,8 +1169,6 @@ class ProdDeployPage(QWidget):
         )
         if self.wipe_check.isChecked():
             msg += "\n🛑 WARNING: NEUINSTALLATION selected!\nTHIS WILL DESTROY ALL DATA ON THE REMOTE HOST!\n- PostgreSQL database\n- Redis data\n- Logs and config\n\n"
-        else:
-            msg += "No data will be wiped.\n\n"
         msg += "Proceed?"
 
         box = MessageBox("Confirm Production Deployment", msg, self)
@@ -4158,6 +4156,57 @@ class TestManagerPage(QWidget):
             InfoBar.error("Tests failed", msg, parent=self,
                           position=InfoBarPosition.TOP, duration=8000)
 
+def _get_latest_gui_test_report_info():
+    """Finds and parses the newest GUI test report from tests/results/"""
+    results_dir = Path(__file__).parent.parent / "tests" / "results"
+    if not results_dir.exists():
+        return None
+    
+    reports = list(results_dir.glob("test_result_*.md"))
+    if not reports:
+        return None
+    
+    # Sort by filename (contains timestamp)
+    latest_report = sorted(reports)[-1]
+    
+    try:
+        content = latest_report.read_text()
+        
+        ts_match = re.search(r'YADS GUI Test Report - ([\d\- :]+)', content)
+        ver_match = re.search(r'\*\*YADS Version:\*\* ([\d.]+)', content)
+        run_match = re.search(r'\*\*Tests Run:\*\* (\d+)', content)
+        fail_match = re.search(r'\*\*Failures:\*\* (\d+)', content)
+        
+        timestamp = ts_match.group(1) if ts_match else "Unknown"
+        version = ver_match.group(1) if ver_match else "Unknown"
+        tests_run = int(run_match.group(1)) if run_match else 0
+        failures = int(fail_match.group(1)) if fail_match else 0
+        
+        # Parse components
+        components = []
+        comp_section = re.search(r'## Tested Components\n\n(.*?)(?:\n\n|\n✅|\Z)', content, re.DOTALL)
+        if comp_section:
+            comp_lines = comp_section.group(1).strip().split('\n')
+            for line in comp_lines:
+                # - ✅ `/dashboard`
+                line_match = re.search(r'- ([✅❌]) `(.*?)`', line)
+                if line_match:
+                    status_icon = line_match.group(1)
+                    path = line_match.group(2)
+                    components.append({"path": path, "status": status_icon})
+        
+        return {
+            "timestamp": timestamp,
+            "version": version,
+            "tests_run": tests_run,
+            "failures": failures,
+            "components": components,
+            "path": latest_report
+        }
+    except Exception as e:
+        print(f"Error parsing report {latest_report}: {e}")
+        return None
+
 
 class GuiTestsPage(QWidget):
     """Page for running and monitoring GUI tests"""
@@ -4166,8 +4215,7 @@ class GuiTestsPage(QWidget):
         super().__init__(parent)
         self.setObjectName("guiTestsPage")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(36, 20, 36, 20)
-        layout.setSpacing(20)
+        layout.setSpacing(10)
 
         # Header
         header = QHBoxLayout()
@@ -4175,9 +4223,39 @@ class GuiTestsPage(QWidget):
         header.addStretch()
         layout.addLayout(header)
 
+        # Info
         layout.addWidget(BodyLabel(
             "Führt umfangreiche Tests aller GUI-Funktionen auf Dana durch und prüft parallel die System-Logs.", self
         ))
+
+        # --- Recent Result Card ---
+        self.result_card = CardWidget(self)
+        self.result_card.setVisible(False)
+        res_layout = QVBoxLayout(self.result_card)
+        
+        self.res_title = SubtitleLabel("Letztes Testergebnis", self.result_card)
+        res_layout.addWidget(self.res_title)
+        
+        self.res_details = BodyLabel("", self.result_card)
+        res_layout.addWidget(self.res_details)
+        
+        layout.addWidget(self.result_card)
+        
+        # --- Detailed Test List ---
+        self.tests_label = StrongBodyLabel("Getestete Komponenten:", self)
+        self.tests_label.setVisible(False)
+        layout.addWidget(self.tests_label)
+        
+        self.tests_scroll = SmoothScrollArea(self)
+        self.tests_scroll.setWidgetResizable(True)
+        self.tests_scroll.setVisible(False)
+        self.tests_container = QWidget()
+        self.tests_layout = QVBoxLayout(self.tests_container)
+        self.tests_layout.setContentsMargins(0, 0, 0, 0)
+        self.tests_layout.setSpacing(4)
+        self.tests_scroll.setWidget(self.tests_container)
+        layout.addWidget(self.tests_scroll)
+        # -------------------------
 
         # Controls Card
         ctrl_card = CardWidget(self)
@@ -4223,6 +4301,92 @@ class GuiTestsPage(QWidget):
         layout.addWidget(self.log_view)
 
         self._worker = None
+        self._update_result_card()
+
+    def _update_result_card(self):
+        """Updates the recent result card from the latest report file"""
+        info = _get_latest_gui_test_report_info()
+        if not info:
+            self.result_card.setVisible(False)
+            self.tests_label.setVisible(False)
+            self.tests_scroll.setVisible(False)
+            return
+
+        self.result_card.setVisible(True)
+        
+        # Determine status
+        if info["failures"] == 0:
+            status = "✅ BESTANDEN"
+            color = "#4ec9b0" if isDarkTheme() else "#107c10"
+        else:
+            status = f"❌ FEHLGESCHLAGEN ({info['failures']} Fehler)"
+            color = "#f14c4c" if isDarkTheme() else "#d13438"
+            
+        self.res_title.setText(status)
+        self.res_title.setStyleSheet(f"color: {color};")
+        
+        details = (
+            f"Version:   v{info['version']}\n"
+            f"Zeitpunkt: {info['timestamp']}\n"
+            f"Umfang:    {info['tests_run']} Interaktionen"
+        )
+        self.res_details.setText(details)
+
+        # Update detailed list
+        self.tests_label.setVisible(True)
+        self.tests_scroll.setVisible(True)
+        
+        # Clear old items
+        while self.tests_layout.count():
+            item = self.tests_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        if not info["components"]:
+            self.tests_layout.addWidget(BodyLabel("Keine Komponenten-Info verfügbar.", self.tests_container))
+        else:
+            # Component mapping for human readable names
+            MAPPING = {
+                "/": "Dashboard (Übersicht)",
+                "/workers": "Scan-Worker & Nodes",
+                "/scan-profiles": "Scan-Profile",
+                "/targets": "Angriffsfläche & Ziele",
+                "/tenants": "Mandanten-Verwaltung",
+                "/settings": "System-Einstellungen",
+                "/logs": "Audit-Logs",
+                "/reports": "Berichte & Compliance",
+                "/portfolio": "Portfolio-Management",
+                "/profile": "Benutzerprofil",
+                "/developer": "Entwickler-Portal",
+                "/integrations": "Integrationen (Jira/GitHub)",
+                "/tags": "Asset-Tagging",
+                "/notifications/admin": "Admin-Benachrichtigungen",
+                "/storage": "Backup & Storage"
+            }
+
+            for comp in info["components"]:
+                row = QFrame(self.tests_container)
+                row.setStyleSheet("QFrame { background-color: rgba(0,0,0,5); border-radius: 4px; }")
+                row_layout = QHBoxLayout(row)
+                row_layout.setContentsMargins(10, 5, 10, 5)
+                
+                status_lbl = BodyLabel(comp["status"], row)
+                status_lbl.setFixedWidth(30)
+                row_layout.addWidget(status_lbl)
+                
+                path = comp["path"]
+                name = MAPPING.get(path, path)
+                name_lbl = BodyLabel(f"<b>{name}</b>", row)
+                name_lbl.setFixedWidth(200)
+                row_layout.addWidget(name_lbl)
+                
+                path_lbl = BodyLabel(f"<span style='color: gray;'>{path}</span>", row)
+                row_layout.addWidget(path_lbl)
+                
+                row_layout.addStretch()
+                
+                self.tests_layout.addWidget(row)
+            self.tests_layout.addStretch()
 
     def _log(self, msg: str, level: str = "info"):
         _insert_log_line(self.log_view, msg, level)
@@ -4248,6 +4412,7 @@ class GuiTestsPage(QWidget):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self._worker = None
+        self._update_result_card()
         if ok:
             InfoBar.success("Erfolg", msg, parent=self, duration=5000)
         else:
@@ -4364,7 +4529,6 @@ class DevCredsPage(SmoothScrollArea):
                 elif user:
                     user_lbl = BodyLabel(user, card)
                     row.addWidget(user_lbl)
-
                 if password:
                     row.addStretch()
                     pw_lbl = BodyLabel("●●●●●●●●", card)

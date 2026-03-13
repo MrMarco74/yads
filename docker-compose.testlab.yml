@@ -80,6 +80,8 @@ services:
     networks:
       yads-testlab:
         ipv4_address: 172.30.0.250
+    ports:
+      - "8085:8085"
 
 
   # ── DNS (CoreDNS) — AXFR enabled, subdomain takeover CNAME ─────────────────
@@ -220,5 +222,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app
     entrypoint: ["sh", "-c", "apt-get update && apt-get install -y docker.io && pip install playwright==1.39.0 && tail -f /dev/null"]
+    extra_hosts:
+      - "dana:172.30.0.250"
     networks:
       - yads-testlab
