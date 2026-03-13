@@ -128,15 +128,19 @@
         <!-- Capabilities Section -->
         <div>
             <label class="block text-sm font-medium text-slate-300 mb-2">Capabilities</label>
-            <p class="text-xs text-slate-500 mb-3">Select scan types this worker can handle. "All" means all scan types.</p>
+            <p class="text-xs text-slate-500 mb-3">Select scan types this worker can handle. "All" means all scan types + discovery queue.</p>
             <div class="grid grid-cols-3 gap-2" x-data="{ capabilities: {{ worker.capabilities|tojson }} }">
-                {% set all_capabilities = ['all', 'dns_scanner', 'ssl_scanner', 'web_analyzer', 'nuclei_scanner', 'crawler', 'visual_osint', 'nmap_scanner', 'cloud_scanner', 'typosquat_scanner', 'seed_files_scanner', 'csp_scanner'] %}
+                {% set all_capabilities = ['all', 'dns_scanner', 'ssl_scanner', 'web_analyzer', 'nuclei_scanner', 'crawler', 'visual_osint', 'nmap_scanner', 'cloud_scanner', 'typosquat_scanner', 'seed_files_scanner', 'csp_scanner', 'discovery'] %}
                 {% for cap in all_capabilities %}
-                <label class="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors">
+                <label class="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors
+                              {% if cap == 'discovery' %}bg-blue-900/30 hover:bg-blue-900/50 border border-blue-800/50{% else %}bg-slate-800/50 hover:bg-slate-800{% endif %}">
                     <input type="checkbox" name="capabilities" value="{{ cap }}"
                            {% if cap in worker.capabilities %}checked{% endif %}
                            class="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500">
-                    <span class="text-sm text-slate-300">{{ cap.replace('_', ' ').title() }}</span>
+                    <span class="text-sm {% if cap == 'discovery' %}text-blue-300 font-medium{% else %}text-slate-300{% endif %}">
+                        {{ cap.replace('_', ' ').title() }}
+                        {% if cap == 'discovery' %}<span class="text-[9px] text-blue-500 block leading-tight">dedicated queue</span>{% endif %}
+                    </span>
                 </label>
                 {% endfor %}
             </div>

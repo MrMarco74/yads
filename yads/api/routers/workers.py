@@ -45,6 +45,17 @@ def get_all_tenants():
 
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
+# ── Known worker capabilities / queues ────────────────────────────────────────
+# Each entry: (capability_key, label, description, celery_queue)
+KNOWN_CAPABILITIES = [
+    ("all",            "All Tasks",        "Handle every task type (standard scans + discovery)", "celery,discovery"),
+    ("scanning",       "Standard Scans",   "DNS, SSL, web, nuclei, OSINT — regular scan queue",   "celery"),
+    ("discovery",      "Recursive Discovery", "Dedicated discovery-session worker only",           "discovery"),
+]
+
+# Expose to templates
+templates.env.globals['KNOWN_CAPABILITIES'] = KNOWN_CAPABILITIES
+
 
 # =============================================================================
 # Pydantic Models for Request/Response

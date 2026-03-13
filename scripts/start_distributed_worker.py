@@ -155,15 +155,40 @@ def register_with_manager():
     return client
 
 
+def _capabilities_to_queues(capabilities: list) -> str:
+    """
+    Map WORKER_CAPABILITIES to Celery queue list.
+
+    Recognised capability → queue mappings:
+      all        → celery,discovery  (handle everything)
+      discovery  → discovery         (dedicated discovery worker)
+      (anything else) → celery       (standard scan worker, no discovery)
+
+    Callers can also set WORKER_QUEUES directly to override this logic.
+    """
+    if "WORKER_QUEUES" in os.environ:
+        return os.environ["WORKER_QUEUES"]
+
+    queues = {"celery"}  # always include the default scan queue
+    if "all" in capabilities or "discovery" in capabilities:
+        queues.add("discovery")
+
+    return ",".join(sorted(queues))
+
+
 def start_celery_worker():
     """Start the Celery worker process."""
-    from celery import Celery
     from yads.worker import celery_app
 
     # Get concurrency from environment
     concurrency = int(os.getenv("WORKER_MAX_TASKS", 4))
 
-    logger.info(f"Starting Celery worker with concurrency={concurrency}")
+    # Derive queue list from capabilities
+    capabilities_str = os.getenv("WORKER_CAPABILITIES", "all")
+    capabilities = [c.strip() for c in capabilities_str.split(",")]
+    queues = _capabilities_to_queues(capabilities)
+
+    logger.info(f"Starting Celery worker with concurrency={concurrency}, queues={queues}")
 
     # Run worker in current process
     celery_app.worker_main([
@@ -171,6 +196,7 @@ def start_celery_worker():
         f"--concurrency={concurrency}",
         "--loglevel=INFO",
         "--hostname=distributed-worker@%h",
+        "-Q", queues,
         "--without-gossip",
         "--without-mingle",
         "--without-heartbeat"

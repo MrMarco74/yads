@@ -25,6 +25,19 @@ celery_app.conf.task_time_limit = 3600       # hard kill after 60 min
 celery_app.conf.task_soft_time_limit = 3480  # soft signal after 58 min (allows graceful cleanup)
 celery_app.conf.timezone = 'UTC'
 
+# ── Queue routing ─────────────────────────────────────────────────────────────
+# Tasks on the 'discovery' queue are only consumed by workers that explicitly
+# listen to it (via -Q celery,discovery).  Standard scan tasks stay on 'celery'.
+from kombu import Queue as _Queue
+celery_app.conf.task_queues = (
+    _Queue("celery"),
+    _Queue("discovery"),
+)
+celery_app.conf.task_routes = {
+    "yads.worker.run_discovery_scan":      {"queue": "discovery"},
+    "yads.worker.start_discovery_session": {"queue": "discovery"},
+}
+
 # Beat schedule — tasks registered in worker_tasks.py
 celery_app.conf.beat_schedule = {
     'daily-security-trends': {
