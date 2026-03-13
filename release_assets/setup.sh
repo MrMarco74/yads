@@ -41,6 +41,22 @@ command -v openssl &>/dev/null  || die "openssl is not installed."
 echo -e "${GREEN}✓ Dependencies OK${NC}"
 echo ""
 
+# ── 1b. Registry Login ────────────────────────────────────────────────────────
+echo -e "${YELLOW}[1b] Authenticating with YADS Container Registry...${NC}"
+echo "  Your registry token was included in your license delivery email."
+echo "  Contact support@yads-security.com if you haven't received it."
+ask REGISTRY_TOKEN "Registry token" ""
+if [ -z "$REGISTRY_TOKEN" ]; then
+    echo -e "  ${YELLOW}⚠ No token entered — skipping registry login.${NC}"
+    echo -e "  ${YELLOW}  You must manually run: docker login registry.yads-security.com${NC}"
+    echo -e "  ${YELLOW}  before starting YADS, otherwise images cannot be pulled.${NC}"
+else
+    echo "$REGISTRY_TOKEN" | docker login registry.yads-security.com -u yads-readonly --password-stdin \
+        && echo -e "  ${GREEN}✓ Registry authenticated successfully${NC}" \
+        || { echo -e "  ${RED}✗ Registry login failed — check your token.${NC}"; exit 1; }
+fi
+echo ""
+
 # ── 2. Docker Host ────────────────────────────────────────────────────────────
 echo -e "${YELLOW}[2/8] Docker Host Configuration${NC}"
 echo "  1) Local Machine (localhost)"
@@ -113,6 +129,9 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # --- Security ---
 SECRET_KEY=${SECRET_KEY}
+
+# --- Registry ---
+YADS_VERSION=latest
 
 # --- Network ---
 API_PORT=${API_PORT}

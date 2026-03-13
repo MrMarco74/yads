@@ -53,7 +53,7 @@
         <div class="glass-card support-section" id="download" style="border-left: 4px solid #10b981;">
             <h2 style="margin-top: 0; color: #fff;">1. Release Download</h2>
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
-                Laden Sie das Release-Paket herunter. Es enthält alle Docker-Images, Konfigurationsvorlagen und Dokumentationen für die Offline-Installation.
+                Laden Sie das Setup-Paket herunter. Es enthält Konfigurationsvorlagen, Setup-Skripte und Dokumentation. Docker-Images werden während der Einrichtung automatisch aus der YADS Container Registry geladen.
             </p>
 
             <!-- Release Channels Grid -->
@@ -122,19 +122,18 @@
                 <li>Lizenzschlüssel (wurde Ihnen per E-Mail zugesendet)</li>
             </ul>
 
-            <h3 style="margin-top: 2rem;">Schritt 1: Images laden</h3>
-            <p>Entpacken Sie das ZIP-Archiv und laden Sie die Docker-Images:</p>
+            <h3 style="margin-top: 2rem;">Schritt 1: Setup-Skript ausführen</h3>
+            <p>Entpacken Sie das ZIP-Archiv und führen Sie das interaktive Setup-Skript aus. Es authentifiziert sich bei der YADS Container Registry und konfiguriert Ihre Umgebung:</p>
             <div class="code-block">
-docker load < yads-images.tar.gz
+unzip yads_v*_customer_pkg.zip
+cd yads_v*_customer_pkg
+chmod +x setup.sh
+./setup.sh
             </div>
-            <p>Überprüfung:</p>
-            <div class="code-block">
-docker images | grep yads
-# Sollte yads-api und yads-worker listen
-            </div>
+            <p>Das Setup-Skript fragt nach Ihrem <strong>Registry-Token</strong> (in Ihrer Lizenz-E-Mail enthalten) und lädt die Docker-Images automatisch von <code>registry.yads-security.com</code>.</p>
 
             <h3 style="margin-top: 2rem;">Schritt 2: Starten</h3>
-            <p>Wechseln Sie in das Verzeichnis und starten Sie den Stack:</p>
+            <p>Nach Abschluss von setup.sh starten Sie den Stack:</p>
             <div class="code-block">
 docker compose up -d
             </div>
