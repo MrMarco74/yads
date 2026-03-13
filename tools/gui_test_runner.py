@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -u passed by caller for unbuffered output
 """
 YADS GUI Test Runner
 Exhaustive GUI testing with parallel system log monitoring.
@@ -13,6 +14,12 @@ import json
 import subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright
+
+# Force unbuffered output so the GUI log sees lines in real-time
+def _p(msg: str, level: str = ""):
+    """Print with immediate flush."""
+    prefix = {"error": "❌ ", "warning": "⚠️  ", "ok": "✅ ", "step": "▶ "}.get(level, "")
+    print(f"{prefix}{msg}", flush=True)
 
 class GuiTestRunner:
     def __init__(self, target_url, dana_host="dana", dana_user="root"):
@@ -84,10 +91,10 @@ class GuiTestRunner:
         
         _, stderr = await process.communicate()
         if process.returncode == 0:
-            print("Environment is running.")
+            _p("Environment is running.", "ok")
             return True
         else:
-            print(f"Error starting environment: {stderr.decode()}")
+            _p(f"Error starting environment: {stderr.decode()}", "error")
             return False
 
     async def monitor_logs(self, stop_event):
@@ -107,28 +114,32 @@ class GuiTestRunner:
             line_str = line.decode().strip()
             self.logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] DANA: {line_str}")
             if "error" in line_str.lower() or "exception" in line_str.lower():
-                print(f"Detected potential error in Dana logs: {line_str}")
+                _p(f"DANA log: {line_str}", "warning")
 
     async def wait_for_url(self, timeout=120):
         """Wait for the target URL to be accessible."""
         import urllib.request
         import time
         start_time = time.time()
-        print(f"Waiting for {self.target_url} to be ready...")
+        _p(f"Waiting for {self.target_url} to be ready (timeout {timeout}s)...", "step")
+        last_dot = 0
         while time.time() - start_time < timeout:
             try:
-                # Run in thread to not block event loop
                 def check():
                     with urllib.request.urlopen(self.target_url, timeout=2.0) as response:
                         return response.getcode() < 500
-                
+
                 if await asyncio.to_thread(check):
-                    print("Target URL is up!")
+                    _p(f"Target URL is up! ({int(time.time()-start_time)}s)", "ok")
                     return True
             except Exception:
                 pass
+            elapsed = int(time.time() - start_time)
+            if elapsed - last_dot >= 10:
+                _p(f"  Still waiting for API... ({elapsed}s elapsed)", "")
+                last_dot = elapsed
             await asyncio.sleep(1)
-        print(f"Timeout waiting for {self.target_url}")
+        _p(f"Timeout after {timeout}s waiting for {self.target_url}", "error")
         return False
 
     async def login_step(self, page) -> bool:
@@ -137,17 +148,18 @@ class GuiTestRunner:
         Returns True if login succeeded, False otherwise.
         All subsequent tests must be aborted when this returns False.
         """
-        print("PRE-STEP: Login...")
+        _p("PRE-STEP: Login", "step")
         try:
+            _p(f"  Navigating to {self.target_url} ...")
             await page.goto(self.target_url)
             await page.wait_for_load_state("networkidle")
 
-            # If not redirected to login, we might already be logged in
             if "login" not in page.url.lower() and not await page.query_selector('input[name="username"]'):
                 await self.capture_screenshot(page, "login_skipped_already_authenticated")
-                print("  Already authenticated — skipping login.")
+                _p("  Already authenticated — skipping login.", "ok")
                 return True
 
+            _p("  Login form found — filling credentials...")
             await self.capture_screenshot(page, "login_page_empty")
             await page.fill('input[name="username"]', "admin")
             await page.fill('input[name="password"]', "admin")
@@ -155,19 +167,19 @@ class GuiTestRunner:
             await page.click('button[type="submit"]')
             await page.wait_for_load_state("networkidle")
 
-            # Handle force-password-change screen
             if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
-                print("  Force password change detected — updating...")
+                _p("  Force password change detected — updating...", "warning")
                 await self.capture_screenshot(page, "force_password_change")
                 await page.fill("input[name='new_password']", "adminAdmin123!")
                 await page.fill("input[name='confirm_password']", "adminAdmin123!")
                 await page.click("button[type='submit']")
                 await page.wait_for_load_state("networkidle")
+                _p("  Password changed.", "ok")
 
             await self.capture_screenshot(page, "after_login")
 
             if "login" in page.url.lower():
-                print("CRITICAL: Login failed — still on login page.")
+                _p("CRITICAL: Login failed — still on login page.", "error")
                 await self.record_failure(
                     "Login Pre-Step Failed",
                     "Still on login page after credentials submission. All tests aborted.",
@@ -175,24 +187,26 @@ class GuiTestRunner:
                 )
                 return False
 
-            print("  Login successful.")
+            _p(f"  Login successful. Current URL: {page.url}", "ok")
             return True
 
         except Exception as e:
-            print(f"CRITICAL: Login pre-step raised exception: {e}")
+            _p(f"CRITICAL: Login pre-step raised exception: {e}", "error")
             await self.record_failure("Login Pre-Step Exception", str(e), page)
             return False
 
     async def run_tests(self):
+        _p(f"YADS GUI Test Runner v{self.version} — target: {self.target_url}", "step")
+
         if not await self.ensure_dana_running():
-            print("Aborting tests due to environment failure.")
+            _p("Aborting tests due to environment failure.", "error")
             return
 
         if not await self.wait_for_url():
-            print("Aborting tests: target URL still not reachable.")
+            _p("Aborting tests: target URL still not reachable.", "error")
             return
 
-        print(f"Starting GUI tests on {self.target_url}")
+        _p(f"Starting GUI tests on {self.target_url}", "step")
         stop_event = asyncio.Event()
         log_task = asyncio.create_task(self.monitor_logs(stop_event))
 
@@ -204,7 +218,7 @@ class GuiTestRunner:
             try:
                 # PRE-STEP: Login — abort everything if this fails
                 if not await self.login_step(page):
-                    print("Aborting all GUI tests: login pre-step failed.")
+                    _p("Aborting all GUI tests: login pre-step failed.", "error")
                     self.generate_report()
                     stop_event.set()
                     await browser.close()
@@ -213,27 +227,36 @@ class GuiTestRunner:
 
                 # 2. Extract Sidebar Links
                 try:
+                    _p("Scanning sidebar for navigation links...", "step")
                     await page.wait_for_selector("aside", timeout=10000)
                     sidebar_links = await self.get_sidebar_links(page)
-                    print(f"Discovered {len(sidebar_links)} sidebar sections.")
+                    _p(f"Found {len(sidebar_links)} pages to test.", "ok")
                 except Exception:
-                    print("CRITICAL: Sidebar (aside) not found within timeout.")
+                    _p("CRITICAL: Sidebar (aside) not found within timeout — using fallback URLs.", "error")
                     await self.record_failure("Missing Sidebar", "Sidebar (aside) not found after login. Verification of dashboard failed.", page)
-                    # Use fallback links so the report isn't empty
                     sidebar_links = [self.target_url.rstrip("/") + path for path in self.fallback_urls]
-                    print(f"Using {len(sidebar_links)} fallback sidebar sections for testing.")
-                
+                    _p(f"Using {len(sidebar_links)} fallback URLs.", "warning")
+
+                total = len(sidebar_links)
                 # 3. Iterate through Sidebar sections
-                for link in sidebar_links:
+                for idx, link in enumerate(sidebar_links, 1):
+                    _p(f"[{idx}/{total}] Testing: {link.replace(self.target_url, '') or '/'}")
                     await self.test_page(page, link)
 
             except Exception as e:
+                _p(f"Global runner error: {e}", "error")
                 await self.record_failure("Global Runner Error", str(e), page)
             finally:
                 stop_event.set()
                 await browser.close()
                 await log_task
 
+        failures = len(self.failures)
+        passed = len(self.visited_urls)
+        if failures == 0:
+            _p(f"All {passed} pages passed — no failures.", "ok")
+        else:
+            _p(f"{passed} pages tested — {failures} failure(s).", "error")
         self.generate_report()
 
     async def get_sidebar_links(self, page):
@@ -326,7 +349,7 @@ class GuiTestRunner:
                 self._write_logs_and_prompt(f)
             else:
                 f.write("✅ All tests passed successfully.\n")
-        print(f"Report generated: {report_file}")
+        _p(f"Report generated: {report_file}", "ok")
 
     async def test_page(self, page, url):
         """Test a specific page including basic interactions."""
@@ -335,30 +358,29 @@ class GuiTestRunner:
         self.visited_urls.add(url)
         
         try:
-            print(f"Testing Page: {url}")
             await page.goto(url)
             await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(1) # Wait for HTMX/Alpine transitions
-            
-            # Capture per-page screenshot
+            await asyncio.sleep(1)
+
             page_name = url.split("/")[-1] or "dashboard"
             await self.capture_screenshot(page, f"page_{page_name}")
-            
-            # Check for errors
+
             content = await page.content()
             if "Internal Server Error" in content or "500" in page.url:
+                _p(f"  ❌ HTTP 500 on {url}", "error")
                 await self.record_failure(f"HTTP 500 on {url}", "Server returned error", page)
                 return
-            
-            # Check if redirected to login
+
             if "/login" in page.url:
+                _p(f"  ❌ Session lost — redirected to login on {url}", "error")
                 await self.record_failure(f"Auth Refused: {url}", "Redirected to login page. Session might be invalid.", page)
                 return
 
-            # Perform common interactions
+            _p(f"  ✅ OK", "ok")
             await self.interact_with_page(page, url)
 
         except Exception as e:
+            _p(f"  ❌ Exception on {url}: {e}", "error")
             await self.record_failure(f"Navigation/Interaction Error: {url}", str(e), page)
 
     async def interact_with_page(self, page, url):
@@ -406,7 +428,7 @@ class GuiTestRunner:
             "timestamp": timestamp,
             "screenshot": str(screenshot_path)
         })
-        print(f"FAILURE: {title} - {message}")
+        _p(f"FAILURE: {title} — {message}", "error")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
