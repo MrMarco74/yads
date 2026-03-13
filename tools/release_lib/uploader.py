@@ -176,14 +176,12 @@ class ReleaseUploader:
         """
         paths = self.config.get('upload', {}).get('paths', {})
 
-        # Determine version metadata file based on channel
-        # stable -> version.json (backwards compatible)
-        # beta -> version-beta.json
+        # stable -> version.json (backwards compatible), beta -> version-beta.json
         version_json_file = 'releases/version-beta.json' if channel == 'beta' else 'releases/version.json'
 
-        en = paths.get('homepage_en', '/en/').rstrip('/') + '/'
-        de = paths.get('homepage_de', '/de/').rstrip('/') + '/'
-        rel = paths.get('releases', '/en/releases/').rstrip('/') + '/'
+        en = paths.get('homepage_en', '/public_html/yads-security/en/').rstrip('/') + '/'
+        de = paths.get('homepage_de', '/public_html/yads-security/de/').rstrip('/') + '/'
+        rel = paths.get('releases', '/public_html/yads-security/en/releases/').rstrip('/') + '/'
 
         files = [
             # Release package
@@ -208,12 +206,22 @@ class ReleaseUploader:
             ('yads-homepage/en/fonts/',   en + 'fonts/'),
             ('yads-homepage/en/images/',  en + 'images/'),
 
-            # Homepage HTML (DE) — yads-security.de/de/
-            ('yads-homepage/de/index.html',   de),
-            ('yads-homepage/de/changes.html', de),
-            ('yads-homepage/de/docs.html',    de),
-            ('yads-homepage/de/support.html', de),
-            ('yads-homepage/de/bom.html',     de),
+            # Homepage HTML (DE) — yads-security.de (same FTP, different path)
+            ('yads-homepage/de/index.html',            de),
+            ('yads-homepage/de/changes.html',          de),
+            ('yads-homepage/de/docs.html',             de),
+            ('yads-homepage/de/docs-advanced.html',    de),
+            ('yads-homepage/de/support.html',          de),
+            ('yads-homepage/de/bom.html',              de),
+            ('yads-homepage/de/about.html',            de),
+            ('yads-homepage/de/contact.html',          de),
+            ('yads-homepage/de/editions.html',         de),
+            ('yads-homepage/de/product.html',          de),
+            ('yads-homepage/de/roadmap.html',          de),
+            ('yads-homepage/de/story.html',            de),
+            ('yads-homepage/de/datenschutz.html',      de),
+            ('yads-homepage/de/haftungsausschluss.html', de),
+            ('yads-homepage/de/impressum.html',        de),
         ]
 
         return files
