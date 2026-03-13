@@ -24,6 +24,18 @@ def get_all_tenants():
         return []
 
 templates.env.globals['get_available_tenants'] = get_all_tenants
+
+def get_lic_status():
+    from yads.database import engine
+    from yads.core.license import license_manager
+    from sqlmodel import Session
+    try:
+        with Session(engine) as session:
+            return license_manager.get_license_status(session)
+    except Exception:
+        return None
+
+templates.env.globals['get_license_status'] = get_lic_status
 templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 templates.env.globals['_'] = _translate
