@@ -154,6 +154,57 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.45.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.45.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Sicherheit, Stabilität und Discovery</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Einführung von passiven Discovery-Huntern mit sieben neuen, nicht-invasiven Aufklärungstechniken.</li>
+                    <li>Implementierung des rekursiven Discovery-Scanmodus für eine umfassende Abbildung des digitalen Fußabdrucks.</li>
+                    <li>Hinzugefügt: Unterstützung für die Discovery-Warteschlange in allen Worker-Konfigurationen, um eine dedizierte Verarbeitung für Discovery-Aufgaben zu ermöglichen.</li>
+                    <li>Hinzugefügt: Seite für den Testmanager im Release Manager, um Integrationstests mit Live-Statusverfolgung zu entdecken und auszuführen.</li>
+                    <li>Hinzugefügt: Seite zum Bereitstellen der Dana-Testumgebung im Release Manager.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Optimierte Docker-Images durch Verschlankung des API-Images, Aufteilung der Anforderungen und Einführung eines vorgefertigten Tools-Images für schnellere Worker-Builds.</li>
+                    <li>Verbesserte GUI-Testinfrastruktur mit besserer Protokollierung, Fehlerbehandlung und sitzungsspezifischer Ergebnissspeicherung.</li>
+                    <li>Erweiterter Release Manager zur Unterstützung der separaten Bereitstellung von API- und Worker-Images und Hinzufügen einer Funktion zur Bereinigung des Festplattenspeichers.</li>
+                    <li>Vereinheitlichte Anzeige des Lizenz- und Kapazitätsstatus.</li>
+                    <li>Verbesserte Systemresilienz und Health Watcher, Deception Detection Module und System Administration & Monitoring Funktionen.</li>
+                    <li>Eingeführt: Systemressourcenprüfungen für Worker, neue Systemmetriken, Watcher und Mandantenkonfiguration.</li>
+                    <li>Umstellung der Kundenverteilung auf registry.yads-security.com.</li>
+                    <li>Hinzugefügt: Integrationstestinfrastruktur für umfassende Tests innerhalb der Entwicklungsumgebung.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behoben: Light Mode CSS-Überschreibungen für Slate- und Graupaletten, um eine konsistente UI-Gestaltung zu gewährleisten.</li>
+                    <li>Hinzugefügt: psutil zu requirements-api.txt, um das CPU/RAM-Metrik-Widget wiederherzustellen.</li>
+                    <li>Sichergestellt, dass die Seitenleiste und die Navigation in Discovery-Vorlagen korrekt gerendert werden.</li>
+                    <li>Behoben: Problem, bei dem Worker-Only-Importe zu Abstürzen im API-Container führten.</li>
+                    <li>Behoben: Fehler bei Docker Swarm Tasks aufgrund fehlender Registry-Zugangsdaten.</li>
+                    <li>Korrigiert: Der Gültigkeitsbereich des TOOLS_IMAGE-Arguments in Dockerfile.worker.</li>
+                    <li>Sichergestellt, dass automatische Sweeps nur ausgelöst werden, wenn sie explizit vom Benutzer konfiguriert wurden.</li>
+                    <li>Behoben: Race Condition beim GUI-Teststart.</li>
+                    <li>Korrigiert: Verwendung der Datenbank-Session in CT-Org-Cross-Query.</li>
+                    <li>Behoben: Garbage Collection Crash im Discover Worker.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Eingebettete Pull-Only-Registry-Zugangsdaten in setup.sh, um die serverseitige Aufhebung zu ermöglichen.</li>
+                    <li>Verhindert: Offenlegung interner Ausnahmedetails und Stacktraces in HTTP-Antworten.</li>
+                    <li>Patch für eine Path Traversal-Schwachstelle in der Backup-Wiederherstellung und eine Server-Side Template Injection (SSTI)-Schwachstelle in der Berichtserstellung.</li>
+                    <li>Implementiert: API-Schlüsselbereiche mit granularen Berechtigungen und standardmäßig erzwungene Signierung für Scanner-Module.</li>
+                    <li>Ratenbegrenzung für Passwortzurücksetzung und MFA-Zurücksetzung-Endpunkte, um Credential-Cycling-Angriffe zu verhindern.</li>
+                    <li>Entfernt: Geheimnisse und Laufzeitdaten aus dem Docker-Build-Kontext, um die Image-Größe zu reduzieren und die Sicherheit zu verbessern.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 86305b754b86d2ca2aa8001a623d2aea030abad2f8027ac917e6e968e53967b0</p>
+            </div>
+        </div>
+
         <!-- Version 1.44.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.44.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
@@ -192,7 +243,7 @@
                     <li>Erhöhung des Update-Check-Cache-TTL zur Reduzierung von Log-Noise.</li>
                     <li>Hinzugefügt: Umfassende technische Dokumentation für alle Scanner-Module.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 86305b754b86d2ca2aa8001a623d2aea030abad2f8027ac917e6e968e53967b0</p>
             </div>
         </div>
 

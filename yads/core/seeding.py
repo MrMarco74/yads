@@ -25762,7 +25762,7 @@ def seed_changelog():
 
 
 
-        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: [SHA256_HASH_TBD]</p>
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 86305b754b86d2ca2aa8001a623d2aea030abad2f8027ac917e6e968e53967b0</p>
 
 
 
@@ -25805,6 +25805,160 @@ def seed_changelog():
                 """,
             )
             session.add(entry_1450)
+
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.45.0").first():
+
+
+            entry_1450 = ChangelogEntry(
+
+
+                title="YADS v1.45.0: Security, Stability, and Discovery",
+
+
+                version="1.45.0",
+
+
+                content="""
+
+
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+
+
+                <h3>🚀 New Features</h3>
+
+
+                <ul>
+
+
+                    <li>Introduced Passive Discovery Hunters with seven new zero-impact reconnaissance techniques.</li>
+
+
+                    <li>Implemented Recursive Discovery Scan Mode for comprehensive digital footprint mapping.</li>
+
+
+                    <li>Added Discovery queue support in all worker configurations, enabling dedicated processing for discovery tasks.</li>
+
+
+                    <li>Added a Test Manager page to the Release Manager for discovering and running integration tests with live status tracking.</li>
+
+
+                    <li>Added Dana Test Environment deploy page to Release Manager.</li>
+
+
+                </ul>
+
+
+                <h3>⚡ Improvements</h3>
+
+
+                <ul>
+
+
+                    <li>Optimized Docker images by slimming down the API image, splitting requirements, and introducing a pre-baked tools image for faster worker builds.</li>
+
+
+                    <li>Improved GUI test infrastructure with better logging, failure handling, and session-specific result storage.</li>
+
+
+                    <li>Enhanced Release Manager to support deploying API and worker images separately, and added disk space cleanup functionality.</li>
+
+
+                    <li>Unified license and capacity status display.</li>
+
+
+                    <li>Improved System Resilience & Health Watcher, Deception Detection Module, and System Administration & Monitoring features.</li>
+
+
+                    <li>Introduced system resource checks for workers, new system metrics, watcher, and tenant configuration.</li>
+
+
+                    <li>Switched customer distribution to registry.yads-security.com.</li>
+
+
+                    <li>Added integration test infrastructure for comprehensive testing within the development environment.</li>
+
+
+                </ul>
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+                <ul>
+
+
+                    <li>Fixed light mode CSS overrides for slate and gray palettes to ensure consistent UI theming.</li>
+
+
+                    <li>Added psutil to requirements-api.txt to restore CPU/RAM metrics widget.</li>
+
+
+                    <li>Ensured the sidebar and navigation render correctly in discovery templates.</li>
+
+
+                    <li>Resolved issue where worker-only imports caused crashes in the API container.</li>
+
+
+                    <li>Fixed Docker Swarm task failures due to missing registry credentials.</li>
+
+
+                    <li>Corrected the scope of the TOOLS_IMAGE argument in Dockerfile.worker.</li>
+
+
+                    <li>Ensured auto-sweeps are only triggered when explicitly configured by the user.</li>
+
+
+                    <li>Fixed GUI test startup race condition.</li>
+
+
+                    <li>Corrected use of database session in CT org cross-query.</li>
+
+
+                    <li>Addressed garbage collection crash in discover worker.</li>
+
+
+                </ul>
+
+
+                <h3>🔒 Security</h3>
+
+
+                <ul>
+
+
+                    <li>Embedded pull-only registry credentials in setup.sh, allowing server-side revocation.</li>
+
+
+                    <li>Prevented exposure of internal exception details and stack traces in HTTP responses.</li>
+
+
+                    <li>Patched a path traversal vulnerability in backup restore and a Server-Side Template Injection (SSTI) vulnerability in report generation.</li>
+
+
+                    <li>Implemented API key scopes with granular permissions and enforced signing for scanner modules by default.</li>
+
+
+                    <li>Rate-limited password reset and MFA reset endpoints to prevent credential cycling attacks.</li>
+
+
+                    <li>Removed secrets and runtime data from the Docker build context to reduce image size and improve security.</li>
+
+
+                </ul>
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 86305b754b86d2ca2aa8001a623d2aea030abad2f8027ac917e6e968e53967b0</p>
+
+
+                """
+
+
+            )
+
+
+            session.add(entry_1450)
+
+
 
         session.commit()
         print("Changelog seeded successfully.")
