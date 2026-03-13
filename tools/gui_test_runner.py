@@ -161,26 +161,38 @@ class GuiTestRunner:
                 _p("  Already authenticated — skipping login.", "ok")
                 return True
 
-            _p("  Login form found — filling credentials...")
-            await self.capture_screenshot(page, "login_page_empty")
-            await page.fill('input[name="username"]', "admin")
-            await page.fill('input[name="password"]', "admin")
-            await self.capture_screenshot(page, "login_page_filled")
-            await page.click('button[type="submit"]')
-            await page.wait_for_load_state("networkidle")
-
-            if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
-                _p("  Force password change detected — updating...", "warning")
-                await self.capture_screenshot(page, "force_password_change")
-                await page.fill("input[name='new_password']", "adminAdmin123!")
-                await page.fill("input[name='confirm_password']", "adminAdmin123!")
-                await page.click("button[type='submit']")
+            # Try credentials in order: default first, then changed password
+            CREDENTIALS = [("admin", "admin"), ("admin", "adminAdmin123!")]
+            logged_in = False
+            for username, password in CREDENTIALS:
+                _p(f"  Trying login with {username}/{password[:4]}***...")
+                await self.capture_screenshot(page, "login_page_empty")
+                await page.fill('input[name="username"]', username)
+                await page.fill('input[name="password"]', password)
+                await self.capture_screenshot(page, "login_page_filled")
+                await page.click('button[type="submit"]')
                 await page.wait_for_load_state("networkidle")
-                _p("  Password changed.", "ok")
+
+                if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
+                    _p("  Force password change detected — updating...", "warning")
+                    await self.capture_screenshot(page, "force_password_change")
+                    await page.fill("input[name='new_password']", "adminAdmin123!")
+                    await page.fill("input[name='confirm_password']", "adminAdmin123!")
+                    await page.click("button[type='submit']")
+                    await page.wait_for_load_state("networkidle")
+                    _p("  Password changed.", "ok")
+
+                if "login" not in page.url.lower():
+                    logged_in = True
+                    break
+
+                # Still on login — try next credential set (re-navigate to reset form)
+                await page.goto(self.target_url)
+                await page.wait_for_load_state("networkidle")
 
             await self.capture_screenshot(page, "after_login")
 
-            if "login" in page.url.lower():
+            if not logged_in:
                 _p("CRITICAL: Login failed — still on login page.", "error")
                 await self.record_failure(
                     "Login Pre-Step Failed",
@@ -261,6 +273,9 @@ class GuiTestRunner:
             _p(f"{passed} pages tested — {failures} failure(s).", "error")
         self.generate_report()
 
+    # Links that would destroy the session or are not real pages
+    SKIP_PATHS = {"/logout", "/auth/logout"}
+
     async def get_sidebar_links(self, page):
         """Extracts all unique hrefs from the sidebar navigation."""
         links = []
@@ -270,6 +285,10 @@ class GuiTestRunner:
             for link_element in sidebar_links_elements:
                 href = await link_element.get_attribute("href")
                 if href and not href.startswith("#"): # Ignore anchor links within the same page
+                    # Skip paths that destroy the session
+                    path = href if href.startswith("/") else ""
+                    if path in self.SKIP_PATHS:
+                        continue
                     # Construct full URL if it's a relative path
                     if href.startswith("/"):
                         full_url = self.target_url.rstrip("/") + href
