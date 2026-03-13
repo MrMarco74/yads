@@ -1205,3 +1205,104 @@ def run_all_scans(
     finally:
         if 'root_logger' in locals() and 'redis_handler' in locals():
             root_logger.removeHandler(redis_handler)
+
+
+# ── Discovery Tasks ────────────────────────────────────────────────────────────
+
+@celery_app.task(name="yads.worker.run_discovery_scan", queue="discovery")
+def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int):
+    """
+    Run a discovery-scoped scan on a single target as part of a DiscoverySession.
+    Extracts candidate domains from results and writes them to DiscoveryCandidate.
+    Finally signals the orchestrator that this target is done.
+    """
+    from yads.core.discovery_scanner_adapter import DiscoveryScannerAdapter
+    from yads.core.discovery_orchestrator import DiscoveryOrchestrator
+    from yads.models import DiscoverySession, DiscoveryCandidate, ScanResult
+
+    logger.info(f"[Discovery] run_discovery_scan session={session_id} target={domain} depth={depth}")
+
+    DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
+
+    try:
+        with Session(engine) as db:
+            sess = db.get(DiscoverySession, session_id)
+            if not sess or sess.status in ("stopped", "failed"):
+                return
+            include_typosquats = sess.include_typosquats
+
+        # Run the actual scans by re-using run_all_scans logic inline
+        # (We call run_all_scans directly since it's a callable Python function)
+        run_all_scans(target_id, domain, DISCOVERY_SCAN_TYPES, None)
+
+        # Extract candidates from scan results
+        adapter = DiscoveryScannerAdapter(include_typosquats=include_typosquats)
+
+        with Session(engine) as db:
+            for scanner_name in DISCOVERY_SCAN_TYPES:
+                result = db.exec(
+                    select(ScanResult).where(
+                        ScanResult.target_id == target_id,
+                        ScanResult.module_name == scanner_name,
+                    ).order_by(ScanResult.scanned_at.desc())
+                ).first()
+
+                if not result or not result.data:
+                    continue
+
+                candidates = adapter.extract(scanner_name, result.data)
+                for cand_domain, source_scanner, signals in candidates:
+                    if not cand_domain or cand_domain == domain:
+                        continue
+
+                    # Deduplicate within session
+                    existing = db.exec(
+                        select(DiscoveryCandidate).where(
+                            DiscoveryCandidate.session_id == session_id,
+                            DiscoveryCandidate.domain == cand_domain,
+                        )
+                    ).first()
+                    if existing:
+                        continue
+
+                    # Also check if already a Target in this session at any depth
+                    existing_target = db.exec(
+                        select(Target).where(
+                            Target.domain == cand_domain,
+                            Target.discovery_session_id == session_id,
+                        )
+                    ).first()
+                    if existing_target:
+                        continue
+
+                    cand = DiscoveryCandidate(
+                        session_id=session_id,
+                        source_target_id=target_id,
+                        domain=cand_domain,
+                        source_scanner=source_scanner,
+                        depth=depth,
+                        relevance_score=0.0,
+                        matching_signals=signals,
+                        status="pending",
+                    )
+                    db.add(cand)
+
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"[Discovery] run_discovery_scan error for {domain}: {e}")
+    finally:
+        # Always signal orchestrator, even on error
+        try:
+            orchestrator = DiscoveryOrchestrator(session_id)
+            orchestrator.on_target_complete(depth)
+        except Exception as e2:
+            logger.error(f"[Discovery] orchestrator signal failed: {e2}")
+
+
+@celery_app.task(name="yads.worker.start_discovery_session", queue="discovery")
+def start_discovery_session(session_id: int):
+    """Entry-point task that starts a DiscoveryOrchestrator session."""
+    from yads.core.discovery_orchestrator import DiscoveryOrchestrator
+    orchestrator = DiscoveryOrchestrator(session_id)
+    orchestrator.start()

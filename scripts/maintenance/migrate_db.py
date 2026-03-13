@@ -874,6 +874,73 @@ def migrate():
         except Exception as e:
             print(f"   Error: {e}")
 
+        # Discovery Session tables (v1.43.0)
+        print(">> Creating discoverysession table (v1.43.0)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS discoverysession (
+                    id                  SERIAL PRIMARY KEY,
+                    tenant_id           INTEGER REFERENCES tenant(id),
+                    created_by          INTEGER REFERENCES "user"(id),
+                    name                VARCHAR NOT NULL,
+                    seed_domains        JSONB DEFAULT '[]',
+                    max_depth           INTEGER DEFAULT 3,
+                    relevance_threshold FLOAT DEFAULT 0.5,
+                    max_targets         INTEGER DEFAULT 500,
+                    include_typosquats  BOOLEAN DEFAULT false,
+                    allowed_tld_filter  JSONB DEFAULT '[]',
+                    status              VARCHAR DEFAULT 'pending',
+                    started_at          TIMESTAMP WITHOUT TIME ZONE,
+                    finished_at         TIMESTAMP WITHOUT TIME ZONE,
+                    total_discovered    INTEGER DEFAULT 0,
+                    total_accepted      INTEGER DEFAULT 0,
+                    total_rejected      INTEGER DEFAULT 0,
+                    current_depth       INTEGER DEFAULT 0,
+                    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                )
+            """))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_discoverysession_tenant_id ON discoverysession (tenant_id)'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
+        print(">> Creating discoverycandidate table (v1.43.0)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS discoverycandidate (
+                    id                  SERIAL PRIMARY KEY,
+                    session_id          INTEGER NOT NULL REFERENCES discoverysession(id),
+                    source_target_id    INTEGER REFERENCES target(id),
+                    domain              VARCHAR NOT NULL,
+                    source_scanner      VARCHAR NOT NULL,
+                    depth               INTEGER DEFAULT 0,
+                    relevance_score     FLOAT DEFAULT 0.0,
+                    matching_signals    JSONB DEFAULT '[]',
+                    status              VARCHAR DEFAULT 'pending',
+                    rejection_reason    VARCHAR,
+                    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                )
+            """))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_discoverycandidate_session_id ON discoverycandidate (session_id)'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_discoverycandidate_domain ON discoverycandidate (domain)'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
+        print(">> Adding discovery fields to target table (v1.43.0)...")
+        try:
+            conn.execute(text('ALTER TABLE target ADD COLUMN IF NOT EXISTS discovery_session_id INTEGER REFERENCES discoverysession(id)'))
+            conn.execute(text('ALTER TABLE target ADD COLUMN IF NOT EXISTS parent_target_id INTEGER'))
+            conn.execute(text('ALTER TABLE target ADD COLUMN IF NOT EXISTS discovery_depth INTEGER DEFAULT 0'))
+            conn.execute(text('ALTER TABLE target ADD COLUMN IF NOT EXISTS relevance_score FLOAT'))
+            conn.execute(text("ALTER TABLE target ADD COLUMN IF NOT EXISTS discovery_signals JSONB DEFAULT '[]'"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print("\nMigration Complete!")
 
 

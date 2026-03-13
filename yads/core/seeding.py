@@ -25782,10 +25782,29 @@ def seed_changelog():
 
             session.add(entry_1440)
 
-
-
-
-
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.45.0").first():
+            entry_1450 = ChangelogEntry(
+                title="YADS v1.45.0: Recursive Domain Discovery",
+                version="1.45.0",
+                content="""
+                <h3>New Features</h3>
+                <ul>
+                    <li><strong>Recursive Discovery Sessions</strong> — New "Discovery" feature lets you start from a set of seed domains and automatically discover related domains recursively up to a configurable depth (1-5).</li>
+                    <li><strong>Relevance Scoring Engine</strong> — Each discovered domain is scored using weighted signals: subdomain relationships, TLS certificate SANs, CT log entries, tracking IDs, nameservers, ASN, and MX records. Only domains above the configurable threshold are accepted.</li>
+                    <li><strong>Live Session Dashboard</strong> — Real-time stats (accepted/rejected/depth progress) with HTMX auto-refresh while a session is running.</li>
+                    <li><strong>Manual Override</strong> — Candidates below the threshold can be manually accepted or rejected via the UI or JSON API.</li>
+                    <li><strong>TLD Filter and Typosquat Mode</strong> — Optional filters to restrict accepted TLDs and include/exclude typosquat variants.</li>
+                    <li><strong>Full REST API</strong> — /api/discovery/sessions endpoints for integration with external tooling.</li>
+                </ul>
+                <h3>Infrastructure</h3>
+                <ul>
+                    <li>New DB tables: discoverysession, discoverycandidate</li>
+                    <li>New Target fields: discovery_session_id, parent_target_id, discovery_depth, relevance_score, discovery_signals</li>
+                    <li>New Celery tasks on the discovery queue: run_discovery_scan, start_discovery_session</li>
+                </ul>
+                """,
+            )
+            session.add(entry_1450)
 
         session.commit()
         print("Changelog seeded successfully.")

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Discovery: {{ disc_sess.name }}{% endblock %}
+{% block content %}
+<div class="p-4 sm:p-6" id="discovery-detail" data-session-id="{{ disc_sess.id }}">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-3">
+        <a href="/discovery" class="text-slate-400 hover:text-white transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <h1 class="text-2xl font-bold text-white">{{ disc_sess.name }}</h1>
+        <span id="status-badge" class="text-xs px-2 py-0.5 rounded-full
+          {% if disc_sess.status == 'running' %}bg-blue-500/20 text-blue-300 animate-pulse
+          {% elif disc_sess.status == 'completed' %}bg-green-500/20 text-green-300
+          {% elif disc_sess.status == 'stopped' %}bg-yellow-500/20 text-yellow-300
+          {% elif disc_sess.status == 'failed' %}bg-red-500/20 text-red-300
+          {% else %}bg-slate-600/60 text-slate-400{% endif %}">
+          {{ disc_sess.status|capitalize }}
+        </span>
+      </div>
+      <p class="text-slate-400 text-sm mt-1">Seeds: <span class="font-mono text-slate-300">{{ disc_sess.seed_domains|join(", ") }}</span></p>
+    </div>
+    {% if disc_sess.status == 'running' %}
+    <button hx-post="/discovery/sessions/{{ disc_sess.id }}/stop" hx-confirm="Stop this discovery session?"
+            hx-target="#status-badge" hx-swap="outerHTML"
+            class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors">
+      Stop
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"
+       {% if disc_sess.status == 'running' %}hx-get="/api/discovery/sessions/{{ disc_sess.id }}" hx-trigger="every 5s" hx-swap="none" hx-on::after-request="updateStats(event)"{% endif %}>
+    <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div id="stat-accepted" class="text-2xl font-bold text-green-400">{{ disc_sess.total_accepted }}</div>
+      <div class="text-xs text-slate-500 mt-1">Accepted</div>
+    </div>
+    <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div id="stat-rejected" class="text-2xl font-bold text-red-400">{{ disc_sess.total_rejected }}</div>
+      <div class="text-xs text-slate-500 mt-1">Rejected</div>
+    </div>
+    <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div id="stat-depth" class="text-2xl font-bold text-blue-400">{{ disc_sess.current_depth }} / {{ disc_sess.max_depth }}</div>
+      <div class="text-xs text-slate-500 mt-1">Current Depth</div>
+    </div>
+    <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div id="stat-discovered" class="text-2xl font-bold text-slate-200">{{ disc_sess.total_discovered }}</div>
+      <div class="text-xs text-slate-500 mt-1">Total Discovered</div>
+    </div>
+  </div>
+
+  <!-- Depth Progress Bar -->
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 mb-6">
+    <div class="flex justify-between text-xs text-slate-400 mb-2">
+      <span>Discovery Depth Progress</span>
+      <span id="depth-label">{{ disc_sess.current_depth }} / {{ disc_sess.max_depth }}</span>
+    </div>
+    <div class="w-full bg-slate-700 rounded-full h-2">
+      <div id="depth-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-500"
+           style="width: {{ ((disc_sess.current_depth / disc_sess.max_depth) * 100)|int if disc_sess.max_depth > 0 else 0 }}%"></div>
+    </div>
+  </div>
+
+  <!-- Candidates Table -->
+  <div class="bg-slate-800 rounded-xl border border-slate-700">
+    <div class="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <h2 class="text-lg font-semibold text-white">Discovered Candidates</h2>
+      <!-- Filter Tabs -->
+      <div class="flex gap-1 bg-slate-900 p-1 rounded-lg text-xs">
+        {% for tab_status in ['all', 'accepted', 'pending', 'rejected'] %}
+        <button onclick="filterCandidates('{{ tab_status }}')"
+                id="tab-{{ tab_status }}"
+                class="px-3 py-1 rounded-md transition-colors font-medium
+                       {% if loop.first %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">
+          {{ tab_status|capitalize }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left" id="candidates-table">
+        <thead>
+          <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase">
+            <th class="px-4 py-3">Domain</th>
+            <th class="px-4 py-3">Score</th>
+            <th class="px-4 py-3">Signals</th>
+            <th class="px-4 py-3">Source</th>
+            <th class="px-4 py-3">Depth</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="candidates-tbody">
+          {% for c in candidates %}
+          <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors candidate-row"
+              data-status="{{ c.status }}" id="cand-row-{{ c.id }}">
+            <td class="px-4 py-3 font-mono text-slate-200">{{ c.domain }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <div class="w-16 bg-slate-700 rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full {% if c.relevance_score >= 0.7 %}bg-green-500{% elif c.relevance_score >= 0.4 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                       style="width: {{ (c.relevance_score * 100)|int }}%"></div>
+                </div>
+                <span class="text-xs text-slate-400">{{ "%.2f"|format(c.relevance_score) }}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-1">
+                {% for sig in c.matching_signals %}
+                <span class="text-xs bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">{{ sig|replace('_', ' ') }}</span>
+                {% endfor %}
+              </div>
+            </td>
+            <td class="px-4 py-3 text-slate-400 text-xs">{{ c.source_scanner }}</td>
+            <td class="px-4 py-3 text-slate-400">{{ c.depth }}</td>
+            <td class="px-4 py-3">
+              {% if c.status == 'accepted' %}
+                <span class="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full">Accepted</span>
+              {% elif c.status == 'rejected' %}
+                <span class="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full" title="{{ c.rejection_reason or '' }}">Rejected</span>
+              {% elif c.status == 'duplicate' %}
+                <span class="text-xs bg-slate-600/60 text-slate-400 px-2 py-0.5 rounded-full">Duplicate</span>
+              {% else %}
+                <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">Pending</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              {% if c.status == 'pending' or c.status == 'rejected' %}
+              <button onclick="manualAccept({{ c.id }})"
+                      class="text-xs text-green-400 hover:text-green-300 mr-2 transition-colors">Accept</button>
+              {% endif %}
+              {% if c.status == 'pending' or c.status == 'accepted' %}
+              <button onclick="manualReject({{ c.id }})"
+                      class="text-xs text-red-400 hover:text-red-300 transition-colors">Reject</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+              {% if disc_sess.status == 'running' %}
+                <span class="animate-pulse">Discovery in progress — candidates will appear here...</span>
+              {% else %}
+                No candidates found.
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const SESSION_ID = {{ disc_sess.id }};
+
+function filterCandidates(status) {
+  document.querySelectorAll('#candidates-tbody .candidate-row').forEach(row => {
+    row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+  });
+  document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+    btn.classList.remove('bg-blue-600', 'text-white');
+    btn.classList.add('text-slate-400');
+  });
+  const activeTab = document.getElementById('tab-' + status);
+  if (activeTab) {
+    activeTab.classList.remove('text-slate-400');
+    activeTab.classList.add('bg-blue-600', 'text-white');
+  }
+}
+
+async function manualAccept(candidateId) {
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/accept`, {method:'POST'});
+  if (r.ok) location.reload();
+}
+
+async function manualReject(candidateId) {
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/reject`, {method:'POST'});
+  if (r.ok) location.reload();
+}
+
+function updateStats(event) {
+  try {
+    const data = JSON.parse(event.detail.xhr.responseText);
+    document.getElementById('stat-accepted').textContent = data.total_accepted;
+    document.getElementById('stat-rejected').textContent = data.total_rejected;
+    document.getElementById('stat-depth').textContent = data.current_depth + ' / ' + data.max_depth;
+    document.getElementById('stat-discovered').textContent = data.total_discovered;
+    if (data.max_depth > 0) {
+      document.getElementById('depth-bar').style.width = Math.round((data.current_depth / data.max_depth) * 100) + '%';
+    }
+    document.getElementById('depth-label').textContent = data.current_depth + ' / ' + data.max_depth;
+    if (data.status !== 'running') {
+      document.getElementById('status-badge').textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+      // Reload to refresh the candidate table
+      setTimeout(() => location.reload(), 1000);
+    }
+  } catch(e) {}
+}
+</script>
+{% endblock %}
