@@ -286,12 +286,14 @@ docker stack deploy -c docker-compose.swarm.yml yads
             <h3 style="margin-top: 2rem;">Manuelles Update (Alternative)</h3>
             <p>Falls Sie das Update lieber manuell durchführen oder das In-App Update fehlschlägt:</p>
             <div class="code-block">
-# Neuestes Image laden
-docker pull yads/yads:latest
+# Neueste Images aus der YADS Container Registry laden
+docker pull registry.yads-security.com/yads/yads-api:latest
+docker pull registry.yads-security.com/yads/yads-worker:latest
 
 # Dienste neu starten
 docker compose up -d --force-recreate
             </div>
+            <p style="margin-top: 0.75rem; color: #94a3b8; font-size: 0.9rem;">Die Registry-Authentifizierung wird automatisch durch <code>setup.sh</code> eingerichtet. Bei einem Authentifizierungsfehler führen Sie erneut <code>docker login registry.yads-security.com -u yads-readonly</code> mit dem Token aus Ihrer Lizenz-E-Mail aus.</p>
         </div>
 
         <!-- SIEM INTEGRATION -->
