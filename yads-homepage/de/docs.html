@@ -161,7 +161,7 @@
 <li><a href="#16-executive-report--portfolio-ansicht">Executive Report &amp; Portfolio-Ansicht</a></li>
 <li><a href="#17-best-practices">Best Practices</a></li>
 <li><a href="#18-fehlerbehebung">Fehlerbehebung</a></li>
-<li><a href="#20-standalone-lokale-installation">Standalone- &amp; Lokale Installation</a></li>
+<li><a href="#20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</a></li>
 <li><a href="#21-identity-provider-sso">Identity Provider &amp; SSO</a></li>
 <li><a href="#22-entwicklerportal">Entwicklerportal</a></li>
 <li><a href="#23-scan-profile">Scan-Profile</a></li>
@@ -202,12 +202,13 @@
     <li><strong>Admin Erstellen</strong>: Erstellen Sie das erste Systemadministrator-Konto.</li>
 </ol>
 
-<h3 id="2-2-interactive-setup-script">2.2 Interaktives Setup Script (Neu)</h3>
-<p>Für eine vereinfachte Bereitstellung verwenden Sie das mitgelieferte <code>setup.sh</code> Script. Es automatisiert die Konfiguration von Ports, SSL und Umgebungsvariablen.</p>
+<h3 id="2-2-interactive-setup-script">2.2 Interaktives Setup Script</h3>
+<p>Für eine vereinfachte Bereitstellung verwenden Sie das mitgelieferte <code>setup.sh</code> Script. Es automatisiert Registry-Login, Port-Konfiguration, SSL und Umgebungsvariablen.</p>
 <ol>
-    <li>Navigieren Sie zu Ihrem Release-Verzeichnis.</li>
+    <li>Entpacken Sie das Release-Paket und navigieren Sie in das Verzeichnis.</li>
     <li>Führen Sie <code>chmod +x setup.sh && ./setup.sh</code> aus.</li>
-    <li>Folgen Sie den interaktiven Anweisungen, um Ihre Instanz zu konfigurieren.</li>
+    <li>Wenn Sie nach dem <strong>Registry-Token</strong> gefragt werden (in Ihrer Lizenz-E-Mail enthalten), geben Sie dieses ein. Das Script meldet Docker an <code>registry.yads-security.com</code> an und lädt die Images automatisch herunter.</li>
+    <li>Folgen Sie den weiteren Anweisungen zur Konfiguration von Ports, SSL und Umgebung.</li>
     <li>Das Script generiert eine <code>.env</code>-Datei und eine optimierte <code>docker-compose.yml</code>.</li>
 </ol>
 
@@ -953,6 +954,61 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
     <li><strong>Als Mandant anzeigen</strong>: Schneller Imitationslink, der den Kontext auf das Dashboard des Mandanten umschaltet.</li>
     <li>Inline-Suche: Mandantenliste in Echtzeit nach Namen filtern.</li>
 </ul>
+
+<hr />
+
+<h2 id="20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</h2>
+<p>YADS wird als fertiger Docker Compose-Stack über die YADS Container Registry unter <code>registry.yads-security.com</code> bereitgestellt. Es sind keine selbst kompilierten Builds erforderlich.</p>
+
+<h3>Voraussetzungen</h3>
+<ul>
+    <li>Docker Engine 24+ und Docker Compose v2</li>
+    <li>Linux-Host (Ubuntu 22.04 / Debian 12 empfohlen) oder Docker Desktop (macOS/Windows)</li>
+    <li>Registry-Token (wird mit Ihrer Lizenz per E-Mail bereitgestellt)</li>
+    <li>Mindestanforderungen: 2 CPU-Kerne, 4 GB RAM, 20 GB Speicher</li>
+</ul>
+
+<h3>Schritt 1: Release-Paket herunterladen</h3>
+<p>Laden Sie das aktuelle Release-ZIP von der <a href="support.html#download">Support-Seite</a> herunter. Das Archiv enthält Konfigurationsvorlagen, <code>setup.sh</code> und Dokumentation — Docker-Images werden während des Setups aus der Registry geladen.</p>
+
+<h3>Schritt 2: setup.sh ausführen</h3>
+<div class="code-block">
+unzip yads_v*_customer_pkg.zip
+cd yads_v*_customer_pkg
+chmod +x setup.sh
+./setup.sh
+</div>
+<p>Das Script führt folgende Schritte aus:</p>
+<ol>
+    <li>Abfrage des <strong>Registry-Tokens</strong> und Ausführung von <code>docker login registry.yads-security.com -u yads-readonly</code></li>
+    <li>Download der Images <code>yads-api</code> und <code>yads-worker</code> aus der Registry</li>
+    <li>Abfrage von Domain, Ports und SSL-Präferenz</li>
+    <li>Generierung von <code>.env</code> und <code>docker-compose.yml</code></li>
+</ol>
+
+<h3>Schritt 3: Starten</h3>
+<div class="code-block">
+docker compose up -d
+</div>
+<p>Rufen Sie <code>http://&lt;ihr-host&gt;:8000</code> (bzw. Ihre konfigurierte Domain) auf, um den In-App-Setup-Assistenten abzuschließen.</p>
+
+<h3>Images manuell laden</h3>
+<p>Falls Sie Images separat laden möchten (z.B. für Air-Gap-Umgebungen):</p>
+<div class="code-block">
+docker login registry.yads-security.com -u yads-readonly
+# Registry-Token eingeben wenn gefragt
+
+docker pull registry.yads-security.com/yads/yads-api:latest
+docker pull registry.yads-security.com/yads/yads-worker:latest
+</div>
+
+<h3>Updates</h3>
+<div class="code-block">
+docker pull registry.yads-security.com/yads/yads-api:latest
+docker pull registry.yads-security.com/yads/yads-worker:latest
+docker compose up -d --force-recreate
+</div>
+<p>Erstellen Sie vor jedem Update ein Backup (Einstellungen → Backup &amp; Wiederherstellung).</p>
 
 <hr />
 <p><em>Für technische, Enterprise- und Scanner-Modul-Dokumentation: <a href="docs-advanced.html">Erweiterte Referenz →</a></em></p>
