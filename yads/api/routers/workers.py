@@ -177,12 +177,12 @@ async def worker_heartbeat(
         active_scan_types=request.active_scan_types
     )
 
-    success = worker_manager.process_heartbeat(node_id, auth_token, metrics)
+    action = worker_manager.process_heartbeat(node_id, auth_token, metrics)
 
-    if not success:
+    if action == "": # Unauthorized
         raise HTTPException(status_code=401, detail="Invalid worker or auth token")
 
-    return {"status": "ok"}
+    return {"status": "ok", "action": action}
 
 
 # =============================================================================
@@ -429,6 +429,30 @@ async def drain_worker(
     if not success:
         raise HTTPException(status_code=404, detail="Worker not found")
     return {"status": "draining", "node_id": node_id}
+
+
+@router.post("/{node_id}/stop")
+async def stop_worker(
+    node_id: str,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Request a worker to stop/shutdown."""
+    success = worker_manager.request_worker_action(node_id, "stop")
+    if not success:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    return {"status": "ok", "action": "stop", "node_id": node_id}
+
+
+@router.post("/{node_id}/restart")
+async def restart_worker(
+    node_id: str,
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Request a worker to restart."""
+    success = worker_manager.request_worker_action(node_id, "restart")
+    if not success:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    return {"status": "ok", "action": "restart", "node_id": node_id}
 
 
 @router.delete("/{node_id}")

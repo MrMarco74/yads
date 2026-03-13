@@ -358,6 +358,7 @@ class WorkerNode(SQLModel, table=True):
     version: Optional[str] = None  # YADS version running on worker
     cpu_count: Optional[int] = None
     memory_mb: Optional[int] = None
+    requested_action: Optional[str] = Field(default=None)  # stop, restart
 
     # Relationships
     tasks: List["WorkerTask"] = Relationship(back_populates="worker_node")
