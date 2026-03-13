@@ -7,6 +7,7 @@ Handles registration, heartbeats, and task status reporting.
 
 import os
 import socket
+import sys
 import threading
 import time
 import logging
@@ -229,21 +230,49 @@ class WorkerClient:
         if self.state.mode == WorkerMode.PRIMARY:
             # Use local manager
             from yads.core.worker_manager import WorkerMetrics
-            self._manager.process_heartbeat(
+            action = self._manager.process_heartbeat(
                 self.state.node_id,
                 "",  # No auth needed for primary
                 WorkerMetrics(**metrics)
             )
+            if action:
+                self._handle_manager_action(action)
         else:
             # HTTP API
-            response = requests.post(
-                f"{self.state.manager_url}/api/workers/{self.state.node_id}/heartbeat",
-                json=metrics,
-                headers={"Authorization": f"Bearer {self.state.auth_token}"},
-                timeout=10
-            )
-            if response.status_code != 200:
-                logger.warning(f"Heartbeat returned {response.status_code}")
+            try:
+                response = requests.post(
+                    f"{self.state.manager_url}/api/workers/{self.state.node_id}/heartbeat",
+                    json=metrics,
+                    headers={"Authorization": f"Bearer {self.state.auth_token}"},
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    action = data.get("action")
+                    if action:
+                        self._handle_manager_action(action)
+                else:
+                    logger.warning(f"Heartbeat returned {response.status_code}")
+            except Exception as e:
+                logger.error(f"Failed to send HTTP heartbeat: {e}")
+
+    def _handle_manager_action(self, action: str):
+        """Handle an action requested by the manager."""
+        logger.info(f"Received action request from manager: {action}")
+
+        if action == "stop":
+            logger.warning("Manager requested STOP. Shutting down worker...")
+            # Give a small delay for the response to be sent before exiting
+            threading.Timer(2.0, lambda: sys.exit(0)).start()
+
+        elif action == "restart":
+            logger.warning("Manager requested RESTART. Restarting worker...")
+            # Instruction for "restart" is to simply exit;
+            # orchestrator (Docker/Swarm) will restart the container.
+            threading.Timer(2.0, lambda: sys.exit(1)).start()
+
+        else:
+            logger.warning(f"Unknown manager action: {action}")
 
     # =========================================================================
     # Task Management

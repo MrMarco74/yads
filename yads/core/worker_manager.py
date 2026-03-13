@@ -259,7 +259,7 @@ class WorkerManager:
     # =========================================================================
 
     def process_heartbeat(self, node_id: str, auth_token: str,
-                          metrics: WorkerMetrics) -> bool:
+                          metrics: WorkerMetrics) -> Optional[str]:
         """
         Process a heartbeat from a worker.
 
@@ -269,7 +269,8 @@ class WorkerManager:
             metrics: Current worker metrics
 
         Returns:
-            True if heartbeat processed successfully
+            Requested action (stop, restart) if any, else None.
+            Returns empty string if unauthorized (for backwards compat, effectively falsey).
         """
         with self._get_session() as session:
             worker = session.exec(
@@ -278,13 +279,13 @@ class WorkerManager:
 
             if not worker:
                 logger.warning(f"Heartbeat from unknown worker: {node_id}")
-                return False
+                return ""
 
             # Validate auth token (skip for primary)
             if not worker.is_primary:
                 if not pwd_context.verify(auth_token, worker.auth_token_hash):
                     logger.warning(f"Invalid auth token for worker: {node_id}")
-                    return False
+                    return ""
 
             # Update worker state
             worker.last_heartbeat = datetime.utcnow()
@@ -299,10 +300,16 @@ class WorkerManager:
                 worker.status = "active"
                 worker.is_active = True
 
+            # Check for requested actions
+            action = worker.requested_action
+            if action:
+                worker.requested_action = None
+                logger.info(f"Worker {node_id} heartbeat: returning requested action '{action}'")
+
             session.add(worker)
             session.commit()
 
-        return True
+        return action
 
     def check_worker_health(self) -> Dict[str, Any]:
         """
@@ -647,6 +654,27 @@ class WorkerManager:
                 session.add(worker)
                 session.commit()
                 logger.info(f"Draining worker: {node_id}")
+                return True
+            return False
+
+    def request_worker_action(self, node_id: str, action: str) -> bool:
+        """
+        Request an action (stop, restart) to be picked up by the worker
+        during its next heartbeat.
+        """
+        if action not in ["stop", "restart"]:
+            return False
+
+        with self._get_session() as session:
+            worker = session.exec(
+                select(WorkerNode).where(WorkerNode.node_id == node_id)
+            ).first()
+
+            if worker:
+                worker.requested_action = action
+                session.add(worker)
+                session.commit()
+                logger.info(f"Requested action '{action}' for worker: {node_id}")
                 return True
             return False
 
