@@ -578,19 +578,20 @@ async def login_required_handler(request: Request, exc: LoginRequiredException):
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    # Check if request expects HTML (simple check)
+    # Never expose internal details for server errors
+    safe_detail = exc.detail if exc.status_code < 500 else "An internal error occurred. Please try again or contact support."
+
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         return templates.TemplateResponse("error.html", {
-            "request": request, 
+            "request": request,
             "status_code": exc.status_code,
-            "detail": exc.detail,
-            "user": None # Context might not have user if auth failed, base.html handles this
+            "detail": safe_detail,
+            "user": None
         }, status_code=exc.status_code)
-    
-    # Fallback to default JSON behavior
+
     return JSONResponse(
-        {"detail": exc.detail}, 
+        {"detail": safe_detail},
         status_code=exc.status_code
     )
 
@@ -599,18 +600,18 @@ async def generic_exception_handler(request: Request, exc: Exception):
     import traceback
     tb = traceback.format_exc()
     logger.error(f"Unhandled exception at {request.url}: {exc}\n{tb}")
-    
+
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
         return templates.TemplateResponse("error.html", {
-            "request": request, 
+            "request": request,
             "status_code": 500,
-            "detail": f"Internal Server Error: {str(exc)}",
+            "detail": "An internal error occurred. Please try again or contact support.",
             "user": None
         }, status_code=500)
-    
+
     return JSONResponse(
-        {"detail": "Internal Server Error", "error": str(exc)}, 
+        {"detail": "Internal Server Error"},
         status_code=500
     )
 
