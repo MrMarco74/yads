@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Discovery Sessions{% endblock %}
+{% block content %}
+<div class="p-4 sm:p-6">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white">Recursive Discovery</h1>
+      <p class="text-slate-400 text-sm mt-1">Automatically map your full digital footprint from a set of seed domains.</p>
+    </div>
+    <button onclick="document.getElementById('wizard-modal').classList.remove('hidden')"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      New Discovery Session
+    </button>
+  </div>
+
+  <!-- Session List -->
+  {% if sessions %}
+  <div class="grid grid-cols-1 gap-4">
+    {% for sess in sessions %}
+    <a href="/discovery/{{ sess.id }}"
+       class="block bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors p-5">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-white">{{ sess.name }}</span>
+            {% if sess.status == 'running' %}
+              <span class="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full animate-pulse">Running</span>
+            {% elif sess.status == 'completed' %}
+              <span class="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full">Completed</span>
+            {% elif sess.status == 'stopped' %}
+              <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">Stopped</span>
+            {% elif sess.status == 'failed' %}
+              <span class="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">Failed</span>
+            {% else %}
+              <span class="text-xs bg-slate-600/60 text-slate-400 px-2 py-0.5 rounded-full">{{ sess.status|capitalize }}</span>
+            {% endif %}
+          </div>
+          <p class="text-slate-400 text-sm mt-1">Seeds: {{ sess.seed_domains|join(", ") }}</p>
+        </div>
+        <div class="flex gap-6 text-center shrink-0">
+          <div>
+            <div class="text-xl font-bold text-green-400">{{ sess.total_accepted }}</div>
+            <div class="text-xs text-slate-500">Accepted</div>
+          </div>
+          <div>
+            <div class="text-xl font-bold text-red-400">{{ sess.total_rejected }}</div>
+            <div class="text-xs text-slate-500">Rejected</div>
+          </div>
+          <div>
+            <div class="text-xl font-bold text-blue-400">{{ sess.current_depth }}/{{ sess.max_depth }}</div>
+            <div class="text-xs text-slate-500">Depth</div>
+          </div>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-20 text-slate-500">
+    <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <p class="text-lg font-semibold text-slate-300">No discovery sessions yet</p>
+    <p class="text-sm mt-1">Create your first session to start mapping your digital footprint.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- New Session Wizard Modal -->
+<div id="wizard-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+  <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg shadow-2xl">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-lg font-bold text-white">New Discovery Session</h2>
+        <button onclick="document.getElementById('wizard-modal').classList.add('hidden')"
+                class="text-slate-400 hover:text-white transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form method="POST" action="/discovery/sessions" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">Session Name</label>
+          <input type="text" name="name" required placeholder="e.g. Full Recon"
+                 class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">Seed Domains <span class="text-slate-500 font-normal">(one per line)</span></label>
+          <textarea name="seed_domains_raw" required rows="4" placeholder="example.com&#10;example.de"
+                    class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Max Depth <span class="text-slate-500 font-normal">(1–5)</span></label>
+            <input type="number" name="max_depth" value="3" min="1" max="5"
+                   class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Max Targets</label>
+            <input type="number" name="max_targets" value="500" min="10" max="5000"
+                   class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">
+            Relevance Threshold: <span id="threshold-val" class="text-blue-400 font-bold">0.50</span>
+          </label>
+          <input type="range" name="relevance_threshold" min="0.1" max="0.9" step="0.05" value="0.5"
+                 oninput="document.getElementById('threshold-val').textContent = parseFloat(this.value).toFixed(2)"
+                 class="w-full accent-blue-500">
+          <div class="flex justify-between text-xs text-slate-500 mt-1">
+            <span>0.1 — aggressive</span><span>0.9 — conservative</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-1">TLD Filter <span class="text-slate-500 font-normal">(comma-separated, empty = all)</span></label>
+          <input type="text" name="allowed_tld_filter_raw" placeholder="de, com, net"
+                 class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div class="flex items-center gap-3">
+          <input type="checkbox" name="include_typosquats" id="typosquats" value="true"
+                 class="w-4 h-4 accent-blue-500">
+          <label for="typosquats" class="text-sm text-slate-300">Include typosquat variants <span class="text-yellow-400">(broader results)</span></label>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="submit"
+                  class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg text-sm transition-colors">
+            Start Discovery
+          </button>
+          <button type="button" onclick="document.getElementById('wizard-modal').classList.add('hidden')"
+                  class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm transition-colors">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
