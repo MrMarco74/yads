@@ -34,3 +34,6 @@ logs/backups/
 
 # Debug
 debug.log
+
+# Tests
+tests/results/

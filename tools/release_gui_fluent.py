@@ -482,7 +482,7 @@ class GuiTestWorker(QThread):
             
             # Sync results back from Dana to local
             self._log("Syncing test results back from Dana...", "info")
-            local_results = Path(__file__).parent.parent / "tests" / "results"
+            local_results = Path(__file__).parent.parent / "tests" / "results" / "GUI-Tests"
             local_results.mkdir(parents=True, exist_ok=True)
             subprocess.run(["rsync", "-avz", f"{self.dana_host}:{dana_path}/tests/results/", str(local_results) + "/"], check=False)
 
@@ -4157,8 +4157,8 @@ class TestManagerPage(QWidget):
                           position=InfoBarPosition.TOP, duration=8000)
 
 def _get_latest_gui_test_report_info():
-    """Finds and parses the newest GUI test report from tests/results/"""
-    results_dir = Path(__file__).parent.parent / "tests" / "results"
+    """Finds and parses the newest GUI test report from tests/results/GUI-Tests/"""
+    results_dir = Path(__file__).parent.parent / "tests" / "results" / "GUI-Tests"
     if not results_dir.exists():
         return None
     
