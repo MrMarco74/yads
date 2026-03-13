@@ -12,7 +12,11 @@ import threading
 import time
 import logging
 import requests
-import psutil
+try:
+    import psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    _PSUTIL_AVAILABLE = False
 from typing import Optional, List, Callable
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -131,8 +135,8 @@ class WorkerClient:
 
         try:
             # Get system info
-            cpu_count = psutil.cpu_count()
-            memory_mb = psutil.virtual_memory().total // (1024 * 1024)
+            cpu_count = psutil.cpu_count() if _PSUTIL_AVAILABLE else os.cpu_count() or 1
+            memory_mb = psutil.virtual_memory().total // (1024 * 1024) if _PSUTIL_AVAILABLE else 0
 
             from yads.config import settings
             version = settings.VERSION
@@ -215,14 +219,19 @@ class WorkerClient:
     def _send_heartbeat(self):
         """Send a single heartbeat."""
         # Collect metrics
-        cpu_percent = psutil.cpu_percent(interval=0.1)
-        memory = psutil.virtual_memory()
+        if _PSUTIL_AVAILABLE:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory = psutil.virtual_memory()
+            memory_used_mb = memory.used // (1024 * 1024)
+        else:
+            cpu_percent = 0.0
+            memory_used_mb = 0
         load = cpu_percent / 100.0
 
         metrics = {
             "current_tasks": len(self._current_tasks),
             "current_load": load,
-            "memory_used_mb": memory.used // (1024 * 1024),
+            "memory_used_mb": memory_used_mb,
             "cpu_percent": cpu_percent,
             "active_scan_types": []  # TODO: Track active scan types
         }
