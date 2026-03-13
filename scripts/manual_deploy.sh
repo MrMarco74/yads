@@ -57,6 +57,21 @@ case "$CHOICE" in
         ;;
     1)
         DEPLOY_MODE="update"
+        echo ""
+        echo "Components to update:"
+        echo "  1) Everything (App + Backup)"
+        echo "  2) App Only (API, Workers, Scheduler)"
+        echo "  3) Backup Only"
+        echo ""
+        read -p "Choose [1/2/3]: " COMP_CHOICE
+        
+        case "$COMP_CHOICE" in
+            1) DEPLOY_APP=true; DEPLOY_BACKUP=true ;;
+            2) DEPLOY_APP=true; DEPLOY_BACKUP=false ;;
+            3) DEPLOY_APP=false; DEPLOY_BACKUP=true ;;
+            *) echo "Invalid choice. Aborting."; exit 1 ;;
+        esac
+
         read -p "Proceed with update deployment? (y/N) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -132,47 +147,58 @@ echo ">> Cleaning up old local images before build..."
 docker rmi "$IMAGE_NAME" "$REGISTRY_IMAGE" "$BACKUP_IMAGE_NAME" "$BACKUP_REGISTRY_IMAGE" 2>/dev/null || true
 docker image prune -f
 
-echo ">> Building Docker image locally..."
-# Build the 'prod' or 'release' target if applicable, or just default.
-# The Dockerfile has a 'prod' stage.
-docker build --target prod -t "$IMAGE_NAME" .
-# Tag the image with the registry URL expected by the Swarm stack
-docker tag "$IMAGE_NAME" "$REGISTRY_IMAGE"
+if [ "$DEPLOY_APP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then
+    echo ">> Building App Docker image locally..."
+    docker build --target prod -t "$IMAGE_NAME" .
+    docker tag "$IMAGE_NAME" "$REGISTRY_IMAGE"
+fi
 
-echo ">> Building backup container image..."
-docker build -t "$BACKUP_IMAGE_NAME" backup/
-docker tag "$BACKUP_IMAGE_NAME" "$BACKUP_REGISTRY_IMAGE"
+if [ "$DEPLOY_BACKUP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then
+    echo ">> Building backup container image..."
+    docker build -t "$BACKUP_IMAGE_NAME" backup/
+    docker tag "$BACKUP_IMAGE_NAME" "$BACKUP_REGISTRY_IMAGE"
+fi
 
 # ==============================================================================
 # 3. Image Transfer
 # ==============================================================================
-echo ">> Compressing Docker image to $IMAGE_ARCHIVE..."
-# Save the REGISTRY_IMAGE (not just local tag) so it loads with the correct name on remote
-docker save "$REGISTRY_IMAGE" | gzip > "$IMAGE_ARCHIVE"
-
-echo ">> Compressing backup image to $BACKUP_IMAGE_ARCHIVE..."
-docker save "$BACKUP_REGISTRY_IMAGE" | gzip > "$BACKUP_IMAGE_ARCHIVE"
-
 echo ">> Ensuring remote directory exists..."
 ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DEPLOY_DIR"
 
-echo ">> Transferring compressed images to remote host..."
-scp "$IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
-scp "$BACKUP_IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
+LOAD_CMDS=""
+if [ "$DEPLOY_APP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then
+    echo ">> Compressing and transferring App image..."
+    docker save "$REGISTRY_IMAGE" | gzip > "$IMAGE_ARCHIVE"
+    scp "$IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
+    rm -f "$IMAGE_ARCHIVE"
+    LOAD_CMDS="gunzip -c $REMOTE_DEPLOY_DIR/$IMAGE_ARCHIVE | docker load"
+fi
 
-echo ">> Loading images on remote host..."
-ssh "$REMOTE_HOST" "gunzip -c $REMOTE_DEPLOY_DIR/$IMAGE_ARCHIVE | docker load"
-ssh "$REMOTE_HOST" "gunzip -c $REMOTE_DEPLOY_DIR/$BACKUP_IMAGE_ARCHIVE | docker load"
+if [ "$DEPLOY_BACKUP" = true ] || [ "$DEPLOY_MODE" == "fresh" ]; then
+    echo ">> Compressing and transferring backup image..."
+    docker save "$BACKUP_REGISTRY_IMAGE" | gzip > "$BACKUP_IMAGE_ARCHIVE"
+    scp "$BACKUP_IMAGE_ARCHIVE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
+    rm -f "$BACKUP_IMAGE_ARCHIVE"
+    if [ -n "$LOAD_CMDS" ]; then
+        LOAD_CMDS="$LOAD_CMDS && gunzip -c $REMOTE_DEPLOY_DIR/$BACKUP_IMAGE_ARCHIVE | docker load"
+    else
+        LOAD_CMDS="gunzip -c $REMOTE_DEPLOY_DIR/$BACKUP_IMAGE_ARCHIVE | docker load"
+    fi
+fi
 
-echo ">> Cleaning up local archives..."
-rm -f "$IMAGE_ARCHIVE" "$BACKUP_IMAGE_ARCHIVE"
+if [ -n "$LOAD_CMDS" ]; then
+    echo ">> Loading images on remote host..."
+    ssh "$REMOTE_HOST" "$LOAD_CMDS"
+fi
 
 # ==============================================================================
 # 4. Config Transfer
 # ==============================================================================
-echo ">> Transferring configuration files..."
-ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DEPLOY_DIR"
 scp "$DOCKER_COMPOSE_FILE" "$REMOTE_HOST:$REMOTE_DEPLOY_DIR/"
+
+# Alert if deployment-critical volumes might be missing config.env
+echo ">> Checking remote config.env..."
+ssh "$REMOTE_HOST" "[ -f /app/data/config.env ] || echo 'WARNING: /app/data/config.env not found on remote! Local .env might be required.'"
 
 # If .env exists, transfer it too
 if [ -f .env ]; then
@@ -206,14 +232,17 @@ ssh "$REMOTE_HOST" "cd $REMOTE_DEPLOY_DIR && set -a && [ -f .env ] && source .en
 if [[ "$DEPLOY_MODE" != "fresh" ]]; then
     echo ">> Forcing service updates to pick up new image..."
     for service in $SERVICES_TO_UPDATE; do
-        echo "   Updating $service..."
-        # Use the correct image for each service
-        if [[ "$service" == *"backup"* ]]; then
-            UPDATE_IMAGE="$BACKUP_REGISTRY_IMAGE"
+        if [[ "$service" == *"backup"** ]]; then
+            if [ "$DEPLOY_BACKUP" = true ]; then
+                echo "   Updating $service..."
+                ssh "$REMOTE_HOST" "docker service update --force --image $BACKUP_REGISTRY_IMAGE $service" || echo "Warning: Failed to update $service"
+            fi
         else
-            UPDATE_IMAGE="$REGISTRY_IMAGE"
+            if [ "$DEPLOY_APP" = true ]; then
+                echo "   Updating $service..."
+                ssh "$REMOTE_HOST" "docker service update --force --image $REGISTRY_IMAGE $service" || echo "Warning: Failed to update $service"
+            fi
         fi
-        ssh "$REMOTE_HOST" "docker service update --force --image $UPDATE_IMAGE $service" || echo "Warning: Failed to update $service (it might not be running yet)"
     done
 fi
 
