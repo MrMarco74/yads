@@ -1012,7 +1012,7 @@ class ProdDeployWorker(QThread):
             combined_deploy_cmd = [
                 f"cd {self.remote_deploy_dir}",
                 "set -a && [ -f .env ] && source .env; set +a",
-                f"docker stack deploy -c {self.docker_compose_file} {self.stack_name}"
+                f"docker stack deploy --with-registry-auth -c {self.docker_compose_file} {self.stack_name}"
             ]
             
             if not self.wipe_reinstall:
@@ -1020,17 +1020,17 @@ class ProdDeployWorker(QThread):
                 for service in self.services_to_update:
                     if "backup" in service:
                         if self.deploy_backup:
-                            combined_deploy_cmd.append(f"docker service update --force --image {self.backup_registry_image} {service}")
+                            combined_deploy_cmd.append(f"docker service update --with-registry-auth --force --image {self.backup_registry_image} {service}")
                         else:
                             self._log(f"Skipping update for {service} (Backup skipped)", "info")
                     elif "worker" in service:
                         if self.deploy_worker:
-                            combined_deploy_cmd.append(f"docker service update --force --image {self.worker_registry_image} {service}")
+                            combined_deploy_cmd.append(f"docker service update --with-registry-auth --force --image {self.worker_registry_image} {service}")
                         else:
                             self._log(f"Skipping update for {service} (Worker skipped)", "info")
                     else:
                         if self.deploy_app:
-                            combined_deploy_cmd.append(f"docker service update --force --image {self.registry_image} {service}")
+                            combined_deploy_cmd.append(f"docker service update --with-registry-auth --force --image {self.registry_image} {service}")
                         else:
                             self._log(f"Skipping update for {service} (App skipped)", "info")
                 
