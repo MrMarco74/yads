@@ -204,11 +204,9 @@ class ReleaseWorker(QThread):
 
         try:
             if self.operation == "release":
-                self._execute_deploy()
+                self._execute_release()
             elif self.operation == "retry_upload":
                 self._retry_upload()
-            elif self.operation == "cleanup_prod":
-                self._execute_cleanup_prod()
             self._log("Diagnostic: Worker execution finished. Application should remain active.", "info")
         finally:
             sys.stdout.flush()
@@ -224,35 +222,6 @@ class ReleaseWorker(QThread):
 
     def _log(self, message: str, level: str = "info"):
         self.signals.log_message.emit(message, level)
-
-    def _execute_cleanup_prod(self):
-        try:
-            self._log("🧹 Manually requested cleanup on PROD...", "warning")
-            self.signals.progress_update.emit(10, 100, "Initiating cleanup...")
-            
-            # Use the same connection logic as deploy
-            if not self.control_socket.parent.exists():
-                self.control_socket.parent.mkdir(parents=True, exist_ok=True)
-                
-            self._log("Establishing persistent SSH connection for cleanup...", "info")
-            if not self._run_cmd(["ssh", "-fN", self.remote_host]):
-                self._log("Warning: Could not start ControlMaster, proceeding normally.", "warning")
-
-            self._log("Running 'docker system prune -af' on remote host...", "info")
-            self.signals.progress_update.emit(30, 100, "Pruning Docker system...")
-            
-            # Prune everything: -a (all unused images), -f (force)
-            success = self._run_cmd(["ssh", self.remote_host, "docker system prune -af"])
-            
-            if success:
-                self._log("✅ Cleanup successful. Checking disk space...", "success")
-                self._run_cmd(["ssh", self.remote_host, "df -h /"])
-                self.signals.operation_finished.emit(True, "Remote cleanup complete.")
-            else:
-                self.signals.operation_finished.emit(False, "Remote cleanup failed.")
-        except Exception as e:
-            self._log(f"Error during cleanup: {e}", "error")
-            self.signals.operation_finished.emit(False, str(e))
 
     def _execute_release(self):
         try:
@@ -579,6 +548,35 @@ class ProdDeployWorker(QThread):
             f"{self.stack_name}_data",
             f"{self.stack_name}_nuclei_templates"
         ]
+
+    def _execute_cleanup_prod(self):
+        try:
+            self._log("🧹 Manually requested cleanup on PROD...", "warning")
+            self.signals.progress_update.emit(10, 100, "Initiating cleanup...")
+            
+            # Ensure socket dir exists
+            if not self.control_socket.parent.exists():
+                self.control_socket.parent.mkdir(parents=True, exist_ok=True)
+                
+            self._log("Establishing persistent SSH connection for cleanup...", "info")
+            if not self._run_cmd(["ssh", "-fN", self.remote_host]):
+                self._log("Warning: Could not start ControlMaster, proceeding normally.", "warning")
+
+            self._log("Running 'docker system prune -af' on remote host...", "info")
+            self.signals.progress_update.emit(30, 100, "Pruning Docker system...")
+            
+            # Prune everything: -a (all unused images), -f (force)
+            success = self._run_cmd(["ssh", self.remote_host, "docker system prune -af"])
+            
+            if success:
+                self._log("✅ Cleanup successful. Checking disk space...", "success")
+                self._run_cmd(["ssh", self.remote_host, "df -h /"])
+                self.signals.operation_finished.emit(True, "Remote cleanup complete.")
+            else:
+                self.signals.operation_finished.emit(False, "Remote cleanup failed.")
+        except Exception as e:
+            self._log(f"Error during cleanup: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
 
     def run(self):
         try:
