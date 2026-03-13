@@ -50,7 +50,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - MFA_ENABLED=${MFA_ENABLED:-true}
       - WORKER_MODE=primary
@@ -97,7 +96,7 @@ services:
           memory: 512M
 
   yads-worker-primary:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
+    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
     command: python /app/scripts/start_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
@@ -135,7 +134,7 @@ services:
   # ==========================================================================
 
   yads-worker:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
+    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
@@ -272,7 +271,7 @@ services:
   # ==========================================================================
 
   yads-scheduler:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
+    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
