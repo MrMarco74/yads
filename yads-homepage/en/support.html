@@ -113,7 +113,7 @@
                     document.getElementById('stable-sha256').textContent = d.sha256 || 'see release notes';
                 })
                 .catch(() => { document.getElementById('download-stable-label').textContent = 'Download Stable (.zip)'; });
-            fetch('https://yads-security.com/releases/version_beta.json')
+            fetch('https://yads-security.com/releases/version-beta.json')
                 .then(r => r.json())
                 .then(d => {
                     const v = d.version;
