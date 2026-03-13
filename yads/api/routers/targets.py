@@ -138,14 +138,16 @@ async def bulk_scan_targets(
                     skipped += 1
                     continue
 
-                target.scan_status = "queued"
-                session.add(target)
-
+                # Dispatch Task FIRST
                 celery_app.send_task(
                     "yads.worker.run_all_scans",
                     args=[target.id, target.domain, final_types, user.tenant_id],
                     priority=getattr(target, "scan_priority", 5),
                 )
+                
+                # Update DB only on success
+                target.scan_status = "queued"
+                session.add(target)
                 count += 1
                 active_count += 1
 
@@ -490,19 +492,22 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         msg = f"Error: Concurrent scan limit ({max_concurrent}) reached. Try again later."
         return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
 
-    # Trigger Celery Task (and update status)
+    # 1. Dispatch Task to Redis
+    try:
+        celery_app.send_task(
+            "yads.worker.run_all_scans",
+            args=[target.id, target.domain, selected_types, user.tenant_id],
+            priority=getattr(target, "scan_priority", 5),
+        )
+    except Exception as e:
+        logger.error(f"Failed to dispatch scan for {target_id}: {e}")
+        return RedirectResponse(url=f"/targets/{target_id}?error=Dispatch+Error", status_code=303)
+
+    # 2. Update status in DB on SUCCESS
     target.scan_status = "queued"
     session.add(target)
     session.commit()
     
-    # Always dispatch to Redis (even if paused, it waits there).
-    # This ensures argments are preserved.
-    # We pass ignore_queue_pause=False so it respects the "Stop All" state.
-    celery_app.send_task(
-        "yads.worker.run_all_scans",
-        args=[target.id, target.domain, selected_types, user.tenant_id],
-        priority=getattr(target, "scan_priority", 5),
-    )
     _audit_scan_trigger(session, user, [target.domain], selected_types, "single_scan", request)
 
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)

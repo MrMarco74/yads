@@ -412,7 +412,7 @@ class ReleaseOrchestrator:
                 self.file_updater.rollback()
             raise
 
-    def deploy_to_production(self, version: str, dry_run: bool = False) -> bool:
+    def deploy_to_production(self, version: str, dry_run: bool = False, cleanup: bool = True) -> bool:
         """
         Deploy a released version to production (Frischkorn-Prod).
 
@@ -422,6 +422,7 @@ class ReleaseOrchestrator:
         Args:
             version: Version string to deploy (e.g., "1.20.3")
             dry_run: If True, show what would happen without executing
+            cleanup: If True, run docker system prune on prod
 
         Returns:
             True if successful
@@ -434,6 +435,14 @@ class ReleaseOrchestrator:
             print("\n❌ No 'deploy' section in release.yaml.")
             print("   Run: ./tools/release.py init-config  to create a template.\n")
             return False
+
+        # Apply cleanup override if needed
+        if not cleanup:
+            # Create a shallow copy to avoid mutating the original config in place
+            deploy_cfg = deploy_cfg.copy()
+            ssh_cfg = deploy_cfg.get('ssh', {}).copy()
+            ssh_cfg['cleanup_enabled'] = False
+            deploy_cfg['ssh'] = ssh_cfg
 
         deployer = ProductionDeployer(deploy_cfg)
         try:
@@ -658,6 +667,11 @@ Examples:
         '--config',
         help='Path to config file (default: ~/.yads/release.yaml)'
     )
+    deploy_parser.add_argument(
+        '--no-cleanup',
+        action='store_true',
+        help='Skip Docker system prune on production'
+    )
 
     # Version command
     version_parser = subparsers.add_parser('version', help='Show current version')
@@ -745,6 +759,7 @@ Examples:
         success = orchestrator.deploy_to_production(
             version=args.version,
             dry_run=args.dry_run,
+            cleanup=not args.no_cleanup
         )
         sys.exit(0 if success else 1)
 
