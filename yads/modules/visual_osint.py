@@ -10,9 +10,13 @@ try:
     _PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     _PLAYWRIGHT_AVAILABLE = False
-from PIL import Image
-import imagehash
-import mmh3
+try:
+    from PIL import Image
+    import imagehash
+    import mmh3
+    _VISUAL_DEPS_AVAILABLE = True
+except ImportError:
+    _VISUAL_DEPS_AVAILABLE = False
 import base64
 import codecs
 
@@ -148,6 +152,9 @@ class VisualOSINT(BaseScannerModule):
         0 = Identical
         > 10 = Changed
         """
+        if not _VISUAL_DEPS_AVAILABLE:
+            self.logger.error("PIL/imagehash not available — image comparison disabled.")
+            return 999
         try:
             hash_a = imagehash.dhash(Image.open(path_a))
             hash_b = imagehash.dhash(Image.open(path_b))
@@ -210,6 +217,8 @@ class VisualOSINT(BaseScannerModule):
         3. Insert newlines every 76 chars (standard MIME/PEM format)
         4. Calculate mmh3 hash
         """
+        if not _VISUAL_DEPS_AVAILABLE:
+            return None
         favicon_url = f"{base_url.rstrip('/')}/favicon.ico"
         try:
             r = requests.get(favicon_url, timeout=5, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs

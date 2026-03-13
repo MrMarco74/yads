@@ -18,7 +18,6 @@ from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
-from yads.modules.brand_monitor import BrandMonitor
 from yads.models import SecurityAuditLog
 
 
@@ -1707,7 +1706,8 @@ def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: S
         return {"message": "No typosquat candidates found to hunt against.", "matches": []}
         
     candidates = ts_result.data.get("found", [])
-    
+
+    from yads.modules.brand_monitor import BrandMonitor
     monitor = BrandMonitor()
     # This might take a few seconds, but since its a "Hunt" action, blocking slightly is okay-ish for MVP.
     # ideally async or task, but for <50 squats usually fine.
