@@ -447,26 +447,63 @@ class GuiTestWorker(QThread):
             self._log("Starting test environment on Dana...", "info")
             subprocess.run(["ssh", self.dana_host, f"cd {dana_path} && docker compose -f docker-compose.testlab.yml up -d"], check=True)
 
-            # 2b. Wait for YADS API to become healthy before executing tests
+            # 2b. Stream-wait for YADS API to become healthy (output → GUI log)
             self._log("Waiting for YADS API to become ready on Dana...", "info")
             wait_cmd = [
                 "ssh", self.dana_host,
                 f"for i in $(seq 1 60); do "
-                f"curl -sf http://localhost:8085/ > /dev/null 2>&1 && echo 'YADS API ready' && exit 0; "
-                f"echo \"Waiting for YADS API... ($i/60)\"; sleep 3; done; "
-                f"echo 'ERROR: YADS API did not become ready after 180s'; exit 1"
+                f"python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8085/', timeout=3)\" 2>/dev/null "
+                f"  && echo '[API] YADS API is ready.' && exit 0; "
+                f"echo \"[API] Waiting for YADS API... ($i/60)\"; sleep 3; done; "
+                f"echo '[API] ERROR: YADS API did not become ready after 180s'; exit 1"
             ]
-            wait_result = subprocess.run(wait_cmd, check=False, capture_output=False, text=True)
-            if wait_result.returncode != 0:
+            wait_proc = subprocess.Popen(
+                wait_cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, universal_newlines=True,
+            )
+            for line in wait_proc.stdout:
+                line = _ANSI_RE.sub('', line).strip()
+                if line:
+                    self._log(line, "info")
+            wait_proc.wait()
+            if wait_proc.returncode != 0:
                 self._log("YADS API did not become ready in time. Aborting tests.", "error")
                 self.signals.operation_finished.emit(False, "YADS API startup timeout on Dana")
                 return
 
+            # 2c. Stream-wait for gui-tester container (Playwright install takes time)
+            self._log("Waiting for gui-tester container to be ready (installing Playwright)...", "info")
+            tester_wait_cmd = [
+                "ssh", self.dana_host,
+                f"cd {dana_path} && for i in $(seq 1 90); do "
+                f"docker compose -f docker-compose.testlab.yml exec -T gui-tester "
+                f"  python3 -c 'import playwright; print(\"Playwright OK\")' 2>/dev/null "
+                f"  && exit 0; "
+                f"echo \"[Tester] Setting up gui-tester... ($i/90)\"; sleep 5; done; "
+                f"echo '[Tester] ERROR: gui-tester not ready after 450s'; exit 1"
+            ]
+            tester_proc = subprocess.Popen(
+                tester_wait_cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, universal_newlines=True,
+            )
+            for line in tester_proc.stdout:
+                line = _ANSI_RE.sub('', line).strip()
+                if line:
+                    self._log(line, "info")
+            tester_proc.wait()
+            if tester_proc.returncode != 0:
+                self._log("gui-tester container did not become ready. Aborting.", "error")
+                self.signals.operation_finished.emit(False, "gui-tester setup timeout")
+                return
+
             # 3. Run tests inside container
-            self._log("Running tests inside gui-tester container...", "info")
+            self._log("▶ Launching GUI test suite...", "info")
             cmd = [
                 "ssh", self.dana_host,
-                f"cd {dana_path} && docker compose -f docker-compose.testlab.yml exec -T gui-tester python3 tools/gui_test_runner.py --url {self.target_url}"
+                # -u = unbuffered stdout/stderr so lines reach us immediately
+                f"cd {dana_path} && docker compose -f docker-compose.testlab.yml exec -T gui-tester python3 -u tools/gui_test_runner.py --url {self.target_url}"
             ]
             
             self.current_process = subprocess.Popen(
@@ -485,11 +522,17 @@ class GuiTestWorker(QThread):
                 
                 line = _ANSI_RE.sub('', line).strip()
                 if line:
-                    level = "info"
-                    if "FAILURE" in line or "error" in line.lower():
+                    lo = line.lower()
+                    if "❌" in line or "FAILURE" in line or "CRITICAL" in line or lo.startswith("error"):
                         level = "error"
-                    elif "✅" in line or "success" in line.lower():
+                    elif "⚠" in line or "warning" in lo:
+                        level = "warning"
+                    elif "✅" in line or "passed" in lo or "success" in lo or "report generated" in lo:
                         level = "success"
+                    elif "▶" in line or "pre-step" in lo or "testing page" in lo or "screenshot" in lo:
+                        level = "info"
+                    else:
+                        level = "info"
                     self._log(line, level)
 
             self.current_process.wait()
