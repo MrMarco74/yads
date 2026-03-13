@@ -5,7 +5,11 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import requests
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+    _PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    _PLAYWRIGHT_AVAILABLE = False
 from PIL import Image
 import imagehash
 import mmh3
@@ -104,6 +108,9 @@ class VisualOSINT(BaseScannerModule):
         Captures a screenshot using Playwright.
         """
         try:
+            if not _PLAYWRIGHT_AVAILABLE:
+                logger.error("Playwright not available in this environment")
+                return False
             with sync_playwright() as p:
                 browser = p.chromium.launch(
                     headless=True,
