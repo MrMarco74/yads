@@ -570,30 +570,34 @@ class GuiTestWorker(QThread):
 class ProdDeployWorker(QThread):
     """Worker thread for PROD deployment"""
 
-    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None, deploy_app: bool = True, deploy_backup: bool = True):
+    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None,
+                 deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
         self.setup_token = setup_token
         self.deploy_app = deploy_app
+        self.deploy_worker = deploy_worker  # only needed when scanner tools / Python deps change
         self.deploy_backup = deploy_backup
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
-        
+
         # Deployment target
         self.remote_host = "root@prod.example.com"
         self.stack_name = "yads"
         self.remote_deploy_dir = "~/deploy/yads"
-        
+
         # SSH Connection Sharing (ControlMaster)
         import tempfile
         self.control_socket = Path(tempfile.gettempdir()) / f"yads_deploy_{os.getpid()}.sock"
 
-        # Configuration from manual_deploy.sh
+        # Image names — split api/worker for smaller, faster deploys
         self.docker_compose_file = "docker-compose.swarm.yml"
-        self.registry_image = "gitlab.fritz.box:5050/apps/yads/yads:latest"
+        self.registry_image        = "gitlab.fritz.box:5050/apps/yads/yads:latest"        # api image
+        self.worker_registry_image = "gitlab.fritz.box:5050/apps/yads/yads-worker:latest"  # worker image
         self.backup_registry_image = "gitlab.fritz.box:5050/apps/yads/yads-backup:latest"
+
         self.services_to_update = [
             f"{self.stack_name}_yads-api",
             f"{self.stack_name}_yads-worker-primary",
@@ -878,90 +882,114 @@ class ProdDeployWorker(QThread):
                 self._run_cmd(["ssh", self.remote_host, f"docker network rm {self.stack_name}_yads-internal {self.stack_name}_yads-frontend"])
 
                 self._log("Removing old images...", "info")
-                self._run_cmd(["ssh", self.remote_host, f"docker rmi {self.registry_image} {self.backup_registry_image}"])
+                self._run_cmd(["ssh", self.remote_host,
+                               f"docker rmi {self.registry_image} {self.worker_registry_image} {self.backup_registry_image}"])
                 self._log("Wipe complete.", "success")
 
-            # 1. Local Build (with image cache check)
+            # Detect fastest available compressor (pigz > gzip)
+            _cpr_r = subprocess.run(["which", "pigz"], capture_output=True)
+            _compressor = "pigz -T0" if _cpr_r.returncode == 0 else "gzip"
+            self._log(f"Compressor: {_compressor.split()[0]}", "info")
+
+            # Check pigz availability on remote too
+            _rem_pigz = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host, "which pigz"]),
+                capture_output=True
+            )
+            _decompressor = "pigz -d -c" if _rem_pigz.returncode == 0 else "gunzip -c"
+
+            # ── Step 1: Build API image ────────────────────────────────────────
             self.signals.progress_update.emit(3, 100, "Checking image cache...")
-            use_cached = False
+            use_cached_api = False
             if not self.wipe_reinstall and self.deploy_app:
-                use_cached = self._check_image_cache()
+                use_cached_api = self._check_image_cache()
 
             if self.deploy_app:
-                if use_cached:
-                    self._log("Step 1/8: ⚡ Using cached local image (no source changes detected)", "success")
-                    self.signals.progress_update.emit(15, 100, "Using cached image...")
+                if use_cached_api:
+                    self._log("Step 1a: ⚡ API image up-to-date (no source changes)", "success")
+                    self.signals.progress_update.emit(8, 100, "Using cached API image...")
                 else:
-                    self._log("Cleaning up old local images before build...", "info")
-                    self.signals.progress_update.emit(3, 100, "Cleaning up old images...")
-                    self._run_cmd(["docker", "rmi", "yads:latest", self.registry_image])
-                    self._run_cmd(["docker", "image", "prune", "-f"])
-
-                    self._log("Step 1/8: Building YADS Docker image locally...", "info")
-                    self.signals.progress_update.emit(5, 100, "Building YADS image...")
-                    if not self._run_cmd(["docker", "build", "--target", "prod", "-t", "yads:latest", "."]):
-                        return self.signals.operation_finished.emit(False, "Build failed")
-
-                self._log("Tagging image...", "info")
-                if not self._run_cmd(["docker", "tag", "yads:latest", self.registry_image]):
-                    return self.signals.operation_finished.emit(False, "Tagging failed")
+                    git_sha = subprocess.run(
+                        ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                        cwd=str(self.project_root)
+                    ).stdout.strip()
+                    self._log("Step 1a: Building YADS API image (no scanner tools)...", "info")
+                    self.signals.progress_update.emit(5, 100, "Building API image...")
+                    build_cmd = [
+                        "docker", "build",
+                        "--target", "api",
+                        "--build-arg", f"YADS_GIT_SHA={git_sha}",
+                        "-t", "yads-api:latest",
+                        "-t", self.registry_image,
+                        "."
+                    ]
+                    if not self._run_cmd(build_cmd):
+                        return self.signals.operation_finished.emit(False, "API build failed")
+                    self._log("Step 1a: API image built.", "success")
             else:
-                self._log("Step 1/8: Skipping YADS App build as requested.", "warning")
+                self._log("Step 1a: Skipping API build.", "warning")
 
+            # ── Step 1b: Build Worker image (optional) ─────────────────────────
+            if self.deploy_worker:
+                self._log("Step 1b: Building YADS Worker image (with Playwright/Nuclei/Nmap)...", "info")
+                self._log("  ℹ️  Worker image only needs rebuild when scanner tools or Python deps change.", "info")
+                self.signals.progress_update.emit(8, 100, "Building Worker image...")
+                worker_build_cmd = [
+                    "docker", "build",
+                    "--target", "worker",
+                    "-t", "yads-worker:latest",
+                    "-t", self.worker_registry_image,
+                    "."
+                ]
+                if not self._run_cmd(worker_build_cmd):
+                    return self.signals.operation_finished.emit(False, "Worker build failed")
+                self._log("Step 1b: Worker image built.", "success")
+            else:
+                self._log("Step 1b: Skipping Worker image build (code-only deploy).", "info")
+
+            # ── Step 2: Build Backup image ─────────────────────────────────────
             if self.deploy_backup:
-                self._log("Step 2/8: Building backup container image...", "info")
+                self._log("Step 2: Building backup container image...", "info")
                 self.signals.progress_update.emit(15, 100, "Building backup image...")
                 if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest", "backup/"]):
                     return self.signals.operation_finished.emit(False, "Backup build failed")
-
                 if not self._run_cmd(["docker", "tag", "yads-backup:latest", self.backup_registry_image]):
                     return self.signals.operation_finished.emit(False, "Backup tagging failed")
             else:
-                self._log("Step 2/8: Skipping Backup build as requested.", "warning")
+                self._log("Step 2: Skipping Backup build.", "warning")
 
-            # 2. Transfer
-            self._log("Step 3/8: Compressing images...", "info")
-            self.signals.progress_update.emit(25, 100, "Compressing images...")
-            
-            archives_to_transfer = []
-            if self.deploy_app:
-                if not self._run_cmd(f"docker save {self.registry_image} | gzip > yads_deploy.tgz", shell=True):
-                    return self.signals.operation_finished.emit(False, "Compression failed")
-                archives_to_transfer.append("yads_deploy.tgz")
-            
+            # ── Step 3+4: Stream-transfer each image via SSH pipe ──────────────
+            # Format: docker save IMAGE | pigz | ssh remote 'pigz -d | docker load'
+            # No temp file, no separate rsync — compress + transfer + load in one pipeline.
+            self.signals.progress_update.emit(20, 100, "Streaming images to PROD...")
+            self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
+
+            images_to_stream = []
+            if self.deploy_app and not use_cached_api:
+                images_to_stream.append((self.registry_image, "API"))
+            if self.deploy_worker:
+                images_to_stream.append((self.worker_registry_image, "Worker"))
             if self.deploy_backup:
-                if not self._run_cmd(f"docker save {self.backup_registry_image} | gzip > yads_backup_deploy.tgz", shell=True):
-                    return self.signals.operation_finished.emit(False, "Backup compression failed")
-                archives_to_transfer.append("yads_backup_deploy.tgz")
+                images_to_stream.append((self.backup_registry_image, "Backup"))
 
-            if not archives_to_transfer:
-                self._log("Nothing to transfer (both App and Backup skipped)!", "warning")
+            if not images_to_stream:
+                self._log("All images cached — nothing to transfer.", "success")
             else:
-                self._log("Step 4/8: Transferring images to PROD (rsync)...", "info")
-                self.signals.progress_update.emit(40, 100, "Transferring images...")
-                self._run_cmd(["ssh", self.remote_host, f"mkdir -p {self.remote_deploy_dir}"])
-                rsync_cmd = ["rsync", "--info=progress2"] + archives_to_transfer + [f"{self.remote_host}:{self.remote_deploy_dir}/"]
-                if not self._run_cmd(rsync_cmd, is_rsync=True):
-                    self._log("Rsync failed or not found, falling back to scp...", "warning")
-                    scp_cmd = ["scp"] + archives_to_transfer + [f"{self.remote_host}:{self.remote_deploy_dir}/"]
-                    if not self._run_cmd(scp_cmd):
-                        return self.signals.operation_finished.emit(False, "Transfer failed")
+                total_imgs = len(images_to_stream)
+                for idx, (img, label) in enumerate(images_to_stream, 1):
+                    pct = 20 + int((idx / total_imgs) * 55)
+                    self._log(f"Step 3-4/{total_imgs}: Streaming {label} image to PROD...", "info")
+                    self.signals.progress_update.emit(pct, 100, f"Streaming {label} image...")
+                    stream_cmd = (
+                        f"docker save {img} | {_compressor} | "
+                        f"ssh {' '.join(self._ssh_opts())} {self.remote_host} "
+                        f"'{_decompressor} | docker load 2>&1 | grep -E \"(Loaded image|error)\"'"
+                    )
+                    if not self._run_cmd(stream_cmd, shell=True):
+                        return self.signals.operation_finished.emit(False, f"{label} image transfer failed")
+                    self._log(f"  ✅ {label} image loaded on remote.", "success")
 
-            # 3. Load
-            if archives_to_transfer:
-                self._log("Step 5/8: Loading images on remote host...", "info")
-                self.signals.progress_update.emit(80, 100, "Loading images on remote...")
-                
-                load_cmds = []
-                if "yads_deploy.tgz" in archives_to_transfer:
-                    load_cmds.append(f"gunzip -c {self.remote_deploy_dir}/yads_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'")
-                if "yads_backup_deploy.tgz" in archives_to_transfer:
-                    load_cmds.append(f"gunzip -c {self.remote_deploy_dir}/yads_backup_deploy.tgz | docker load 2>&1 | grep -E '(Loaded image|error)'")
-                
-                if not self._run_cmd(["ssh", self.remote_host, " && ".join(load_cmds)]):
-                    return self.signals.operation_finished.emit(False, "Remote docker load failed")
-            else:
-                self._log("Step 5/8: Skipping image load (nothing transferred).", "warning")
+            self._log("Step 5: All images on remote.", "success")
 
             # 4. Config
             self._log("Step 6/8: Transferring configuration...", "info")
@@ -1104,14 +1132,24 @@ class ProdDeployPage(QWidget):
         selection_group = QHBoxLayout()
         selection_group.setSpacing(20)
         
-        self.deploy_app_check = CheckBox("Deploy YADS App (API & Worker)", self)
+        self.deploy_app_check = CheckBox("Deploy API image", self)
         self.deploy_app_check.setChecked(True)
+        self.deploy_app_check.setToolTip("Build & deploy the lightweight API image (~600 MB). Always needed for code changes.")
         selection_group.addWidget(self.deploy_app_check)
-        
+
+        self.deploy_worker_check = CheckBox("Deploy Worker image", self)
+        self.deploy_worker_check.setChecked(False)
+        self.deploy_worker_check.setToolTip(
+            "Build & deploy the Worker image (with Playwright/Nuclei/Nmap, ~2 GB).\n"
+            "Only needed when scanner tools or Python dependencies change."
+        )
+        selection_group.addWidget(self.deploy_worker_check)
+
         self.deploy_backup_check = CheckBox("Deploy Backup Service", self)
-        self.deploy_backup_check.setChecked(True)
+        self.deploy_backup_check.setChecked(False)
+        self.deploy_backup_check.setToolTip("Rebuild and deploy the backup sidecar container.")
         selection_group.addWidget(self.deploy_backup_check)
-        
+
         selection_group.addStretch()
         layout.addLayout(selection_group)
 
@@ -1292,6 +1330,7 @@ class ProdDeployPage(QWidget):
             wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False, 
             setup_token=getattr(self, '_last_setup_token', None) if operation == "release" else None,
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
+            deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False
         )
         self._active_worker.operation = operation

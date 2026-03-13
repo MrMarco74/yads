@@ -36,6 +36,7 @@ releases/
 
 # Internal Tools
 license_manager/
+tools/
 
 # Sensitive Data & Backups
 data/
@@ -45,3 +46,20 @@ data/
 *.backup
 *.tgz
 logs/backups/
+
+# Runtime data — NOT app code, must be volumes in production
+yads/api/static/screenshots/
+yads/api/static/screenshots_locked/
+
+# Dev/CI artefacts
+tests/
+product_screenshots/
+yads-homepage/
+docs/
+debug_scripts/
+monitoring/
+keycloak/
+*.html
+*.eml
+logo_base64.txt
+yads_summary*
