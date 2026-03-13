@@ -336,7 +336,8 @@ class ReleaseWorker(QThread):
         # SSH settings
         ssh_host = self.params.get('ssh_host', '')
         ssh_user = self.params.get('ssh_user', '')
-        if ssh_host and ssh_user:
+        ssh_disabled = self.params.get('upload_ssh_disabled', False)
+        if ssh_host and ssh_user and not ssh_disabled:
             config['upload']['method'] = 'ssh'
             config['upload']['ssh']['host'] = ssh_host
             config['upload']['ssh']['user'] = ssh_user
