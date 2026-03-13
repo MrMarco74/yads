@@ -33,6 +33,54 @@ networks:
           gateway: 172.30.0.1
 
 services:
+  # ── Infrastructure (Core) ──────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: testlab-db
+    environment:
+      POSTGRES_USER: yads
+      POSTGRES_PASSWORD: yadsLocal2026
+      POSTGRES_DB: yads
+      POSTGRES_HOST_AUTH_METHOD: trust
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.200
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: testlab-redis
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.210
+
+  # ── YADS API (The system under test) ───────────────────────────────────────
+  yads-api:
+    build:
+      context: .
+      target: dev
+    container_name: testlab-yads-api
+    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8085
+    environment:
+      DATABASE_URL: postgresql://yads:yadsLocal2026@172.30.0.200:5432/yads
+      REDIS_URL: redis://172.30.0.210:6379/0
+      SECRET_KEY: test-secret-key-for-yads-testing-32chars!
+      AUTH_MODE: local
+      DEBUG: "true"
+      LOG_DIR: /app/logs
+      SETUP_COMPLETE: "true"
+      QUEUE_PAUSE_ON_BOOT: "false"
+      MFA_ENABLED: "false"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    networks:
+      yads-testlab:
+        ipv4_address: 172.30.0.250
+
 
   # ── DNS (CoreDNS) — AXFR enabled, subdomain takeover CNAME ─────────────────
   testlab-dns:
@@ -162,3 +210,15 @@ services:
     networks:
       yads-testlab:
         ipv4_address: 172.30.0.30
+
+  # ── GUI Test Runner (Playwright) ───────────────────────────────────────────
+  gui-tester:
+    image: mcr.microsoft.com/playwright/python:v1.39.0-jammy
+    container_name: gui-tester
+    volumes:
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app
+    entrypoint: ["sh", "-c", "apt-get update && apt-get install -y docker.io && pip install playwright==1.39.0 && tail -f /dev/null"]
+    networks:
+      - yads-testlab

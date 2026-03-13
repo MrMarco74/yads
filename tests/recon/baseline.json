@@ -1,0 +1,407 @@
+{
+  "links": [
+    "/",
+    "/ai-assistant",
+    "/analytics",
+    "/analytics/dead-links",
+    "/analytics/external-links",
+    "/analytics/hijacking",
+    "/analytics/tech-radar",
+    "/asr",
+    "/attack-path",
+    "/attack-surface/",
+    "/cert-timeline",
+    "/cert-timeline/inventory",
+    "/changes/",
+    "/cloud-assets",
+    "/compliance",
+    "/developer",
+    "/email-security",
+    "/executive-report",
+    "/help/about",
+    "/integrations",
+    "/logout",
+    "/logs",
+    "/notifications/admin",
+    "/osint",
+    "/portfolio",
+    "/ports",
+    "/pqc",
+    "/profile",
+    "/queue",
+    "/reports",
+    "/reports/archived",
+    "/reports/builder",
+    "/reports/templates",
+    "/reports/traffic",
+    "/scan-compare/",
+    "/scan-modules/",
+    "/scan-profiles",
+    "/scanner-import",
+    "/schedules",
+    "/secrets",
+    "/security-findings",
+    "/settings",
+    "/storage",
+    "/system/alerts",
+    "/tags",
+    "/targets/graph",
+    "/targets/table",
+    "/tech-drift",
+    "/tenant-settings",
+    "/tenants",
+    "/users",
+    "/visualizations/network-graph",
+    "/waf-analysis",
+    "/workers"
+  ],
+  "pages": {
+    "/": {
+      "buttons": [
+        "DE",
+        "EN",
+        "New Target"
+      ]
+    },
+    "/ai-assistant": {
+      "buttons": [
+        "DE",
+        "EN",
+        "Finding Prioritisation",
+        "NL Search\nBETA",
+        "Prioritise Findings",
+        "Remediation Assistant"
+      ]
+    },
+    "/analytics": {
+      "buttons": [
+        "Cloud Infrastructure",
+        "Create Management Summary\nAI",
+        "DE",
+        "Detailed Web Technologies",
+        "Detected Vulnerabilities",
+        "EN",
+        "Find Best Entrypoint",
+        "General Overview",
+        "Global Server Map",
+        "Secrets & Data Leaks",
+        "Security Health Monitoring"
+      ]
+    },
+    "/analytics/dead-links": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/analytics/external-links": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "Add to Targets",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/analytics/hijacking": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/analytics/tech-radar": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/asr": {
+      "buttons": [
+        "DE",
+        "EN"
+      ]
+    },
+    "/attack-path": {
+      "buttons": [
+        "DE",
+        "EN"
+      ]
+    },
+    "/attack-surface/": {
+      "buttons": [
+        "DE",
+        "EN"
+      ]
+    },
+    "/cert-timeline": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/cert-timeline/inventory": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/changes/": {
+      "buttons": [
+        "DE",
+        "EN"
+      ]
+    },
+    "/cloud-assets": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/compliance": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN",
+        "New Task",
+        "Refresh"
+      ]
+    },
+    "/developer": {
+      "buttons": [
+        "DE",
+        "EN",
+        "Generate Key",
+        "JavaScript",
+        "Python",
+        "curl"
+      ]
+    },
+    "/email-security": {
+      "buttons": [
+        "1 Day",
+        "1 Year",
+        "30 Days",
+        "7 Days",
+        "90 Days",
+        "All Time",
+        "Apply Filter",
+        "DE",
+        "EN"
+      ]
+    },
+    "/executive-report": {
+      "buttons": [
+        "DE",
+        "EN",
+        "Print"
+      ]
+    },
+    "/help/about": {
+      "buttons": [
+        "DE",
+        "EN"
+      ]
+    },
+    "/integrations": {
+      "buttons": [
+        "DE",
+        "EN",
+        "\ud83d\udc19\nGitHub Issues\nCreate GitHub issues from findings",
+        "\ud83d\udce1\nSIEM \u2014 Syslog / CEF\nSend findings as CEF events to syslog (IBM QRadar, ArcSight, etc.)",
+        "\ud83d\udd35\nJira\nCreate Jira issues from YADS findings",
+        "\ud83d\udd37\nSIEM \u2014 HTTP / ECS / Splunk HEC\nSend findings to Elastic SIEM, Splunk HEC, or any HTTP endpoint"
+      ]
+    },
+    "/logout": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/logs": {
+      "buttons": []
+    },
+    "/notifications/admin": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/osint": {
+      "buttons": []
+    },
+    "/portfolio": {
+      "buttons": []
+    },
+    "/ports": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/pqc": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/profile": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/queue": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/reports": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/reports/archived": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/reports/builder": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/reports/templates": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/reports/traffic": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/scan-compare/": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/scan-modules/": {
+      "buttons": []
+    },
+    "/scan-profiles": {
+      "buttons": []
+    },
+    "/scanner-import": {
+      "buttons": []
+    },
+    "/schedules": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/secrets": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/security-findings": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/settings": {
+      "buttons": []
+    },
+    "/storage": {
+      "buttons": []
+    },
+    "/system/alerts": {
+      "buttons": []
+    },
+    "/tags": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/targets/graph": {
+      "buttons": []
+    },
+    "/targets/table": {
+      "buttons": []
+    },
+    "/tech-drift": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/tenant-settings": {
+      "buttons": []
+    },
+    "/tenants": {
+      "buttons": []
+    },
+    "/users": {
+      "buttons": []
+    },
+    "/visualizations/network-graph": {
+      "buttons": []
+    },
+    "/waf-analysis": {
+      "buttons": [
+        "Sign In"
+      ]
+    },
+    "/workers": {
+      "buttons": []
+    }
+  }
+}

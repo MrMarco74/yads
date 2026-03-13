@@ -406,6 +406,109 @@ class ReleaseWorker(QThread):
             )
 
 
+class GuiTestWorker(QThread):
+    """Worker thread for running Playwright GUI tests"""
+
+    def __init__(self, target_url: str, dana_host: str):
+        super().__init__()
+        self.target_url = target_url
+        self.dana_host = dana_host
+        self.signals = LogSignals()
+        self.current_process = None
+        self.cancelled = False
+
+    def run(self):
+        try:
+            self._log(f"🚀 Preparing Remote environment on {self.dana_host}...", "info")
+            # 1. Sync files to Dana
+            # Use absolute paths and exclude virtual environments
+            project_root = script_dir.parent
+            dana_path = "~/yads-testenv"
+            self._log("Syncing tools/ and docker-compose.testlab.yml to Dana (excluding venvs)...", "info")
+            
+            subprocess.run(["ssh", self.dana_host, f"mkdir -p {dana_path}"], check=True)
+            
+            sync_cmd = [
+                "rsync", "-avz",
+                "--exclude", "venv",
+                "--exclude", ".venv",
+                "--exclude", "*_venv", 
+                "--exclude", "__pycache__",
+                "--exclude", ".git",
+                "--exclude", ".pytest_cache",
+                "--exclude", ".env*",
+                "--exclude", "config.env",
+                str(project_root) + "/", 
+                f"{self.dana_host}:{dana_path}/"
+            ]
+            subprocess.run(sync_cmd, check=True)
+
+            # 2. Ensure environment is up
+            self._log("Starting test environment on Dana...", "info")
+            subprocess.run(["ssh", self.dana_host, f"cd {dana_path} && docker compose -f docker-compose.testlab.yml up -d"], check=True)
+
+            # 3. Run tests inside container
+            self._log("Running tests inside gui-tester container...", "info")
+            cmd = [
+                "ssh", self.dana_host,
+                f"cd {dana_path} && docker compose -f docker-compose.testlab.yml exec -T gui-tester python3 tools/gui_test_runner.py --url {self.target_url}"
+            ]
+            
+            self.current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True
+            )
+
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                
+                line = _ANSI_RE.sub('', line).strip()
+                if line:
+                    level = "info"
+                    if "FAILURE" in line or "error" in line.lower():
+                        level = "error"
+                    elif "✅" in line or "success" in line.lower():
+                        level = "success"
+                    self._log(line, level)
+
+            self.current_process.wait()
+            success = self.current_process.returncode == 0
+            
+            # Sync results back from Dana to local
+            self._log("Syncing test results back from Dana...", "info")
+            local_results = Path(__file__).parent.parent / "tests" / "results"
+            local_results.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["rsync", "-avz", f"{self.dana_host}:{dana_path}/tests/results/", str(local_results) + "/"], check=False)
+
+            if self.cancelled:
+                self._log("Tests stopped by user.", "warning")
+            elif success:
+                self.signals.operation_finished.emit(True, "GUI Tests completed successfully.")
+            else:
+                self.signals.operation_finished.emit(False, f"GUI Tests failed with code {self.current_process.returncode}")
+
+        except Exception as e:
+            self._log(f"Critical error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    def cancel(self):
+        self.cancelled = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except:
+                pass
+
+    def _log(self, message: str, level: str = "info"):
+        self.signals.log_message.emit(message, level)
+
+
 class ProdDeployWorker(QThread):
     """Worker thread for PROD deployment"""
 
@@ -3947,6 +4050,109 @@ class TestManagerPage(QWidget):
                           position=InfoBarPosition.TOP, duration=8000)
 
 
+class GuiTestsPage(QWidget):
+    """Page for running and monitoring GUI tests"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("guiTestsPage")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        # Header
+        header = QHBoxLayout()
+        header.addWidget(TitleLabel("Simulated Browser GUI Tests", self))
+        header.addStretch()
+        layout.addLayout(header)
+
+        layout.addWidget(BodyLabel(
+            "Führt umfangreiche Tests aller GUI-Funktionen auf Dana durch und prüft parallel die System-Logs.", self
+        ))
+
+        # Controls Card
+        ctrl_card = CardWidget(self)
+        ctrl_layout = QVBoxLayout(ctrl_card)
+        
+        row1 = QHBoxLayout()
+        row1.addWidget(StrongBodyLabel("Target URL:", ctrl_card))
+        self.target_url = LineEdit(ctrl_card)
+        self.target_url.setText("http://dana:8085")
+        row1.addWidget(self.target_url)
+        
+        row1.addSpacing(20)
+        row1.addWidget(StrongBodyLabel("Dana Host:", ctrl_card))
+        self.dana_host = LineEdit(ctrl_card)
+        self.dana_host.setPlaceholderText("e.g. root@dana")
+        self.dana_host.setText("root@dana")
+        row1.addWidget(self.dana_host)
+        
+        ctrl_layout.addLayout(row1)
+
+        btn_row = QHBoxLayout()
+        self.start_btn = PrimaryPushButton(FIF.PLAY, "Tests starten", ctrl_card)
+        self.start_btn.clicked.connect(self._on_start)
+        btn_row.addWidget(self.start_btn)
+
+        self.stop_btn = PushButton(FIF.CLOSE, "Stoppen", ctrl_card)
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.clicked.connect(self._on_stop)
+        btn_row.addWidget(self.stop_btn)
+
+        self.open_reports_btn = TransparentPushButton(FIF.FOLDER, "Ergebnisse öffnen", ctrl_card)
+        self.open_reports_btn.clicked.connect(self._on_open_reports)
+        btn_row.addWidget(self.open_reports_btn)
+        
+        btn_row.addStretch()
+        ctrl_layout.addLayout(btn_row)
+        layout.addWidget(ctrl_card)
+
+        # Log View
+        self.log_view = TextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setStyleSheet(get_log_stylesheet())
+        layout.addWidget(self.log_view)
+
+        self._worker = None
+
+    def _log(self, msg: str, level: str = "info"):
+        _insert_log_line(self.log_view, msg, level)
+
+    def _on_start(self):
+        self.log_view.clear()
+        self._log("Initialisiere GUI-Tests...", "info")
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        
+        self._worker = GuiTestWorker(self.target_url.text(), self.dana_host.text())
+        self._worker.signals.log_message.connect(self._log)
+        self._worker.signals.operation_finished.connect(self._on_finished)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.start()
+
+    def _on_stop(self):
+        if self._worker:
+            self._worker.cancel()
+            self._log("Stoppen angefordert...", "warning")
+
+    def _on_finished(self, ok: bool, msg: str):
+        self.start_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
+        self._worker = None
+        if ok:
+            InfoBar.success("Erfolg", msg, parent=self, duration=5000)
+        else:
+            InfoBar.error("Fehler", msg, parent=self, duration=8000)
+
+    def _on_open_reports(self):
+        reports_path = Path(__file__).parent.parent / "tests" / "results"
+        if not reports_path.exists():
+            reports_path.mkdir(parents=True, exist_ok=True)
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(reports_path)))
+
+
 class DevCredsPage(SmoothScrollArea):
     """Dev credentials and URLs overview page"""
 
@@ -4110,6 +4316,7 @@ class MainWindow(FluentWindow):
         self.testlab_page = TestLabPage(self)
         self.dana_deploy_page = DanaDeployPage(self)
         self.test_manager_page = TestManagerPage(self)
+        self.gui_tests_page = GuiTestsPage(self)
         self.dev_creds_page = DevCredsPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
@@ -4161,6 +4368,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.testlab_page, FIF.EDUCATION, "Test Lab")
         self.addSubInterface(self.dana_deploy_page, FIF.CLOUD, "Dana Test")
         self.addSubInterface(self.test_manager_page, FIF.CHECKBOX, "Test Manager")
+        self.addSubInterface(self.gui_tests_page, FIF.ACCEPT, "GUI Tests")
         self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
