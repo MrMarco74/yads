@@ -19,12 +19,24 @@ class GuiTestRunner:
         self.target_url = target_url
         self.dana_host = dana_host
         self.dana_user = dana_user
-        self.results_dir = Path("tests/results")
+        self.results_dir = Path("tests/results/GUI-Tests")
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.logs = []
         self.failures = []
         self.visited_urls = set()
+        self.fallback_urls = [
+            "/", "/analytics", "/attack-surface/", "/targets/table", 
+            "/queue", "/workers", "/system/alerts", "/reports",
+            "/compliance", "/ports", "/security-findings", "/settings",
+            "/logs", "/storage", "/profile"
+        ]
         self.version = self._load_version()
+        
+        # Session-specific directory
+        self.session_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.session_dir = self.results_dir / self.session_id
+        self.screenshot_dir = self.session_dir / "Screenshots"
+        self.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     def _load_version(self):
         """Loads version from releases/version.json"""
@@ -36,6 +48,19 @@ class GuiTestRunner:
             except Exception:
                 pass
         return "Unknown"
+    
+    async def capture_screenshot(self, page, name):
+        """Helper to capture a screenshot and save it to the session directory."""
+        safe_name = "".join(c for c in name if c.isalnum() or c in (" ", ".", "_")).rstrip()
+        filename = f"{datetime.datetime.now().strftime('%H%M%S')}_{safe_name}.png"
+        path = self.screenshot_dir / filename
+        try:
+            await page.screenshot(path=str(path))
+            print(f"  Screenshot saved: {path.relative_to(self.results_dir)}")
+            return path
+        except Exception as e:
+            print(f"  Failed to save screenshot {name}: {e}")
+            return None
 
     async def ensure_dana_running(self):
         """Ensure the Dana test environment is up and running. Skip if in container."""
@@ -130,32 +155,43 @@ class GuiTestRunner:
                 await page.goto(self.target_url)
                 await page.wait_for_load_state("networkidle")
                 
-                if await page.query_selector("input[name='username']"):
+                if await page.query_selector('input[name="username"]'):
                     print("Attempting login...")
-                    await page.fill("input[name='username']", "admin")
-                    await page.fill("input[name='password']", "admin")
-                    await page.click("button[type='submit']")
-                    await page.wait_for_load_state("networkidle")
+                    await self.capture_screenshot(page, "login_page_empty")
+                    await page.fill('input[name="username"]', "admin")
+                    await page.fill('input[name="password"]', "admin")
+                    await self.capture_screenshot(page, "login_page_filled")
+                    await page.click('button[type="submit"]')
+                
+                # Verify login success
+                await page.wait_for_load_state("networkidle")
+                await self.capture_screenshot(page, "after_login_attempt")
+                if "login" in page.url.lower():
+                    print("CRITICAL: Login appears to have failed (still on login page).")
+                    await self.record_failure("Login Failed", "Still on login page after credentials submission.", page)
 
                 # 1b. Handle Force Password Change
                 if "change-password" in page.url or await page.query_selector("input[name='new_password']"):
                     print("Force password change detected. Updating...")
+                    await self.capture_screenshot(page, "before_password_change")
                     await page.fill("input[name='new_password']", "adminAdmin123!")
                     await page.fill("input[name='confirm_password']", "adminAdmin123!")
                     await page.click("button[type='submit']")
                     await page.wait_for_load_state("networkidle")
+                    await self.capture_screenshot(page, "after_password_change")
 
                 # 2. Extract Sidebar Links
                 try:
                     await page.wait_for_selector("aside", timeout=10000)
+                    sidebar_links = await self.get_sidebar_links(page)
+                    print(f"Discovered {len(sidebar_links)} sidebar sections.")
                 except Exception:
-                    print("Warning: Sidebar (aside) not found within timeout.")
+                    print("CRITICAL: Sidebar (aside) not found within timeout.")
+                    await self.record_failure("Missing Sidebar", "Sidebar (aside) not found after login. Verification of dashboard failed.", page)
+                    # Use fallback links so the report isn't empty
+                    sidebar_links = [self.target_url.rstrip("/") + path for path in self.fallback_urls]
+                    print(f"Using {len(sidebar_links)} fallback sidebar sections for testing.")
                 
-                await page.screenshot(path="static/screenshots/debug_dashboard.png")
-                
-                sidebar_links = await self.get_sidebar_links(page)
-                print(f"Discovered {len(sidebar_links)} sidebar sections.")
-
                 # 3. Iterate through Sidebar sections
                 for link in sidebar_links:
                     await self.test_page(page, link)
@@ -170,19 +206,96 @@ class GuiTestRunner:
         self.generate_report()
 
     async def get_sidebar_links(self, page):
-        """Extract all navigation links from the sidebar."""
+        """Extracts all unique hrefs from the sidebar navigation."""
         links = []
         try:
-            # Sidebar is typically in <aside>
-            nav_elements = await page.query_selector_all("aside a")
-            for nav in nav_elements:
-                href = await nav.get_attribute("href")
-                if href and href.startswith("/") and not href.startswith("//"):
-                    full_url = self.target_url.rstrip("/") + href
+            # Find all <a> tags within the <aside> element
+            sidebar_links_elements = await page.query_selector_all("aside a")
+            for link_element in sidebar_links_elements:
+                href = await link_element.get_attribute("href")
+                if href and not href.startswith("#"): # Ignore anchor links within the same page
+                    # Construct full URL if it's a relative path
+                    if href.startswith("/"):
+                        full_url = self.target_url.rstrip("/") + href
+                    else:
+                        full_url = href
                     links.append(full_url)
         except Exception as e:
             print(f"Warning: Failed to extract sidebar links: {e}")
-        return list(dict.fromkeys(links)) # Deduplicate
+        return list(dict.fromkeys(links))
+
+    def _write_report_header(self, f, timestamp):
+        f.write(f"# YADS GUI Test Report - {timestamp}\n\n")
+        f.write(f"- **Target:** {self.target_url}\n")
+        f.write(f"- **YADS Version:** {self.version}\n")
+        f.write(f"- **Tests Run:** {len(self.visited_urls)}\n")
+        f.write(f"- **Failures:** {len(self.failures)}\n\n")
+
+    def _write_component_list(self, f):
+        f.write("## Tested Components\n\n")
+        for url in sorted(self.visited_urls):
+            if url == self.target_url or url == f"{self.target_url}/":
+                continue
+            path = url.replace(self.target_url, "") or "/"
+            failed = any(f["url"] == url for f in self.failures)
+            status = "❌" if failed else "✅"
+            f.write(f"- {status} `{path}`\n")
+        f.write("\n")
+
+    def _write_screenshot_list(self, f):
+        f.write("## Session Screenshots\n\n")
+        f.write(f"All screenshots for this session are stored in: `{self.screenshot_dir.relative_to(self.results_dir.parent.parent)}`\n\n")
+        screenshot_files = sorted(list(self.screenshot_dir.glob("*.png")))
+        if screenshot_files:
+            for shot in screenshot_files:
+                f.write(f"- [{shot.name}]({shot.relative_to(self.results_dir)})\n")
+        else:
+            f.write("No screenshots captured.\n")
+        f.write("\n")
+
+    def _write_failures(self, f):
+        if not self.failures:
+            return
+        f.write("## Failures\n\n")
+        for fail in self.failures:
+            f.write(f"### {fail['title']}\n")
+            f.write(f"- **URL:** {fail['url']}\n")
+            f.write(f"- **Message:** {fail['message']}\n")
+            f.write(f"- **Timestamp:** {fail['timestamp']}\n")
+            f.write(f"![Failure Screenshot]({fail['screenshot']})\n\n")
+
+    def _write_logs_and_prompt(self, f):
+        f.write("## System Logs (Relevant Snippet)\n\n")
+        f.write("```\n")
+        for line in self.logs[-50:]:
+            f.write(f"{line}\n")
+        f.write("```\n\n")
+        f.write("## AI Debugging Prompt\n\n")
+        f.write("> [!TIP]\n")
+        f.write("> Copy the block below to an LLM to get a fix proposal.\n\n")
+        f.write("```text\n")
+        f.write("Ich habe einen automatisierten GUI-Test für YADS durchgeführt und Fehler gefunden.\n")
+        f.write(f"Fehler: {json.dumps(self.failures, indent=2)}\n")
+        f.write("Logs:\n")
+        f.write("\n".join(self.logs[-30:]))
+        f.write("\n\nBitte analysiere diese Fehler und schlage eine Korrektur vor.\n")
+        f.write("```\n")
+
+    def generate_report(self):
+        timestamp_now = datetime.datetime.now()
+        timestamp = timestamp_now.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp_str = timestamp_now.strftime("%Y%m%d_%H%M%S")
+        report_file = self.results_dir / f"test_result_{timestamp_str}.md"
+        with open(report_file, "w") as f:
+            self._write_report_header(f, timestamp)
+            self._write_component_list(f)
+            self._write_screenshot_list(f)
+            if self.failures:
+                self._write_failures(f)
+                self._write_logs_and_prompt(f)
+            else:
+                f.write("✅ All tests passed successfully.\n")
+        print(f"Report generated: {report_file}")
 
     async def test_page(self, page, url):
         """Test a specific page including basic interactions."""
@@ -196,10 +309,19 @@ class GuiTestRunner:
             await page.wait_for_load_state("networkidle")
             await asyncio.sleep(1) # Wait for HTMX/Alpine transitions
             
+            # Capture per-page screenshot
+            page_name = url.split("/")[-1] or "dashboard"
+            await self.capture_screenshot(page, f"page_{page_name}")
+            
             # Check for errors
             content = await page.content()
             if "Internal Server Error" in content or "500" in page.url:
                 await self.record_failure(f"HTTP 500 on {url}", "Server returned error", page)
+                return
+            
+            # Check if redirected to login
+            if "/login" in page.url:
+                await self.record_failure(f"Auth Refused: {url}", "Redirected to login page. Session might be invalid.", page)
                 return
 
             # Perform common interactions
@@ -241,9 +363,10 @@ class GuiTestRunner:
         screenshot_path = self.results_dir / f"failure_{timestamp}.png"
         
         try:
-            await page.screenshot(path=screenshot_path)
-        except Exception:
-            print("Failed to capture screenshot.")
+            # Also save a debug screenshot of the current state
+            await page.screenshot(path=str(screenshot_path))
+        except Exception as e:
+            print(f"Failed to capture screenshot: {e}")
 
         self.failures.append({
             "title": title,
@@ -280,6 +403,18 @@ class GuiTestRunner:
                 failed = any(f["url"] == url for f in self.failures)
                 status = "❌" if failed else "✅"
                 f.write(f"- {status} `{path}`\n")
+            f.write("\n")
+            
+            # --- Session Screenshots ---
+            f.write("## Session Screenshots\n\n")
+            f.write(f"All screenshots for this session are stored in: `{self.screenshot_dir.relative_to(self.results_dir.parent.parent)}`\n\n")
+            
+            screenshot_files = sorted(list(self.screenshot_dir.glob("*.png")))
+            if screenshot_files:
+                for shot in screenshot_files:
+                    f.write(f"- [{shot.name}]({shot.relative_to(self.results_dir)})\n")
+            else:
+                f.write("No screenshots captured.\n")
             f.write("\n")
             
             if self.failures:
