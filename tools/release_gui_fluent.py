@@ -4220,10 +4220,10 @@ def _get_latest_gui_test_report_info():
     if not results_dir.exists():
         return None
     
-    reports = list(results_dir.glob("test_result_*.md"))
+    reports = list(results_dir.rglob("test_result_*.md"))
     if not reports:
         return None
-    
+
     # Sort by filename (contains timestamp)
     latest_report = sorted(reports)[-1]
     
