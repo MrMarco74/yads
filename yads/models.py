@@ -92,18 +92,71 @@ class Target(SQLModel, table=True):
 
     # Justification
     discovery_reason: Optional[str] = Field(default=None)
-    
+
+    # Discovery Session linkage
+    discovery_session_id: Optional[int] = Field(default=None, foreign_key="discoverysession.id", index=True)
+    parent_target_id: Optional[int] = Field(default=None)  # self-referential, no FK to avoid circular
+    discovery_depth: int = Field(default=0)
+    relevance_score: Optional[float] = Field(default=None)
+    discovery_signals: List[str] = Field(default=[], sa_column=Column(JSONB))
+
     # Visual Identity
     brand_logo_url: Optional[str] = Field(default=None)
 
     # Multi-Tenancy
     tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id")
     tenant: Optional[Tenant] = Relationship(back_populates="targets")
-    
+
     # Relationships
     scan_results: List["ScanResult"] = Relationship(back_populates="target")
     module_states: List["ModuleState"] = Relationship(back_populates="target")
     http_traffic: List["HTTPTraffic"] = Relationship(back_populates="target")
+
+
+class DiscoverySession(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")
+    name: str = Field(index=True)
+
+    # Initial seed domains
+    seed_domains: List[str] = Field(default=[], sa_column=Column(JSONB))
+
+    # Configuration
+    max_depth: int = Field(default=3)
+    relevance_threshold: float = Field(default=0.5)
+    max_targets: int = Field(default=500)
+    include_typosquats: bool = Field(default=False)
+    allowed_tld_filter: List[str] = Field(default=[], sa_column=Column(JSONB))
+
+    # Status: pending / running / paused / completed / failed / stopped
+    status: str = Field(default="pending")
+    started_at: Optional[datetime] = Field(default=None)
+    finished_at: Optional[datetime] = Field(default=None)
+
+    # Live stats
+    total_discovered: int = Field(default=0)
+    total_accepted: int = Field(default=0)
+    total_rejected: int = Field(default=0)
+    current_depth: int = Field(default=0)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DiscoveryCandidate(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="discoverysession.id", index=True)
+    source_target_id: Optional[int] = Field(default=None, foreign_key="target.id")
+    domain: str = Field(index=True)
+    source_scanner: str  # "dns_scanner", "ssl_scanner", etc.
+    depth: int = Field(default=0)
+    relevance_score: float = Field(default=0.0)
+    matching_signals: List[str] = Field(default=[], sa_column=Column(JSONB))
+    # status: pending / accepted / rejected / duplicate
+    status: str = Field(default="pending")
+    rejection_reason: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 class ModuleState(SQLModel, table=True):
     """
