@@ -47,6 +47,7 @@ async def discovery_list(
     return templates.TemplateResponse("discovery_sessions.html", {
         "request": request,
         "sessions": sessions,
+        "user": current_user,
         "current_user": current_user,
     })
 
@@ -74,6 +75,7 @@ async def discovery_detail(
         "request": request,
         "disc_sess": disc_sess,
         "candidates": candidates,
+        "user": current_user,
         "current_user": current_user,
     })
 
