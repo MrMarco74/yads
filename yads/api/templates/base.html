@@ -232,6 +232,11 @@
                 <!-- System Metrics Widget -->
                 <div hx-get="/api/system/metrics" hx-trigger="load" hx-swap="outerHTML"></div>
 
+                <!-- Scan Error Badge -->
+                {% if user and user.tenant_id %}
+                <div hx-get="/api/system/scan-errors" hx-trigger="load" hx-swap="outerHTML"></div>
+                {% endif %}
+
                 <!-- Dark/Light Mode Toggle -->
                 <button id="theme-toggle"
                         onclick="toggleYadsTheme()"
