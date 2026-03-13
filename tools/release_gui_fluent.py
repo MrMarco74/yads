@@ -447,6 +447,21 @@ class GuiTestWorker(QThread):
             self._log("Starting test environment on Dana...", "info")
             subprocess.run(["ssh", self.dana_host, f"cd {dana_path} && docker compose -f docker-compose.testlab.yml up -d"], check=True)
 
+            # 2b. Wait for YADS API to become healthy before executing tests
+            self._log("Waiting for YADS API to become ready on Dana...", "info")
+            wait_cmd = [
+                "ssh", self.dana_host,
+                f"for i in $(seq 1 60); do "
+                f"curl -sf http://localhost:8085/ > /dev/null 2>&1 && echo 'YADS API ready' && exit 0; "
+                f"echo \"Waiting for YADS API... ($i/60)\"; sleep 3; done; "
+                f"echo 'ERROR: YADS API did not become ready after 180s'; exit 1"
+            ]
+            wait_result = subprocess.run(wait_cmd, check=False, capture_output=False, text=True)
+            if wait_result.returncode != 0:
+                self._log("YADS API did not become ready in time. Aborting tests.", "error")
+                self.signals.operation_finished.emit(False, "YADS API startup timeout on Dana")
+                return
+
             # 3. Run tests inside container
             self._log("Running tests inside gui-tester container...", "info")
             cmd = [
