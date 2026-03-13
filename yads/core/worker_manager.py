@@ -233,12 +233,12 @@ class WorkerManager:
                     is_active     = true,
                     last_heartbeat = now(),
                     ip_address    = EXCLUDED.ip_address
-            """), {
-                "node_id": node_id,
-                "hostname": hostname,
-                "ip_address": ip_address,
-                "token_hash": pwd_context.hash("primary-worker-no-auth"),
-            })
+            """).bindparams(
+                node_id=node_id,
+                hostname=hostname,
+                ip_address=ip_address,
+                token_hash=pwd_context.hash("primary-worker-no-auth")
+            ))
             session.commit()
             logger.info(f"Registered primary worker: {node_id}")
 
