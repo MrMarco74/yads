@@ -137,20 +137,55 @@ if [ -f "releases/cbom.json" ]; then
 fi
 
 # 3. Build Docker Images
+REGISTRY="registry.yads-security.com/yads"
+
 echo -e "${BLUE}>> Cleaning up old images before build...${NC}"
 docker rmi ${API_IMAGE_NAME}:latest ${WORKER_IMAGE_NAME}:latest 2>/dev/null || true
 docker image prune -f
 
-echo -e "${BLUE}>> Building Docker Images (Nuitka Compiled)...${NC}"
-# We build both services tagged as latest. We use the 'release' stage for compiled code.
-docker build -t ${API_IMAGE_NAME}:latest --target release .
-docker build -t ${WORKER_IMAGE_NAME}:latest --target release .
+echo -e "${BLUE}>> Building API image (--target api, no scanner tools)...${NC}"
+docker build \
+  --target api \
+  --build-arg YADS_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+  -t ${API_IMAGE_NAME}:latest \
+  -t ${API_IMAGE_NAME}:${VERSION} \
+  -t ${REGISTRY}/yads-api:latest \
+  -t ${REGISTRY}/yads-api:${VERSION} \
+  .
 
-# 4. Save Images to Tarball
-echo -e "${BLUE}>> Exporting Images to tar.gz (this may take a while)...${NC}"
-docker save ${API_IMAGE_NAME}:latest ${WORKER_IMAGE_NAME}:latest | gzip > "$OUTPUT_DIR/$RELEASE_NAME/yads-images.tar.gz"
+echo -e "${BLUE}>> Building Worker image (Dockerfile.worker, pre-baked tools base)...${NC}"
+TOOLS_IMAGE="${REGISTRY}/yads-tools:1.0"
+if [ -f "Dockerfile.worker" ]; then
+  docker build \
+    -f Dockerfile.worker \
+    --build-arg TOOLS_IMAGE="${TOOLS_IMAGE}" \
+    --build-arg YADS_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+    -t ${WORKER_IMAGE_NAME}:latest \
+    -t ${WORKER_IMAGE_NAME}:${VERSION} \
+    -t ${REGISTRY}/yads-worker:latest \
+    -t ${REGISTRY}/yads-worker:${VERSION} \
+    .
+else
+  echo -e "${YELLOW}Dockerfile.worker not found — falling back to --target worker (slow).${NC}"
+  docker build \
+    --target worker \
+    -t ${WORKER_IMAGE_NAME}:latest \
+    -t ${WORKER_IMAGE_NAME}:${VERSION} \
+    -t ${REGISTRY}/yads-worker:latest \
+    -t ${REGISTRY}/yads-worker:${VERSION} \
+    .
+fi
 
-# 5. Copy Artifacts
+# 4. Push Images to Customer Registry
+echo -e "${BLUE}>> Pushing images to registry.yads-security.com...${NC}"
+echo "  Make sure you are logged in: docker login registry.yads-security.com"
+docker push ${REGISTRY}/yads-api:${VERSION}
+docker push ${REGISTRY}/yads-api:latest
+docker push ${REGISTRY}/yads-worker:${VERSION}
+docker push ${REGISTRY}/yads-worker:latest
+echo -e "${GREEN}>> Images pushed successfully.${NC}"
+
+# 4. Copy Artifacts
 echo -e "${BLUE}>> Copying Documentation and Configs...${NC}"
 
 # Setup Guide

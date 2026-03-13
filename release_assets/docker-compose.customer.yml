@@ -18,7 +18,7 @@ services:
 
   # --- Backend Services ---
   yads-api:
-    image: yads-api:latest
+    image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
     container_name: yads-api
     command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
@@ -31,7 +31,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - SECRET_KEY=${SECRET_KEY}
       - LICENSE_KEY=${LICENSE_KEY}
@@ -39,7 +38,7 @@ services:
       - yads-net
 
   yads-worker:
-    image: yads-worker:latest
+    image: registry.yads-security.com/yads/yads-worker:${YADS_VERSION:-latest}
     container_name: yads-worker
     command: python /app/scripts/start_worker.py
     restart: always
