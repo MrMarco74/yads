@@ -18,6 +18,9 @@
 # Nuclei templates are NOT baked in — provided via Docker volume at runtime:
 #   volumes: - nuclei_templates:/root/nuclei-templates
 
+# Global ARG — must be declared before first FROM to be usable in FROM instructions
+ARG TOOLS_IMAGE=registry.yads-security.com/yads/yads-tools:1.0
+
 # ── CSS Build (lightweight) ───────────────────────────────────────────────────
 FROM node:18-alpine AS css-builder
 
@@ -31,7 +34,6 @@ RUN npm run build:css
 
 
 # ── Worker ────────────────────────────────────────────────────────────────────
-ARG TOOLS_IMAGE=gitlab.example.internal:5050/apps/yads/yads-tools:1.0
 FROM ${TOOLS_IMAGE} AS worker
 
 ARG YADS_GIT_SHA
