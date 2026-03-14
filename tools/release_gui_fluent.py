@@ -4976,51 +4976,68 @@ class BugReportPage(QWidget):
             url = data.get('support_portal_url', '').strip()
             token = data.get('support_admin_token', '').strip()
             return url, token
-        except Exception:
+        except Exception as e:
+            print(f"[BugReportPage] _load_cfg error: {e}")
             return '', ''
 
     # ------------------------------------------------------------------
     # Data fetch (background thread)
     # ------------------------------------------------------------------
     def _fetch(self):
+        print("[BugReportPage] _fetch() called", flush=True)
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("Lade…")
 
         url, token = self._load_cfg()
+        print(f"[BugReportPage] url={url!r} token_ok={bool(token)}", flush=True)
         if not url or not token:
             self.status_label.setText("⚠ Support-Portal URL / Token fehlt (Einstellungen → Support Portal)")
             self.refresh_btn.setEnabled(True)
             return
 
         def _worker():
-            import urllib.request, urllib.error, json as _json
+            import urllib.request, urllib.error, json as _json, ssl
+            ctx = ssl.create_default_context()
             try:
                 req = urllib.request.Request(
                     f"{url.rstrip('/')}/api/admin/reports",
                     headers={"Authorization": f"Bearer {token}"},
                 )
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
                     data = _json.loads(resp.read())
                     return data.get("reports", []), None
             except urllib.error.HTTPError as e:
-                return [], f"HTTP {e.code}: {e.read().decode()[:120]}"
+                msg = f"HTTP {e.code}: {e.read().decode()[:120]}"
+                print(f"[BugReportPage] HTTPError: {msg}", flush=True)
+                return [], msg
             except Exception as e:
-                return [], str(e)
+                import traceback as _tb
+                msg = str(e)
+                print(f"[BugReportPage] fetch error: {msg}\n{_tb.format_exc()}", flush=True)
+                return [], msg
 
         def _on_done(reports, err):
-            self.refresh_btn.setEnabled(True)
-            if err:
-                self.status_label.setText(f"⚠ {err}")
-                InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
-                return
-            self._reports = reports
-            self._known_ids = {r["report_id"] for r in reports}
-            self._apply_filter(self.filter_combo.currentText())
-            self.status_label.setText(f"{len(reports)} Report(s)")
+            print(f"[BugReportPage] _on_done reports={len(reports)} err={err!r}", flush=True)
+            try:
+                self.refresh_btn.setEnabled(True)
+                if err:
+                    self.status_label.setText(f"⚠ {err}")
+                    InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
+                    return
+                self._reports = reports
+                self._known_ids = {r["report_id"] for r in reports}
+                self._apply_filter(self.filter_combo.currentText())
+                self.status_label.setText(f"{len(reports)} Report(s)")
+            except Exception as e:
+                import traceback as _tb
+                print(f"[BugReportPage] _on_done crash: {e}\n{_tb.format_exc()}", flush=True)
+                self.refresh_btn.setEnabled(True)
+                self.status_label.setText(f"⚠ Interner Fehler: {e}")
 
         def _thread():
+            print("[BugReportPage] thread started", flush=True)
             reports, err = _worker()
-            # Qt-safe: schedule back on main thread via a QTimer single-shot
+            print(f"[BugReportPage] thread done, scheduling _on_done", flush=True)
             from PySide6.QtCore import QTimer
             QTimer.singleShot(0, lambda: _on_done(reports, err))
 
