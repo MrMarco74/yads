@@ -83,6 +83,7 @@ def _cycle(rc):
     alerts += _check_worker_heartbeats(engine)
     alerts += _check_hanging_tasks(engine)
     alerts += _check_celery_queue(rc, engine)
+    alerts += _check_api_errors(rc)
     _check_scan_log_errors(rc, engine)  # tenant-scoped, written separately
 
     # Write active alerts to Redis (for the topbar fragment)
@@ -335,6 +336,63 @@ def _fire_webhook(alert: dict):
                 logger.debug(f"Webhook delivery failed {hook.url}: {exc}")
     except Exception:
         logger.debug("Webhook fire failed", exc_info=True)
+
+
+# ── API Error Check ───────────────────────────────────────────────────────────
+
+_API_ERROR_WINDOW_S = 300   # surface errors from the last 5 minutes
+_API_ERROR_THRESHOLD = 3    # alert after ≥3 distinct errors in window
+
+
+def _check_api_errors(rc) -> list[dict]:
+    """
+    Read the yads:api_errors Redis list (written by the 500-handler in main.py).
+    If there are ≥ _API_ERROR_THRESHOLD errors within the last 5 minutes,
+    generate a single aggregated warning alert so the topbar lights up.
+    """
+    try:
+        import json as _json
+        import time as _time
+
+        raw = rc.lrange("yads:api_errors", 0, 49)
+        if not raw:
+            return []
+
+        now = _time.time()
+        recent = []
+        for entry in raw:
+            try:
+                d = _json.loads(entry)
+                if now - d.get("ts", 0) <= _API_ERROR_WINDOW_S:
+                    recent.append(d)
+            except Exception:
+                pass
+
+        if len(recent) < _API_ERROR_THRESHOLD:
+            return []
+
+        # Deduplicate by error type
+        seen: set[str] = set()
+        unique: list[dict] = []
+        for d in recent:
+            key = d.get("error", "")[:60]
+            if key not in seen:
+                seen.add(key)
+                unique.append(d)
+
+        sample = unique[0]
+        detail_msg = sample.get("error", "?")[:120]
+        url_msg = sample.get("url", "?")
+
+        return [_alert(
+            "api_errors",
+            "error",
+            f"{len(recent)} API-Fehler (letzte 5 min): {detail_msg}",
+            detail={"count": len(recent), "sample_url": url_msg, "sample_error": detail_msg},
+        )]
+    except Exception:
+        logger.debug("api error check failed", exc_info=True)
+    return []
 
 
 # ── Scan Log Error Check (tenant-scoped) ─────────────────────────────────────
