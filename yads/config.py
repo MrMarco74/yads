@@ -2,6 +2,7 @@ import os
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 from typing import Optional
 from pydantic import model_validator
+from urllib.parse import quote
 import re
 
 class Settings(BaseSettings):
@@ -107,8 +108,9 @@ class Settings(BaseSettings):
     @model_validator(mode='after')
     def fix_masked_password(self):
         if self.DATABASE_URL and "***" in self.DATABASE_URL and self.POSTGRES_PASSWORD:
-            new_url = self.DATABASE_URL.replace("***", self.POSTGRES_PASSWORD)
-            self.DATABASE_URL = new_url
+            # URL-encode the password so special chars like @ don't break URL parsing
+            encoded = quote(self.POSTGRES_PASSWORD, safe='')
+            self.DATABASE_URL = self.DATABASE_URL.replace("***", encoded)
         return self
 
     @classmethod
