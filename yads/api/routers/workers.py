@@ -885,18 +885,10 @@ async def worker_monitor_page(
     stats = worker_manager.get_cluster_stats()
     worker_mode = os.getenv("WORKER_MODE", "standalone").lower()
 
-    if worker_mode == "standalone":
-        with Session(engine) as _s:
-            _running = _s.exec(select(Target).where(Target.scan_status == "running")).all()
-        stats = dict(stats)
-        stats["total_running_tasks"] = len(_running)
-        stats["total_capacity"] = stats.get("total_capacity") or 1
-
     # Fetch running tasks
     running_tasks = []
     with Session(engine) as session:
         if worker_mode == "standalone":
-            # Standalone: WorkerTask is never written — derive from Target.scan_status
             import json as _json
             try:
                 from redis import Redis as _Redis
@@ -905,27 +897,35 @@ async def worker_monitor_page(
             except Exception:
                 _rc = None
 
+            # Find the primary worker node_id so tasks show up inside its card
+            primary_node_id = next(
+                (w.get("node_id") for w in workers if w.get("is_primary")),
+                "standalone"
+            )
+
             running_targets = session.exec(
                 select(Target).where(Target.scan_status == "running")
             ).all()
             for tgt in running_targets:
-                # Current module from scan:status key (e.g. "[dns_scanner] Checking…")
                 current_module = None
                 started_at = None
                 if _rc:
                     try:
                         status_msg = _rc.get(f"scan:status:{tgt.id}") or ""
-                        # Extract module name from "[module_name] …" format
+                        # Show full status message (module + what it's doing)
                         if status_msg.startswith("[") and "]" in status_msg:
-                            current_module = status_msg[1:status_msg.index("]")]
+                            bracket_end = status_msg.index("]")
+                            mod = status_msg[1:bracket_end]
+                            rest = status_msg[bracket_end + 2:].strip()
+                            current_module = f"{mod}: {rest[:50]}" if rest else mod
                         elif status_msg:
-                            current_module = status_msg[:40]
-                        # started_at: timestamp of the oldest log entry in the buffer
+                            current_module = status_msg[:60]
+                        # started_at from oldest log entry
                         first_entry = _rc.lindex(f"scan:logs:{tgt.id}", 0)
                         if first_entry:
                             ts = _json.loads(first_entry).get("ts", "")
                             if ts:
-                                started_at = ts[11:19]  # "HH:MM:SS" from ISO timestamp
+                                started_at = ts[11:19]
                     except Exception:
                         pass
                 running_tasks.append({
@@ -933,10 +933,29 @@ async def worker_monitor_page(
                     "target_domain": tgt.domain,
                     "current_module": current_module,
                     "progress_percent": None,
-                    "worker_node_id": "standalone",
+                    "worker_node_id": primary_node_id,
                     "worker_hostname": "standalone",
                     "started_at": started_at,
                 })
+
+            # Patch stats for standalone
+            n_running = len(running_targets)
+            stats = dict(stats)
+            stats["total_running_tasks"] = n_running
+            stats["total_capacity"] = stats.get("total_capacity") or 4
+            cap = stats["total_capacity"] or 1
+            stats["utilization_percent"] = round(n_running / cap * 100)
+            # Celery queue depth via Redis
+            try:
+                stats["queued_tasks"] = _rc.llen("celery") if _rc else 0
+            except Exception:
+                stats["queued_tasks"] = 0
+
+            # Update primary worker card to show real task count
+            for w in workers:
+                if w.get("node_id") == primary_node_id:
+                    w["current_tasks"] = n_running
+                    w["current_load"] = round(n_running / (w.get("max_concurrent_tasks") or 4) * 100)
         else:
             db_tasks = session.exec(
                 select(WorkerTask).where(WorkerTask.status == "running")
