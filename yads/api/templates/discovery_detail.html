@@ -64,23 +64,36 @@
   </div>
 
   <!-- Domain Blocklist Panel -->
-  {% if blocklist %}
   <div class="bg-slate-800 rounded-xl border border-orange-500/30 mb-6">
-    <div class="p-4 border-b border-slate-700 flex items-center justify-between">
-      <h2 class="text-sm font-semibold text-orange-300">Blocked Domain Patterns <span class="text-slate-500 font-normal">(tenant-wide)</span></h2>
-      <span class="text-xs text-slate-500">{{ blocklist|length }} pattern{{ 's' if blocklist|length != 1 }}</span>
-    </div>
-    <div class="p-4 flex flex-wrap gap-2">
-      {% for entry in blocklist %}
-      <span class="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-mono px-2 py-1 rounded-full">
-        {{ entry.pattern }}
-        <button onclick="unblockDomain({{ entry.id }}, '{{ entry.pattern }}')"
-                title="Remove block" class="text-orange-400 hover:text-orange-200 transition-colors ml-1">✕</button>
-      </span>
-      {% endfor %}
+    <button onclick="toggleBlocklist()" class="w-full p-4 flex items-center justify-between text-left">
+      <div class="flex items-center gap-2">
+        <svg id="blocklist-chevron" class="w-4 h-4 text-slate-400 transition-transform {% if blocklist %}rotate-0{% else %}rotate-0{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-orange-300">Blocked Domain Patterns <span class="text-slate-500 font-normal">(tenant-wide)</span></h2>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-slate-500">{{ blocklist|length }} pattern{{ 's' if blocklist|length != 1 }}</span>
+        <a href="/discovery/blocklist" onclick="event.stopPropagation()"
+           class="text-xs text-slate-400 hover:text-white transition-colors px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded">
+          Manage
+        </a>
+      </div>
+    </button>
+    <div id="blocklist-body" class="{% if not blocklist %}hidden{% endif %} border-t border-slate-700 p-4 flex flex-wrap gap-2">
+      {% if blocklist %}
+        {% for entry in blocklist %}
+        <span class="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-mono px-2 py-1 rounded-full">
+          {{ entry.pattern }}
+          <button onclick="unblockDomain({{ entry.id }}, '{{ entry.pattern }}')"
+                  title="Remove block" class="text-orange-400 hover:text-orange-200 transition-colors ml-1">✕</button>
+        </span>
+        {% endfor %}
+      {% else %}
+        <span class="text-xs text-slate-500">No blocked patterns configured. <a href="/discovery/blocklist" class="text-orange-400 hover:text-orange-300">Add patterns →</a></span>
+      {% endif %}
     </div>
   </div>
-  {% endif %}
 
   <!-- Candidates Table -->
   <div class="bg-slate-800 rounded-xl border border-slate-700">
@@ -183,6 +196,13 @@
 
 <script>
 const SESSION_ID = {{ disc_sess.id }};
+
+function toggleBlocklist() {
+  const body = document.getElementById('blocklist-body');
+  const chevron = document.getElementById('blocklist-chevron');
+  body.classList.toggle('hidden');
+  chevron.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
 
 function filterCandidates(status) {
   document.querySelectorAll('#candidates-tbody .candidate-row').forEach(row => {

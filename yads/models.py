@@ -127,6 +127,7 @@ class DiscoverySession(SQLModel, table=True):
     relevance_threshold: float = Field(default=0.7)
     max_targets: int = Field(default=500)
     include_typosquats: bool = Field(default=False)
+    passive_hunting: bool = Field(default=False)
     allowed_tld_filter: List[str] = Field(default=[], sa_column=Column(JSONB))
 
     # Status: pending / running / paused / completed / failed / stopped

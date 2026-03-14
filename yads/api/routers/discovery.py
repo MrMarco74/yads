@@ -15,7 +15,7 @@ POST /api/discovery/sessions/{id}/candidates/{cid}/reject → manual reject
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func
 
@@ -98,6 +98,7 @@ async def create_session(
     relevance_threshold: float = Form(0.7),
     max_targets: int = Form(500),
     include_typosquats: bool = Form(False),
+    passive_hunting: bool = Form(False),
     allowed_tld_filter_raw: str = Form(""),
     db: Session = Depends(get_session),
     current_user: User = Depends(get_current_user_html),
@@ -117,6 +118,7 @@ async def create_session(
         relevance_threshold=relevance_threshold,
         max_targets=max_targets,
         include_typosquats=include_typosquats,
+        passive_hunting=passive_hunting,
         allowed_tld_filter=tld_filter,
         status="pending",
     )
@@ -344,6 +346,25 @@ async def api_block_domain(
     return {"status": "blocked", "pattern": pattern, "rejected_candidates": rejected_count}
 
 
+@router.get("/discovery/blocklist", response_class=HTMLResponse, dependencies=[Depends(manager_only)])
+async def blocklist_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    entries = db.exec(
+        select(DiscoveryDomainBlocklist)
+        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
+        .order_by(DiscoveryDomainBlocklist.created_at.desc())
+    ).all()
+    return templates.TemplateResponse("discovery_blocklist.html", {
+        "request": request,
+        "entries": entries,
+        "user": current_user,
+        "current_user": current_user,
+    })
+
+
 @router.get("/api/discovery/blocklist", dependencies=[Depends(manager_only)])
 async def api_list_blocklist(
     db: Session = Depends(get_session),
@@ -355,6 +376,38 @@ async def api_list_blocklist(
         .order_by(DiscoveryDomainBlocklist.created_at.desc())
     ).all()
     return [{"id": e.id, "pattern": e.pattern, "created_at": e.created_at} for e in entries]
+
+
+@router.post("/api/discovery/blocklist", dependencies=[Depends(manager_only)])
+async def api_create_blocklist_entry(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+    payload: dict = Body(...),
+):
+    pattern = (payload.get("pattern") or "").strip().lower()
+    if not pattern:
+        raise HTTPException(status_code=400, detail="pattern required")
+    note = payload.get("note")
+
+    existing = db.exec(
+        select(DiscoveryDomainBlocklist).where(
+            DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id,
+            DiscoveryDomainBlocklist.pattern == pattern,
+        )
+    ).first()
+    if existing:
+        return {"status": "ok", "created": False, "id": existing.id, "pattern": existing.pattern}
+
+    entry = DiscoveryDomainBlocklist(
+        tenant_id=current_user.tenant_id,
+        pattern=pattern,
+        created_by=current_user.id,
+        note=note,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return {"status": "ok", "created": True, "id": entry.id, "pattern": entry.pattern}
 
 
 @router.delete("/api/discovery/blocklist/{entry_id}", dependencies=[Depends(manager_only)])

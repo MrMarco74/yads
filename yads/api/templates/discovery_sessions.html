@@ -128,6 +128,15 @@
           <label for="typosquats" class="text-sm text-slate-300">Include typosquat variants <span class="text-yellow-400">(broader results)</span></label>
         </div>
 
+        <div class="flex items-center gap-3">
+          <input type="checkbox" name="passive_hunting" id="passive_hunting" value="true"
+                 class="w-4 h-4 accent-purple-500">
+          <label for="passive_hunting" class="text-sm text-slate-300">
+            Enable passive hunters
+            <span class="text-slate-500 font-normal">(SPF, Wayback, SRV, CORS/CSP, Sitemap, VirusTotal, Shodan)</span>
+          </label>
+        </div>
+
         <div class="flex gap-3 pt-2">
           <button type="submit"
                   class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-lg text-sm transition-colors">
