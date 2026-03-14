@@ -52,6 +52,25 @@ async def discovery_list(
     })
 
 
+@router.get("/discovery/blocklist", response_class=HTMLResponse, dependencies=[Depends(manager_only)])
+async def blocklist_page(
+    request: Request,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    entries = db.exec(
+        select(DiscoveryDomainBlocklist)
+        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
+        .order_by(DiscoveryDomainBlocklist.created_at.desc())
+    ).all()
+    return templates.TemplateResponse("discovery_blocklist.html", {
+        "request": request,
+        "entries": entries,
+        "user": current_user,
+        "current_user": current_user,
+    })
+
+
 @router.get("/discovery/{session_id}", response_class=HTMLResponse)
 async def discovery_detail(
     session_id: int,
@@ -344,25 +363,6 @@ async def api_block_domain(
 
     db.commit()
     return {"status": "blocked", "pattern": pattern, "rejected_candidates": rejected_count}
-
-
-@router.get("/discovery/blocklist", response_class=HTMLResponse, dependencies=[Depends(manager_only)])
-async def blocklist_page(
-    request: Request,
-    db: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user_html),
-):
-    entries = db.exec(
-        select(DiscoveryDomainBlocklist)
-        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
-        .order_by(DiscoveryDomainBlocklist.created_at.desc())
-    ).all()
-    return templates.TemplateResponse("discovery_blocklist.html", {
-        "request": request,
-        "entries": entries,
-        "user": current_user,
-        "current_user": current_user,
-    })
 
 
 @router.get("/api/discovery/blocklist", dependencies=[Depends(manager_only)])
