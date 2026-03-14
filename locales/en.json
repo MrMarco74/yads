@@ -68,6 +68,7 @@
     "confirm": "Confirm",
     "back": "Back",
     "next": "Next",
+    "previous": "Previous",
     "yes": "Yes",
     "no": "No",
     "loading": "Loading...",
@@ -294,5 +295,32 @@
     "server_error": "Server error",
     "connection_error": "Connection error",
     "invalid_input": "Invalid input"
+  },
+  "schedule": {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "custom_cron": "Custom (Cron)",
+    "daily_24h": "Daily (Every 24h)",
+    "weekly_7d": "Weekly (Every 7d)",
+    "next_run": "Next Run",
+    "frequency": "Frequency",
+    "example_hint": "Example: <code>0 3 * * *</code> = 3 AM Daily"
+  },
+  "settings": {
+    "saved": "Settings successfully updated.",
+    "security": "Security Settings",
+    "report": "Report Settings",
+    "scanning_engine": "Scanning Engine"
+  },
+  "about": {
+    "thanks_title": "Credits & Acknowledgments"
+  },
+  "select": {
+    "target": "-- Select a target --",
+    "finding": "-- Select a finding --",
+    "placeholder": "-- Select --"
+  },
+  "threat": {
+    "no_api_key": "No Shodan/Censys API key configured — configure in Tenant Settings to enable enrichment."
   }
 }

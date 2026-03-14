@@ -68,6 +68,7 @@
     "confirm": "Bestätigen",
     "back": "Zurück",
     "next": "Weiter",
+    "previous": "Zurück",
     "yes": "Ja",
     "no": "Nein",
     "loading": "Lädt...",
@@ -294,5 +295,32 @@
     "server_error": "Serverfehler",
     "connection_error": "Verbindungsfehler",
     "invalid_input": "Ungültige Eingabe"
+  },
+  "schedule": {
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "custom_cron": "Benutzerdefiniert (Cron)",
+    "daily_24h": "Täglich (alle 24h)",
+    "weekly_7d": "Wöchentlich (alle 7 Tage)",
+    "next_run": "Nächster Lauf",
+    "frequency": "Häufigkeit",
+    "example_hint": "Beispiel: <code>0 3 * * *</code> = täglich 3 Uhr"
+  },
+  "settings": {
+    "saved": "Einstellungen erfolgreich gespeichert.",
+    "security": "Sicherheitseinstellungen",
+    "report": "Berichtseinstellungen",
+    "scanning_engine": "Scan-Engine"
+  },
+  "about": {
+    "thanks_title": "Danksagungen"
+  },
+  "select": {
+    "target": "-- Ziel auswählen --",
+    "finding": "-- Befund auswählen --",
+    "placeholder": "-- Auswählen --"
+  },
+  "threat": {
+    "no_api_key": "Kein Shodan/Censys-API-Schlüssel konfiguriert — in den Mandanteneinstellungen konfigurieren, um Daten anzureichern."
   }
 }

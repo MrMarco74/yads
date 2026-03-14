@@ -44,8 +44,8 @@
                     <span id="schedule-status-badge">
                         {% if schedule %}
                             <span class="text-emerald-400 font-medium" title="Next: {{ schedule.next_run_at.strftime('%Y-%m-%d') }}">
-                                {% if schedule.frequency == 'daily' %}🌞 Daily
-                                {% elif schedule.frequency == 'weekly' %}📆 Weekly
+                                {% if schedule.frequency == 'daily' %}🌞 {{ _('schedule.daily') }}
+                                {% elif schedule.frequency == 'weekly' %}📆 {{ _('schedule.weekly') }}
                                 {% else %}📅 {{ schedule.frequency|title }}
                                 {% endif %}
                             </span>
@@ -62,10 +62,10 @@
                     
                     <div class="flex gap-2">
                         <select name="frequency" x-model="freq" class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded p-1.5 flex-grow focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="daily">Daily (24h)</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="custom">Custom (Cron)</option>
-                            <option value="none">Disabled</option>
+                            <option value="daily">{{ _('schedule.daily_24h') }}</option>
+                            <option value="weekly">{{ _('schedule.weekly') }}</option>
+                            <option value="custom">{{ _('schedule.custom_cron') }}</option>
+                            <option value="none">{{ _('common.disabled') }}</option>
                         </select>
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded font-medium transition-colors shadow-lg shadow-indigo-900/20">
                             Save
@@ -79,7 +79,7 @@
                                placeholder="0 0 * * *" 
                                value="{{ schedule.cron_expression if schedule and schedule.cron_expression else '' }}"
                                class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1 text-white font-mono placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
-                        <p class="text-[9px] text-gray-500 mt-1">Example: <code class="text-gray-400">0 3 * * *</code> = 3 AM Daily</p>
+                        <p class="text-[9px] text-gray-500 mt-1">{{ _('schedule.example_hint')|safe }}</p>
                     </div>
                 </form>
                  <p class="text-[10px] text-gray-500 mt-2 text-center">Auto-runs "Full Scan" profile.</p>
