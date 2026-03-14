@@ -8,11 +8,13 @@ import os
 import json
 import base64
 import time
+import uuid
 import webbrowser
 import urllib.parse
 import subprocess
 import re
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -485,9 +487,34 @@ class IssueLicensePage(SmoothScrollArea):
         if f_list:
             payload["features"] = f_list
 
+        # Bug-report signing: generate customer UUID + Ed25519 keypair
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
+            from cryptography.hazmat.primitives import serialization as _ser
+            _report_priv = _ed25519.Ed25519PrivateKey.generate()
+            _report_pub = _report_priv.public_key()
+            _report_priv_raw = _report_priv.private_bytes(
+                _ser.Encoding.Raw, _ser.PrivateFormat.Raw, _ser.NoEncryption()
+            )
+            _report_pub_raw = _report_pub.public_bytes(
+                _ser.Encoding.Raw, _ser.PublicFormat.Raw
+            )
+            _report_priv_b64 = base64.b64encode(_report_priv_raw).decode()
+            _report_pub_b64 = base64.b64encode(_report_pub_raw).decode()
+        except Exception as _e:
+            InfoBar.error("Crypto Error", str(_e), parent=self, position=InfoBarPosition.TOP)
+            return
+
+        # Reuse existing customer UUID or generate new one
+        _existing = db_manager.get_customer_details(cust) or {}
+        _cust_uuid = str(uuid.uuid4())  # always fresh per-license generation
+
+        payload["customer_id"] = _cust_uuid
+        payload["report_signing_key"] = _report_priv_b64
+
         try:
             # Encode & sign
-            payload_json = json.dumps(payload).encode('utf-8')
+            payload_json = json.dumps(payload, sort_keys=True).encode('utf-8')
             payload_b64 = base64.urlsafe_b64encode(payload_json).decode('utf-8').rstrip('=')
 
             signature = self.private_key.sign(payload_b64.encode('utf-8'))
@@ -501,6 +528,9 @@ class IssueLicensePage(SmoothScrollArea):
             self._save_customer_data()
             cid = db_manager.add_customer(cust)
             db_manager.add_license(cid, license_key, limit, exp, features=f_list, domains=d_list)
+
+            # Store report signing keys for this customer
+            db_manager.save_report_signing_keys(cust, _cust_uuid, _report_pub_b64)
 
             # Refresh history if available
             if hasattr(self.parent_window, 'history_page'):
@@ -1135,6 +1165,193 @@ class AboutPage(QWidget):
         layout.addStretch()
 
 
+class BugReportKeysPage(SmoothScrollArea):
+    """Sync bug-report Ed25519 public keys to the Support Portal."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("bugReportKeysPage")
+        self.setWidgetResizable(True)
+
+        container = QWidget()
+        self.setWidget(container)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        title = TitleLabel("Bug Report Keys", self)
+        layout.addWidget(title)
+
+        sub = BodyLabel(
+            "Sync each customer's Ed25519 public key to the Support Portal. "
+            "The portal uses this key to verify incoming encrypted bug reports.",
+            self,
+        )
+        sub.setWordWrap(True)
+        layout.addWidget(sub)
+
+        # --- Settings card ---
+        cfg_card = SettingsCard("Portal Connection", FIF.VPN, self)
+
+        self.ent_portal_url = LineEdit(self)
+        self.ent_portal_url.setPlaceholderText("https://support.yads-security.com")
+        cfg_card.addRow("Support Portal URL", self.ent_portal_url, "Base URL of the support portal")
+
+        self.ent_admin_token = PasswordLineEdit(self)
+        self.ent_admin_token.setPlaceholderText("ADMIN_TOKEN secret")
+        cfg_card.addRow("Admin Token", self.ent_admin_token, "Bearer token for /api/admin/keys")
+
+        self.ent_admin_key_path = LineEdit(self)
+        self.ent_admin_key_path.setPlaceholderText(str(Path.home() / ".yads" / "admin_signing_private.key"))
+        cfg_card.addRow("Admin Signing Key", self.ent_admin_key_path, "Path to Ed25519 private key for request signing")
+
+        btn_save_cfg = PushButton(FIF.SAVE, "Save Settings", self)
+        btn_save_cfg.clicked.connect(self._save_settings)
+        cfg_card.addRow("", btn_save_cfg)
+
+        layout.addWidget(cfg_card)
+
+        # --- Customer table ---
+        tbl_card = SettingsCard("Customers with Report Keys", FIF.PEOPLE, self)
+        tbl_layout = QVBoxLayout()
+
+        self.table = TableWidget(self)
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Customer", "Customer UUID", "Public Key (Ed25519)"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setMinimumHeight(200)
+
+        tbl_layout.addWidget(self.table)
+        tbl_card.vBoxLayout.addLayout(tbl_layout)
+
+        btn_row = QHBoxLayout()
+        btn_refresh = PushButton(FIF.SYNC, "Refresh", self)
+        btn_refresh.clicked.connect(self._load_table)
+        self.btn_sync_all = PrimaryPushButton(FIF.CLOUD_UPLOAD, "Sync All to Portal", self)
+        self.btn_sync_all.clicked.connect(self._sync_all)
+        btn_row.addWidget(btn_refresh)
+        btn_row.addStretch()
+        btn_row.addWidget(self.btn_sync_all)
+        tbl_card.vBoxLayout.addLayout(btn_row)
+
+        layout.addWidget(tbl_card)
+
+        # --- Status output ---
+        self.txt_status = TextEdit(self)
+        self.txt_status.setReadOnly(True)
+        self.txt_status.setMaximumHeight(160)
+        self.txt_status.setPlaceholderText("Sync results appear here…")
+        layout.addWidget(self.txt_status)
+
+        layout.addStretch()
+
+        self._load_settings()
+        self._load_table()
+
+    # ------------------------------------------------------------------
+    def _settings_path(self) -> Path:
+        return Path.home() / ".yads" / "license_manager_settings.json"
+
+    def _load_settings(self):
+        try:
+            data = json.loads(self._settings_path().read_text())
+            self.ent_portal_url.setText(data.get("support_portal_url", ""))
+            self.ent_admin_token.setText(data.get("support_admin_token", ""))
+            self.ent_admin_key_path.setText(data.get("support_admin_key_path", ""))
+        except Exception:
+            pass
+
+    def _save_settings(self):
+        path = self._settings_path()
+        try:
+            data = json.loads(path.read_text()) if path.exists() else {}
+        except Exception:
+            data = {}
+        data["support_portal_url"] = self.ent_portal_url.text().strip()
+        data["support_admin_token"] = self.ent_admin_token.text().strip()
+        data["support_admin_key_path"] = self.ent_admin_key_path.text().strip()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+        InfoBar.success("Saved", "Portal settings saved.", parent=self, position=InfoBarPosition.TOP, duration=2500)
+
+    def _load_table(self):
+        rows = db_manager.get_customers_with_report_keys()
+        self.table.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            self.table.setItem(i, 0, QTableWidgetItem(r["name"]))
+            self.table.setItem(i, 1, QTableWidgetItem(r["customer_uuid"]))
+            self.table.setItem(i, 2, QTableWidgetItem(r["public_key_b64"]))
+        self.table.resizeColumnsToContents()
+
+    def _log(self, msg: str):
+        self.txt_status.append(msg)
+
+    def _sync_all(self):
+        rows = db_manager.get_customers_with_report_keys()
+        if not rows:
+            InfoBar.warning("No Keys", "No customers with report signing keys found.", parent=self, position=InfoBarPosition.TOP)
+            return
+
+        portal_url = self.ent_portal_url.text().strip() or "https://support.yads-security.com"
+        admin_token = self.ent_admin_token.text().strip()
+        key_path = self.ent_admin_key_path.text().strip() or str(Path.home() / ".yads" / "admin_signing_private.key")
+
+        if not admin_token:
+            InfoBar.error("Missing", "Admin Token is required.", parent=self, position=InfoBarPosition.TOP)
+            return
+
+        # Load signing key
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
+            raw_b64 = Path(key_path).read_text().strip()
+            _priv = _ed25519.Ed25519PrivateKey.from_private_bytes(base64.b64decode(raw_b64))
+        except Exception as e:
+            InfoBar.error("Key Error", str(e), parent=self, position=InfoBarPosition.TOP)
+            return
+
+        self.txt_status.clear()
+        self.btn_sync_all.setEnabled(False)
+
+        def _do_sync():
+            import urllib.request
+            import urllib.error
+            ok_count = 0
+            for r in rows:
+                body = json.dumps({
+                    "customer_id": r["customer_uuid"],
+                    "public_key_b64": r["public_key_b64"],
+                    "customer_name": r["name"],
+                }, sort_keys=True).encode()
+                ts = str(time.time())
+                sig = base64.b64encode(_priv.sign(body)).decode()
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {admin_token}",
+                    "X-Timestamp": ts,
+                    "X-Signature": sig,
+                }
+                req = urllib.request.Request(f"{portal_url}/api/admin/keys", data=body, headers=headers)
+                try:
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        result = json.loads(resp.read())
+                        self._log(f"✓ {r['name']} ({r['customer_uuid'][:8]}…) → {result.get('status','ok')}")
+                        ok_count += 1
+                except urllib.error.HTTPError as he:
+                    self._log(f"✗ {r['name']}: HTTP {he.code} — {he.read().decode()[:120]}")
+                except Exception as ex:
+                    self._log(f"✗ {r['name']}: {ex}")
+
+            if ok_count == len(rows):
+                InfoBar.success("Done", f"All {ok_count} keys synced.", parent=self, position=InfoBarPosition.TOP, duration=4000)
+            else:
+                InfoBar.warning("Partial", f"{ok_count}/{len(rows)} keys synced.", parent=self, position=InfoBarPosition.TOP)
+            self.btn_sync_all.setEnabled(True)
+
+        threading.Thread(target=_do_sync, daemon=True).start()
+
+
 class MainWindow(FluentWindow):
     """Main application window"""
 
@@ -1162,6 +1379,7 @@ class MainWindow(FluentWindow):
         self.keys_page = KeyManagementPage(self)
         self.history_page = HistoryPage(self, archived=False)
         self.archive_page = HistoryPage(self, archived=True)
+        self.bug_report_keys_page = BugReportKeysPage(self)
         self.about_page = AboutPage(self)
 
         # Create theme toggle widget
@@ -1202,6 +1420,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.keys_page, FIF.VPN, "Keys")
         self.addSubInterface(self.history_page, FIF.HISTORY, "History")
         self.addSubInterface(self.archive_page, FIF.DELETE, "Archive")
+        self.addSubInterface(self.bug_report_keys_page, FIF.CLOUD_UPLOAD, "Bug Report Keys")
 
         # Add about at bottom
         self.addSubInterface(
