@@ -180,7 +180,8 @@ class RedisLogHandler(logging.Handler):
             entry = {
                 "ts": datetime.utcnow().isoformat(),
                 "level": record.levelname,
-                "msg": msg
+                "msg": msg,
+                "logger": record.name,
             }
 
             # Include external IP if available
