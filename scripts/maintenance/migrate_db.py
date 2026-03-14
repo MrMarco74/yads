@@ -937,6 +937,14 @@ def migrate():
         except Exception as e:
             print(f"   Error: {e}")
 
+        print(">> Adding web_scraping to discoverysession (v1.48.1)...")
+        try:
+            conn.execute(text('ALTER TABLE discoverysession ADD COLUMN IF NOT EXISTS web_scraping BOOLEAN DEFAULT FALSE'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print(">> Adding passive_hunting to discoverysession (v1.48.0)...")
         try:
             conn.execute(text('ALTER TABLE discoverysession ADD COLUMN IF NOT EXISTS passive_hunting BOOLEAN DEFAULT FALSE'))

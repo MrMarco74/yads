@@ -25,6 +25,8 @@ _SCANNER_MAP = {
     "ct_monitor": "_from_ct_monitor",
     "dns_history_scanner": "_from_dns_history",
     "tld_scanner": "_from_tld",
+    "external_resources": "_from_external_resources",
+    "crawler": "_from_crawler",
     "typosquat_scanner": "_from_typosquat",
 }
 
@@ -124,6 +126,22 @@ class DiscoveryScannerAdapter:
                 continue
             signal = "tld_same_owner" if entry.get("same_owner") else "tld_variant"
             results.append((domain, "tld_scanner", [signal]))
+        return results
+
+    def _from_external_resources(self, data: Dict) -> List[Tuple[str, str, List[str]]]:
+        results = []
+        for domain in data.get("origins_summary", {}).keys():
+            domain = domain.strip().lower()
+            if domain:
+                results.append((domain, "external_resources", ["web_resource_origin"]))
+        return results
+
+    def _from_crawler(self, data: Dict) -> List[Tuple[str, str, List[str]]]:
+        results = []
+        for entry in data.get("collectors", []):
+            domain = entry.get("domain", "").strip().lower()
+            if domain:
+                results.append((domain, "crawler", ["web_resource_origin"]))
         return results
 
     def _from_typosquat(self, data: Dict) -> List[Tuple[str, str, List[str]]]:

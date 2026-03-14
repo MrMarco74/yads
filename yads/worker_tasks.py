@@ -1243,6 +1243,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
                 return
             include_typosquats = sess.include_typosquats
             passive_hunting = sess.passive_hunting
+            web_scraping = sess.web_scraping
             tenant = db.get(Tenant, sess.tenant_id)
             vt_key = (tenant.virustotal_api_key or "") if tenant else ""
             shodan_key = (tenant.shodan_api_key or "") if tenant else ""
@@ -1289,6 +1290,30 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             logger.info(f"[Discovery] Passive hunters complete for {domain}: {len(passive)} candidates")
         else:
             logger.info(f"[Discovery] Passive hunting disabled for session {session_id} — skipping Phase 2")
+
+        # ── Phase 3: web scraping (opt-in, heavy) ─────────────────────────────
+        if web_scraping:
+            WEB_SCRAPING_TYPES = ["external_resources", "crawler"]
+            logger.info(f"[Discovery] Running web scraping phase for {domain}")
+            run_all_scans(target_id, domain, WEB_SCRAPING_TYPES, None)
+
+            with Session(engine) as db:
+                for scanner_name in WEB_SCRAPING_TYPES:
+                    result = db.exec(
+                        select(ScanResult).where(
+                            ScanResult.target_id == target_id,
+                            ScanResult.module_name == scanner_name,
+                        ).order_by(ScanResult.scanned_at.desc())
+                    ).first()
+                    if not result or not result.data:
+                        continue
+                    for cand_domain, source_scanner, signals in adapter.extract(scanner_name, result.data):
+                        _upsert_candidate(db, session_id, target_id, cand_domain, domain, source_scanner, signals, depth, blocked_patterns)
+                db.commit()
+
+            logger.info(f"[Discovery] Web scraping phase complete for {domain}")
+        else:
+            logger.info(f"[Discovery] Web scraping disabled for session {session_id} — skipping Phase 3")
 
     except Exception as e:
         logger.error(f"[Discovery] run_discovery_scan error for {domain}: {e}")
