@@ -13,6 +13,11 @@
         <p class="text-slate-400 text-sm mt-1">Tenant-wide patterns — matching domains are skipped in all future discovery sessions.</p>
       </div>
     </div>
+    <button onclick="exportBlocklist()"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export
+    </button>
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -141,5 +146,21 @@ async function bulkImport() {
 document.getElementById('new-pattern').addEventListener('keydown', e => {
   if (e.key === 'Enter') addEntry();
 });
+
+function exportBlocklist() {
+  const rows = document.querySelectorAll('[id^="entry-"]');
+  const lines = [];
+  rows.forEach(row => {
+    const pattern = row.querySelector('.font-mono')?.textContent?.trim();
+    if (pattern) lines.push(pattern);
+  });
+  if (!lines.length) { alert('No patterns to export.'); return; }
+  const blob = new Blob([lines.join('\n') + '\n'], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'discovery-blocklist.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 </script>
 {% endblock %}
