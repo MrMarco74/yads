@@ -187,7 +187,7 @@ services:
     environment:
       - DEV_PRIVATE_KEY_FILE=/app/keys/dev_x25519_private.key
       - ADMIN_TOKEN=${SUPPORT_ADMIN_TOKEN}
-      - ADMIN_IP_ALLOWLIST=${SUPPORT_ADMIN_IP_ALLOWLIST:-178.203.9.206,127.0.0.1}
+      - ADMIN_IP_ALLOWLIST=${SUPPORT_ADMIN_IP_ALLOWLIST:-178.203.9.206,127.0.0.1,10.0.0.0/8}
       - ADMIN_PUBLIC_KEY=${SUPPORT_ADMIN_PUBLIC_KEY:-lvbmCRtPXZ5Z6IDym34PyM+T6b/vh20AlZEOlIx6NgY=}
     volumes:
       - support_keys:/app/keys:ro
