@@ -336,7 +336,17 @@ class ReleaseWorker(QThread):
         # SSH settings
         ssh_host = self.params.get('ssh_host', '')
         ssh_user = self.params.get('ssh_user', '')
-        ssh_disabled = self.params.get('upload_ssh_disabled', False)
+        # Read upload_ssh_disabled directly from YAML (not a GUI field)
+        try:
+            import yaml as _yaml
+            _cfg_path = orchestrator.config.config_file if hasattr(orchestrator.config, 'config_file') else None
+            if _cfg_path is None:
+                import pathlib
+                _cfg_path = pathlib.Path.home() / '.yads' / 'release_gui.yaml'
+            _raw = _yaml.safe_load(open(_cfg_path)) or {} if pathlib.Path(_cfg_path).exists() else {}
+            ssh_disabled = _raw.get('upload_ssh_disabled', False)
+        except Exception:
+            ssh_disabled = self.params.get('upload_ssh_disabled', False)
         if ssh_host and ssh_user and not ssh_disabled:
             config['upload']['method'] = 'ssh'
             config['upload']['ssh']['host'] = ssh_host
