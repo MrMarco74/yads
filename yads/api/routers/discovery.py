@@ -118,6 +118,7 @@ async def create_session(
     max_targets: int = Form(500),
     include_typosquats: bool = Form(False),
     passive_hunting: bool = Form(False),
+    web_scraping: bool = Form(False),
     allowed_tld_filter_raw: str = Form(""),
     db: Session = Depends(get_session),
     current_user: User = Depends(get_current_user_html),
@@ -138,6 +139,7 @@ async def create_session(
         max_targets=max_targets,
         include_typosquats=include_typosquats,
         passive_hunting=passive_hunting,
+        web_scraping=web_scraping,
         allowed_tld_filter=tld_filter,
         status="pending",
     )
@@ -273,6 +275,7 @@ async def api_accept_candidate(
             relevance_score=cand.relevance_score,
             discovery_signals=cand.matching_signals,
             discovery_reason=f"Manually accepted from discovery session {session_id}",
+            tags=[f"discovery:{sess.name}"],
         )
         db.add(t)
         sess.total_accepted += 1
