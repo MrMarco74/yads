@@ -845,21 +845,21 @@
                 <div class="flex gap-2">
                     {% if pagination.page > 1 %}
                         <a href="?page={{ pagination.page - 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
-                            Previous
+                            {{ _('common.previous') }}
                         </a>
                     {% else %}
                         <button type="button" disabled class="px-4 py-2 bg-slate-900/50 text-slate-500 text-sm font-medium rounded-lg border border-slate-800 cursor-not-allowed">
-                            Previous
+                            {{ _('common.previous') }}
                         </button>
                     {% endif %}
                     
                     {% if pagination.page < pagination.total_pages %}
                         <a href="?page={{ pagination.page + 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
-                            Next
+                            {{ _('common.next') }}
                         </a>
                     {% else %}
                         <button type="button" disabled class="px-4 py-2 bg-slate-900/50 text-slate-500 text-sm font-medium rounded-lg border border-slate-800 cursor-not-allowed">
-                            Next
+                            {{ _('common.next') }}
                         </button>
                     {% endif %}
                 </div>

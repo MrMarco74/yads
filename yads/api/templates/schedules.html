@@ -25,7 +25,7 @@
                         <th class="px-6 py-4 font-semibold">Target</th>
                         <th class="px-6 py-4 font-semibold">Tenant</th>
                         <th class="px-6 py-4 font-semibold">Frequency</th>
-                        <th class="px-6 py-4 font-semibold">Next Run</th>
+                        <th class="px-6 py-4 font-semibold">{{ _('schedule.next_run') }}</th>
                         <th class="px-6 py-4 font-semibold text-right">Actions</th>
                     </tr>
                 </thead>
@@ -58,11 +58,11 @@
                         <td class="px-6 py-4">
                              {% if item.schedule.frequency == 'daily' %}
                                 <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    🌞 Daily
+                                    🌞 {{ _('schedule.daily') }}
                                 </span>
                             {% elif item.schedule.frequency == 'weekly' %}
                                 <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                    📆 Weekly
+                                    📆 {{ _('schedule.weekly') }}
                                 </span>
                             {% else %}
                                 <span class="text-slate-400">{{ item.schedule.frequency }}</span>
@@ -113,8 +113,8 @@
             <div>
                 <label for="frequency" class="block text-sm font-medium text-slate-300">Frequency</label>
                 <select name="frequency" id="frequency" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-600 bg-gray-800 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                    <option value="daily">Daily (Every 24h)</option>
-                    <option value="weekly">Weekly (Every 7d)</option>
+                    <option value="daily">{{ _('schedule.daily_24h') }}</option>
+                    <option value="weekly">{{ _('schedule.weekly_7d') }}</option>
                 </select>
             </div>
         </div>

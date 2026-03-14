@@ -14,7 +14,7 @@
                 @change="loadGraph()"
                 class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[220px]"
             >
-                <option value="">-- Select a target --</option>
+                <option value="">{{ _('select.target') }}</option>
                 {% for t in targets %}
                 <option value="{{ t.id }}">{{ t.domain }}</option>
                 {% endfor %}
