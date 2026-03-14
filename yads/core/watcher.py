@@ -85,6 +85,7 @@ def _cycle(rc):
     alerts += _check_celery_queue(rc, engine)
     alerts += _check_api_errors(rc)
     _check_scan_log_errors(rc, engine)  # tenant-scoped, written separately
+    _cleanup_offline_workers(engine)    # remove stale worker entries
 
     # Write active alerts to Redis (for the topbar fragment)
     ttl = max(120, _get_cfg_int("WATCHER_INTERVAL_S", _DEFAULT_INTERVAL_S) * 2)
@@ -490,6 +491,34 @@ def _check_scan_log_errors(rc, engine):
 
     except Exception:
         logger.debug("scan log error check failed", exc_info=True)
+
+
+_OFFLINE_WORKER_TTL_MINUTES = 30
+
+
+def _cleanup_offline_workers(engine):
+    """Delete WorkerNode entries that have been offline for more than 30 minutes."""
+    try:
+        from datetime import datetime, timedelta
+        from sqlmodel import Session, select
+        from yads.models import WorkerNode
+
+        cutoff = datetime.utcnow() - timedelta(minutes=_OFFLINE_WORKER_TTL_MINUTES)
+        with Session(engine) as session:
+            stale = session.exec(
+                select(WorkerNode).where(
+                    WorkerNode.status == "offline",
+                    WorkerNode.last_heartbeat < cutoff,
+                )
+            ).all()
+            if stale:
+                for w in stale:
+                    session.delete(w)
+                session.commit()
+                logger.info(f"Auto-cleaned {len(stale)} offline worker(s) "
+                            f"(last heartbeat > {_OFFLINE_WORKER_TTL_MINUTES}min ago)")
+    except Exception:
+        logger.debug("offline worker cleanup failed", exc_info=True)
 
 
 def get_scan_errors_for_tenant(rc, tenant_id: int) -> list[dict]:
