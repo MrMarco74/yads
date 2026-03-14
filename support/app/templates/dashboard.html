@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — YADS Support Portal{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<div class="kpi-grid">
+  <div class="kpi-card kpi-card--new">
+    <div class="kpi-card__label">New</div>
+    <div class="kpi-card__value">{{ new_count }}</div>
+  </div>
+  <div class="kpi-card kpi-card--open">
+    <div class="kpi-card__label">Open</div>
+    <div class="kpi-card__value">{{ open_count }}</div>
+  </div>
+  <div class="kpi-card kpi-card--total">
+    <div class="kpi-card__label">Total</div>
+    <div class="kpi-card__value">{{ total_count }}</div>
+  </div>
+</div>
+
+<!-- Latest Reports -->
+<div class="card">
+  <div class="section-header">
+    <h2>Latest Reports</h2>
+    <a href="/reports" class="btn btn--secondary" style="font-size:0.8rem;">View all &rarr;</a>
+  </div>
+
+  {% if last_10 %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Report-ID</th>
+          <th>Kunde</th>
+          <th>Tenant</th>
+          <th>Version</th>
+          <th>Datum</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in last_10 %}
+        <tr>
+          <td>
+            <a href="/reports/{{ r.report_id }}" style="font-family: monospace; font-size: 0.8rem;">
+              {{ r.report_id }}
+            </a>
+          </td>
+          <td>{{ r.customer_name }}</td>
+          <td>{{ r.tenant_name }}</td>
+          <td style="font-size:0.8rem; color:var(--text-muted);">{{ r.yads_version }}</td>
+          <td style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">
+            {{ r.submitted_at.strftime('%Y-%m-%d %H:%M') }} UTC
+          </td>
+          <td>
+            {% if r.status == "new" %}
+              <span class="badge badge--new">new</span>
+            {% elif r.status == "open" %}
+              <span class="badge badge--open">open</span>
+            {% else %}
+              <span class="badge badge--resolved">resolved</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">No reports yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
