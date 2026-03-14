@@ -330,28 +330,30 @@ async def bulk_delete_targets(
         for tid_revoke in tasks_to_revoke:
             celery_app.control.revoke(tid_revoke, terminate=True)
             
-        # 1b. Delete Dependencies
-        session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), {"ids": list(ids_to_delete)})
-        session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), {"ids": list(ids_to_delete)})
-        
-        # 2. Delete Targets (Verify ownership implicitly by filtering ID list first? Better to rely on prior checks or simple query)
-        # But here we used raw delete for speed. 
-        # Safety check: Ensure all IDs belong to user.tenant_id
-        # For bulk delete, it's safer to fetch IDs that match tenant first.
-        
-        owned_targets = session.exec(select(Target.id).where(Target.id.in_(ids_to_delete), Target.tenant_id == user.tenant_id)).all()
-        # Only delete what we own
-        safe_ids = set(owned_targets)
-        
-        if len(safe_ids) != len(ids_to_delete):
-            # Some IDs were not owned. Log warning?
-            pass
-            
-        if safe_ids:
-            # Prune dependencies using safe list
-            session.exec(text("DELETE FROM scanresult WHERE target_id IN :safe_ids"), {"safe_ids": tuple(safe_ids)})
-            session.exec(text("DELETE FROM modulestate WHERE target_id IN :safe_ids"), {"safe_ids": tuple(safe_ids)})
-            session.exec(text("DELETE FROM target WHERE id IN :safe_ids"), {"safe_ids": tuple(safe_ids)})
+        # Safety: only delete targets owned by this tenant
+        owned_targets = session.exec(
+            select(Target.id).where(
+                Target.id.in_(ids_to_delete),
+                Target.tenant_id == user.tenant_id,
+            )
+        ).all()
+        safe_ids = list(owned_targets)
+        if not safe_ids:
+            session.rollback()
+            return JSONResponse({"deleted": 0})
+
+        ids = safe_ids
+        # Delete in FK dependency order
+        session.execute(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id = ANY(:ids))"), {"ids": ids})
+        session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM compliancetargetstatus WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM httptraffic WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM remediationtask WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM scanschedule WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM workertask WHERE target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = ANY(:ids)"), {"ids": ids})
+        session.execute(text("DELETE FROM target WHERE id = ANY(:ids)"), {"ids": ids})
         
         session.commit()
     
