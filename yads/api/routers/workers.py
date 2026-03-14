@@ -471,7 +471,7 @@ async def remove_all_offline_workers(
     user: User = Depends(PlatformAdminChecker())
 ):
     """Remove all offline workers from the cluster."""
-    from sqlmodel import Session
+    from sqlmodel import Session, select
     from yads.database import engine
     from yads.models import WorkerNode
     with Session(engine) as session:
