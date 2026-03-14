@@ -292,6 +292,17 @@ async def lifespan(app: FastAPI):
                     session.commit()
                     logger.info("Seeded QUEUE_ACTIVE=true into SystemConfig.")
 
+            # --- Reset stuck targets (queued/running but no worker processing them) ---
+            with Session(engine) as session:
+                from sqlmodel import text as sql_text
+                result = session.execute(sql_text(
+                    "UPDATE target SET scan_status='idle' WHERE scan_status IN ('queued', 'running')"
+                ))
+                session.commit()
+                stuck = result.rowcount
+                if stuck:
+                    logger.warning(f"[Startup] Reset {stuck} stuck target(s) from queued/running → idle.")
+
             # --- Load License Key to Settings ---
             with Session(engine) as session:
                 from yads.models import SystemConfig

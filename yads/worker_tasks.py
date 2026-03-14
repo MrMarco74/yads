@@ -253,6 +253,27 @@ def send_daily_digests():
         logger.error(f"[Worker] send_daily_digests failed: {e}")
 
 
+# ── Stuck Job Cleaner ─────────────────────────────────────────────────────────
+
+@celery_app.task(name="yads.worker.reset_stuck_targets")
+def reset_stuck_targets():
+    """
+    Periodically reset targets stuck in 'queued' or 'running' state.
+    These can occur when a worker crashes mid-task or Redis loses tasks.
+    """
+    from sqlmodel import text as sql_text
+    with Session(engine) as db:
+        result = db.execute(sql_text(
+            "UPDATE target SET scan_status='idle' WHERE scan_status IN ('queued', 'running')"
+        ))
+        db.commit()
+        stuck = result.rowcount
+        if stuck:
+            logger.warning(f"[StuckCleaner] Reset {stuck} stuck target(s) → idle")
+        else:
+            logger.debug("[StuckCleaner] No stuck targets found")
+
+
 # ── Data Retention ────────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.prune_old_scan_results")
