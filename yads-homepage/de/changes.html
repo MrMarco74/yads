@@ -154,6 +154,54 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.46.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.46.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & Stabilität</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Seite „Operations Center“ für Plattformadministratoren hinzugefügt, um Servicestatus, Warnungen, Worker-Integrität und Systemmetriken zu überwachen.</li>
+                    <li>In-App-Fehlerberichtsseite mit vorausgefüllten Systeminformationen implementiert, sodass Benutzer Berichte einfach kopieren und senden können.</li>
+                    <li>Ein Bug Report Upload System mit Verschlüsselung, Signierung und einem dedizierten Support-Portal für die sichere Übermittlung und Verwaltung von Berichten integriert.</li>
+                    <li>Eine Schaltfläche 'Fehlerbericht' zu Systemwarnungen hinzugefügt, die es Benutzern ermöglicht, Probleme direkt von der Warnungsseite aus zu melden.</li>
+                    <li>Automatische Bereinigung von Offline-Workern implementiert, wodurch die Ansammlung von Geisteinträgen nach Container-Neustarts verhindert wird.</li>
+                    <li>Desktop-Benachrichtigungen für neue Fehlerberichte eingeführt.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte Internationalisierungsabdeckung (i18n) und verbesserte Sidebar-UX mit reduziertem Operationsbereich und korrigierter Einstellungsbezeichnung.</li>
+                    <li>Homepage-Dokumentation (DE + EN) mit neuen Abschnitten und Kapitel-Links aktualisiert.</li>
+                    <li>Oberflächen-API 500-Fehler in der oberen Leiste über den Watcher, wodurch Abstürze für Administratoren sofort sichtbar werden.</li>
+                    <li>Synchronisierung von version-beta.json auf Stable bei Stable-Releases, um Benutzer des Beta-Kanals über neue Stable-Versionen zu informieren.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Die Berechnung der Worker-Auslastung im Standalone-Modus wurde korrigiert.</li>
+                    <li>Problem mit fehlenden Compliance-Importen behoben, das HTTP 500-Fehler auf Zieldetailseiten verursachte.</li>
+                    <li>Fehlenden 'select'-Import in remove_all_offline_workers korrigiert.</li>
+                    <li>FormData-Feldnamen für den Tenant-Konfigurationsimport korrigiert.</li>
+                    <li>Path Traversal- und NameError-Schwachstellen im Modul-Upload behoben.</li>
+                    <li>Fehlerhafte 'Aktualisieren'-Funktionalität durch Installation von pyyaml im Tools-Venv behoben.</li>
+                    <li>Formularfelder für den Tenant-Konfigurationsimport korrigiert.</li>
+                    <li>Race Condition beim Entfernen von Offline-Workern behoben.</li>
+                    <li>Problem behoben, bei dem veraltete primäre Worker bei der erneuten Registrierung nicht als offline markiert wurden.</li>
+                    <li>Sicherstellung der korrekten TLS-Zertifikatsverifizierung für die Support-Portal-Kommunikation.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Refaktorierung von target_detail.html in Jinja2-Partials zur Verbesserung der Wartbarkeit.</li>
+                    <li>Aktualisierung der Swarm-Compose-Image-Referenzen auf registry.yads-security.com.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Implementierung der Validierung für module_file aus dem Manifest, um Path Traversal-Schwachstellen zu verhindern.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
+            </div>
+        </div>
+
         <!-- Version 1.45.3 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.45.3</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -182,7 +230,7 @@
                     <li>Beta-Kanal-Releases aktualisieren nun korrekt die Startseite im Release Manager.</li>
                     <li>CPU/RAM-Widget lädt nun erneut, wenn Metriken anfänglich nicht verfügbar waren.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
             </div>
         </div>
 
@@ -200,7 +248,7 @@
                 <ul>
                     <li>Flag `upload_ssh_disabled` hinzugefügt, um SSH zu umgehen und den FTP-Upload in der Release Manager-Konfiguration zu erzwingen.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
             </div>
         </div>
 
@@ -214,7 +262,7 @@
                 <ul>
                     <li>Behebung des Upload-Prozesses des Release Managers durch Deaktivierung des SSH-Uploads und direkte Verwendung von FTP aufgrund von Problemen mit der SSH-Passwortauthentifizierung auf dem Upload-Server.  `upload_ssh_disabled`-Flag hinzugefügt, um die FTP-Nutzung zu erzwingen.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
             </div>
         </div>
 
@@ -228,7 +276,7 @@
                 <ul>
                     <li>Diverse Fehlerbehebungen und Verbesserungen</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
             </div>
         </div>
 
@@ -247,7 +295,7 @@
                 <ul>
                     <li>Eine Scan-Fehlerüberwachung wurde hinzugefügt, die Redis-Protokolle nach Fehlern durchsucht und diese in einem Mandanten-Badge mit einer Verwerfen-Schaltfläche anzeigt.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
             </div>
         </div>
 
