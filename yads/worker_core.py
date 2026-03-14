@@ -56,6 +56,10 @@ celery_app.conf.beat_schedule = {
         'task': 'yads.worker.prune_old_scan_results',
         'schedule': 24 * 3600.0,
     },
+    'stuck-job-cleaner': {
+        'task': 'yads.worker.reset_stuck_targets',
+        'schedule': 5 * 60.0,  # every 5 minutes
+    },
 }
 
 from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked
