@@ -26563,6 +26563,216 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.46.1").first():
+
+
+
+
+
+
+
+
+
+
+            entry_1461 = ChangelogEntry(
+
+
+
+
+
+
+
+
+
+
+                title="YADS v1.46.1: CORS and Pathing Fixes",
+
+
+
+
+
+
+
+
+
+
+                version="1.46.1",
+
+
+
+
+
+
+
+
+
+
+                content="""
+
+
+
+
+
+
+
+
+
+
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+
+
+
+
+
+
+
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+
+
+                    <li>Resolved CORS issues on yads-security.de by mirroring necessary files (version.json, CSS, scripts, fonts) to the DE release path, allowing for same-origin requests.</li>
+
+
+
+
+
+
+
+
+
+
+                    <li>Corrected SSH upload paths in the release GUI by removing the redundant `/public_html/yads-security` prefix, ensuring correct file placement.</li>
+
+
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+
+
+                <h3>⚡ Improvements</h3>
+
+
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+
+
+                    <li>Updated roadmap documentation to reflect the cancellation of active pentest toolchain integration, clarifying that YADS remains focused on passive reconnaissance and monitoring.</li>
+
+
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: 862fe07b24756c49ceeab6f52685050a6454ce851d30c91621b259a7d3531c20</p>
+
+
+
+
+
+
+
+
+
+
+                """
+
+
+
+
+
+
+
+
+
+
+            )
+
+
+
+
+
+
+
+
+
+
+            session.add(entry_1461)
+
+
+
+
+
+
+
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
