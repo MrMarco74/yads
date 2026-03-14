@@ -96,9 +96,9 @@
             {% if offline_count > 0 %}
             <button
                 hx-delete="/api/workers/offline/all"
-                hx-target="#workers-live-view"
-                hx-swap="outerHTML"
+                hx-swap="none"
                 hx-confirm="Remove all {{ offline_count }} offline workers?"
+                hx-on::after-request="window.location.reload()"
                 class="ml-2 px-3 py-1 text-xs text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950 border border-red-900/50 rounded-lg transition-colors"
             >Remove {{ offline_count }} offline</button>
             {% endif %}
