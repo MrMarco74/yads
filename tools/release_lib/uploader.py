@@ -186,17 +186,22 @@ class ReleaseUploader:
         if channel == 'beta':
             # Beta: only upload the changelog pages + version-beta.json
             # No Docker images were built, so no zip/BOM/assets to upload
+            de_rel = de + 'releases/'
             return [
                 (version_json_file, rel),
+                (version_json_file, de_rel),   # mirror to .de to avoid CORS
                 ('yads-homepage/en/changes.html', en),
                 ('yads-homepage/de/changes.html', de),
             ]
 
+        de_rel = de + 'releases/'
         files = [
             # Release package
             (f'releases/yads_v{version}_customer_pkg.zip', rel),
             (version_json_file, rel),
+            (version_json_file, de_rel),           # mirror to .de to avoid CORS
             ('releases/version-beta.json', rel),   # sync beta channel to stable version
+            ('releases/version-beta.json', de_rel),
             ('releases/sbom.json', rel),
             ('releases/sbom.xml', rel),
             ('releases/cbom.json', rel),
@@ -209,12 +214,15 @@ class ReleaseUploader:
             ('yads-homepage/en/support.html', en),
             ('yads-homepage/en/bom.html',     en),
 
-            # Homepage assets (EN canonical — DE site loads these cross-origin from .com)
+            # Homepage assets — uploaded to both .com and .de to avoid CORS on fonts/scripts
             # Entries ending with '/' are treated as directories (rsync/FTP recursive)
             ('yads-homepage/en/css/',     en + 'css/'),
             ('yads-homepage/en/scripts/', en + 'scripts/'),
             ('yads-homepage/en/fonts/',   en + 'fonts/'),
             ('yads-homepage/en/images/',  en + 'images/'),
+            ('yads-homepage/en/css/',     de + 'css/'),
+            ('yads-homepage/en/scripts/', de + 'scripts/'),
+            ('yads-homepage/en/fonts/',   de + 'fonts/'),
 
             # Homepage HTML (DE) — yads-security.de (same FTP, different path)
             ('yads-homepage/de/index.html',            de),
