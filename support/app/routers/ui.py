@@ -28,6 +28,39 @@ VALID_STATUSES = ["new", "open", "resolved"]
 # LLM prompt builder
 # ---------------------------------------------------------------------------
 
+def _format_scan_errors(errors: list) -> str:
+    if not errors:
+        return "(keine)"
+    lines = []
+    for e in errors:
+        if isinstance(e, dict):
+            domain = e.get("domain", "?")
+            msgs = [m for m in e.get("errors", []) if m and m.strip()]
+            count = e.get("count", len(msgs))
+            if msgs:
+                lines.append(f"  [{domain}] {msgs[0]}" + (f" (+{count-1} weitere)" if count > 1 else ""))
+            else:
+                lines.append(f"  [{domain}] {count} Fehler")
+        else:
+            lines.append(f"  {e}")
+    return "\n".join(lines) or "(keine)"
+
+
+def _format_system_alerts(alerts: list) -> str:
+    if not alerts:
+        return "(keine)"
+    lines = []
+    for a in alerts:
+        if isinstance(a, dict):
+            severity = a.get("severity", "?").upper()
+            check = a.get("check_name", "?")
+            msg = a.get("message", "?")
+            lines.append(f"  [{severity}] {check}: {msg}")
+        else:
+            lines.append(f"  {a}")
+    return "\n".join(lines) or "(keine)"
+
+
 def build_llm_prompt(report: BugReport, report_data: dict) -> str:
     return f"""Du bist YADS-Entwickler. Analysiere diesen Bug Report und schlage eine konkrete Lösung vor.
 
@@ -43,10 +76,10 @@ URL      : {report_data.get('affected_url', 'nicht angegeben')}
 {report_data.get('description', '(leer)')}
 
 --- Letzte Scan-Fehler (automatisch) ---
-{chr(10).join(str(e) for e in report_data.get('scan_errors', [])) or '(keine)'}
+{_format_scan_errors(report_data.get('scan_errors', []))}
 
 --- Aktive System-Alerts (automatisch) ---
-{chr(10).join(str(a) for a in report_data.get('system_alerts', [])) or '(keine)'}
+{_format_system_alerts(report_data.get('system_alerts', []))}
 === ENDE REPORT ===
 
 Frage: Was ist die wahrscheinliche Ursache und wie behebe ich den Fehler?"""
