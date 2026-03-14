@@ -844,6 +844,26 @@ class ProdDeployWorker(QThread):
             if not self._run_cmd(["ssh", "-fN", self.remote_host]):
                 self._log("Warning: Could not start ControlMaster, will proceed with standard connections", "warning")
 
+            # 0.1 Registry auth pre-flight — re-login so PROD can pull images
+            try:
+                import yaml as _yaml
+                _cfg_path = Path.home() / ".yads" / "release_gui.yaml"
+                _raw = _yaml.safe_load(open(_cfg_path)) or {} if _cfg_path.exists() else {}
+                _reg_user = _raw.get('registry_user', '').strip()
+                _reg_pass = _raw.get('registry_pass', '').strip()
+                _registry = "registry.yads-security.com"
+                if _reg_user and _reg_pass:
+                    self._log(f"Step 0.0/8: Logging into registry on PROD ({_registry})...", "info")
+                    login_cmd = f"echo {_reg_pass!r} | docker login {_registry} -u {_reg_user} --password-stdin"
+                    if self._run_cmd(["ssh", self.remote_host, login_cmd]):
+                        self._log("  ✅ Registry login successful.", "success")
+                    else:
+                        self._log("  ⚠️  Registry login failed — pulls may fail if auth is expired!", "warning")
+                else:
+                    self._log("Step 0.0/8: No registry credentials in config — skipping docker login.", "info")
+            except Exception as _e:
+                self._log(f"Step 0.0/8: Registry login skipped ({_e}).", "warning")
+
             # 0.2 Automatic Cleanup if space is low
             self._log("Step 0.1/8: Checking remote disk space...", "info")
             check_space = subprocess.run(
