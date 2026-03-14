@@ -25,15 +25,8 @@ from sqlmodel import Session, select
 from yads.database import engine, redis_client
 from yads.models import DiscoverySession, DiscoveryCandidate, Target, ScanResult
 
-# Scan types used for below-threshold targets (lightweight, same as discovery phase)
+# Scan types for below-threshold targets — same lightweight set as the discovery phase
 DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
-
-# Scan types queued for all session targets after the session finishes
-POST_SESSION_SCAN_TYPES = [
-    "dns_scanner", "ssl_scanner", "web_analyzer", "http_headers_scanner",
-    "cookie_scanner", "cors_scanner", "cert_mismatch_scanner",
-    "security_txt_scanner", "email_security",
-]
 
 logger = logging.getLogger("yads-discovery")
 
@@ -337,25 +330,4 @@ class DiscoveryOrchestrator:
             sess.finished_at = datetime.utcnow()
             db.add(sess)
             db.commit()
-            db.refresh(sess)
-
-            # Queue a full post-session scan for all non-seed targets accepted into the session.
-            # Discovery only ran dns/ssl/ct/asn — this fills in the rest of the scan profile.
-            from yads.worker_core import celery_app
-            accepted_targets = db.exec(
-                select(Target).where(
-                    Target.discovery_session_id == self.session_id,
-                    Target.discovery_depth > 0,
-                )
-            ).all()
-            queued = 0
-            for t in accepted_targets:
-                if t.relevance_score is None or t.relevance_score >= sess.relevance_threshold:
-                    celery_app.send_task(
-                        "yads.worker.run_all_scans",
-                        args=[t.id, t.domain, POST_SESSION_SCAN_TYPES, sess.tenant_id],
-                        queue="celery",
-                    )
-                    queued += 1
-
-        logger.info(f"[Discovery] Session {self.session_id} completed. Queued {queued} post-session scans.")
+        logger.info(f"[Discovery] Session {self.session_id} completed.")
