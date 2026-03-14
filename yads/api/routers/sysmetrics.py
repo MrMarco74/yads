@@ -633,6 +633,30 @@ async def system_alerts_page(
     })
 
 
+# ── /api/system/alerts/{id}/resolve ──────────────────────────────────────────
+
+@router.post("/alerts/{alert_id}/resolve", response_class=HTMLResponse)
+async def resolve_alert(
+    alert_id: int,
+    user: User = Depends(PlatformAdminChecker()),
+):
+    """Manually mark a SystemAlertLog entry as resolved."""
+    from datetime import datetime
+    from sqlmodel import Session
+    from yads.database import engine
+    from yads.models import SystemAlertLog
+
+    with Session(engine) as session:
+        log = session.get(SystemAlertLog, alert_id)
+        if not log:
+            return HTMLResponse('<span class="text-red-400 text-xs">Not found</span>', status_code=404)
+        if not log.resolved_at:
+            log.resolved_at = datetime.utcnow()
+            session.add(log)
+            session.commit()
+    return HTMLResponse('<span class="text-emerald-400 text-xs">✓ resolved</span>')
+
+
 # ── /api/system/health-summary  (HTMX fragment for Operations Center) ─────────
 
 def _svc_status(alerts: list[dict], check_names: list[str]) -> tuple[str, str]:
