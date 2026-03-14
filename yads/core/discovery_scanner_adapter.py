@@ -4,9 +4,11 @@ DiscoveryScannerAdapter — extracts candidate domains from ScanResult data.
 Supports:
   - dns_scanner / subdomain_scanner  → subdomains + ct_related_domains
   - ssl_scanner                       → extracted_domains (SANs)
+  - cert_mismatch_scanner             → SANs from TLS cert
   - ct_monitor                        → new_certs names + related_domains
-  - asn_scanner                       → (future: reverse PTR)
-  - web_analyzer                      → tracking ID correlation (future)
+  - dns_history_scanner               → unique_subdomains (historical passive DNS)
+  - tld_scanner                       → registered TLD variants (same/different owner)
+  - typosquat_scanner                 → variations_found (opt-in)
 """
 
 import logging
@@ -21,6 +23,8 @@ _SCANNER_MAP = {
     "ssl_scanner": "_from_ssl",
     "cert_mismatch_scanner": "_from_cert_mismatch",
     "ct_monitor": "_from_ct_monitor",
+    "dns_history_scanner": "_from_dns_history",
+    "tld_scanner": "_from_tld",
     "typosquat_scanner": "_from_typosquat",
 }
 
@@ -100,6 +104,26 @@ class DiscoveryScannerAdapter:
             domain = domain.strip().lower()
             if domain:
                 results.append((domain, "ct_monitor", ["ct_related_org"]))
+        return results
+
+    def _from_dns_history(self, data: Dict) -> List[Tuple[str, str, List[str]]]:
+        results = []
+        for domain in data.get("unique_subdomains", []):
+            domain = domain.strip().lower()
+            if domain:
+                results.append((domain, "dns_history_scanner", ["wayback_subdomain"]))
+        return results
+
+    def _from_tld(self, data: Dict) -> List[Tuple[str, str, List[str]]]:
+        results = []
+        for entry in data.get("details", []):
+            if entry.get("status") != "registered":
+                continue
+            domain = entry.get("domain", "").strip().lower()
+            if not domain:
+                continue
+            signal = "tld_same_owner" if entry.get("same_owner") else "tld_variant"
+            results.append((domain, "tld_scanner", [signal]))
         return results
 
     def _from_typosquat(self, data: Dict) -> List[Tuple[str, str, List[str]]]:

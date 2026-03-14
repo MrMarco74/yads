@@ -26,7 +26,8 @@ from yads.database import engine, redis_client
 from yads.models import DiscoverySession, DiscoveryCandidate, DiscoveryDomainBlocklist, Target, ScanResult
 
 # Scan types for below-threshold targets — same lightweight set as the discovery phase
-DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner", "subdomain_scanner"]
+DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner", "subdomain_scanner",
+                        "cert_mismatch_scanner", "dns_history_scanner", "tld_scanner"]
 
 logger = logging.getLogger("yads-discovery")
 
@@ -45,10 +46,13 @@ SIGNAL_WEIGHTS = {
     "cors_trusted_origin":   0.3,  # in CORS/CSP header — weak signal, CDNs/analytics appear here too
     "vt_passive_dns":        0.55, # VirusTotal historical resolution
     "spf_host":              0.5,  # authorised mail sender → same org
-    "wayback_subdomain":     0.45, # historically reachable subdomain
+    "wayback_subdomain":     0.45, # historically reachable subdomain (passive hunter + dns_history)
     "favicon_match":         0.55, # identical favicon fingerprint → same codebase
     "srv_record":            0.4,  # SRV record points to this host
     "sitemap_reference":     0.25, # referenced in sitemap/robots.txt — also lists third-party domains
+    # ── TLD scanner signals ───────────────────────────────────────────────────
+    "tld_same_owner":        0.65, # same TLD variant resolves to same IP → almost certainly same org
+    "tld_variant":           0.3,  # registered TLD variant, different/unknown owner
 }
 
 
