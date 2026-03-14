@@ -153,6 +153,32 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.48.1 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Discovery Enhancements & Blocklisting</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added three new scanners to discovery: certificate mismatch (SANs from TLS certificates), DNS history (historical subdomains via HackerTarget + crt.sh), and TLD variants (registered TLD variants with same owner or similar names).</li>
+                    <li>Added an Export button to the discovery blocklist page to download all active patterns as a text file.</li>
+                    <li>Introduced passive hunting opt-in: passive hunters (SPF, Wayback, SRV, CORS, Sitemap, VT, Shodan) now only run when explicitly enabled per session.</li>
+                    <li>Implemented a discovery blocklist management page allowing adding single patterns, bulk importing (one per line), deleting entries, with optional notes.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed an issue where the `/discovery/blocklist` route was being interpreted as a session ID, leading to an integer parsing error.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Added a Discovery Blocklist option to the Operations navigation sidebar for easier access.</li>
+                    <li>The blocklist panel in discovery details is now collapsible for improved usability.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.47.3 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.47.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
