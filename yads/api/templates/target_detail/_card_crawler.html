@@ -288,8 +288,8 @@
 
                 <!-- Pagination -->
                 <div class="flex justify-between items-center mt-6 pt-6 border-t border-gray-700/50">
-                    <button @click="prev()" :disabled="page === 0" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">Previous</button>
+                    <button @click="prev()" :disabled="page === 0" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">{{ _('common.previous') }}</button>
                     <span class="text-xs text-gray-500">Page <span x-text="page + 1" class="text-white"></span></span>
-                    <button @click="next()" :disabled="!hasMore" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">Next</button>
+                    <button @click="next()" :disabled="!hasMore" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">{{ _('common.next') }}</button>
                 </div>
             </div>

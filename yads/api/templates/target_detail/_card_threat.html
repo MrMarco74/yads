@@ -87,7 +87,7 @@
                 {% endif %}
 
                 {% if not sc.shodan and not sc.censys %}
-                <p class="text-xs text-gray-500 mt-3 italic">No Shodan/Censys API key configured — configure in Tenant Settings to enable enrichment.</p>
+                <p class="text-xs text-gray-500 mt-3 italic">{{ _('threat.no_api_key') }}</p>
                 {% endif %}
 
                 {% else %}
