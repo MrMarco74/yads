@@ -2720,6 +2720,14 @@ class LocalDeployWorker(QThread):
             self._update_env("COMPOSE_PROFILES", profiles_val)
             self._log(f"COMPOSE_PROFILES={profiles_val or '(none)'}", "info")
 
+            # Sanity-check: warn if critical vars are missing from .env
+            _required = ["POSTGRES_PASSWORD", "SUPPORT_ADMIN_TOKEN", "WORKER_REGISTRATION_TOKEN"]
+            env_path = self.project_root / ".env"
+            env_content = env_path.read_text() if env_path.exists() else ""
+            _missing = [k for k in _required if not any(l.startswith(f"{k}=") for l in env_content.splitlines())]
+            if _missing:
+                self._log(f"⚠️  Missing critical .env vars: {', '.join(_missing)} — Swarm/prod may fail!", "warning")
+
             build_cmd = ["docker", "compose"] + profile_flags + ["build"]
             up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d"]
 
