@@ -631,3 +631,301 @@ async def system_alerts_page(
         "logs": logs,
         "active": active,
     })
+
+
+# ── /api/system/health-summary  (HTMX fragment for Operations Center) ─────────
+
+def _svc_status(alerts: list[dict], check_names: list[str]) -> tuple[str, str]:
+    """Return (css_class, label) for a service based on matching active alerts."""
+    for a in alerts:
+        if a.get("check_name") in check_names:
+            if a["severity"] == "error":
+                return "error", a["message"]
+            return "warning", a["message"]
+    return "ok", "OK"
+
+
+def _status_dot(status: str) -> str:
+    colors = {"ok": "bg-emerald-500", "warning": "bg-amber-500", "error": "bg-red-500"}
+    pulse = ' animate-pulse' if status != "ok" else ''
+    return f'<span class="inline-block w-2.5 h-2.5 rounded-full {colors.get(status, "bg-slate-500")}{pulse}"></span>'
+
+
+def _svc_card(icon_svg: str, name: str, status: str, detail: str, link: str) -> str:
+    border = {
+        "ok":      "border-slate-700 bg-slate-900/60",
+        "warning": "border-amber-700/60 bg-amber-900/10",
+        "error":   "border-red-700/60 bg-red-900/10",
+    }.get(status, "border-slate-700 bg-slate-900/60")
+    label_cls = {
+        "ok":      "text-emerald-400",
+        "warning": "text-amber-400",
+        "error":   "text-red-400",
+    }.get(status, "text-slate-400")
+    icon_cls = {
+        "ok":      "text-emerald-400",
+        "warning": "text-amber-400",
+        "error":   "text-red-400",
+    }.get(status, "text-slate-400")
+    detail_escaped = detail.replace("<", "&lt;").replace(">", "&gt;")[:80]
+    return f'''
+<a href="{link}" class="flex flex-col gap-2 p-4 rounded-xl border {border} hover:border-slate-500 transition-all group">
+  <div class="flex items-center gap-2.5">
+    <span class="{icon_cls} flex-shrink-0">{icon_svg}</span>
+    <span class="text-sm font-semibold text-slate-200">{name}</span>
+    <span class="ml-auto">{_status_dot(status)}</span>
+  </div>
+  <div class="flex items-center gap-1.5">
+    <span class="text-xs font-bold {label_cls}">{status.upper()}</span>
+    <span class="text-xs text-slate-500 truncate">{detail_escaped}</span>
+  </div>
+</a>'''
+
+
+@router.get("/health-summary", response_class=HTMLResponse)
+async def health_summary_fragment(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker()),
+):
+    """
+    HTMX fragment: full Operations Center live content.
+    Polled every 30s from /system/health.
+    """
+    from datetime import datetime, timedelta
+    from yads.core import watcher, system_metrics
+    from yads.core.worker_manager import worker_manager
+
+    rc = _redis_client()
+    alerts = watcher.get_active_alerts(rc)
+
+    # ── Service status cards ───────────────────────────────────────────────────
+    redis_status, redis_detail = _svc_status(alerts, ["redis_connection"])
+    db_status,    db_detail    = _svc_status(alerts, ["db_connection"])
+    disk_status,  disk_detail  = _svc_status(alerts, ["disk_space"])
+    queue_status, queue_detail = _svc_status(alerts, ["celery_queue"])
+
+    # Queue depth for display
+    try:
+        queue_depth = rc.llen("celery")
+        if queue_status == "ok":
+            queue_detail = f"{queue_depth} Tasks"
+    except Exception:
+        queue_depth = 0
+
+    icon_redis = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>'
+    icon_db    = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>'
+    icon_disk  = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>'
+    icon_queue = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>'
+
+    cards_html = (
+        _svc_card(icon_redis, "Redis",     redis_status, redis_detail, "/system/alerts") +
+        _svc_card(icon_db,    "Datenbank", db_status,    db_detail,    "/system/alerts") +
+        _svc_card(icon_disk,  "Festplatte",disk_status,  disk_detail,  "/system/alerts") +
+        _svc_card(icon_queue, "Queue",     queue_status, queue_detail, "/system/alerts")
+    )
+
+    # ── Active alerts list ─────────────────────────────────────────────────────
+    errors   = [a for a in alerts if a["severity"] == "error"]
+    warnings = [a for a in alerts if a["severity"] == "warning"]
+
+    if not alerts:
+        alerts_html = '''
+<div class="flex items-center gap-2 text-emerald-400 text-sm p-4 bg-emerald-900/20 border border-emerald-700/30 rounded-xl">
+  <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  Alle Health-Checks OK — keine aktiven Alerts.
+</div>'''
+    else:
+        rows = ""
+        for a in errors + warnings:
+            sev_cls  = "text-red-400 bg-red-900/50 border-red-700/40" if a["severity"] == "error" else "text-amber-400 bg-amber-900/50 border-amber-700/40"
+            icon_sev = "✗" if a["severity"] == "error" else "⚠"
+            detail_json = a.get("detail") or {}
+            if isinstance(detail_json, str):
+                import json as _json
+                try:
+                    detail_json = _json.loads(detail_json)
+                except Exception:
+                    detail_json = {}
+            detail_parts = ", ".join(f"{k}={v}" for k, v in detail_json.items() if k not in ("node_id",))
+            rows += f'''
+<div class="flex items-start gap-3 p-3 rounded-lg border border-slate-700/50 bg-slate-900/50">
+  <span class="text-xs font-bold px-1.5 py-0.5 rounded border {sev_cls} flex-shrink-0 mt-0.5">{icon_sev}</span>
+  <div class="min-w-0">
+    <span class="text-sm text-white">{a["message"]}</span>
+    <div class="flex items-center gap-2 mt-1">
+      <span class="text-[10px] font-mono text-slate-500">{a["check_name"]}</span>
+      {f'<span class="text-[10px] text-slate-600">{detail_parts}</span>' if detail_parts else ''}
+    </div>
+  </div>
+</div>'''
+        alerts_html = f'''
+<div class="space-y-2">
+  {rows}
+  <a href="/system/alerts" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors pt-1">Vollständiger Alert-Verlauf →</a>
+</div>'''
+
+    # ── Workers ────────────────────────────────────────────────────────────────
+    try:
+        workers = worker_manager.get_worker_list()
+    except Exception:
+        workers = []
+
+    # Map worker alerts by node_id
+    worker_alert_map: dict[str, str] = {}
+    for a in alerts:
+        cn = a.get("check_name", "")
+        if cn.startswith("worker_heartbeat_"):
+            nid = cn[len("worker_heartbeat_"):]
+            worker_alert_map[nid] = a["severity"]
+
+    if workers:
+        worker_cards = ""
+        for w in workers:
+            nid    = w.get("node_id", "")
+            host   = w.get("hostname", nid)
+            status = w.get("status", "unknown")
+            tasks  = w.get("current_tasks", 0)
+            cap    = w.get("max_tasks", 0)
+            last   = w.get("last_seen", "")
+
+            # Determine visual status: alert overrides DB status
+            vis = worker_alert_map.get(nid, None)
+            if vis is None:
+                if status == "active":
+                    vis = "ok"
+                elif status in ("offline", "draining"):
+                    vis = "error"
+                else:
+                    vis = "warning"
+
+            status_colors = {
+                "ok":      ("border-emerald-800/40 bg-slate-900/60", "text-emerald-400", "bg-emerald-500"),
+                "warning": ("border-amber-700/50 bg-amber-900/10",   "text-amber-400",   "bg-amber-500"),
+                "error":   ("border-red-700/50 bg-red-900/10",       "text-red-400",     "bg-red-500"),
+            }.get(vis, ("border-slate-700 bg-slate-900/60", "text-slate-400", "bg-slate-500"))
+
+            pct = int(tasks / cap * 100) if cap > 0 else 0
+            bar_color = "bg-emerald-500" if pct < 60 else ("bg-amber-500" if pct < 80 else "bg-red-500")
+
+            worker_cards += f'''
+<a href="/workers" class="flex flex-col gap-2 p-3 rounded-xl border {status_colors[0]} hover:border-slate-500 transition-all">
+  <div class="flex items-center gap-2">
+    <span class="inline-block w-2 h-2 rounded-full {status_colors[2]}{"" if vis == "ok" else " animate-pulse"}"></span>
+    <span class="text-xs font-semibold text-slate-200 truncate">{host}</span>
+    <span class="ml-auto text-[10px] {status_colors[1]} uppercase">{status}</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <div class="flex-1 bg-slate-800 rounded-full h-1 overflow-hidden">
+      <div class="h-1 rounded-full {bar_color} transition-all" style="width:{pct}%"></div>
+    </div>
+    <span class="text-[10px] text-slate-400 tabular-nums flex-shrink-0">{tasks}/{cap}</span>
+  </div>
+</a>'''
+        workers_html = f'<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">{worker_cards}</div>'
+    else:
+        workers_html = '<p class="text-sm text-slate-500 italic">Kein Distributed Worker registriert — läuft im Standalone-Modus.</p>'
+
+    # ── System metrics snapshot ────────────────────────────────────────────────
+    m = system_metrics.get(rc)
+    if m:
+        cpu_c  = _color(m["cpu_percent"])
+        ram_c  = _color(m["mem_percent"])
+        metrics_html = f'''
+<div class="flex flex-wrap gap-6 text-xs font-mono">
+  <div class="flex items-center gap-2">
+    <span class="text-slate-500">CPU</span>
+    <span class="{cpu_c} font-bold">{m["cpu_percent"]:.0f}%</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="text-slate-500">RAM</span>
+    <span class="{ram_c} font-bold">{m["mem_used_gb"]:.1f} / {m["mem_total_gb"]:.1f} GB</span>
+    <span class="text-slate-600">({m["mem_percent"]:.0f}%)</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="text-slate-500">Net</span>
+    <span class="text-cyan-400">↑{m["net_out_mbps"]:.1f}</span>
+    <span class="text-indigo-400">↓{m["net_in_mbps"]:.1f}</span>
+    <span class="text-slate-600">Mb/s</span>
+  </div>
+</div>'''
+    else:
+        metrics_html = '<span class="text-xs text-slate-600 italic">Metriken werden gesammelt…</span>'
+
+    now_str = datetime.utcnow().strftime("%H:%M:%S UTC")
+    n_err  = len(errors)
+    n_warn = len(warnings)
+    overall = "ok" if not alerts else ("error" if errors else "warning")
+    overall_badge = {
+        "ok":      '<span class="px-2 py-0.5 rounded-full text-xs bg-emerald-900/50 border border-emerald-700/40 text-emerald-300 font-semibold">Alles OK</span>',
+        "warning": f'<span class="px-2 py-0.5 rounded-full text-xs bg-amber-900/50 border border-amber-700/40 text-amber-300 font-semibold">{n_warn} Warnung{"en" if n_warn > 1 else ""}</span>',
+        "error":   f'<span class="px-2 py-0.5 rounded-full text-xs bg-red-900/50 border border-red-700/40 text-red-300 font-semibold">{n_err} Fehler{f", {n_warn} Warn." if n_warn else ""}</span>',
+    }[overall]
+
+    return HTMLResponse(f'''
+<div id="health-summary"
+     hx-get="/api/system/health-summary"
+     hx-trigger="every 30s"
+     hx-swap="outerHTML">
+
+  <!-- Status line -->
+  <div class="flex items-center gap-3 mb-5">
+    {overall_badge}
+    <span class="text-xs text-slate-600 font-mono">Aktualisiert {now_str}</span>
+    <span class="text-xs text-slate-700">· alle 30s</span>
+  </div>
+
+  <!-- Service status cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    {cards_html}
+  </div>
+
+  <!-- Metrics bar -->
+  <div class="mb-6 p-3 bg-slate-900/60 border border-slate-700/50 rounded-xl">
+    <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">System-Ressourcen (Host)</p>
+    {metrics_html}
+  </div>
+
+  <!-- Active alerts -->
+  <div class="mb-6">
+    <h2 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+      <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+      Aktive Alerts
+      {f'<span class="text-xs bg-red-900/50 text-red-300 border border-red-700/40 rounded px-1.5">{n_err}</span>' if n_err else ''}
+      {f'<span class="text-xs bg-amber-900/50 text-amber-300 border border-amber-700/40 rounded px-1.5">{n_warn}</span>' if n_warn else ''}
+    </h2>
+    {alerts_html}
+  </div>
+
+  <!-- Workers -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+        </svg>
+        Worker
+        <span class="text-xs text-slate-500 font-normal">({len(workers)} registriert)</span>
+      </h2>
+      <a href="/workers" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Worker-Monitor →</a>
+    </div>
+    {workers_html}
+  </div>
+
+</div>''')
+
+
+# ── /system/health  (Operations Center page) ──────────────────────────────────
+
+@ui_router.get("/system/health", response_class=HTMLResponse)
+async def system_health_page(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker()),
+):
+    return templates.TemplateResponse("system_health.html", {
+        "request": request,
+        "user": user,
+    })
