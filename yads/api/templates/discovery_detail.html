@@ -80,7 +80,7 @@
         </a>
       </div>
     </button>
-    <div id="blocklist-body" class="{% if not blocklist %}hidden{% endif %} border-t border-slate-700 p-4 flex flex-wrap gap-2">
+    <div id="blocklist-body" class="border-t border-slate-700 p-4 flex flex-wrap gap-2">
       {% if blocklist %}
         {% for entry in blocklist %}
         <span class="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-mono px-2 py-1 rounded-full">
@@ -197,12 +197,30 @@
 <script>
 const SESSION_ID = {{ disc_sess.id }};
 
+const _BLOCKLIST_KEY = 'discovery_blocklist_open_' + SESSION_ID;
+
 function toggleBlocklist() {
   const body = document.getElementById('blocklist-body');
   const chevron = document.getElementById('blocklist-chevron');
   body.classList.toggle('hidden');
-  chevron.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
+  const open = !body.classList.contains('hidden');
+  chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+  localStorage.setItem(_BLOCKLIST_KEY, open ? '1' : '0');
 }
+
+// Restore state on load
+(function() {
+  const saved = localStorage.getItem(_BLOCKLIST_KEY);
+  const body = document.getElementById('blocklist-body');
+  const chevron = document.getElementById('blocklist-chevron');
+  if (saved === '0') {
+    body.classList.add('hidden');
+    chevron.style.transform = 'rotate(-90deg)';
+  } else {
+    body.classList.remove('hidden');
+    chevron.style.transform = 'rotate(0deg)';
+  }
+})();
 
 function filterCandidates(status) {
   document.querySelectorAll('#candidates-tbody .candidate-row').forEach(row => {

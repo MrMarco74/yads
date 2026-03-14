@@ -53,6 +53,8 @@ SIGNAL_WEIGHTS = {
     # ── TLD scanner signals ───────────────────────────────────────────────────
     "tld_same_owner":        0.65, # same TLD variant resolves to same IP → almost certainly same org
     "tld_variant":           0.3,  # registered TLD variant, different/unknown owner
+    # ── Web scraping signals ──────────────────────────────────────────────────
+    "web_resource_origin":   0.2,  # external domain referenced in page HTML (CDNs/analytics included)
 }
 
 
@@ -291,6 +293,7 @@ class DiscoveryOrchestrator:
                         relevance_score=score,
                         discovery_signals=signals,
                         discovery_reason=f"Discovery session {sess.id} — {', '.join(signals)}",
+                        tags=[f"discovery:{sess.name}"],
                     )
                     db.add(new_target)
                     db.commit()
@@ -321,6 +324,7 @@ class DiscoveryOrchestrator:
                             relevance_score=score,
                             discovery_signals=signals,
                             discovery_reason=f"Discovery session {sess.id} — below threshold, queued for basic scan",
+                            tags=[f"discovery:{sess.name}"],
                         )
                         db.add(below_target)
                         db.commit()
