@@ -42,13 +42,13 @@ SIGNAL_WEIGHTS = {
     "same_mx":               0.3,
     "string_similarity":     0.0,  # computed dynamically 0–0.5
     # ── passive hunter signals ────────────────────────────────────────────
-    "cors_trusted_origin":   0.7,  # explicitly listed in CORS/CSP → strong trust signal
+    "cors_trusted_origin":   0.3,  # in CORS/CSP header — weak signal, CDNs/analytics appear here too
     "vt_passive_dns":        0.55, # VirusTotal historical resolution
     "spf_host":              0.5,  # authorised mail sender → same org
     "wayback_subdomain":     0.45, # historically reachable subdomain
     "favicon_match":         0.55, # identical favicon fingerprint → same codebase
     "srv_record":            0.4,  # SRV record points to this host
-    "sitemap_reference":     0.35, # referenced in sitemap/robots.txt
+    "sitemap_reference":     0.25, # referenced in sitemap/robots.txt — also lists third-party domains
 }
 
 
