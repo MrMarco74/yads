@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from yads.api.templating import templates
 
-from yads.auth.deps import get_current_user_html, PlatformAdminChecker
+from yads.auth.deps import get_current_user_html, get_current_user_html_optional, PlatformAdminChecker
 from yads.models import User
 
 router = APIRouter(prefix="/api/system", tags=["system-metrics"])
@@ -70,27 +70,36 @@ def _warn_box(level: str, title: str, detail: str) -> str:
 
 # ── /api/system/metrics ───────────────────────────────────────────────────────
 
+_EMPTY_WIDGET = (
+    '<div id="sysmetrics-widget"'
+    ' class="hidden md:flex items-center gap-3 text-xs text-slate-600 font-mono"'
+    ' hx-get="/api/system/metrics" hx-trigger="every 5s" hx-swap="outerHTML">'
+    '<span>— / — / —</span>'
+    '</div>'
+)
+
+
 @router.get("/metrics", response_class=HTMLResponse)
 async def system_metrics_fragment(
     request: Request,
-    user: User = Depends(get_current_user_html),
+    user: Optional[User] = Depends(get_current_user_html_optional),
 ):
     """
     HTMX fragment: live CPU / RAM / network stats for the topbar.
-    Polled every 3 seconds via hx-trigger="every 3s".
+    Polled every 3–5 seconds. Uses optional auth so an expired session
+    never destroys the widget — it just goes quiet until re-login.
     """
+    if not user:
+        # Not logged in (or session expired) — return silent placeholder,
+        # keep polling so widget recovers automatically after re-login.
+        return HTMLResponse(_EMPTY_WIDGET)
+
     from yads.core import system_metrics
     m = system_metrics.get(_redis_client())
 
     if not m:
-        # Redis unavailable or metrics not yet collected — keep polling
-        return HTMLResponse(
-            '<div id="sysmetrics-widget"'
-            ' class="hidden md:flex items-center gap-3 text-xs text-slate-600 font-mono"'
-            ' hx-get="/api/system/metrics" hx-trigger="every 5s" hx-swap="outerHTML">'
-            '<span>— / — / —</span>'
-            '</div>'
-        )
+        # Redis unavailable or collector not yet started — keep polling
+        return HTMLResponse(_EMPTY_WIDGET)
 
     cpu   = m["cpu_percent"]
     mem_u = m["mem_used_gb"]
