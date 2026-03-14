@@ -26,7 +26,7 @@ from yads.database import engine, redis_client
 from yads.models import DiscoverySession, DiscoveryCandidate, DiscoveryDomainBlocklist, Target, ScanResult
 
 # Scan types for below-threshold targets — same lightweight set as the discovery phase
-DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
+DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner", "subdomain_scanner"]
 
 logger = logging.getLogger("yads-discovery")
 

@@ -92,7 +92,7 @@
         <button onclick="filterCandidates('{{ tab_status }}')"
                 id="tab-{{ tab_status }}"
                 class="px-3 py-1 rounded-md transition-colors font-medium
-                       {% if loop.first %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">
+                       {% if tab_status == 'pending' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">
           {{ tab_status|capitalize }}
         </button>
         {% endfor %}
@@ -199,6 +199,20 @@ function filterCandidates(status) {
   }
 }
 
+function _removeRow(candidateId) {
+  const row = document.getElementById('cand-row-' + candidateId);
+  if (row) row.remove();
+}
+
+function _removeRowsByPattern(pattern) {
+  // pattern like "*.example.com" — remove all rows whose domain matches
+  const parent = pattern.startsWith('*.') ? pattern.slice(2) : pattern;
+  document.querySelectorAll('#candidates-tbody .candidate-row').forEach(row => {
+    const domain = row.querySelector('td')?.textContent?.trim() || '';
+    if (domain === parent || domain.endsWith('.' + parent)) row.remove();
+  });
+}
+
 async function manualAccept(candidateId) {
   const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/accept`, {method:'POST'});
   if (r.ok) location.reload();
@@ -206,7 +220,7 @@ async function manualAccept(candidateId) {
 
 async function manualReject(candidateId) {
   const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/reject`, {method:'POST'});
-  if (r.ok) location.reload();
+  if (r.ok) _removeRow(candidateId);
 }
 
 async function blockDomain(candidateId, pattern) {
@@ -214,8 +228,7 @@ async function blockDomain(candidateId, pattern) {
   const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/block-domain`, {method:'POST'});
   if (r.ok) {
     const data = await r.json();
-    alert(`Blocked: ${data.pattern}\n${data.rejected_candidates} candidate(s) rejected.`);
-    location.reload();
+    _removeRowsByPattern(data.pattern);
   }
 }
 
