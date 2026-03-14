@@ -595,11 +595,30 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code
     )
 
+def _push_api_error_to_redis(url: str, exc: Exception):
+    """Write a brief API 500 error entry to Redis so the watcher can surface it."""
+    try:
+        import redis as _redis, json as _json, time as _time
+        from yads.config import settings
+        rc = _redis.from_url(settings.REDIS_URL, socket_connect_timeout=1)
+        entry = _json.dumps({
+            "ts": _time.time(),
+            "url": str(url),
+            "error": f"{type(exc).__name__}: {str(exc)[:200]}",
+        })
+        rc.lpush("yads:api_errors", entry)
+        rc.ltrim("yads:api_errors", 0, 49)   # keep last 50
+        rc.expire("yads:api_errors", 3600)    # 1h TTL
+    except Exception:
+        pass  # never raise from error handler
+
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     import traceback
     tb = traceback.format_exc()
     logger.error(f"Unhandled exception at {request.url}: {exc}\n{tb}")
+    _push_api_error_to_redis(request.url, exc)
 
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
