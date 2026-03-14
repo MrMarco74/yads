@@ -281,6 +281,7 @@ async def api_reject_candidate(
     cand.status = "rejected"
     cand.rejection_reason = "manual"
     db.add(cand)
+    _archive_discovery_target(db, cand.domain, session_id)
     db.commit()
     return {"status": "rejected"}
 
@@ -336,6 +337,7 @@ async def api_block_domain(
             c.status = "rejected"
             c.rejection_reason = f"domain_blocked:{pattern}"
             db.add(c)
+            _archive_discovery_target(db, c.domain, session_id)
             rejected_count += 1
 
     db.commit()
@@ -367,6 +369,20 @@ async def api_delete_blocklist_entry(
     db.delete(entry)
     db.commit()
     return {"status": "deleted"}
+
+
+def _archive_discovery_target(db: Session, domain: str, session_id: int) -> None:
+    """Archive the Target for a rejected discovery candidate so queued scans are skipped."""
+    target = db.exec(
+        select(Target).where(
+            Target.domain == domain,
+            Target.discovery_session_id == session_id,
+        )
+    ).first()
+    if target and not target.is_archived:
+        target.is_archived = True
+        target.archived_reason = "discovery_rejected"
+        db.add(target)
 
 
 def _domain_matches_pattern(domain: str, pattern: str) -> bool:
