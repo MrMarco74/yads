@@ -3490,15 +3490,15 @@ class SettingsPage(SmoothScrollArea):
 
         # SSH Paths
         self.ssh_path_releases = LineEdit(self)
-        self.ssh_path_releases.setText("/public_html/yads-security/en/releases/")
+        self.ssh_path_releases.setText("/en/releases/")
         ssh_card.addRow("Releases Path:", self.ssh_path_releases, "(zip + version.json)")
 
         self.ssh_path_en = LineEdit(self)
-        self.ssh_path_en.setText("/public_html/yads-security/en/")
+        self.ssh_path_en.setText("/en/")
         ssh_card.addRow("Homepage EN:", self.ssh_path_en)
 
         self.ssh_path_de = LineEdit(self)
-        self.ssh_path_de.setText("/public_html/yads-security/de/")
+        self.ssh_path_de.setText("/de/")
         ssh_card.addRow("Homepage DE:", self.ssh_path_de)
 
         layout.addWidget(ssh_card)
@@ -3520,15 +3520,15 @@ class SettingsPage(SmoothScrollArea):
 
         # FTP Paths
         self.ftp_path_releases = LineEdit(self)
-        self.ftp_path_releases.setText("/public_html/yads-security/en/releases/")
+        self.ftp_path_releases.setText("/en/releases/")
         ftp_card.addRow("Releases Path:", self.ftp_path_releases, "(zip + version.json)")
 
         self.ftp_path_en = LineEdit(self)
-        self.ftp_path_en.setText("/public_html/yads-security/en/")
+        self.ftp_path_en.setText("/en/")
         ftp_card.addRow("Homepage EN:", self.ftp_path_en)
 
         self.ftp_path_de = LineEdit(self)
-        self.ftp_path_de.setText("/public_html/yads-security/de/")
+        self.ftp_path_de.setText("/de/")
         ftp_card.addRow("Homepage DE:", self.ftp_path_de)
 
         layout.addWidget(ftp_card)
@@ -3626,16 +3626,16 @@ class SettingsPage(SmoothScrollArea):
                 self.ssh_user.setText(data.get('ssh_user', ''))
                 self.ssh_pass.setText(data.get('ssh_pass', ''))
                 self.ssh_key.setText(data.get('ssh_key', ''))
-                self.ssh_path_releases.setText(data.get('ssh_path_releases', '/public_html/yads-security/en/releases/'))
-                self.ssh_path_en.setText(data.get('ssh_path_en', '/public_html/yads-security/en/'))
-                self.ssh_path_de.setText(data.get('ssh_path_de', '/public_html/yads-security/de/'))
+                self.ssh_path_releases.setText(data.get('ssh_path_releases', '/en/releases/'))
+                self.ssh_path_en.setText(data.get('ssh_path_en', '/en/'))
+                self.ssh_path_de.setText(data.get('ssh_path_de', '/de/'))
 
                 self.ftp_host.setText(data.get('ftp_host', ''))
                 self.ftp_user.setText(data.get('ftp_user', ''))
                 self.ftp_pass.setText(data.get('ftp_pass', ''))
-                self.ftp_path_releases.setText(data.get('ftp_path_releases', '/public_html/yads-security/en/releases/'))
-                self.ftp_path_en.setText(data.get('ftp_path_en', '/public_html/yads-security/en/'))
-                self.ftp_path_de.setText(data.get('ftp_path_de', '/public_html/yads-security/de/'))
+                self.ftp_path_releases.setText(data.get('ftp_path_releases', '/en/releases/'))
+                self.ftp_path_en.setText(data.get('ftp_path_en', '/en/'))
+                self.ftp_path_de.setText(data.get('ftp_path_de', '/de/'))
 
                 self.ai_service.setCurrentText(data.get('ai_service', 'gemini'))
                 self.gemini_key.setText(data.get('gemini_key', ''))
