@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 import markdown
 import os
 import aiofiles
+from typing import Optional
 
-from yads.auth.deps import get_current_user_html_optional
+from yads.auth.deps import get_current_user_html_optional, get_current_user_html
 from yads.models import User
 
 router = APIRouter(
@@ -92,13 +93,171 @@ async def view_roadmap(request: Request, user: User = Depends(get_current_user_h
 
 @router.get("/bug-report", response_class=HTMLResponse)
 async def view_bug_report(request: Request, user: User = Depends(get_current_user_html_optional)):
-    """Bug report page with copyable system info block."""
+    """Bug report page with editable form + secure upload."""
     from yads.config import settings
+    from yads.database import get_session as _get_session
+    from sqlmodel import Session
+    from yads.core.license import get_customer_id
+
+    # Check if license has report signing capability
+    has_upload = False
+    try:
+        with Session(__import__('yads.database', fromlist=['engine']).engine) as session:
+            has_upload = get_customer_id(session) is not None
+    except Exception:
+        pass
+
     return templates.TemplateResponse("bug_report.html", {
         "request": request,
         "user": user,
         "settings": settings,
+        "has_upload": has_upload,
     })
+
+
+@router.post("/bug-report/upload", response_class=HTMLResponse)
+async def upload_bug_report(
+    request: Request,
+    user: User = Depends(get_current_user_html),
+    description: str = Form(""),
+    affected_url: str = Form(""),
+    attach_errors: Optional[str] = Form(None),
+    attach_alerts: Optional[str] = Form(None),
+):
+    """
+    Encrypt + sign bug report and POST to support portal.
+    Returns HTMX fragment: success card with report ID, or error banner.
+    """
+    from datetime import datetime, timezone
+    from yads.config import settings
+    from yads.core.bug_report_crypto import build_report_upload
+    from yads.core.license import get_customer_id, get_report_signing_key, get_customer_name
+    from sqlmodel import Session
+    import httpx
+    import importlib
+
+    engine = importlib.import_module('yads.database').engine
+
+    def _err(msg: str) -> HTMLResponse:
+        return HTMLResponse(f'''
+<div id="upload-result" class="mt-4 p-4 bg-red-900/30 border border-red-700/50 rounded-xl
+     text-red-300 text-sm flex items-start gap-3">
+  <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <div><strong class="text-red-400">Upload fehlgeschlagen:</strong> {msg}</div>
+</div>''')
+
+    # Load license keys
+    try:
+        with Session(engine) as session:
+            customer_id = get_customer_id(session)
+            customer_name = get_customer_name(session) or "Unknown"
+            signing_key = get_report_signing_key(session)
+    except Exception as e:
+        return _err(f"Lizenzfehler: {e}")
+
+    if not customer_id or not signing_key:
+        return _err("Lizenz enthält keinen Report-Signing-Key. Bitte Lizenz aktualisieren.")
+
+    # Collect tenant name
+    tenant_name = "N/A"
+    try:
+        if user.tenant_id:
+            from sqlmodel import Session as S2
+            from yads.models import Tenant
+            with S2(engine) as s:
+                t = s.get(Tenant, user.tenant_id)
+                if t:
+                    tenant_name = t.name
+    except Exception:
+        pass
+
+    # Collect optional auto-data
+    scan_errors: list = []
+    system_alerts: list = []
+
+    if attach_errors == "on":
+        try:
+            from yads.core.watcher import get_scan_errors_for_tenant
+            import redis as _redis
+            rc = _redis.from_url(settings.REDIS_URL, socket_connect_timeout=1)
+            if user.tenant_id:
+                scan_errors = (get_scan_errors_for_tenant(rc, user.tenant_id) or [])[-10:]
+        except Exception:
+            pass
+
+    if attach_alerts == "on":
+        try:
+            import json, redis as _redis
+            rc = _redis.from_url(settings.REDIS_URL, socket_connect_timeout=1)
+            raw = rc.get("yads:alerts:active")
+            if raw:
+                for a in __import__('json').loads(raw):
+                    system_alerts.append(f"[{a.get('severity','?').upper()}] {a.get('check_name','?')}: {a.get('message','')}")
+        except Exception:
+            pass
+
+    report_dict = {
+        "description": description.strip(),
+        "affected_url": affected_url.strip(),
+        "yads_version": settings.VERSION,
+        "tenant_name": tenant_name,
+        "username": user.username,
+        "browser": request.headers.get("user-agent", "")[:200],
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "scan_errors": scan_errors,
+        "system_alerts": system_alerts,
+    }
+
+    # Encrypt + sign
+    try:
+        upload_payload = build_report_upload(
+            report_dict=report_dict,
+            customer_id=customer_id,
+            customer_name=customer_name,
+            tenant_name=tenant_name,
+            yads_version=settings.VERSION,
+            signing_key=signing_key,
+            dev_public_key_b64=settings.SUPPORT_DEV_PUBLIC_KEY,
+        )
+    except Exception as e:
+        return _err(f"Verschlüsselungsfehler: {e}")
+
+    # POST to support portal
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.SUPPORT_PORTAL_URL}/api/report",
+                json=upload_payload,
+                headers={"Content-Type": "application/json"},
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            report_id = data.get("report_id", "?")
+        else:
+            return _err(f"Support-Portal antwortete mit HTTP {resp.status_code}: {resp.text[:200]}")
+    except httpx.TimeoutException:
+        return _err("Support-Portal nicht erreichbar (Timeout). Bitte E-Mail-Fallback nutzen.")
+    except Exception as e:
+        return _err(f"Netzwerkfehler: {e}")
+
+    return HTMLResponse(f'''
+<div id="upload-result" class="mt-4 p-5 bg-emerald-900/30 border border-emerald-700/50 rounded-xl">
+  <div class="flex items-center gap-3 mb-3">
+    <svg class="w-6 h-6 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span class="text-emerald-300 font-semibold text-base">Report erfolgreich gesendet</span>
+  </div>
+  <p class="text-slate-300 text-sm mb-1">Ihre Report-Nummer:</p>
+  <p class="text-2xl font-mono font-bold text-white tracking-wider">{report_id}</p>
+  <p class="text-slate-400 text-xs mt-3">
+    Bitte verwenden Sie diese Nummer in der weiteren Kommunikation mit dem Support.
+    Ihr Report wurde verschlüsselt übertragen und wird vertraulich behandelt.
+  </p>
+</div>''')
 
 
 @router.get("/sbom", response_class=HTMLResponse)

@@ -181,3 +181,43 @@ class LicenseVerifier:
 
 
 license_manager = LicenseVerifier()
+
+
+def _get_license_payload(session) -> Optional[Dict[str, Any]]:
+    """Return decoded license payload dict, or None."""
+    from yads.models import SystemConfig
+    conf = session.get(SystemConfig, "license_key")
+    if not conf or not conf.value:
+        return None
+    return license_manager.verify(conf.value)
+
+
+def get_customer_id(session) -> Optional[str]:
+    """Return customer_id from license payload, or None."""
+    payload = _get_license_payload(session)
+    return payload.get("customer_id") if payload else None
+
+
+def get_report_signing_key(session):
+    """
+    Return Ed25519PrivateKey for bug report signing, or None.
+    The key is stored as base64-encoded raw 32-byte seed in the license payload.
+    """
+    payload = _get_license_payload(session)
+    if not payload:
+        return None
+    key_b64 = payload.get("report_signing_key")
+    if not key_b64:
+        return None
+    try:
+        raw = base64.b64decode(key_b64)
+        return ed25519.Ed25519PrivateKey.from_private_bytes(raw)
+    except Exception as e:
+        logger.error(f"Failed to load report signing key: {e}")
+        return None
+
+
+def get_customer_name(session) -> Optional[str]:
+    """Return customer name (sub field) from license payload, or None."""
+    payload = _get_license_payload(session)
+    return payload.get("sub") if payload else None

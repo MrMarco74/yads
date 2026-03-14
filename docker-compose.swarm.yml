@@ -179,6 +179,38 @@ services:
           memory: 1G
 
   # ==========================================================================
+  # Support Portal (Manager Node Only)
+  # ==========================================================================
+
+  yads-support:
+    image: registry.yads-security.com/yads-support:latest
+    environment:
+      - DEV_PRIVATE_KEY_FILE=/app/keys/dev_x25519_private.key
+      - ADMIN_TOKEN=${SUPPORT_ADMIN_TOKEN}
+      - ADMIN_IP_ALLOWLIST=${SUPPORT_ADMIN_IP_ALLOWLIST:-2a02:8071:63f1:10c0::/64,127.0.0.1}
+      - ADMIN_PUBLIC_KEY=${SUPPORT_ADMIN_PUBLIC_KEY:-lvbmCRtPXZ5Z6IDym34PyM+T6b/vh20AlZEOlIx6NgY=}
+    volumes:
+      - support_keys:/app/keys:ro
+      - support_data:/app/data
+    networks:
+      - proxy-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == prod-node
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # ==========================================================================
   # Infrastructure (Manager Node Only)
   # ==========================================================================
 
@@ -303,6 +335,10 @@ volumes:
   data:
     driver: local
   nuclei_templates:
+    driver: local
+  support_keys:
+    driver: local
+  support_data:
     driver: local
 
 

@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQURXL0UxMzJWUzkwQlZLclZTYW9zYzVablRIZERQME1WRGhPaDZZNTYwVG89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
     LICENSE_KEY: Optional[str] = None
 
+    # Bug Report / Support Portal
+    SUPPORT_PORTAL_URL: str = os.getenv("SUPPORT_PORTAL_URL", "https://support.yads-security.com")
+    # X25519 public key (base64 raw, 32 bytes) — generated via scripts/generate_support_keypair.py
+    SUPPORT_DEV_PUBLIC_KEY: str = "0Q7SCbynTF/x9jd0E6VXbHfdDliZZsCTii7Inyfekj8="
+
     # Custom Module Signing
     # All custom module uploads require a valid Ed25519 signature by default.
     # To disable signature enforcement (e.g. in dev environments without a keypair),

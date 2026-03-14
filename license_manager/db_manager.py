@@ -63,6 +63,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migrations for bug report signing (customer UUID + public key)
+    for col_name, col_type in [
+        ("customer_uuid", "TEXT"),
+        ("report_signing_public_key", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE customers ADD COLUMN {col_name} {col_type}")
+        except sqlite3.OperationalError:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -199,3 +209,29 @@ def get_all_licenses(archived=False):
             "email": r[6]
         })
     return results
+
+
+def save_report_signing_keys(customer_name: str, customer_uuid: str, public_key_b64: str):
+    """Store/update the bug-report signing keypair metadata for a customer."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE customers SET customer_uuid = ?, report_signing_public_key = ? WHERE name = ?",
+        (customer_uuid, public_key_b64, customer_name),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_customers_with_report_keys():
+    """Return all customers that have a report signing public key registered."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT name, customer_uuid, report_signing_public_key FROM customers "
+        "WHERE customer_uuid IS NOT NULL AND report_signing_public_key IS NOT NULL "
+        "ORDER BY name"
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [{"name": r[0], "customer_uuid": r[1], "public_key_b64": r[2]} for r in rows]
