@@ -4887,12 +4887,17 @@ class BugReportPage(QWidget):
         "resolved": "#22c55e",   # green
     }
 
+    _notify_signal = Signal(str, str, str)  # report_id, customer, status
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("bugReportPage")
         self._reports = []
         self._config_file = Path.home() / ".yads" / "release_gui.yaml"
+        self._known_ids: set = set()
         self._setup_ui()
+        self._notify_signal.connect(self._show_desktop_notification)
+        self._start_poll_timer()
 
     # ------------------------------------------------------------------
     # UI
@@ -5009,6 +5014,7 @@ class BugReportPage(QWidget):
                 InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
                 return
             self._reports = reports
+            self._known_ids = {r["report_id"] for r in reports}
             self._apply_filter(self.filter_combo.currentText())
             self.status_label.setText(f"{len(reports)} Report(s)")
 
@@ -5092,6 +5098,78 @@ class BugReportPage(QWidget):
         portal_url = f"{url.rstrip('/')}/reports/{report_id}"
         webbrowser.open(portal_url)
         self.status_label.setText(f"Geöffnet: {portal_url}")
+
+    # ------------------------------------------------------------------
+    # Background polling + desktop notifications
+    # ------------------------------------------------------------------
+    def _start_poll_timer(self):
+        from PySide6.QtCore import QTimer
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(5 * 60 * 1000)  # every 5 minutes
+        self._poll_timer.timeout.connect(self._poll_for_new_reports)
+        self._poll_timer.start()
+
+    def _poll_for_new_reports(self):
+        """Fetch reports silently; notify for any new report IDs."""
+        url, token = self._load_cfg()
+        if not url or not token:
+            return
+
+        def _worker():
+            import urllib.request, urllib.error, json as _json
+            try:
+                req = urllib.request.Request(
+                    f"{url.rstrip('/')}/api/admin/reports",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    return _json.loads(resp.read()).get("reports", [])
+            except Exception:
+                return []
+
+        def _on_done(reports):
+            if not reports:
+                return
+            # First run: just seed known IDs without notifying
+            if not self._known_ids:
+                self._known_ids = {r["report_id"] for r in reports}
+                return
+            for r in reports:
+                rid = r.get("report_id", "")
+                if rid and rid not in self._known_ids:
+                    self._known_ids.add(rid)
+                    self._notify_signal.emit(
+                        rid,
+                        r.get("customer_name", "?"),
+                        r.get("status", "new"),
+                    )
+            # Keep main table in sync
+            self._reports = reports
+            self._apply_filter(self.filter_combo.currentText())
+            self.status_label.setText(f"{len(reports)} Report(s)")
+
+        def _thread():
+            result = _worker()
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: _on_done(result))
+
+        threading.Thread(target=_thread, daemon=True).start()
+
+    @Slot(str, str, str)
+    def _show_desktop_notification(self, report_id: str, customer: str, status: str):
+        """Fire a Linux desktop notification via notify-send."""
+        import subprocess
+        try:
+            subprocess.Popen([
+                "notify-send",
+                "--urgency=normal",
+                "--icon=dialog-warning",
+                "--app-name=YADS Release Manager",
+                f"Neuer Bug Report: {report_id}",
+                f"Kunde: {customer}  |  Status: {status}",
+            ])
+        except FileNotFoundError:
+            pass  # notify-send not available (non-Linux)
 
     def showEvent(self, event):
         """Auto-refresh when page becomes visible (only if table is empty)."""
