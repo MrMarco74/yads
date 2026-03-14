@@ -43,7 +43,7 @@ services:
   # ==========================================================================
 
   yads-api:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
+    image: registry.yads-security.com/yads/yads-api:latest
     command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -96,7 +96,7 @@ services:
           memory: 512M
 
   yads-worker-primary:
-    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
+    image: registry.yads-security.com/yads/yads-worker:latest
     command: python /app/scripts/start_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
@@ -134,7 +134,7 @@ services:
   # ==========================================================================
 
   yads-worker:
-    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
+    image: registry.yads-security.com/yads/yads-worker:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
@@ -264,7 +264,7 @@ services:
   # ==========================================================================
 
   yads-backup:
-    image: gitlab.fritz.box:5050/apps/yads/yads-backup:latest
+    image: registry.yads-security.com/yads/yads-backup:latest
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -303,7 +303,7 @@ services:
   # ==========================================================================
 
   yads-scheduler:
-    image: gitlab.fritz.box:5050/apps/yads/yads-worker:latest
+    image: registry.yads-security.com/yads/yads-worker:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads
