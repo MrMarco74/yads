@@ -244,6 +244,35 @@ class FileUpdater:
 
         return result
 
+    def update_index_html_badge(
+        self,
+        new_version: str,
+        language: str,
+        dry_run: bool = False
+    ) -> Dict[str, any]:
+        """Update version badge in index.html (e.g. 'v1.42 STABLE' → 'v1.45.3 STABLE')."""
+        file_path = self.project_root / "yads-homepage" / language / "index.html"
+
+        with open(file_path, 'r') as f:
+            content = f.read()
+
+        # Match e.g. v1.42 STABLE or v1.45.2 STABLE
+        major_minor = '.'.join(new_version.split('.')[:2])
+        pattern = r'v\d+\.\d+(?:\.\d+)? STABLE'
+        replacement = f'v{major_minor} STABLE'
+        new_content, count = re.subn(pattern, replacement, content)
+
+        result = {
+            'file': str(file_path),
+            'matches': count,
+            'changed': content != new_content
+        }
+
+        if not dry_run and result['changed']:
+            self._backup_and_write(file_path, new_content)
+
+        return result
+
     def insert_changelog_in_html(
         self,
         version: str,
@@ -438,6 +467,10 @@ class FileUpdater:
             results.append(self.insert_changelog_in_html(
                 version, changelog_html_de, 'de', dry_run
             ))
+
+            # Update version badge in index.html (EN and DE)
+            results.append(self.update_index_html_badge(version, 'en', dry_run))
+            results.append(self.update_index_html_badge(version, 'de', dry_run))
 
             return results
 
