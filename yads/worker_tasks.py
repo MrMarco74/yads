@@ -1229,7 +1229,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
     from yads.core.discovery_scanner_adapter import DiscoveryScannerAdapter
     from yads.core.discovery_orchestrator import DiscoveryOrchestrator
     from yads.core.discovery_passive_hunters import run_all_passive_hunters
-    from yads.models import DiscoverySession, DiscoveryCandidate, ScanResult, Tenant
+    from yads.models import DiscoverySession, DiscoveryCandidate, DiscoveryDomainBlocklist, ScanResult, Tenant
 
     logger.info(f"[Discovery] run_discovery_scan session={session_id} target={domain} depth={depth}")
 
@@ -1244,6 +1244,13 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             tenant = db.get(Tenant, sess.tenant_id)
             vt_key = (tenant.virustotal_api_key or "") if tenant else ""
             shodan_key = (tenant.shodan_api_key or "") if tenant else ""
+            # Load blocklist once for the entire scan
+            blocklist_entries = db.exec(
+                select(DiscoveryDomainBlocklist).where(
+                    DiscoveryDomainBlocklist.tenant_id == sess.tenant_id
+                )
+            ).all()
+            blocked_patterns = [e.pattern for e in blocklist_entries]
 
         # ── Phase 1: structured scanner modules ───────────────────────────────
         run_all_scans(target_id, domain, DISCOVERY_SCAN_TYPES, None)
@@ -1263,7 +1270,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
                     continue
 
                 for cand_domain, source_scanner, signals in adapter.extract(scanner_name, result.data):
-                    _upsert_candidate(db, session_id, target_id, cand_domain, domain, source_scanner, signals, depth)
+                    _upsert_candidate(db, session_id, target_id, cand_domain, domain, source_scanner, signals, depth, blocked_patterns)
 
             db.commit()
 
@@ -1273,7 +1280,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
 
         with Session(engine) as db:
             for cand_domain, signal in passive:
-                _upsert_candidate(db, session_id, target_id, cand_domain, domain, "passive_hunter", [signal], depth)
+                _upsert_candidate(db, session_id, target_id, cand_domain, domain, "passive_hunter", [signal], depth, blocked_patterns)
             db.commit()
 
         logger.info(f"[Discovery] Passive hunters complete for {domain}: {len(passive)} candidates")
@@ -1298,17 +1305,23 @@ def _upsert_candidate(
     source_scanner: str,
     signals: list,
     depth: int,
+    blocked_patterns: list = [],
 ):
     """
     Insert a new DiscoveryCandidate or merge signals into an existing one.
-    Skips the source domain itself and already-accepted targets.
+    Skips the source domain itself, already-accepted targets, and blocked domains.
     """
     from yads.models import DiscoveryCandidate
+    from yads.core.discovery_orchestrator import _matches_blocklist
 
     cand_domain = cand_domain.strip().lower()
     if not cand_domain or cand_domain == source_domain:
         return
     if "." not in cand_domain or " " in cand_domain:
+        return
+
+    # Skip blocked domains immediately — don't even insert them
+    if blocked_patterns and _matches_blocklist(cand_domain, blocked_patterns):
         return
 
     existing = db.exec(
