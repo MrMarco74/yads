@@ -26130,6 +26130,439 @@ def seed_changelog():
 
 
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "1.46.0").first():
+
+
+
+
+
+
+
+
+            entry_1460 = ChangelogEntry(
+
+
+
+
+
+
+
+
+                title="YADS v1.46.0: Enhanced Security & Stability",
+
+
+
+
+
+
+
+
+                version="1.46.0",
+
+
+
+
+
+
+
+
+                content="""
+
+
+
+
+
+
+
+
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+
+
+
+
+
+
+
+
+                <h3>🚀 New Features</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Added Operations Center page for platform administrators to monitor service status, alerts, worker health, and system metrics.</li>
+
+
+
+
+
+
+
+
+                    <li>Implemented in-app bug report page with system information pre-filled, allowing users to easily copy and send reports.</li>
+
+
+
+
+
+
+
+
+                    <li>Integrated a Bug Report Upload System with encryption, signing, and a dedicated Support Portal for secure report submission and management.</li>
+
+
+
+
+
+
+
+
+                    <li>Added a 'Bug Report' button to System Alerts, enabling users to report issues directly from the alert page.</li>
+
+
+
+
+
+
+
+
+                    <li>Implemented automatic cleanup of offline workers, preventing accumulation of ghost entries after container restarts.</li>
+
+
+
+
+
+
+
+
+                    <li>Introduced desktop notifications for new bug reports.</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+                <h3>⚡ Improvements</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Enhanced internationalization (i18n) coverage and improved sidebar UX with collapsible operations section and corrected settings label.</li>
+
+
+
+
+
+
+
+
+                    <li>Updated homepage documentation (DE + EN) with new sections and chapter links.</li>
+
+
+
+
+
+
+
+
+                    <li>Surface API 500 errors in the topbar via watcher, making crashes immediately visible to administrators.</li>
+
+
+
+
+
+
+
+
+                    <li>Synchronize version-beta.json to stable on stable releases to notify beta channel users of new stable versions.</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+                <h3>🐛 Bug Fixes</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Fixed worker utilization calculation in standalone mode.</li>
+
+
+
+
+
+
+
+
+                    <li>Resolved issue with missing compliance imports causing HTTP 500 errors on target detail pages.</li>
+
+
+
+
+
+
+
+
+                    <li>Fixed missing 'select' import in remove_all_offline_workers.</li>
+
+
+
+
+
+
+
+
+                    <li>Corrected FormData field names for tenant configuration import.</li>
+
+
+
+
+
+
+
+
+                    <li>Addressed path traversal and NameError vulnerabilities in module upload.</li>
+
+
+
+
+
+
+
+
+                    <li>Fixed broken 'Aktualisieren' functionality by installing pyyaml in the tools venv.</li>
+
+
+
+
+
+
+
+
+                    <li>Corrected tenant configuration import form fields</li>
+
+
+
+
+
+
+
+
+                    <li>Fixed race condition when removing offline workers.</li>
+
+
+
+
+
+
+
+
+                    <li>Resolved issue where stale primary workers were not marked offline on re-registration.</li>
+
+
+
+
+
+
+
+
+                    <li>Ensured proper TLS certificate verification for support portal communication.</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+                <h3>🔧 Technical Improvements</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Refactored target_detail.html into Jinja2 partials for improved maintainability.</li>
+
+
+
+
+
+
+
+
+                    <li>Updated swarm compose image references to registry.yads-security.com.</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+                <h3>🔒 Security</h3>
+
+
+
+
+
+
+
+
+                <ul>
+
+
+
+
+
+
+
+
+                    <li>Implemented validation for module_file from manifest to prevent path traversal vulnerabilities.</li>
+
+
+
+
+
+
+
+
+                </ul>
+
+
+
+
+
+
+
+
+        <p style=\"margin-top: 1rem; font-family: monospace; font-size: 0.8rem; color: #888;\">SHA256: aa2b3fbbdd5d7522be5265b385785135b9425ca7ac9111594ff656a0d3fb295e</p>
+
+
+
+
+
+
+
+
+                """
+
+
+
+
+
+
+
+
+            )
+
+
+
+
+
+
+
+
+            session.add(entry_1460)
+
+
+
+
+
+
+
+
+
         session.commit()
         print("Changelog seeded successfully.")
 
