@@ -929,6 +929,22 @@ def migrate():
         except Exception as e:
             print(f"   Error: {e}")
 
+        print(">> Adding note to discoverydomainblocklist (v1.48.0)...")
+        try:
+            conn.execute(text('ALTER TABLE discoverydomainblocklist ADD COLUMN IF NOT EXISTS note VARCHAR'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
+        print(">> Adding passive_hunting to discoverysession (v1.48.0)...")
+        try:
+            conn.execute(text('ALTER TABLE discoverysession ADD COLUMN IF NOT EXISTS passive_hunting BOOLEAN DEFAULT FALSE'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error: {e}")
+
         print(">> Adding discovery fields to target table (v1.43.0)...")
         try:
             conn.execute(text('ALTER TABLE target ADD COLUMN IF NOT EXISTS discovery_session_id INTEGER REFERENCES discoverysession(id)'))

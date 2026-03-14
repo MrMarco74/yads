@@ -1241,6 +1241,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             if not sess or sess.status in ("stopped", "failed"):
                 return
             include_typosquats = sess.include_typosquats
+            passive_hunting = sess.passive_hunting
             tenant = db.get(Tenant, sess.tenant_id)
             vt_key = (tenant.virustotal_api_key or "") if tenant else ""
             shodan_key = (tenant.shodan_api_key or "") if tenant else ""
@@ -1274,16 +1275,19 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
 
             db.commit()
 
-        # ── Phase 2: passive hunters ───────────────────────────────────────────
-        logger.info(f"[Discovery] Running passive hunters for {domain}")
-        passive = run_all_passive_hunters(domain, vt_key, shodan_key)
+        # ── Phase 2: passive hunters (opt-in per session) ─────────────────────
+        if passive_hunting:
+            logger.info(f"[Discovery] Running passive hunters for {domain}")
+            passive = run_all_passive_hunters(domain, vt_key, shodan_key)
 
-        with Session(engine) as db:
-            for cand_domain, signal in passive:
-                _upsert_candidate(db, session_id, target_id, cand_domain, domain, "passive_hunter", [signal], depth, blocked_patterns)
-            db.commit()
+            with Session(engine) as db:
+                for cand_domain, signal in passive:
+                    _upsert_candidate(db, session_id, target_id, cand_domain, domain, "passive_hunter", [signal], depth, blocked_patterns)
+                db.commit()
 
-        logger.info(f"[Discovery] Passive hunters complete for {domain}: {len(passive)} candidates")
+            logger.info(f"[Discovery] Passive hunters complete for {domain}: {len(passive)} candidates")
+        else:
+            logger.info(f"[Discovery] Passive hunting disabled for session {session_id} — skipping Phase 2")
 
     except Exception as e:
         logger.error(f"[Discovery] run_discovery_scan error for {domain}: {e}")

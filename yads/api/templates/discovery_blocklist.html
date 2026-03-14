@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Discovery Blocklist{% endblock %}
+{% block content %}
+<div class="p-4 sm:p-6">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div class="flex items-center gap-3">
+      <a href="/discovery" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold text-white">Domain Blocklist</h1>
+        <p class="text-slate-400 text-sm mt-1">Tenant-wide patterns — matching domains are skipped in all future discovery sessions.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: current entries -->
+    <div class="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700">
+      <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-white">Active Patterns</h2>
+        <span class="text-xs text-slate-500" id="pattern-count">{{ entries|length }} pattern{{ 's' if entries|length != 1 }}</span>
+      </div>
+
+      {% if entries %}
+      <div class="divide-y divide-slate-700/50" id="blocklist-entries">
+        {% for entry in entries %}
+        <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-700/30 transition-colors" id="entry-{{ entry.id }}">
+          <div>
+            <span class="font-mono text-sm text-orange-300">{{ entry.pattern }}</span>
+            {% if entry.note %}
+            <span class="ml-3 text-xs text-slate-500">{{ entry.note }}</span>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-slate-500">{{ entry.created_at.strftime('%Y-%m-%d') if entry.created_at }}</span>
+            <button onclick="deleteEntry({{ entry.id }}, '{{ entry.pattern }}')"
+                    class="text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="px-4 py-12 text-center text-slate-500" id="blocklist-entries">
+        <p>No patterns configured yet.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right: add / bulk upload -->
+    <div class="space-y-4">
+      <!-- Single add -->
+      <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <h2 class="text-sm font-semibold text-white mb-3">Add Pattern</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Pattern <span class="text-slate-500">(e.g. *.example.com or exact.domain.com)</span></label>
+            <input type="text" id="new-pattern" placeholder="*.example.com" autocomplete="off"
+                   class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Note <span class="text-slate-500">(optional)</span></label>
+            <input type="text" id="new-note" placeholder="CDN / analytics / irrelevant"
+                   class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+          </div>
+          <button onclick="addEntry()"
+                  class="w-full bg-orange-600 hover:bg-orange-500 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+            Add Pattern
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk upload -->
+      <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+        <h2 class="text-sm font-semibold text-white mb-3">Bulk Import</h2>
+        <p class="text-xs text-slate-500 mb-3">One pattern per line. Wildcards like <code class="text-orange-300">*.domain.com</code> or exact domains.</p>
+        <textarea id="bulk-patterns" rows="6" placeholder="*.googleadservices.com&#10;*.doubleclick.net&#10;*.facebook.com"
+                  class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"></textarea>
+        <button onclick="bulkImport()"
+                class="mt-3 w-full bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold py-2 rounded-lg transition-colors">
+          Import
+        </button>
+        <div id="bulk-result" class="mt-2 text-xs text-slate-400 hidden"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function addEntry() {
+  const pattern = document.getElementById('new-pattern').value.trim();
+  const note = document.getElementById('new-note').value.trim();
+  if (!pattern) return;
+
+  const r = await fetch('/api/discovery/blocklist', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pattern, note: note || null}),
+  });
+  if (r.ok) {
+    location.reload();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert('Error: ' + (err.detail || r.status));
+  }
+}
+
+async function deleteEntry(id, pattern) {
+  if (!confirm(`Remove block for "${pattern}"?`)) return;
+  const r = await fetch(`/api/discovery/blocklist/${id}`, {method: 'DELETE'});
+  if (r.ok) {
+    document.getElementById('entry-' + id)?.remove();
+    const cnt = document.querySelectorAll('[id^="entry-"]').length;
+    document.getElementById('pattern-count').textContent = cnt + ' pattern' + (cnt !== 1 ? 's' : '');
+  }
+}
+
+async function bulkImport() {
+  const raw = document.getElementById('bulk-patterns').value;
+  const patterns = raw.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  if (!patterns.length) return;
+
+  const resultEl = document.getElementById('bulk-result');
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = `Importing ${patterns.length} patterns…`;
+
+  let added = 0, skipped = 0;
+  for (const pattern of patterns) {
+    const r = await fetch('/api/discovery/blocklist', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pattern, note: 'bulk import'}),
+    });
+    if (r.ok) { const d = await r.json(); if (d.created) added++; else skipped++; }
+  }
+  resultEl.textContent = `Done: ${added} added, ${skipped} already existed.`;
+  setTimeout(() => location.reload(), 1500);
+}
+
+document.getElementById('new-pattern').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addEntry();
+});
+</script>
+{% endblock %}
