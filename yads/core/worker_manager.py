@@ -215,6 +215,13 @@ class WorkerManager:
         node_id = self._generate_node_id(hostname, is_primary=True)
 
         with self._get_session() as session:
+            # Mark any other primary workers as offline (stale container entries)
+            session.exec(text("""
+                UPDATE workernode
+                SET status = 'offline', is_active = false
+                WHERE is_primary = true AND node_id != :node_id
+            """).bindparams(node_id=node_id))
+
             # Atomic upsert — safe against race conditions when multiple
             # Celery worker processes start simultaneously.
             session.exec(text("""
