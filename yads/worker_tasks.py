@@ -1233,7 +1233,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
 
     logger.info(f"[Discovery] run_discovery_scan session={session_id} target={domain} depth={depth}")
 
-    DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
+    DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner", "subdomain_scanner"]
 
     try:
         with Session(engine) as db:
