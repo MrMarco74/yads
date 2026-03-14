@@ -21,21 +21,22 @@ if not logger.handlers:
 # ---------------------------------------------------------------------------
 
 def get_active_scan_count(session: Session) -> int:
-    """Return the number of targets currently running or queued (global)."""
+    """Return the number of targets currently running (global).
+    'queued' targets sit in Celery and do not consume worker concurrency."""
     result = session.exec(
         select(func.count(Target.id)).where(
-            Target.scan_status.in_(["running", "queued"])
+            Target.scan_status == "running"
         )
     ).first()
     return result or 0
 
 
 def get_tenant_active_scan_count(session: Session, tenant_id: int) -> int:
-    """Return the number of targets currently running or queued for one tenant."""
+    """Return the number of targets currently running for one tenant."""
     result = session.exec(
         select(func.count(Target.id)).where(
             Target.tenant_id == tenant_id,
-            Target.scan_status.in_(["running", "queued"])
+            Target.scan_status == "running"
         )
     ).first()
     return result or 0
