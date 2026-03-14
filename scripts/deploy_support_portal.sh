@@ -213,7 +213,20 @@ echo ""
 # 5. Copy X25519 private key into support_keys volume
 # =============================================================================
 info "Copying X25519 private key to support_keys volume on PROD..."
-KEY_CONTENT=$(cat "$SUPPORT_KEY_PATH")
+# The portal expects raw 32-byte key material, base64-encoded (single line).
+# If the key file is in PEM/PKCS8 format, extract the raw bytes first.
+if grep -q "BEGIN PRIVATE KEY" "$SUPPORT_KEY_PATH" 2>/dev/null; then
+    KEY_CONTENT=$(python3 -c "
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+import base64, sys
+pem = open('${SUPPORT_KEY_PATH}', 'rb').read()
+key = load_pem_private_key(pem, password=None)
+print(base64.b64encode(key.private_bytes_raw()).decode())
+")
+    info "  PEM key detected — extracted raw base64."
+else
+    KEY_CONTENT=$(cat "$SUPPORT_KEY_PATH")
+fi
 rssh "mkdir -p /tmp/support_key_init"
 if [[ ! "$DRY_RUN" =~ ^[Yy]$ ]]; then
     # Write key to temp file on remote, then copy into a temp container
