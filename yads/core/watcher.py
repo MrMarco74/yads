@@ -445,9 +445,13 @@ def _check_scan_log_errors(rc, engine):
                     try:
                         entry = _json.loads(raw)
                         if entry.get("level") in ("ERROR", "CRITICAL"):
-                            msg = entry.get("message", "").strip()
+                            msg = (entry.get("msg") or entry.get("message") or "").strip()
                             if msg:
-                                error_lines.append(msg[:200])
+                                # Prefix with short module name if available
+                                logger_name = entry.get("logger", "")
+                                short_module = logger_name.split(".")[-1] if logger_name else ""
+                                prefix = f"[{short_module}] " if short_module else ""
+                                error_lines.append(f"{prefix}{msg}"[:200])
                     except Exception:
                         continue
 
