@@ -1217,11 +1217,33 @@ class RebuildToolsWorker(QThread):
 class ProdDeployPage(QWidget):
     """Production deployment page"""
 
+    _CONFIG_PATH = Path.home() / ".yads" / "release_gui.yaml"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("prodDeployPage")
         self.worker = None
         self._setup_ui()
+        self._load_tools_tag()
+
+    def _load_tools_tag(self):
+        try:
+            import yaml as _yaml
+            if self._CONFIG_PATH.exists():
+                data = _yaml.safe_load(self._CONFIG_PATH.read_text()) or {}
+                self.tools_tag_input.setText(str(data.get('tools_tag', '1.0')))
+        except Exception:
+            pass
+
+    def _save_tools_tag(self):
+        try:
+            import yaml as _yaml
+            data = _yaml.safe_load(self._CONFIG_PATH.read_text()) or {} if self._CONFIG_PATH.exists() else {}
+            data['tools_tag'] = self.tools_tag_input.text().strip() or '1.0'
+            self._CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            self._CONFIG_PATH.write_text(_yaml.dump(data, allow_unicode=True))
+        except Exception:
+            pass
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -1474,14 +1496,16 @@ class ProdDeployPage(QWidget):
         self.log_view.clear()
 
         # Store a reference to avoid early garbage collection
+        self._save_tools_tag()
         self._active_worker = ProdDeployWorker(
-            script_dir.parent, 
-            wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False, 
+            script_dir.parent,
+            wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False,
             setup_token=getattr(self, '_last_setup_token', None) if operation == "release" else None,
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False
         )
+        self._active_worker.tools_tag = self.tools_tag_input.text().strip() or '1.0'
         self._active_worker.operation = operation
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
@@ -1557,6 +1581,7 @@ class ProdDeployPage(QWidget):
     def _on_rebuild_tools(self):
         """Build and push the pre-baked yads-tools base image (Dockerfile.tools)."""
         tag = self.tools_tag_input.text().strip() or "1.0"
+        self._save_tools_tag()
         box = MessageBox(
             "Rebuild Scanner Tools Base Image",
             f"This will build Dockerfile.tools → yads-tools:{tag} and push it to the registry.\n\n"
