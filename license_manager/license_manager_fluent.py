@@ -1168,8 +1168,13 @@ class AboutPage(QWidget):
 class BugReportKeysPage(SmoothScrollArea):
     """Sync bug-report Ed25519 public keys to the Support Portal."""
 
+    _log_signal = Signal(str)
+    _done_signal = Signal(int, int)  # ok_count, total
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._log_signal.connect(self._log)
+        self._done_signal.connect(self._on_sync_done)
         self.setObjectName("bugReportKeysPage")
         self.setWidgetResizable(True)
 
@@ -1336,20 +1341,24 @@ class BugReportKeysPage(SmoothScrollArea):
                 try:
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         result = json.loads(resp.read())
-                        self._log(f"✓ {r['name']} ({r['customer_uuid'][:8]}…) → {result.get('status','ok')}")
+                        self._log_signal.emit(f"✓ {r['name']} ({r['customer_uuid'][:8]}…) → {result.get('status','ok')}")
                         ok_count += 1
                 except urllib.error.HTTPError as he:
-                    self._log(f"✗ {r['name']}: HTTP {he.code} — {he.read().decode()[:120]}")
+                    self._log_signal.emit(f"✗ {r['name']}: HTTP {he.code} — {he.read().decode()[:120]}")
                 except Exception as ex:
-                    self._log(f"✗ {r['name']}: {ex}")
+                    self._log_signal.emit(f"✗ {r['name']}: {ex}")
 
-            if ok_count == len(rows):
-                InfoBar.success("Done", f"All {ok_count} keys synced.", parent=self, position=InfoBarPosition.TOP, duration=4000)
-            else:
-                InfoBar.warning("Partial", f"{ok_count}/{len(rows)} keys synced.", parent=self, position=InfoBarPosition.TOP)
-            self.btn_sync_all.setEnabled(True)
+            self._done_signal.emit(ok_count, len(rows))
 
         threading.Thread(target=_do_sync, daemon=True).start()
+
+    @Slot(int, int)
+    def _on_sync_done(self, ok_count: int, total: int):
+        self.btn_sync_all.setEnabled(True)
+        if ok_count == total:
+            InfoBar.success("Done", f"All {ok_count} keys synced.", parent=self, position=InfoBarPosition.TOP, duration=4000)
+        else:
+            InfoBar.warning("Partial", f"{ok_count}/{total} keys synced.", parent=self, position=InfoBarPosition.TOP)
 
 
 class MainWindow(FluentWindow):
