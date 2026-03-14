@@ -63,6 +63,25 @@
     </div>
   </div>
 
+  <!-- Domain Blocklist Panel -->
+  {% if blocklist %}
+  <div class="bg-slate-800 rounded-xl border border-orange-500/30 mb-6">
+    <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-orange-300">Blocked Domain Patterns <span class="text-slate-500 font-normal">(tenant-wide)</span></h2>
+      <span class="text-xs text-slate-500">{{ blocklist|length }} pattern{{ 's' if blocklist|length != 1 }}</span>
+    </div>
+    <div class="p-4 flex flex-wrap gap-2">
+      {% for entry in blocklist %}
+      <span class="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-mono px-2 py-1 rounded-full">
+        {{ entry.pattern }}
+        <button onclick="unblockDomain({{ entry.id }}, '{{ entry.pattern }}')"
+                title="Remove block" class="text-orange-400 hover:text-orange-200 transition-colors ml-1">✕</button>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Candidates Table -->
   <div class="bg-slate-800 rounded-xl border border-slate-700">
     <div class="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -127,14 +146,21 @@
                 <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">Pending</span>
               {% endif %}
             </td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 flex items-center gap-2 flex-wrap">
               {% if c.status == 'pending' or c.status == 'rejected' %}
               <button onclick="manualAccept({{ c.id }})"
-                      class="text-xs text-green-400 hover:text-green-300 mr-2 transition-colors">Accept</button>
+                      class="text-xs text-green-400 hover:text-green-300 transition-colors">Accept</button>
               {% endif %}
               {% if c.status == 'pending' or c.status == 'accepted' %}
               <button onclick="manualReject({{ c.id }})"
                       class="text-xs text-red-400 hover:text-red-300 transition-colors">Reject</button>
+              {% endif %}
+              {% set parts = c.domain.split('.') %}
+              {% if parts|length >= 2 %}
+              {% set parent = parts[1:] | join('.') %}
+              <button onclick="blockDomain({{ c.id }}, '*.{{ parent }}')"
+                      title="Block all *.{{ parent }} tenant-wide"
+                      class="text-xs text-orange-400 hover:text-orange-300 transition-colors">Block *.{{ parent }}</button>
               {% endif %}
             </td>
           </tr>
@@ -180,6 +206,22 @@ async function manualAccept(candidateId) {
 
 async function manualReject(candidateId) {
   const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/reject`, {method:'POST'});
+  if (r.ok) location.reload();
+}
+
+async function blockDomain(candidateId, pattern) {
+  if (!confirm(`Block "${pattern}" tenant-wide?\n\nAll matching candidates in this session will be rejected immediately. Future discovery sessions will also skip these domains.`)) return;
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/block-domain`, {method:'POST'});
+  if (r.ok) {
+    const data = await r.json();
+    alert(`Blocked: ${data.pattern}\n${data.rejected_candidates} candidate(s) rejected.`);
+    location.reload();
+  }
+}
+
+async function unblockDomain(entryId, pattern) {
+  if (!confirm(`Remove block for "${pattern}"?`)) return;
+  const r = await fetch(`/api/discovery/blocklist/${entryId}`, {method:'DELETE'});
   if (r.ok) location.reload();
 }
 

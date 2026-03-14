@@ -22,7 +22,7 @@ from sqlmodel import Session, select, func
 from yads.api.templating import templates
 from yads.auth.deps import RoleChecker, get_current_user_html
 from yads.database import get_session
-from yads.models import DiscoverySession, DiscoveryCandidate, Target, User
+from yads.models import DiscoverySession, DiscoveryCandidate, DiscoveryDomainBlocklist, Target, User
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +71,17 @@ async def discovery_detail(
         .order_by(DiscoveryCandidate.relevance_score.desc())
     ).all()
 
+    blocklist = db.exec(
+        select(DiscoveryDomainBlocklist)
+        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
+        .order_by(DiscoveryDomainBlocklist.created_at.desc())
+    ).all()
+
     return templates.TemplateResponse("discovery_detail.html", {
         "request": request,
         "disc_sess": disc_sess,
         "candidates": candidates,
+        "blocklist": blocklist,
         "user": current_user,
         "current_user": current_user,
     })
@@ -88,7 +95,7 @@ async def create_session(
     name: str = Form(...),
     seed_domains_raw: str = Form(...),
     max_depth: int = Form(3),
-    relevance_threshold: float = Form(0.5),
+    relevance_threshold: float = Form(0.7),
     max_targets: int = Form(500),
     include_typosquats: bool = Form(False),
     allowed_tld_filter_raw: str = Form(""),
@@ -276,3 +283,94 @@ async def api_reject_candidate(
     db.add(cand)
     db.commit()
     return {"status": "rejected"}
+
+
+@router.post("/api/discovery/sessions/{session_id}/candidates/{cid}/block-domain",
+             dependencies=[Depends(manager_only)])
+async def api_block_domain(
+    session_id: int,
+    cid: int,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    """
+    Block *.parent of this candidate's domain tenant-wide.
+    Also immediately rejects all matching candidates in this session.
+    """
+    cand = db.get(DiscoveryCandidate, cid)
+    if not cand or cand.session_id != session_id:
+        raise HTTPException(status_code=404)
+
+    # Build pattern: strip first label → *.parent
+    parts = cand.domain.split(".")
+    if len(parts) < 2:
+        raise HTTPException(status_code=400, detail="Cannot block a TLD-level domain")
+    parent = ".".join(parts[1:])
+    pattern = f"*.{parent}"
+
+    # Idempotent: skip if already blocked for this tenant
+    existing = db.exec(
+        select(DiscoveryDomainBlocklist).where(
+            DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id,
+            DiscoveryDomainBlocklist.pattern == pattern,
+        )
+    ).first()
+    if not existing:
+        entry = DiscoveryDomainBlocklist(
+            tenant_id=current_user.tenant_id,
+            pattern=pattern,
+            created_by=current_user.id,
+        )
+        db.add(entry)
+
+    # Reject all matching candidates in this session immediately
+    all_cands = db.exec(
+        select(DiscoveryCandidate).where(
+            DiscoveryCandidate.session_id == session_id,
+            DiscoveryCandidate.status.in_(["pending", "accepted"]),
+        )
+    ).all()
+    rejected_count = 0
+    for c in all_cands:
+        if _domain_matches_pattern(c.domain, pattern):
+            c.status = "rejected"
+            c.rejection_reason = f"domain_blocked:{pattern}"
+            db.add(c)
+            rejected_count += 1
+
+    db.commit()
+    return {"status": "blocked", "pattern": pattern, "rejected_candidates": rejected_count}
+
+
+@router.get("/api/discovery/blocklist", dependencies=[Depends(manager_only)])
+async def api_list_blocklist(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    entries = db.exec(
+        select(DiscoveryDomainBlocklist)
+        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
+        .order_by(DiscoveryDomainBlocklist.created_at.desc())
+    ).all()
+    return [{"id": e.id, "pattern": e.pattern, "created_at": e.created_at} for e in entries]
+
+
+@router.delete("/api/discovery/blocklist/{entry_id}", dependencies=[Depends(manager_only)])
+async def api_delete_blocklist_entry(
+    entry_id: int,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    entry = db.get(DiscoveryDomainBlocklist, entry_id)
+    if not entry or entry.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404)
+    db.delete(entry)
+    db.commit()
+    return {"status": "deleted"}
+
+
+def _domain_matches_pattern(domain: str, pattern: str) -> bool:
+    if pattern.startswith("*."):
+        parent = pattern[2:]
+        return domain == parent or domain.endswith("." + parent)
+    return domain == pattern
