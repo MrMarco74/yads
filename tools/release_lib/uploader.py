@@ -196,6 +196,7 @@ class ReleaseUploader:
             # Release package
             (f'releases/yads_v{version}_customer_pkg.zip', rel),
             (version_json_file, rel),
+            ('releases/version-beta.json', rel),   # sync beta channel to stable version
             ('releases/sbom.json', rel),
             ('releases/sbom.xml', rel),
             ('releases/cbom.json', rel),

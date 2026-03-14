@@ -374,6 +374,23 @@ class ReleaseOrchestrator:
                     print("Finalizing metadata in files...")
                     self.file_updater.finalize_checksum(new_version_str, sha256, dry_run=False)
 
+                # Sync version-beta.json to stable version so beta channel
+                # users see the new stable and know they can upgrade
+                import json as _json
+                releases_dir = self.project_root / "releases"
+                releases_dir.mkdir(exist_ok=True)
+                beta_sync_path = releases_dir / "version-beta.json"
+                beta_sync = {
+                    "version": new_version_str,
+                    "channel": "stable",
+                    "text": changelog_en.get('title', f'Stable release v{new_version_str}'),
+                    "url": f"https://yads-security.com/en/releases/yads_v{new_version_str}_customer_pkg.zip",
+                    "sha256": sha256 or ""
+                }
+                with open(beta_sync_path, 'w') as f:
+                    _json.dump(beta_sync, f, indent=2)
+                print(f"✅ Synced releases/version-beta.json → v{new_version_str} (stable)")
+
             # Step 7: Upload
             if not skip_upload:
                 print("\n" + "="*60)
