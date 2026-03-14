@@ -1,0 +1,101 @@
+    <!-- HTTP Traffic Details Modal (NEW) -->
+    <div x-data="{ 
+            open: false, 
+            t: null, 
+            replaying: false,
+            replayResult: null,
+            close() { this.open = false; this.t = null; this.replayResult = null; },
+            async replay() {
+                if(!this.t) return;
+                this.replaying = true;
+                this.replayResult = null;
+                try {
+                    const r = await fetch(`/api/targets/{{ target.id }}/traffic/${this.t.id}/replay`, { method: 'POST' });
+                    this.replayResult = await r.json();
+                } catch(e) {
+                    this.replayResult = { status_code: 'Error', error: e.message };
+                }
+                this.replaying = false;
+            }
+         }" 
+         @open-traffic-details.window="t = $event.detail; open = true"
+         x-show="open" 
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+         style="display: none;">
+        
+        <div @click.away="close()" class="bg-gray-900 border border-indigo-500/30 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-950/50">
+                <div class="flex items-center gap-3">
+                    <span x-text="t?.method" class="px-2 py-1 rounded text-xs font-bold bg-indigo-900/50 text-indigo-400 border border-indigo-500/30"></span>
+                    <h3 class="text-lg font-bold text-white truncate max-w-lg" x-text="t?.url"></h3>
+                </div>
+                <button @click="close()" class="text-gray-500 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                <!-- Request Info -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-widest">Request Headers</h4>
+                        <div class="bg-gray-950 rounded-xl p-4 border border-gray-800 overflow-x-auto font-mono text-[10px] text-gray-400">
+                            <template x-for="(val, key) in t?.request_headers">
+                                <div class="flex gap-2 mb-1">
+                                    <span class="text-indigo-300 whitespace-nowrap" x-text="key + ':'"></span>
+                                    <span class="text-gray-500 break-all" x-text="val"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-widest">Response Headers</h4>
+                        <div class="bg-gray-950 rounded-xl p-4 border border-gray-800 overflow-x-auto font-mono text-[10px] text-gray-400">
+                            <template x-for="(val, key) in t?.response_headers">
+                                <div class="flex gap-2 mb-1">
+                                    <span class="text-emerald-300 whitespace-nowrap" x-text="key + ':'"></span>
+                                    <span class="text-gray-500 break-all" x-text="val"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Body Snippet -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Response Body Snippet</h4>
+                    <pre class="bg-gray-950 rounded-xl p-4 border border-gray-800 font-mono text-[11px] text-gray-300 overflow-x-auto whitespace-pre-wrap max-h-64" x-text="t?.response_body_snippet || 'No body content recorded.'"></pre>
+                </div>
+
+                <!-- Action: Replay -->
+                <div class="pt-6 border-t border-gray-800">
+                    <button @click="replay()" :disabled="replaying" 
+                            class="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg transition-all">
+                        <svg x-show="!replaying" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m0 0H15"></path></svg>
+                        <div x-show="replaying" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Replay Request
+                    </button>
+
+                    <!-- Replay Result -->
+                    <div x-show="replayResult" class="mt-6 bg-gray-950 border border-indigo-500/20 rounded-xl p-6 shadow-inner" style="display: none;">
+                        <h5 class="text-sm font-bold text-indigo-400 mb-4">Replay Result</h5>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div class="bg-gray-900/50 p-3 rounded">
+                                <p class="text-[10px] text-gray-500">Status Code</p>
+                                <p class="text-xl font-bold font-mono" :class="replayResult?.status_code === 200 ? 'text-green-400' : 'text-red-400'" x-text="replayResult?.status_code"></p>
+                            </div>
+                            <div class="bg-gray-900/50 p-3 rounded">
+                                <p class="text-[10px] text-gray-500">Duration</p>
+                                <p class="text-xl font-bold text-white font-mono" x-text="replayResult?.duration + 's'"></p>
+                            </div>
+                        </div>
+                        <template x-if="replayResult?.error">
+                            <p class="text-red-400 text-xs font-mono" x-text="replayResult.error"></p>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>

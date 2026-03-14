@@ -1,0 +1,295 @@
+            <!-- HTTP HEADERS + COOKIES COMBINED ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- HTTP HEADERS CARD -->
+            <div class="bg-gray-800/50 border border-violet-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-violet-500/10 rounded-lg text-violet-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">HTTP Security Headers{% if 'http_headers' in changed_modules %}<span class="ml-2 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}</h2>
+                        <p class="text-xs text-gray-400">OWASP recommended response header analysis.</p>
+                    </div>
+                    {% if http_headers_result and http_headers_result.data and http_headers_result.data.reachable %}
+                    <span class="text-lg font-bold {% if http_headers_result.data.score >= 70 %}text-emerald-400{% elif http_headers_result.data.score >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ http_headers_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if http_headers_result and http_headers_result.data %}
+                {% set hh = http_headers_result.data %}
+                {% if hh.reachable %}
+                {% if hh.findings %}
+                <div class="space-y-1 max-h-64 overflow-y-auto">
+                    {% for f in hh.findings %}
+                    <div class="flex items-start gap-2 p-1.5 rounded bg-gray-900/40">
+                        <span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">{{ f.header }}: {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- AI Remediate: HTTP Headers -->
+                <div x-data="{ open:false, loading:false, result:null, errorMsg:'', async run() { if(this.open && this.result) { this.open=false; return; } this.open=true; if(this.result) return; this.loading=true; this.errorMsg=''; try { const lang=document.cookie.match(/yads_lang=([^;]+)/)?.[1]||'en'; const f={{ hh.findings[0]|tojson }}; const r=await fetch('/api/ai/remediate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({finding_title:f.header+': '+f.issue,finding_description:f.detail||'',severity:f.severity,domain:'{{ target.domain }}',lang:lang})}); this.result=await r.json(); } catch(e) { this.errorMsg='Failed: '+e.message; } this.loading=false; } }" class="mt-3">
+                    <button @click="run()" class="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/40 rounded-lg px-3 py-1.5 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        <span x-text="open && result ? 'Hide AI Remediation' : 'AI Remediation Guide'"></span>
+                    </button>
+                    <div x-show="open" x-transition class="mt-2 p-4 bg-slate-800/80 border border-indigo-700/30 rounded-lg" style="display:none;">
+                        <template x-if="loading"><div class="flex items-center gap-2 text-gray-400 text-xs"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div> Generating remediation guide...</div></template>
+                        <template x-if="!loading && errorMsg"><p class="text-red-400 text-xs" x-text="errorMsg"></p></template>
+                        <template x-if="!loading && result">
+                            <div>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-xs font-bold text-indigo-300">Remediation Steps</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="result.ai_generated ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600' : 'bg-slate-700 text-slate-400 border-slate-600'" x-text="result.ai_generated ? 'AI-powered' : 'Rule-based'"></span>
+                                    <span class="text-[10px] text-gray-500 ml-auto" x-text="'Effort: ' + result.estimated_effort"></span>
+                                </div>
+                                <ol class="space-y-1.5 mb-3">
+                                    <template x-for="(step, si) in result.steps" :key="si">
+                                        <li class="flex items-start gap-2 text-xs text-gray-300"><span class="shrink-0 w-4 h-4 rounded-full bg-indigo-900/60 text-indigo-300 text-[9px] font-bold flex items-center justify-center mt-0.5" x-text="si+1"></span><span x-text="step"></span></li>
+                                    </template>
+                                </ol>
+                                <template x-if="result.references && result.references.length">
+                                    <div class="border-t border-gray-700/50 pt-2">
+                                        <p class="text-[10px] text-gray-500 mb-1">References</p>
+                                        <template x-for="(ref, ri) in result.references" :key="ri">
+                                            <a :href="ref" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 truncate" x-text="ref"></a>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-emerald-400 text-sm">✓ All security headers present.</p>
+                {% endif %}
+                {% if hh.leaky_headers %}
+                <div class="mt-3 pt-3 border-t border-gray-700">
+                    <p class="text-xs text-amber-400 mb-1">⚠ Server info leaked:</p>
+                    {% for h, v in hh.leaky_headers.items() %}
+                    <p class="text-xs font-mono text-gray-300">{{ h }}: {{ v }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">Target not reachable over HTTP/HTTPS.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "HTTP Security Headers" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- COOKIE SECURITY CARD -->
+            <div class="bg-gray-800/50 border border-orange-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-orange-500/10 rounded-lg text-orange-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">Cookie Security{% if 'cookie_scanner' in changed_modules %}<span class="ml-2 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}</h2>
+                        <p class="text-xs text-gray-400">Secure, HttpOnly, SameSite and prefix analysis.</p>
+                    </div>
+                    {% if cookie_result and cookie_result.data and cookie_result.data.reachable %}
+                    <span class="text-lg font-bold {% if cookie_result.data.score >= 80 %}text-emerald-400{% elif cookie_result.data.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ cookie_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if cookie_result and cookie_result.data %}
+                {% set ck = cookie_result.data %}
+                {% if ck.reachable %}
+                {% if ck.summary.total == 0 %}
+                <p class="text-gray-400 text-sm">No cookies set on root path.</p>
+                {% else %}
+                <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                    <div class="bg-gray-900/60 rounded p-2 text-center">
+                        <p class="text-2xl font-bold text-white">{{ ck.summary.total }}</p>
+                        <p class="text-gray-400">Total</p>
+                    </div>
+                    <div class="bg-gray-900/60 rounded p-2 text-center">
+                        <p class="text-2xl font-bold {% if ck.summary.insecure > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ ck.summary.insecure }}</p>
+                        <p class="text-gray-400">No Secure flag</p>
+                    </div>
+                </div>
+                {% if ck.findings %}
+                <div class="space-y-1 max-h-48 overflow-y-auto">
+                    {% for f in ck.findings %}
+                    <div class="flex items-start gap-2 p-1.5 rounded bg-gray-900/40">
+                        <span class="shrink-0 inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300"><span class="font-mono text-orange-300">{{ f.cookie }}</span>: {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- AI Remediate: Cookie Security -->
+                <div x-data="{ open:false, loading:false, result:null, errorMsg:'', async run() { if(this.open && this.result) { this.open=false; return; } this.open=true; if(this.result) return; this.loading=true; this.errorMsg=''; try { const lang=document.cookie.match(/yads_lang=([^;]+)/)?.[1]||'en'; const f={{ ck.findings[0]|tojson }}; const r=await fetch('/api/ai/remediate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({finding_title:'Cookie: '+f.issue,finding_description:'Cookie name: '+f.cookie,severity:f.severity,domain:'{{ target.domain }}',lang:lang})}); this.result=await r.json(); } catch(e) { this.errorMsg='Failed: '+e.message; } this.loading=false; } }" class="mt-3">
+                    <button @click="run()" class="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/40 rounded-lg px-3 py-1.5 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        <span x-text="open && result ? 'Hide AI Remediation' : 'AI Remediation Guide'"></span>
+                    </button>
+                    <div x-show="open" x-transition class="mt-2 p-4 bg-slate-800/80 border border-indigo-700/30 rounded-lg" style="display:none;">
+                        <template x-if="loading"><div class="flex items-center gap-2 text-gray-400 text-xs"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div> Generating remediation guide...</div></template>
+                        <template x-if="!loading && errorMsg"><p class="text-red-400 text-xs" x-text="errorMsg"></p></template>
+                        <template x-if="!loading && result">
+                            <div>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-xs font-bold text-indigo-300">Remediation Steps</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="result.ai_generated ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600' : 'bg-slate-700 text-slate-400 border-slate-600'" x-text="result.ai_generated ? 'AI-powered' : 'Rule-based'"></span>
+                                    <span class="text-[10px] text-gray-500 ml-auto" x-text="'Effort: ' + result.estimated_effort"></span>
+                                </div>
+                                <ol class="space-y-1.5 mb-3">
+                                    <template x-for="(step, si) in result.steps" :key="si">
+                                        <li class="flex items-start gap-2 text-xs text-gray-300"><span class="shrink-0 w-4 h-4 rounded-full bg-indigo-900/60 text-indigo-300 text-[9px] font-bold flex items-center justify-center mt-0.5" x-text="si+1"></span><span x-text="step"></span></li>
+                                    </template>
+                                </ol>
+                                <template x-if="result.references && result.references.length">
+                                    <div class="border-t border-gray-700/50 pt-2">
+                                        <p class="text-[10px] text-gray-500 mb-1">References</p>
+                                        <template x-for="(ref, ri) in result.references" :key="ri">
+                                            <a :href="ref" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 truncate" x-text="ref"></a>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">Target not reachable over HTTP/HTTPS.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Cookie Security Analyzer" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end HTTP Headers+Cookies grid -->
+
+            <!-- CORS + CERT MISMATCH ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- CORS CARD -->
+            <div class="bg-gray-800/50 border {% if cors_result and cors_result.data and cors_result.data.findings %}border-yellow-500/40{% else %}border-slate-700/30{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-yellow-500/10 rounded-lg text-yellow-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">CORS Policy{% if 'cors_scanner' in changed_modules %}<span class="ml-2 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}</h2>
+                        <p class="text-xs text-gray-400">Cross-Origin Resource Sharing misconfiguration check.</p>
+                    </div>
+                </div>
+                {% if cors_result and cors_result.data %}
+                {% set cors = cors_result.data %}
+                {% if cors.findings %}
+                <div class="space-y-2">
+                    {% for f in cors.findings %}
+                    <div class="bg-red-900/20 border border-red-500/20 rounded p-2">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'critical' %}bg-red-900/70 text-red-200{% elif f.severity == 'high' %}bg-red-900/50 text-red-300{% else %}bg-amber-900/50 text-amber-300{% endif %}">{{ f.severity }}</span>
+                        <p class="text-xs text-gray-300 mt-1">{{ f.issue }}</p>
+                        <p class="text-[10px] text-gray-500 mt-0.5">Origin: {{ f.origin }}, ACAO: {{ f.acao_value }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- AI Remediate: CORS -->
+                <div x-data="{ open:false, loading:false, result:null, errorMsg:'', async run() { if(this.open && this.result) { this.open=false; return; } this.open=true; if(this.result) return; this.loading=true; this.errorMsg=''; try { const lang=document.cookie.match(/yads_lang=([^;]+)/)?.[1]||'en'; const f={{ cors.findings[0]|tojson }}; const r=await fetch('/api/ai/remediate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({finding_title:f.issue,finding_description:'CORS misconfiguration: ACAO='+f.acao_value,severity:f.severity,domain:'{{ target.domain }}',lang:lang})}); this.result=await r.json(); } catch(e) { this.errorMsg='Failed: '+e.message; } this.loading=false; } }" class="mt-3">
+                    <button @click="run()" class="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/40 rounded-lg px-3 py-1.5 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        <span x-text="open && result ? 'Hide AI Remediation' : 'AI Remediation Guide'"></span>
+                    </button>
+                    <div x-show="open" x-transition class="mt-2 p-4 bg-slate-800/80 border border-indigo-700/30 rounded-lg" style="display:none;">
+                        <template x-if="loading"><div class="flex items-center gap-2 text-gray-400 text-xs"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div> Generating remediation guide...</div></template>
+                        <template x-if="!loading && errorMsg"><p class="text-red-400 text-xs" x-text="errorMsg"></p></template>
+                        <template x-if="!loading && result">
+                            <div>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-xs font-bold text-indigo-300">Remediation Steps</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="result.ai_generated ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600' : 'bg-slate-700 text-slate-400 border-slate-600'" x-text="result.ai_generated ? 'AI-powered' : 'Rule-based'"></span>
+                                    <span class="text-[10px] text-gray-500 ml-auto" x-text="'Effort: ' + result.estimated_effort"></span>
+                                </div>
+                                <ol class="space-y-1.5 mb-3">
+                                    <template x-for="(step, si) in result.steps" :key="si">
+                                        <li class="flex items-start gap-2 text-xs text-gray-300"><span class="shrink-0 w-4 h-4 rounded-full bg-indigo-900/60 text-indigo-300 text-[9px] font-bold flex items-center justify-center mt-0.5" x-text="si+1"></span><span x-text="step"></span></li>
+                                    </template>
+                                </ol>
+                                <template x-if="result.references && result.references.length">
+                                    <div class="border-t border-gray-700/50 pt-2">
+                                        <p class="text-[10px] text-gray-500 mb-1">References</p>
+                                        <template x-for="(ref, ri) in result.references" :key="ri">
+                                            <a :href="ref" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 truncate" x-text="ref"></a>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-3">
+                    <p class="text-emerald-400 text-sm">✓ No CORS misconfigurations detected.</p>
+                </div>
+                <div class="mt-2 space-y-1">
+                    {% for ep in cors.tested_endpoints %}
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-gray-500 font-mono text-[10px]">{{ ep.origin_tested }}</span>
+                        <span class="text-gray-500">ACAO: {{ ep.acao or 'none' }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "CORS Misconfiguration Scanner".</p>
+                {% endif %}
+            </div>
+
+            <!-- CERT MISMATCH CARD -->
+            <div class="bg-gray-800/50 border {% if cert_mismatch_result and cert_mismatch_result.data and not cert_mismatch_result.data.valid %}border-red-500/40{% else %}border-teal-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Cert / Domain Match{% if 'cert_mismatch' in changed_modules %}<span class="ml-2 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}</h2>
+                        <p class="text-xs text-gray-400">TLS certificate vs. domain validation.</p>
+                    </div>
+                </div>
+                {% if cert_mismatch_result and cert_mismatch_result.data %}
+                {% set cm = cert_mismatch_result.data %}
+                {% if not cm.reachable %}
+                <p class="text-gray-500 italic text-sm">Port 443 not reachable.</p>
+                {% else %}
+                <div class="space-y-2 mb-3">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">CN</span>
+                        <span class="text-white font-mono">{{ cm.cert_info.get('subject_cn', 'N/A') }}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Issuer</span>
+                        <span class="text-gray-300">{{ cm.cert_info.get('issuer', 'N/A') }}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Expires</span>
+                        <span class="{% if cm.cert_info.get('days_until_expiry', 999) < 30 %}text-red-400{% else %}text-gray-300{% endif %}">
+                            {{ cm.cert_info.get('days_until_expiry', '?') }} days
+                        </span>
+                    </div>
+                </div>
+                {% if cm.findings %}
+                <div class="space-y-1">
+                    {% for f in cm.findings %}
+                    <div class="flex items-start gap-2 p-1.5 bg-gray-900/40 rounded">
+                        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity in ('critical','high') %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">{{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded p-2">
+                    <p class="text-emerald-400 text-sm">✓ Certificate matches domain and is valid.</p>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Certificate / Domain Mismatch" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end CORS+CertMismatch grid -->

@@ -1,0 +1,295 @@
+            <!-- CRAWLER / SITE MAP ANALYSIS -->
+            {% if crawler_result and crawler_result.data %}
+            <div class="bg-gray-800/50 border border-purple-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center gap-3 mb-6">
+                     <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                     </div>
+                     <h2 class="text-xl font-semibold text-white">Site Structure Analysis</h2>
+                     <div class="ml-auto flex gap-2">
+                        {% if crawler_result.data.http_traffic %}
+                        <div x-data="{ open: false }">
+                            <button @click="open = true" class="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded transition-colors flex items-center gap-2">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                HTTP Traffic ({{ crawler_result.data.http_traffic|length }})
+                            </button>
+                            
+                            <!-- Traffic Modal -->
+                            <div x-show="open" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="display: none;">
+                                <!-- Backdrop -->
+                                <div x-show="open" 
+                                    x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                                    x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                                    @click="open = false" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+                                
+                                <!-- Content -->
+                                <div x-show="open" 
+                                     x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                                     x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                                     class="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+                                     
+                                    <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+                                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                            HTTP Traffic Log
+                                        </h3>
+                                        <button @click="open = false" class="text-gray-400 hover:text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                                    </div>
+                                    
+                                    <div class="flex-1 overflow-y-auto p-0 custom-scrollbar">
+                                        <table class="w-full text-left text-xs font-mono">
+                                            <thead class="bg-gray-950 text-gray-400 sticky top-0 z-10 border-b border-gray-800">
+                                                <tr>
+                                                    <th class="p-2 w-16">Status</th>
+                                                    <th class="p-2 w-16">Method</th>
+                                                    <th class="p-2">URL</th>
+                                                    <th class="p-2 w-20 text-right">Time</th>
+                                                    <th class="p-2 w-16"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-800">
+                                                {% for entry in crawler_result.data.http_traffic %}
+                                                <tr class="hover:bg-gray-800/50 group transition-colors" x-data="{ details: false }">
+                                                    <td colspan="5" class="p-0">
+                                                        <div class="flex items-center p-2 cursor-pointer" @click="details = !details">
+                                                            <div class="w-16">
+                                                                <span class="px-1.5 py-0.5 rounded font-bold 
+                                                                    {% if entry.status >= 500 %}bg-red-900/50 text-red-400 border border-red-900
+                                                                    {% elif entry.status >= 400 %}bg-orange-900/50 text-orange-400 border border-orange-900
+                                                                    {% elif entry.status >= 300 %}bg-blue-900/50 text-blue-400 border border-blue-900
+                                                                    {% else %}bg-green-900/50 text-green-400 border border-green-900{% endif %}">
+                                                                    {{ entry.status }}
+                                                                </span>
+                                                            </div>
+                                                            <div class="w-16 font-bold text-gray-300">{{ entry.method }}</div>
+                                                            <div class="flex-1 truncate text-gray-400 pr-4" title="{{ entry.url }}">{{ entry.url }}</div>
+                                                            <div class="w-20 text-right text-gray-500">{{ entry.duration }}s</div>
+                                                            <div class="w-16 text-center text-gray-600">
+                                                                <svg class="w-4 h-4 mx-auto transform transition-transform" :class="details ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div x-show="details" class="bg-black/30 p-4 border-t border-dashed border-gray-800 space-y-3" style="display: none;">
+                                                            {% if entry.error %}
+                                                                <div class="text-red-400 font-bold">Error: {{ entry.error }}</div>
+                                                            {% endif %}
+                                                            
+                                                            <div class="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <div class="text-[10px] uppercase text-gray-500 font-bold mb-1">Request Headers</div>
+                                                                    <div class="text-gray-400 break-words bg-gray-900 p-2 rounded">
+                                                                        {% if entry.request_headers %}
+                                                                        {% for k,v in entry.request_headers.items() %}
+                                                                            <div><span class="text-indigo-400">{{ k }}:</span> {{ v }}</div>
+                                                                        {% endfor %}
+                                                                        {% else %}
+                                                                        <span class="text-gray-500 italic">N/A</span>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="text-[10px] uppercase text-gray-500 font-bold mb-1">Response Headers</div>
+                                                                    <div class="text-gray-400 break-words bg-gray-900 p-2 rounded">
+                                                                        {% if entry.response_headers %}
+                                                                         {% for k,v in entry.response_headers.items() %}
+                                                                            <div><span class="text-emerald-400">{{ k }}:</span> {{ v }}</div>
+                                                                        {% endfor %}
+                                                                        {% else %}
+                                                                        <span class="text-gray-500 italic">N/A</span>
+                                                                        {% endif %}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {% if entry.response_body_snippet %}
+                                                            <div>
+                                                                <div class="text-[10px] uppercase text-gray-500 font-bold mb-1">Response Body Snippet (First 1KB)</div>
+                                                                <pre class="bg-gray-900 text-gray-300 p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">{{ entry.response_body_snippet }}</pre>
+                                                            </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <span class="text-xs font-mono text-gray-500 bg-gray-900 border border-gray-700 px-2 py-1 rounded">
+                            Pages: {{ crawler_result.data.stats.pages_crawled }}
+                        </span>
+                     </div>
+
+                <!-- Crawler Screenshot Gallery -->
+                {% set sc_nodes = [] %}
+                {% for n in crawler_result.data.nodes %}
+                    {% if n.screenshot %}
+                        {% set _ = sc_nodes.append(n) %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if sc_nodes %}
+                <div class="mb-6">
+                    <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Screenshot Gallery
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                        {% for n in sc_nodes %}
+                        <div class="flex flex-col bg-gray-900/60 rounded-lg overflow-hidden border border-gray-700/50 group hover:border-indigo-500/50 transition-all">
+                            <a href="/static/screenshots/{{ n.screenshot }}" target="_blank" class="relative block aspect-video overflow-hidden">
+                                <img src="/static/screenshots/{{ n.screenshot }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                            </a>
+                            <div class="p-2 truncate text-[10px] text-gray-400 font-mono" title="{{ n.id }}">
+                                {{ n.title or n.id }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Internal Issues -->
+                    <div class="bg-gray-900/40 rounded-lg p-4 border border-gray-700/30">
+                        <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center justify-between">
+                            Internal Anomalies
+                            <span class="text-xs normal-case font-normal text-gray-500">Dead Ends found: {{ crawler_result.data.dead_ends|length }}</span>
+                        </h3>
+                        {% if crawler_result.data.dead_ends %}
+                            <div class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                {% for page in crawler_result.data.dead_ends %}
+                                    <div class="flex flex-col bg-red-900/10 p-2 rounded border-l-2 border-red-500/50">
+                                        <div class="flex justify-between items-start">
+                                            <span class="text-xs text-red-200 font-mono break-all">{{ page.url }}</span>
+                                        </div>
+                                        <span class="text-[10px] text-red-400/70 mt-1">{{ page.title }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                             <p class="text-gray-500 text-sm italic">No dead-end pages found (Good!).</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- External Collectors -->
+                    <div class="bg-gray-900/40 rounded-lg p-4 border border-gray-700/30">
+                         <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Top External Connections</h3>
+                         {% if crawler_result.data.collectors %}
+                            <div class="space-y-1">
+                                {% for domain in crawler_result.data.collectors %}
+                                    <div class="flex justify-between items-center bg-gray-800/50 p-1.5 rounded hover:bg-gray-800 transition-colors">
+                                        <span class="text-sm text-indigo-300 font-mono">{{ domain.domain }}</span>
+                                        <span class="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded-full">{{ domain.count }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                         {% else %}
+                             <p class="text-gray-500 text-sm italic">No external domains collected.</p>
+                         {% endif %}
+                    </div>
+                </div>
+
+                {% if crawler_result.log_content %}
+                <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                    <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                        <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        View Scan Logs
+                    </summary>
+                    <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ crawler_result.log_content }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- HTTP TRAFFIC HISTORY CARD (NEW) -->
+            <div class="bg-gray-800/50 border border-indigo-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6"
+                 x-data="{ 
+                    loading: false, 
+                    traffic: [], 
+                    page: 0,
+                    limit: 10,
+                    hasMore: true,
+                    fetchTraffic() {
+                        this.loading = true;
+                        fetch(`/api/targets/{{ target.id }}/traffic?limit=${this.limit}&offset=${this.page * this.limit}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            this.loading = false;
+                            this.traffic = data;
+                            this.hasMore = data.length === this.limit;
+                        });
+                    },
+                    next() { this.page++; this.fetchTraffic(); },
+                    prev() { if(this.page > 0) { this.page--; this.fetchTraffic(); } }
+                 }" x-init="fetchTraffic()">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">HTTP Request/Response History</h2>
+                        <p class="text-xs text-gray-400">Historical log of all observed HTTP interactions.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="/reports/scan/{{ target.id }}/traffic/excel" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded border border-gray-600 transition-colors">Excel</a>
+                        <a href="/reports/scan/{{ target.id }}/traffic/pdf" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-1 rounded border border-gray-600 transition-colors">PDF</a>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto min-h-[300px]">
+                    <div x-show="loading" class="flex justify-center py-12">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
+                    
+                    <table x-show="!loading" class="w-full text-left text-sm text-gray-400">
+                        <thead class="bg-gray-900/50 text-xs uppercase text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 rounded-l-lg">Time</th>
+                                <th class="px-4 py-3">Method</th>
+                                <th class="px-2 py-3">Status</th>
+                                <th class="px-4 py-3">URL</th>
+                                <th class="px-2 py-3 text-right rounded-r-lg">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700/50">
+                            <template x-for="t in traffic" :key="t.id">
+                                <tr class="hover:bg-white/5 transition-colors group">
+                                    <td class="px-4 py-3 text-xs whitespace-nowrap" x-text="new Date(t.timestamp).toLocaleTimeString()"></td>
+                                    <td class="px-4 py-3 font-bold" :class="t.method === 'GET' ? 'text-blue-400' : 'text-purple-400'" x-text="t.method"></td>
+                                    <td class="px-2 py-3">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold" 
+                                              :class="t.status_code >= 200 && t.status_code < 300 ? 'bg-green-900/40 text-green-300 border border-green-700/50' : (t.status_code >= 400 ? 'bg-red-900/40 text-red-300 border border-red-700/50' : 'bg-blue-900/40 text-blue-300 border border-blue-700/50')"
+                                              x-text="t.status_code"></span>
+                                    </td>
+                                    <td class="px-4 py-3 font-mono text-xs truncate max-w-md" x-text="t.url"></td>
+                                    <td class="px-2 py-3 text-right">
+                                        <button @click="$dispatch('open-traffic-details', t)" class="text-indigo-400 hover:text-indigo-300 transition-colors">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="traffic.length === 0">
+                                <td colspan="5" class="py-12 text-center text-gray-500 italic">No traffic recorded yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="flex justify-between items-center mt-6 pt-6 border-t border-gray-700/50">
+                    <button @click="prev()" :disabled="page === 0" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">Previous</button>
+                    <span class="text-xs text-gray-500">Page <span x-text="page + 1" class="text-white"></span></span>
+                    <button @click="next()" :disabled="!hasMore" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white text-xs font-semibold rounded-lg transition-colors">Next</button>
+                </div>
+            </div>
