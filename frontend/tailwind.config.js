@@ -1,7 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
-  content: ["../yads/api/templates/**/*.html", "./yads/api/templates/**/*.html"],
+  content: [
+    "../yads/api/templates/**/*.html",
+    "./yads/api/templates/**/*.html",
+    "../yads/api/routers/**/*.py",
+  ],
   theme: {
     extend: {
       colors: {
