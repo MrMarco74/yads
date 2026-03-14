@@ -897,18 +897,45 @@ async def worker_monitor_page(
     with Session(engine) as session:
         if worker_mode == "standalone":
             # Standalone: WorkerTask is never written — derive from Target.scan_status
+            import json as _json
+            try:
+                from redis import Redis as _Redis
+                from yads.config import settings as _s
+                _rc = _Redis.from_url(_s.REDIS_URL, decode_responses=True)
+            except Exception:
+                _rc = None
+
             running_targets = session.exec(
                 select(Target).where(Target.scan_status == "running")
             ).all()
             for tgt in running_targets:
+                # Current module from scan:status key (e.g. "[dns_scanner] Checking…")
+                current_module = None
+                started_at = None
+                if _rc:
+                    try:
+                        status_msg = _rc.get(f"scan:status:{tgt.id}") or ""
+                        # Extract module name from "[module_name] …" format
+                        if status_msg.startswith("[") and "]" in status_msg:
+                            current_module = status_msg[1:status_msg.index("]")]
+                        elif status_msg:
+                            current_module = status_msg[:40]
+                        # started_at: timestamp of the oldest log entry in the buffer
+                        first_entry = _rc.lindex(f"scan:logs:{tgt.id}", 0)
+                        if first_entry:
+                            ts = _json.loads(first_entry).get("ts", "")
+                            if ts:
+                                started_at = ts[11:19]  # "HH:MM:SS" from ISO timestamp
+                    except Exception:
+                        pass
                 running_tasks.append({
                     "task_id": None,
                     "target_domain": tgt.domain,
-                    "current_module": None,
+                    "current_module": current_module,
                     "progress_percent": None,
                     "worker_node_id": "standalone",
                     "worker_hostname": "standalone",
-                    "started_at": None,
+                    "started_at": started_at,
                 })
         else:
             db_tasks = session.exec(
