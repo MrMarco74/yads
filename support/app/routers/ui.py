@@ -43,10 +43,10 @@ URL      : {report_data.get('affected_url', 'nicht angegeben')}
 {report_data.get('description', '(leer)')}
 
 --- Letzte Scan-Fehler (automatisch) ---
-{chr(10).join(report_data.get('scan_errors', [])) or '(keine)'}
+{chr(10).join(str(e) for e in report_data.get('scan_errors', [])) or '(keine)'}
 
 --- Aktive System-Alerts (automatisch) ---
-{chr(10).join(report_data.get('system_alerts', [])) or '(keine)'}
+{chr(10).join(str(a) for a in report_data.get('system_alerts', [])) or '(keine)'}
 === ENDE REPORT ===
 
 Frage: Was ist die wahrscheinliche Ursache und wie behebe ich den Fehler?"""
