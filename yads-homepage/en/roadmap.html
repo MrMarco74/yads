@@ -769,16 +769,17 @@
                 </div>
             </div>
 
-            <div class="roadmap-section">
+            <div class="roadmap-section" style="opacity: 0.5;">
                 <div class="section-header">
                     <span class="section-icon">🛡️</span>
-                    <h2 class="section-title">Active Pentest Toolchain Integration <span class="status-badge planned">Planned</span></h2>
+                    <h2 class="section-title" style="text-decoration: line-through;">Active Pentest Toolchain Integration</h2>
+                    <span class="status-badge" style="background: #6b7280; color: #fff; margin-left: 0.75rem;">CANCELLED</span>
                 </div>
                 <div class="roadmap-card">
-                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        Controlled orchestration of professional offensive security tools directly from the YADS interface — scoped to authorized targets, with full audit logging and tenant-level access control. Requires explicit authorization per target.
+                    <p style="color: #ef4444; font-size: 0.875rem; margin-bottom: 1rem;">
+                        This area has been removed from scope. YADS remains a passive reconnaissance and monitoring tool — active offensive capabilities are not part of the product vision.
                     </p>
-                    <table class="feature-table">
+                    <table class="feature-table" style="text-decoration: line-through; color: var(--text-secondary);">
                         <thead>
                             <tr>
                                 <th>Feature</th>
@@ -787,32 +788,32 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Metasploit Integration <span class="status-badge planned">Planned</span></td>
-                                <td>RPC-based Metasploit control: launch modules, select payloads, view session output — all scoped to authorized YADS targets. Results stored as scan findings with CVSS scoring.</td>
+                                <td>Metasploit Integration</td>
+                                <td>RPC-based Metasploit control: launch modules, select payloads, view session output — scoped to authorized YADS targets.</td>
                             </tr>
                             <tr>
-                                <td>Nmap Advanced Profiles <span class="status-badge planned">Planned</span></td>
-                                <td>Extended Nmap scan profiles beyond the current service detection — SYN scan, OS fingerprinting, script engine (NSE) execution with per-target approval gating.</td>
+                                <td>Nmap Advanced Profiles</td>
+                                <td>Extended Nmap scan profiles — SYN scan, OS fingerprinting, script engine (NSE) execution.</td>
                             </tr>
                             <tr>
-                                <td>Hydra / Password Audit <span class="status-badge planned">Planned</span></td>
-                                <td>Authorized credential brute-force audit against login surfaces detected by the login scanner. Rate-limited, target-scoped, full audit trail.</td>
+                                <td>Hydra / Password Audit</td>
+                                <td>Authorized credential brute-force audit against detected login surfaces.</td>
                             </tr>
                             <tr>
-                                <td>SQLMap Integration <span class="status-badge planned">Planned</span></td>
-                                <td>Trigger SQLMap against endpoints flagged by Nuclei or the crawler — controlled execution with output parsed into structured findings.</td>
+                                <td>SQLMap Integration</td>
+                                <td>Trigger SQLMap against endpoints flagged by Nuclei or the crawler.</td>
                             </tr>
                             <tr>
-                                <td>Burp Suite Collaboration <span class="status-badge planned">Planned</span></td>
-                                <td>Push YADS target scope and discovered endpoints to Burp Suite Pro via REST API. Pull active scan findings back into YADS for unified reporting.</td>
+                                <td>Burp Suite Collaboration</td>
+                                <td>Push YADS target scope to Burp Suite Pro via REST API.</td>
                             </tr>
                             <tr>
-                                <td>Authorization Enforcement <span class="status-badge planned">Planned</span></td>
-                                <td>Per-target pentest authorization flag — active tools can only run against targets explicitly marked as authorized for offensive testing. Enforced at API level with RBAC (tenant_admin+).</td>
+                                <td>Authorization Enforcement</td>
+                                <td>Per-target pentest authorization flag with RBAC (tenant_admin+).</td>
                             </tr>
                             <tr>
-                                <td>Pentest Report Generation <span class="status-badge planned">Planned</span></td>
-                                <td>Dedicated pentest report template combining passive YADS findings with active tool results — exportable as PDF and DOCX for client delivery.</td>
+                                <td>Pentest Report Generation</td>
+                                <td>Dedicated pentest report template exportable as PDF and DOCX.</td>
                             </tr>
                         </tbody>
                     </table>
