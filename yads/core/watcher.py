@@ -414,9 +414,12 @@ def _check_scan_log_errors(rc, engine):
         from sqlmodel import Session, select
         from yads.models import Target
 
-        # Only check targets that have scan logs in Redis
+        # Only check per-target log lists (scan:logs:<int>), not tenant/unified keys
         pattern = "scan:logs:*"
-        keys = rc.keys(pattern)
+        keys = [
+            k for k in rc.keys(pattern)
+            if k.decode().replace("scan:logs:", "").isdigit()
+        ]
         if not keys:
             return
 
@@ -442,7 +445,9 @@ def _check_scan_log_errors(rc, engine):
                     try:
                         entry = _json.loads(raw)
                         if entry.get("level") in ("ERROR", "CRITICAL"):
-                            error_lines.append(entry.get("message", "")[:200])
+                            msg = entry.get("message", "").strip()
+                            if msg:
+                                error_lines.append(msg[:200])
                     except Exception:
                         continue
 
