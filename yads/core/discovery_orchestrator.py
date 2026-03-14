@@ -25,6 +25,16 @@ from sqlmodel import Session, select
 from yads.database import engine, redis_client
 from yads.models import DiscoverySession, DiscoveryCandidate, Target, ScanResult
 
+# Scan types used for below-threshold targets (lightweight, same as discovery phase)
+DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
+
+# Scan types queued for all session targets after the session finishes
+POST_SESSION_SCAN_TYPES = [
+    "dns_scanner", "ssl_scanner", "web_analyzer", "http_headers_scanner",
+    "cookie_scanner", "cors_scanner", "cert_mismatch_scanner",
+    "security_txt_scanner", "email_security",
+]
+
 logger = logging.getLogger("yads-discovery")
 
 # Signal weights for relevance scoring
@@ -272,6 +282,32 @@ class DiscoveryOrchestrator:
                     rejected += 1
                     sess.total_rejected += 1
 
+                    # Below threshold: still create a Target and queue a lightweight scan
+                    # so the domain appears in the regular target list and gets basic intel.
+                    # No recursion — it won't be dispatched via run_discovery_scan.
+                    below_existing = db.exec(select(Target).where(Target.domain == cand.domain)).first()
+                    if not below_existing:
+                        below_target = Target(
+                            domain=cand.domain,
+                            tenant_id=sess.tenant_id,
+                            discovery_session_id=sess.id,
+                            parent_target_id=cand.source_target_id,
+                            discovery_depth=depth + 1,
+                            relevance_score=score,
+                            discovery_signals=signals,
+                            discovery_reason=f"Discovery session {sess.id} — below threshold, queued for basic scan",
+                        )
+                        db.add(below_target)
+                        db.commit()
+                        db.refresh(below_target)
+                        from yads.worker_core import celery_app
+                        celery_app.send_task(
+                            "yads.worker.run_all_scans",
+                            args=[below_target.id, cand.domain, DISCOVERY_SCAN_TYPES, sess.tenant_id],
+                            queue="celery",
+                        )
+                        logger.info(f"[Discovery] Below-threshold {cand.domain} ({score:.2f}) queued for basic scan")
+
             sess.total_discovered += len(candidates)
             db.add(sess)
             db.commit()
@@ -301,4 +337,25 @@ class DiscoveryOrchestrator:
             sess.finished_at = datetime.utcnow()
             db.add(sess)
             db.commit()
-        logger.info(f"[Discovery] Session {self.session_id} completed.")
+            db.refresh(sess)
+
+            # Queue a full post-session scan for all non-seed targets accepted into the session.
+            # Discovery only ran dns/ssl/ct/asn — this fills in the rest of the scan profile.
+            from yads.worker_core import celery_app
+            accepted_targets = db.exec(
+                select(Target).where(
+                    Target.discovery_session_id == self.session_id,
+                    Target.discovery_depth > 0,
+                )
+            ).all()
+            queued = 0
+            for t in accepted_targets:
+                if t.relevance_score is None or t.relevance_score >= sess.relevance_threshold:
+                    celery_app.send_task(
+                        "yads.worker.run_all_scans",
+                        args=[t.id, t.domain, POST_SESSION_SCAN_TYPES, sess.tenant_id],
+                        queue="celery",
+                    )
+                    queued += 1
+
+        logger.info(f"[Discovery] Session {self.session_id} completed. Queued {queued} post-session scans.")
