@@ -1,0 +1,130 @@
+[
+  {
+    "file": "00_login.png",
+    "description": "Login Page"
+  },
+  {
+    "file": "01_dashboard.png",
+    "description": "Dashboard Overview"
+  },
+  {
+    "file": "02_targets_table.png",
+    "description": "Targets Table"
+  },
+  {
+    "file": "03_scan_queue.png",
+    "description": "Scan Queue"
+  },
+  {
+    "file": "04_worker_monitor.png",
+    "description": "Worker Monitor"
+  },
+  {
+    "file": "05_schedules.png",
+    "description": "Schedules"
+  },
+  {
+    "file": "06_analytics.png",
+    "description": "Analytics"
+  },
+  {
+    "file": "07_security_findings.png",
+    "description": "Security Findings"
+  },
+  {
+    "file": "08_osint.png",
+    "description": "OSINT Search"
+  },
+  {
+    "file": "09_ai_assistant.png",
+    "description": "AI Assistant"
+  },
+  {
+    "file": "10_reports.png",
+    "description": "Reports"
+  },
+  {
+    "file": "11_compliance.png",
+    "description": "Compliance"
+  },
+  {
+    "file": "12_port_exposure.png",
+    "description": "Port Exposure"
+  },
+  {
+    "file": "13_email_security.png",
+    "description": "Email Security"
+  },
+  {
+    "file": "14_waf_analysis.png",
+    "description": "WAF Analysis"
+  },
+  {
+    "file": "15_pqc_readiness.png",
+    "description": "PQC Readiness"
+  },
+  {
+    "file": "16_cloud_assets.png",
+    "description": "Cloud Assets"
+  },
+  {
+    "file": "17_network_graph.png",
+    "description": "Network Graph"
+  },
+  {
+    "file": "18_attack_path.png",
+    "description": "Attack Path Visualizer"
+  },
+  {
+    "file": "19_executive_report.png",
+    "description": "Executive Report"
+  },
+  {
+    "file": "20_changes.png",
+    "description": "Change History"
+  },
+  {
+    "file": "21_scan_profiles.png",
+    "description": "Scan Profiles"
+  },
+  {
+    "file": "22_developer_portal.png",
+    "description": "Developer Portal"
+  },
+  {
+    "file": "23_settings.png",
+    "description": "System Settings"
+  },
+  {
+    "file": "24_tenant_settings.png",
+    "description": "Tenant Settings"
+  },
+  {
+    "file": "25_users.png",
+    "description": "User Management"
+  },
+  {
+    "file": "26_system_health.png",
+    "description": "Operations Center"
+  },
+  {
+    "file": "27_scanner_import.png",
+    "description": "Scanner Import"
+  },
+  {
+    "file": "28_report_builder.png",
+    "description": "Report Builder"
+  },
+  {
+    "file": "29_cert_timeline.png",
+    "description": "Cert Timeline"
+  },
+  {
+    "file": "30_tech_drift.png",
+    "description": "Tech Drift"
+  },
+  {
+    "file": "31_target_detail.png",
+    "description": "Target Detail Page"
+  }
+]

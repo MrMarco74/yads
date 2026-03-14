@@ -124,14 +124,18 @@
 <li><a href="#14-finding-management--schwachstellen-tracking">14. Finding Management</a></li>
 <li><a href="#15-asset-tagging--organisation">15. Asset-Tagging</a></li>
 <li><a href="#16-executive-report--portfolio-ansicht">16. Executive Report & Portfolio</a></li>
-<li><a href="docs-advanced.html" style="color:#7dd3fc;">→ Erweiterte &amp; Technische Referenz (17–32)</a></li>
+<li><a href="#17-dark-mode-light-mode">17. Dark/Light Mode</a></li>
+<li><a href="#18-in-app-bugmeldung">18. In-App-Bugmeldung</a></li>
+<li><a href="#19-asset-discovery">19. Asset Discovery</a></li>
+<li><a href="#20-mehrsprachigkeit">20. Mehrsprachigkeit (EN/DE)</a></li>
+<li><a href="docs-advanced.html" style="color:#7dd3fc;">→ Erweiterte &amp; Technische Referenz (21+)</a></li>
 
             </ul>
         </aside>
         <main class="docs-content">
             <h1>YADS - Umfassendes Benutzerhandbuch</h1>
-<p><strong>Version:</strong> 1.40.0
-<strong>Letzte Aktualisierung:</strong> 2026-03-08</p>
+<p><strong>Version:</strong> 1.45.3
+<strong>Letzte Aktualisierung:</strong> 2026-03-14</p>
 <p>Willkommen zum <strong>YADS (Yet Another Domain Scanner)</strong> Handbuch. Diese Anleitung deckt alle Aspekte der Anwendung ab, vom ersten Scan bis zur erweiterten Konfiguration und Mandantenfähigkeit.</p>
 <hr />
 <h2>Inhaltsverzeichnis</h2>
@@ -159,15 +163,17 @@
 <li><a href="#14-finding-management--schwachstellen-tracking">Finding Management &amp; Schwachstellen-Tracking</a></li>
 <li><a href="#15-asset-tagging--organisation">Asset-Tagging &amp; Organisation</a></li>
 <li><a href="#16-executive-report--portfolio-ansicht">Executive Report &amp; Portfolio-Ansicht</a></li>
-<li><a href="#17-best-practices">Best Practices</a></li>
-<li><a href="#18-fehlerbehebung">Fehlerbehebung</a></li>
-<li><a href="#20-standalone-lokale-installation">20. Standalone- &amp; Lokale Installation</a></li>
-<li><a href="#21-identity-provider-sso">Identity Provider &amp; SSO</a></li>
-<li><a href="#22-entwicklerportal">Entwicklerportal</a></li>
-<li><a href="#23-scan-profile">Scan-Profile</a></li>
-<li><a href="#24-einrichtungsassistent">Einrichtungsassistent</a></li>
-<li><a href="#25-datenspeicherung">Datenspeicherung</a></li>
-<li><a href="#26-excel-export">Excel-Export</a></li>
+<li><a href="#17-dark-mode-light-mode">17. Dark/Light Mode</a></li>
+<li><a href="#18-in-app-bugmeldung">18. In-App-Bugmeldung</a></li>
+<li><a href="#19-asset-discovery">19. Asset Discovery</a></li>
+<li><a href="#20-mehrsprachigkeit">20. Mehrsprachigkeit (EN/DE)</a></li>
+<li><a href="docs-advanced.html#21-best-practices">21. Best Practices</a></li>
+<li><a href="docs-advanced.html#22-fehlerbehebung">22. Fehlerbehebung</a></li>
+<li><a href="docs-advanced.html#23-standalone-lokale-installation">23. Standalone- &amp; Lokale Installation</a></li>
+<li><a href="docs-advanced.html#24-identity-provider-sso">24. Identity Provider &amp; SSO</a></li>
+<li><a href="docs-advanced.html#25-entwicklerportal">25. Entwicklerportal</a></li>
+<li><a href="docs-advanced.html#26-scan-profile">26. Scan-Profile</a></li>
+<li><a href="docs-advanced.html#27-excel-export">27. Excel-Export</a></li>
 </ol>
 <hr />
 <h2>1. Einführung</h2>
@@ -1009,6 +1015,79 @@ docker pull registry.yads-security.com/yads/yads-worker:latest
 docker compose up -d --force-recreate
 </div>
 <p>Erstellen Sie vor jedem Update ein Backup (Einstellungen → Backup &amp; Wiederherstellung).</p>
+
+<hr />
+<h2 id="17-dark-mode-light-mode">17. Dark/Light Mode</h2>
+<p>YADS unterstützt sowohl ein dunkles (Standard) als auch ein helles Design. Der Wechsel ist jederzeit ohne Neuanmeldung möglich und wird pro Benutzer gespeichert.</p>
+<h3>Umschalten des Designs</h3>
+<ul>
+    <li>Klicken Sie auf das <strong>Mond/Sonne-Symbol</strong> in der oberen Navigationsleiste (rechts neben Ihrem Benutzermenü).</li>
+    <li>Das Design wechselt sofort zwischen <strong>Dark Mode</strong> (Standard, dunkler Hintergrund) und <strong>Light Mode</strong> (heller Hintergrund).</li>
+    <li>Ihre Einstellung wird im Browser gespeichert und bleibt über Sitzungen hinweg erhalten.</li>
+</ul>
+<blockquote>
+    <p><strong>Hinweis:</strong> Light Mode CSS optimiert alle UI-Elemente inklusive Slate- und Graupaletten für optimale Lesbarkeit. Beide Modi werden vollständig unterstützt.</p>
+</blockquote>
+
+<hr />
+<h2 id="18-in-app-bugmeldung">18. In-App-Bugmeldung</h2>
+<p>YADS enthält ein eingebautes Fehlerüberwachungs- und Meldungssystem, das Scan-Fehler automatisch erkennt und Benutzern ermöglicht, Probleme direkt aus der Oberfläche heraus zu melden.</p>
+<h3>Automatische Fehlererkennung</h3>
+<ul>
+    <li>Der Hintergrundwatcher überwacht kontinuierlich Redis-Logs auf Scan-Fehler.</li>
+    <li>Erkannte Fehler erscheinen als <strong>Tenant-Badge</strong> in der Navigationsleiste mit Anzahl der ungelösten Fehler.</li>
+    <li>Jeder Fehler kann einzeln angesehen und per <strong>Verwerfen-Schaltfläche</strong> bestätigt werden.</li>
+</ul>
+<h3>Fehler melden</h3>
+<ul>
+    <li>Klicken Sie auf das Fehlerbadge oder öffnen Sie <strong>Einstellungen → Fehlermeldungen</strong>.</li>
+    <li>Der Fehlerbericht enthält automatisch relevante Systeminfos, Logs und die Tenant-ID.</li>
+    <li>Berichte können per E-Mail an das Support-Team gesendet werden (SMTP muss konfiguriert sein).</li>
+</ul>
+
+<hr />
+<h2 id="19-asset-discovery">19. Asset Discovery</h2>
+<p>Das Asset Discovery-Modul erkennt automatisch Subdomains und zugehörige Infrastruktur einer Zieldomain — ohne aktive Netzwerkscans zu verwenden.</p>
+<h3>Funktionsweise</h3>
+<ul>
+    <li><strong>Passive Techniken</strong>: Certificate Transparency Logs (crt.sh), DNS-Datenbanken, Wayback Machine und öffentliche OSINT-Quellen.</li>
+    <li><strong>Rekursive Entdeckung</strong>: Neu entdeckte Subdomains werden automatisch als weitere Targets registriert und ebenfalls gescannt (konfigurierbar).</li>
+    <li><strong>Automatische Queue-Integration</strong>: Entdeckte Assets werden direkt in die Scan-Queue eingereiht — keine manuelle Eingabe erforderlich.</li>
+</ul>
+<h3>Konfiguration</h3>
+<ul>
+    <li>Aktivieren Sie unter <strong>Einstellungen → Scan-Einstellungen</strong> die Option <strong>Auto-Queue Subdomains</strong>.</li>
+    <li>Der rekursive Modus kann auf eine maximale Tiefe begrenzt werden, um unkontrolliertes Wachstum der Target-Liste zu vermeiden.</li>
+    <li>Discovery-Ergebnisse sind im <strong>DNS Scanner</strong>-Report des jeweiligen Targets abrufbar.</li>
+</ul>
+<blockquote>
+    <p><strong>Tipp:</strong> Kombinieren Sie Asset Discovery mit dem <strong>DNS Health Check</strong>-Modul, um nicht erreichbare Subdomains automatisch zu archivieren.</p>
+</blockquote>
+<div style="margin: 1.5rem 0;">
+    <img src="images/yads/v145/02_targets_table.png" alt="Targets-Tabelle mit entdeckten Assets" style="max-width:100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+    <p style="font-size:0.8rem; color:#64748b; margin-top:0.5rem;">Targets-Tabelle mit automatisch entdeckten Subdomains und Asset-Discovery-Ergebnissen.</p>
+</div>
+
+<hr />
+<h2 id="20-mehrsprachigkeit">20. Mehrsprachigkeit (EN/DE)</h2>
+<p>YADS ist vollständig in Deutsch und Englisch verfügbar. Die Spracheinstellung gilt für die gesamte Oberfläche, alle Exporte und KI-Ausgaben.</p>
+<h3>Sprache wechseln</h3>
+<ol>
+    <li>Öffnen Sie Ihr <strong>Benutzerprofil</strong> (oben rechts → Profilname).</li>
+    <li>Wählen Sie unter <strong>Spracheinstellung</strong> die gewünschte Sprache: <strong>Deutsch</strong> oder <strong>English</strong>.</li>
+    <li>Speichern Sie — die Oberfläche wechselt sofort ohne Neuanmeldung.</li>
+</ol>
+<h3>Was wird übersetzt?</h3>
+<ul>
+    <li><strong>Oberfläche</strong>: Alle Seitenleisten-Einträge, Menüs, Schaltflächen, Labels und Fehlermeldungen.</li>
+    <li><strong>PDF-Reports</strong>: Alle generierten Reports verwenden die gewählte Sprache des angemeldeten Benutzers.</li>
+    <li><strong>Excel-Exporte</strong>: Spaltenüberschriften und Kategoriebeschriftungen in der gewählten Sprache.</li>
+    <li><strong>KI-Ausgaben</strong>: KI-Analysen, Risikobewertungen und Empfehlungen werden in der Benutzersprache ausgegeben.</li>
+    <li><strong>Zeitplan-Strings</strong>: Scan-Zeitpläne werden in der gewählten Sprache angezeigt.</li>
+</ul>
+<blockquote>
+    <p><strong>Hinweis:</strong> Scan-Ergebnisse (Rohdaten) werden sprachunabhängig gespeichert. Nur die UI-Beschriftungen und Report-Ausgaben sind übersetzt.</p>
+</blockquote>
 
 <hr />
 <p><em>Für technische, Enterprise- und Scanner-Modul-Dokumentation: <a href="docs-advanced.html">Erweiterte Referenz →</a></em></p>

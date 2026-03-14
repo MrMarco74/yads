@@ -154,6 +154,38 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.45.3 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.45.3</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Asset Discovery, In-App-Bugmeldung, Dark/Light Mode &amp; Mehrsprachigkeit</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li><strong>Asset Discovery</strong>: Neues Scanner-Modul zur automatischen Erkennung von Subdomains und Infrastruktur — inkl. rekursiver Entdeckung und passiver Aufklärungstechniken.</li>
+                    <li><strong>In-App-Bugmeldung</strong>: Benutzer können Fehler direkt aus der YADS-Oberfläche heraus melden. Redis-Log-Monitoring erkennt Scan-Fehler automatisch und zeigt sie als Tenant-Badge an.</li>
+                    <li><strong>Dark/Light Mode Toggle</strong>: Umschaltung zwischen dunklem (Standard) und hellem Design über das Mond/Sonne-Symbol in der Navigationsleiste. Auf vielfachen Nutzerwunsch umgesetzt.</li>
+                    <li><strong>Vollständige EN/DE-Mehrsprachigkeit</strong>: Komplette UI-Übersetzung — Seitenleiste, alle Seiten, Paginierung, Einstellungen, Zeitplanstrings, Exporte und KI-Ausgaben in Deutsch und Englisch.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Worker Monitor: Live-Modul-Tracking während aktiver Scans — zeigt welches Scanner-Modul gerade läuft.</li>
+                    <li>Auto-Cleanup offline Worker nach 30 Minuten im Watcher-Zyklus.</li>
+                    <li>Offline-Worker können nun einzeln oder per "Alle offline entfernen"-Schaltfläche aus der Liste gelöscht werden.</li>
+                    <li>i18n-Abdeckung ausgebaut: Zeitplan-Strings, Paginierung, Einstellungsbezeichnungen und weitere UI-Elemente vollständig übersetzt.</li>
+                    <li>Worker-Auslastungsanzeige korrigiert (zeigte zuvor falsche Werte).</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Homepage-Kapitellinks 17–32 korrigiert: Anker funktionieren nun zuverlässig in der erweiterten Referenz.</li>
+                    <li>Release Manager SSH-Upload-Fehler behoben; auf direkten FTP-Upload umgestellt. Flag <code>upload_ssh_disabled</code> hinzugefügt.</li>
+                    <li>Beta-Kanal-Releases aktualisieren nun korrekt die Startseite im Release Manager.</li>
+                    <li>CPU/RAM-Widget lädt nun erneut, wenn Metriken anfänglich nicht verfügbar waren.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.45.3 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.45.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
