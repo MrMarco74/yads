@@ -961,8 +961,18 @@ async def worker_monitor_page(
             n_running = len(running_targets)
             stats = dict(stats)
             stats["total_running_tasks"] = n_running
-            stats["total_capacity"] = stats.get("total_capacity") or 4
-            cap = stats["total_capacity"] or 1
+            # Read actual Celery concurrency from SystemConfig (source of truth)
+            actual_concurrency = 4
+            try:
+                conf = session.exec(
+                    select(SystemConfig).where(SystemConfig.key == "WORKER_CONCURRENCY")
+                ).first()
+                if conf and conf.value:
+                    actual_concurrency = max(1, int(conf.value))
+            except Exception:
+                pass
+            stats["total_capacity"] = actual_concurrency
+            cap = actual_concurrency
             stats["utilization_percent"] = round(n_running / cap * 100)
             # Celery queue depth via Redis
             try:
@@ -974,7 +984,8 @@ async def worker_monitor_page(
             for w in workers:
                 if w.get("node_id") == primary_node_id:
                     w["current_tasks"] = n_running
-                    w["current_load"] = round(n_running / (w.get("max_concurrent_tasks") or 4) * 100)
+                    w["max_concurrent_tasks"] = actual_concurrency
+                    w["current_load"] = round(n_running / cap * 100)
         else:
             db_tasks = session.exec(
                 select(WorkerTask).where(WorkerTask.status == "running")
