@@ -292,7 +292,7 @@
                 <tbody class="divide-y divide-slate-800">
                     {% for task in running_tasks %}
                     <tr class="hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.task_id[:12] }}…</td>
+                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ (task.task_id[:12] + '…') if task.task_id else '—' }}</td>
                         <td class="px-6 py-3 text-white font-medium">{{ task.target_domain or '—' }}</td>
                         <td class="px-6 py-3 text-cyan-400 text-xs">{{ task.current_module or '—' }}</td>
                         <td class="px-6 py-3 text-slate-400 text-xs">{{ task.worker_hostname or task.worker_node_id[:8] if task.worker_node_id else '—' }}</td>

@@ -883,30 +883,42 @@ async def worker_monitor_page(
 
     workers = worker_manager.get_worker_list()
     stats = worker_manager.get_cluster_stats()
+    worker_mode = os.getenv("WORKER_MODE", "standalone").lower()
 
-    # Fetch running tasks from DB with target domain
+    # Fetch running tasks
     running_tasks = []
     with Session(engine) as session:
-        db_tasks = session.exec(
-            select(WorkerTask).where(WorkerTask.status == "running")
-        ).all()
-        for t in db_tasks:
-            domain = None
-            tgt = session.get(Target, t.target_id) if t.target_id else None
-            domain = tgt.domain if tgt else None
-            # Resolve worker node_id (string) from integer FK
-            wnode = session.get(WorkerNode, t.worker_node_id) if t.worker_node_id else None
-            running_tasks.append({
-                "task_id": t.task_id,
-                "target_domain": domain,
-                "current_module": t.current_module,
-                "progress_percent": t.progress_percent,
-                "worker_node_id": wnode.node_id if wnode else None,
-                "worker_hostname": wnode.hostname if wnode else None,
-                "started_at": t.started_at.strftime("%H:%M:%S") if t.started_at else None,
-            })
-
-    worker_mode = os.getenv("WORKER_MODE", "standalone").lower()
+        if worker_mode == "standalone":
+            # Standalone: WorkerTask is never written — derive from Target.scan_status
+            running_targets = session.exec(
+                select(Target).where(Target.scan_status == "running")
+            ).all()
+            for tgt in running_targets:
+                running_tasks.append({
+                    "task_id": None,
+                    "target_domain": tgt.domain,
+                    "current_module": None,
+                    "progress_percent": None,
+                    "worker_node_id": "standalone",
+                    "worker_hostname": "standalone",
+                    "started_at": None,
+                })
+        else:
+            db_tasks = session.exec(
+                select(WorkerTask).where(WorkerTask.status == "running")
+            ).all()
+            for t in db_tasks:
+                tgt = session.get(Target, t.target_id) if t.target_id else None
+                wnode = session.get(WorkerNode, t.worker_node_id) if t.worker_node_id else None
+                running_tasks.append({
+                    "task_id": t.task_id,
+                    "target_domain": tgt.domain if tgt else None,
+                    "current_module": t.current_module,
+                    "progress_percent": t.progress_percent,
+                    "worker_node_id": wnode.node_id if wnode else None,
+                    "worker_hostname": wnode.hostname if wnode else None,
+                    "started_at": t.started_at.strftime("%H:%M:%S") if t.started_at else None,
+                })
 
     return templates.TemplateResponse("workers.html", {
         "request": request,
