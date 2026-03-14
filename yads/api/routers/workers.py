@@ -466,6 +466,25 @@ async def restart_worker(
     return {"status": "ok", "action": "restart", "node_id": node_id}
 
 
+@router.delete("/offline/all")
+async def remove_all_offline_workers(
+    user: User = Depends(PlatformAdminChecker())
+):
+    """Remove all offline workers from the cluster."""
+    from sqlmodel import Session
+    from yads.database import engine
+    from yads.models import WorkerNode
+    with Session(engine) as session:
+        offline = session.exec(
+            select(WorkerNode).where(WorkerNode.status == "offline")
+        ).all()
+        count = len(offline)
+        for w in offline:
+            session.delete(w)
+        session.commit()
+    return {"status": "removed", "count": count}
+
+
 @router.delete("/{node_id}")
 async def remove_worker(
     node_id: str,

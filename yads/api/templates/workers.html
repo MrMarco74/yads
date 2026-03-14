@@ -92,6 +92,16 @@
                 Registered Workers
             </h2>
             <span class="bg-emerald-900/50 text-emerald-300 text-xs font-bold px-2 py-1 rounded-full border border-emerald-700/50">{{ workers | length }}</span>
+            {% set offline_count = workers | selectattr('status', 'equalto', 'offline') | list | length %}
+            {% if offline_count > 0 %}
+            <button
+                hx-delete="/api/workers/offline/all"
+                hx-target="#workers-live-view"
+                hx-swap="outerHTML"
+                hx-confirm="Remove all {{ offline_count }} offline workers?"
+                class="ml-2 px-3 py-1 text-xs text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950 border border-red-900/50 rounded-lg transition-colors"
+            >Remove {{ offline_count }} offline</button>
+            {% endif %}
         </div>
 
         {% if workers %}
@@ -213,14 +223,15 @@
                                 class="px-3 py-1.5 text-xs text-emerald-400 hover:text-emerald-300 bg-slate-800 hover:bg-emerald-950 border border-slate-700 hover:border-emerald-900 rounded-lg transition-colors"
                             >Resume</button>
                             {% endif %}
-                            {% if w.status in ['offline', 'draining'] %}
-                            <button
-                                hx-delete="/api/workers/{{ w.node_id }}"
-                                hx-swap="none"
-                                hx-confirm="Remove worker {{ w.hostname }} from the cluster?"
-                                class="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-slate-800 hover:bg-red-950 border border-slate-700 hover:border-red-900 rounded-lg transition-colors"
-                            >Remove</button>
-                            {% endif %}
+                        {% endif %}
+                        {% if w.status in ['offline', 'draining'] %}
+                        <button
+                            hx-delete="/api/workers/{{ w.node_id }}"
+                            hx-target="closest .px-6.py-5"
+                            hx-swap="outerHTML"
+                            hx-confirm="Remove worker {{ w.hostname }} from the cluster?"
+                            class="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-slate-800 hover:bg-red-950 border border-slate-700 hover:border-red-900 rounded-lg transition-colors"
+                        >Remove</button>
                         {% endif %}
                     </div>
                 </div>
