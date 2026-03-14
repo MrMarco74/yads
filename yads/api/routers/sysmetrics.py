@@ -250,6 +250,154 @@ async def dismiss_scan_errors(
     )
 
 
+# ── /api/system/bug-report ────────────────────────────────────────────────────
+
+@router.get("/bug-report", response_class=HTMLResponse)
+async def bug_report_fragment(
+    request: Request,
+    user: User = Depends(get_current_user_html),
+):
+    """
+    HTMX fragment: auto-populated bug report text for /help/bug-report.
+    Returns a <pre> block with version, tenant, user, active errors/alerts.
+    """
+    from datetime import datetime, timezone
+    from yads.config import settings
+
+    tenant_name = "N/A"
+    try:
+        if user.tenant_id:
+            from sqlmodel import Session
+            from yads.database import engine
+            from yads.models import Tenant
+            with Session(engine) as session:
+                t = session.get(Tenant, user.tenant_id)
+                if t:
+                    tenant_name = t.name
+    except Exception:
+        pass
+
+    # Recent scan errors (last 5)
+    error_lines = []
+    try:
+        from yads.core.watcher import get_scan_errors_for_tenant
+        if user.tenant_id:
+            errs = get_scan_errors_for_tenant(_redis_client(), user.tenant_id)
+            for e in (errs or [])[-5:]:
+                error_lines.append(f"  • {e}")
+    except Exception:
+        pass
+
+    # Active system alerts
+    alert_lines = []
+    try:
+        import json as _json
+        raw = _redis_client().get("yads:alerts:active")
+        if raw:
+            for a in _json.loads(raw):
+                sev = a.get("severity", "?").upper()
+                alert_lines.append(f"  • [{sev}] {a.get('check_name','?')}: {a.get('message','')}")
+    except Exception:
+        pass
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ua = request.headers.get("user-agent", "unknown")[:120]
+
+    lines = [
+        f"=== YADS Bug Report ===",
+        f"",
+        f"Version   : {settings.VERSION}",
+        f"Datum     : {now}",
+        f"Tenant    : {tenant_name}",
+        f"Benutzer  : {user.username}",
+        f"Browser   : {ua}",
+        f"",
+        f"--- Fehlerbeschreibung ---",
+        f"[Bitte hier beschreiben, was passiert ist]",
+        f"",
+        f"--- Betroffene URL / Seite ---",
+        f"[z.B. https://prod.../targets/42]",
+        f"",
+    ]
+    if error_lines:
+        lines += ["--- Letzte Scan-Fehler (automatisch) ---"] + error_lines + [""]
+    if alert_lines:
+        lines += ["--- Aktive System-Alerts (automatisch) ---"] + alert_lines + [""]
+
+    lines += [
+        f"======================",
+        f"Bitte senden an : support@yads-security.com",
+        f"Betreff          : Bug Report YADS v{settings.VERSION}",
+    ]
+
+    report_text = "\n".join(lines)
+
+    # Build mailto href (subject + plain body)
+    import urllib.parse
+    subject = urllib.parse.quote(f"Bug Report YADS v{settings.VERSION}")
+    body = urllib.parse.quote(report_text)
+    mailto = f"mailto:support@yads-security.com?subject={subject}&body={body}"
+
+    # Escape for HTML display
+    display_text = (report_text
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;"))
+
+    return HTMLResponse(f'''
+<div id="bug-report-fragment">
+  <pre id="bug-report-pre"
+       class="bg-slate-900 border border-slate-700 rounded-xl p-4 text-xs text-slate-300
+              font-mono whitespace-pre overflow-x-auto leading-relaxed select-all"
+  >{display_text}</pre>
+
+  <div class="flex flex-wrap gap-3 mt-4">
+    <button onclick="copyBugReport()"
+            class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                   text-white text-sm font-medium rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg>
+      <span id="copy-btn-label">In Zwischenablage kopieren</span>
+    </button>
+
+    <a href="{mailto}"
+       class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600
+              text-slate-200 text-sm font-medium rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+      Im E-Mail-Programm öffnen
+    </a>
+  </div>
+
+  <p class="mt-3 text-xs text-slate-500">
+    Tipp: Du kannst den Text oben direkt bearbeiten, bevor du ihn kopierst. Das Feld ist vollständig selektierbar.
+  </p>
+</div>
+
+<script>
+function copyBugReport() {{
+    const pre = document.getElementById('bug-report-pre');
+    const label = document.getElementById('copy-btn-label');
+    navigator.clipboard.writeText(pre.innerText).then(() => {{
+        label.textContent = '✓ Kopiert!';
+        setTimeout(() => label.textContent = 'In Zwischenablage kopieren', 2500);
+    }}).catch(() => {{
+        // Fallback: select all
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }});
+}}
+</script>
+''')
+
+
 # ── /api/system/resource-check ────────────────────────────────────────────────
 
 @router.get("/resource-check", response_class=HTMLResponse)

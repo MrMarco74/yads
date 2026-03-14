@@ -90,6 +90,17 @@ async def view_roadmap(request: Request, user: User = Depends(get_current_user_h
     from yads.config import settings
     return templates.TemplateResponse("roadmap.html", {"request": request, "user": user, "settings": settings})
 
+@router.get("/bug-report", response_class=HTMLResponse)
+async def view_bug_report(request: Request, user: User = Depends(get_current_user_html_optional)):
+    """Bug report page with copyable system info block."""
+    from yads.config import settings
+    return templates.TemplateResponse("bug_report.html", {
+        "request": request,
+        "user": user,
+        "settings": settings,
+    })
+
+
 @router.get("/sbom", response_class=HTMLResponse)
 async def view_sbom(request: Request, user: User = Depends(get_current_user_html_optional)):
     """
