@@ -1229,7 +1229,7 @@ class BugReportKeysPage(SmoothScrollArea):
         btn_row = QHBoxLayout()
         btn_refresh = PushButton(FIF.SYNC, "Refresh", self)
         btn_refresh.clicked.connect(self._load_table)
-        self.btn_sync_all = PrimaryPushButton(FIF.CLOUD_UPLOAD, "Sync All to Portal", self)
+        self.btn_sync_all = PrimaryPushButton(FIF.SEND, "Sync All to Portal", self)
         self.btn_sync_all.clicked.connect(self._sync_all)
         btn_row.addWidget(btn_refresh)
         btn_row.addStretch()
@@ -1420,7 +1420,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.keys_page, FIF.VPN, "Keys")
         self.addSubInterface(self.history_page, FIF.HISTORY, "History")
         self.addSubInterface(self.archive_page, FIF.DELETE, "Archive")
-        self.addSubInterface(self.bug_report_keys_page, FIF.CLOUD_UPLOAD, "Bug Report Keys")
+        self.addSubInterface(self.bug_report_keys_page, FIF.SEND, "Bug Report Keys")
 
         # Add about at bottom
         self.addSubInterface(
