@@ -532,7 +532,7 @@ class ReleaseOrchestrator:
             tag_name = f"v{version}-beta" if channel == 'beta' else f"v{version}"
             tag_message = f"Release {version} (Beta)" if channel == 'beta' else f"Release {version}"
             subprocess.run(
-                ['git', 'tag', '-a', tag_name, '-m', tag_message],
+                ['git', 'tag', '-f', '-a', tag_name, '-m', tag_message],
                 cwd=self.project_root,
                 check=True
             )
