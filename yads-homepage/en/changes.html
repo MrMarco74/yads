@@ -153,6 +153,32 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.47.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.47.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">YADS v1.47.3: Discovery and Target Improvements</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added subdomain scanner to discovery process</li>
+                    <li>Rejected discovery candidates instantly disappear from UI, and blocked domain patterns immediately remove matching rows</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Prevent blocked domains from being inserted as pending candidates during discovery.</li>
+                    <li>Fixed bulk target deletion to respect foreign key constraints and properly delete all dependent tables.</li>
+                    <li>Corrected parameter handling in bulk target deletion queries.</li>
+                    <li>Archived rejected discovery targets to cancel any queued scans for those targets.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Reduced the signal weights of 'cors_trusted_origin' and 'sitemap_reference' to prevent false positives during discovery.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.47.2 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.47.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
