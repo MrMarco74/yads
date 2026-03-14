@@ -3584,6 +3584,19 @@ class SettingsPage(SmoothScrollArea):
 
         layout.addWidget(ai_card)
 
+        # Support Portal Card
+        support_card = SettingsCard("Support Portal", FIF.CLOUD, self)
+
+        self.support_portal_url = LineEdit(self)
+        self.support_portal_url.setPlaceholderText("https://support.yads-security.com")
+        support_card.addRow("Portal URL:", self.support_portal_url)
+
+        self.support_admin_token = PasswordLineEdit(self)
+        self.support_admin_token.setPlaceholderText("Admin Bearer Token")
+        support_card.addRow("Admin Token:", self.support_admin_token)
+
+        layout.addWidget(support_card)
+
         # Save Button
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -3629,6 +3642,8 @@ class SettingsPage(SmoothScrollArea):
                 self.gcp_project.setText(data.get('gcp_project', ''))
                 self.gcp_location.setText(data.get('gcp_location', 'us-central1'))
                 self.ai_model.setCurrentText(data.get('ai_model', 'gemini-2.0-flash'))
+                self.support_portal_url.setText(data.get('support_portal_url', 'https://support.yads-security.com'))
+                self.support_admin_token.setText(data.get('support_admin_token', ''))
 
             except Exception as e:
                 print(f"Error loading config: {e}")
@@ -3659,6 +3674,8 @@ class SettingsPage(SmoothScrollArea):
             'gcp_project': self.gcp_project.text(),
             'gcp_location': self.gcp_location.text(),
             'ai_model': self.ai_model.currentText(),
+            'support_portal_url': self.support_portal_url.text().strip(),
+            'support_admin_token': self.support_admin_token.text().strip(),
         }
 
         try:
@@ -4861,6 +4878,228 @@ class DevCredsPage(SmoothScrollArea):
         )
 
 
+class BugReportPage(QWidget):
+    """Shows bug reports fetched from the support portal admin API."""
+
+    _STATUS_COLORS = {
+        "new":      "#ef4444",   # red
+        "open":     "#f59e0b",   # amber
+        "resolved": "#22c55e",   # green
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("bugReportPage")
+        self._reports = []
+        self._config_file = Path.home() / ".yads" / "release_gui.yaml"
+        self._setup_ui()
+
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
+    def _setup_ui(self):
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(16)
+
+        # Header
+        layout.addWidget(TitleLabel("Bug Reports", self))
+        self.sub_label = BodyLabel("Klicke auf einen Report, um ihn im Support-Portal zu öffnen.", self)
+        layout.addWidget(self.sub_label)
+
+        # Toolbar
+        tb = CardWidget(self)
+        tb_row = QHBoxLayout(tb)
+        tb_row.setContentsMargins(12, 8, 12, 8)
+
+        self.filter_combo = ComboBox(self)
+        self.filter_combo.addItems(["Alle", "new", "open", "resolved"])
+        self.filter_combo.setFixedWidth(140)
+        self.filter_combo.currentTextChanged.connect(self._apply_filter)
+        tb_row.addWidget(BodyLabel("Status:", self))
+        tb_row.addWidget(self.filter_combo)
+        tb_row.addStretch()
+
+        self.status_label = BodyLabel("", self)
+        tb_row.addWidget(self.status_label)
+
+        self.refresh_btn = PrimaryPushButton(FIF.SYNC, "Aktualisieren", self)
+        self.refresh_btn.clicked.connect(self._fetch)
+        tb_row.addWidget(self.refresh_btn)
+
+        layout.addWidget(tb)
+
+        # Table
+        tbl_card = CardWidget(self)
+        tbl_layout = QVBoxLayout(tbl_card)
+        tbl_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Status", "Report-ID", "Kunde", "Version", "Datum", "Beschreibung"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 80)
+        self.table.setColumnWidth(1, 130)
+        self.table.setColumnWidth(2, 160)
+        self.table.setColumnWidth(3, 70)
+        self.table.setColumnWidth(4, 130)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setAlternatingRowColors(True)
+        self.table.cellDoubleClicked.connect(self._on_row_double_click)
+        self.table.cellClicked.connect(self._on_row_click)
+
+        tbl_layout.addWidget(self.table)
+        layout.addWidget(tbl_card, 1)
+
+    # ------------------------------------------------------------------
+    # Config helpers
+    # ------------------------------------------------------------------
+    def _load_cfg(self):
+        try:
+            import yaml
+            with open(self._config_file) as f:
+                data = yaml.safe_load(f) or {}
+            url = data.get('support_portal_url', '').strip()
+            token = data.get('support_admin_token', '').strip()
+            return url, token
+        except Exception:
+            return '', ''
+
+    # ------------------------------------------------------------------
+    # Data fetch (background thread)
+    # ------------------------------------------------------------------
+    def _fetch(self):
+        self.refresh_btn.setEnabled(False)
+        self.status_label.setText("Lade…")
+
+        url, token = self._load_cfg()
+        if not url or not token:
+            self.status_label.setText("⚠ Support-Portal URL / Token fehlt (Einstellungen → Support Portal)")
+            self.refresh_btn.setEnabled(True)
+            return
+
+        def _worker():
+            import urllib.request, urllib.error, json as _json
+            try:
+                req = urllib.request.Request(
+                    f"{url.rstrip('/')}/api/admin/reports",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = _json.loads(resp.read())
+                    return data.get("reports", []), None
+            except urllib.error.HTTPError as e:
+                return [], f"HTTP {e.code}: {e.read().decode()[:120]}"
+            except Exception as e:
+                return [], str(e)
+
+        def _on_done(reports, err):
+            self.refresh_btn.setEnabled(True)
+            if err:
+                self.status_label.setText(f"⚠ {err}")
+                InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
+                return
+            self._reports = reports
+            self._apply_filter(self.filter_combo.currentText())
+            self.status_label.setText(f"{len(reports)} Report(s)")
+
+        def _thread():
+            reports, err = _worker()
+            # Qt-safe: schedule back on main thread via a QTimer single-shot
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: _on_done(reports, err))
+
+        threading.Thread(target=_thread, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Table population
+    # ------------------------------------------------------------------
+    def _apply_filter(self, status_text: str):
+        from PySide6.QtWidgets import QTableWidgetItem
+        reports = self._reports
+        if status_text and status_text != "Alle":
+            reports = [r for r in reports if r.get("status") == status_text]
+
+        self.table.setRowCount(len(reports))
+        for row, r in enumerate(reports):
+            status = r.get("status", "?")
+            color = self._STATUS_COLORS.get(status, "#94a3b8")
+
+            status_item = QTableWidgetItem(status.upper())
+            status_item.setForeground(QColor(color))
+            font = QFont()
+            font.setBold(True)
+            status_item.setFont(font)
+            self.table.setItem(row, 0, status_item)
+
+            self.table.setItem(row, 1, QTableWidgetItem(r.get("report_id", "")))
+            self.table.setItem(row, 2, QTableWidgetItem(r.get("customer_name", "")))
+            self.table.setItem(row, 3, QTableWidgetItem(r.get("yads_version", "")))
+
+            # Format date
+            dt_raw = r.get("submitted_at", "")
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(dt_raw.replace("Z", "+00:00"))
+                dt_str = dt.strftime("%d.%m.%Y %H:%M")
+            except Exception:
+                dt_str = dt_raw[:16]
+            self.table.setItem(row, 4, QTableWidgetItem(dt_str))
+
+            desc = r.get("description", "")[:100]
+            self.table.setItem(row, 5, QTableWidgetItem(desc))
+
+            # Store report_id in row for click handler
+            for col in range(6):
+                item = self.table.item(row, col)
+                if item:
+                    item.setData(Qt.ItemDataRole.UserRole, r.get("report_id", ""))
+
+    # ------------------------------------------------------------------
+    # Click handlers
+    # ------------------------------------------------------------------
+    def _on_row_click(self, row, _col):
+        """Single click: show report-id in status bar."""
+        item = self.table.item(row, 1)
+        if item:
+            self.status_label.setText(f"→ {item.text()}  (Doppelklick zum Öffnen)")
+
+    def _on_row_double_click(self, row, _col):
+        """Double click: open report in browser."""
+        item = self.table.item(row, 0)
+        if not item:
+            return
+        report_id = item.data(Qt.ItemDataRole.UserRole)
+        if not report_id:
+            return
+
+        url, _ = self._load_cfg()
+        if not url:
+            InfoBar.warning("Keine URL", "Support-Portal URL in den Einstellungen konfigurieren.",
+                            parent=self, position=InfoBarPosition.TOP)
+            return
+
+        import webbrowser
+        portal_url = f"{url.rstrip('/')}/reports/{report_id}"
+        webbrowser.open(portal_url)
+        self.status_label.setText(f"Geöffnet: {portal_url}")
+
+    def showEvent(self, event):
+        """Auto-refresh when page becomes visible (only if table is empty)."""
+        super().showEvent(event)
+        if self.table.rowCount() == 0:
+            self._fetch()
+
+
 class MainWindow(FluentWindow):
     """Main application window with fluent navigation"""
 
@@ -4888,6 +5127,7 @@ class MainWindow(FluentWindow):
         self.test_manager_page = TestManagerPage(self)
         self.gui_tests_page = GuiTestsPage(self)
         self.dev_creds_page = DevCredsPage(self)
+        self.bug_report_page = BugReportPage(self)
         self.settings_page = SettingsPage(self)
         self.about_page = AboutPage(self)
 
@@ -4940,6 +5180,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.test_manager_page, FIF.CHECKBOX, "Test Manager")
         self.addSubInterface(self.gui_tests_page, FIF.ACCEPT, "GUI Tests")
         self.addSubInterface(self.dev_creds_page, FIF.DEVELOPER_TOOLS, "Dev Creds")
+        self.addSubInterface(self.bug_report_page, FIF.FEEDBACK, "Bug Reports")
         self.addSubInterface(self.settings_page, FIF.SETTING, "Settings")
 
         # Add about at bottom
