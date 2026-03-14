@@ -56,9 +56,9 @@
     <section class="container" style="margin-bottom: 4rem;">
         <div style="background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(6,182,212,0.10) 100%); border: 1px solid rgba(99,102,241,0.35); border-radius: 16px; padding: 2rem 2.5rem;">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-                <span style="background: var(--accent-secondary); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap;">v1.42 STABLE</span>
+                <span style="background: var(--accent-secondary); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap;">v1.45.3 STABLE</span>
                 <span style="background: rgba(16,185,129,0.15); color: #10b981; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap; border: 1px solid rgba(16,185,129,0.3);">Release v2.0 in Vorbereitung</span>
-                <h3 style="margin: 0; font-size: 1.4rem;">KI-Risikoanalyse, PQC-Bereitschaft, Enterprise SSO, DORA-EU-Compliance &amp; Observability-Stack</h3>
+                <h3 style="margin: 0; font-size: 1.4rem;">Asset Discovery, In-App-Bugmeldung, Dark/Light Mode, Mehrsprachigkeit &amp; mehr</h3>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
                 <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
@@ -90,6 +90,24 @@
                     <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌐</div>
                     <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Vollständiges DE/EN-Interface</h4>
                     <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Komplett deutsch- und englischsprachige Oberfläche, PDF-Reports, Excel-Exporte, KI-Ausgaben und Scan-Ergebnisbeschriftungen. Sprachpräferenz pro Benutzerprofil konfigurierbar.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem; position: relative;">
+                    <span style="position: absolute; top: 0.75rem; right: 0.75rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔍</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Asset Discovery</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Automatische Erkennung von Subdomains und Infrastruktur — inkl. rekursiver Entdeckung, passiver Aufklärungstechniken und automatischer Einreihung neuer Assets in die Scan-Queue.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem; position: relative;">
+                    <span style="position: absolute; top: 0.75rem; right: 0.75rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🐛</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">In-App-Bugmeldung</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Scan-Fehler werden über Redis-Log-Monitoring automatisch erkannt und als Tenant-Badge angezeigt. Benutzer können Fehlerberichte direkt aus der Oberfläche senden — ohne externe Tools.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem; position: relative;">
+                    <span style="position: absolute; top: 0.75rem; right: 0.75rem; background: var(--accent-secondary); color: #fff; font-size: 0.6rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 700;">NEU</span>
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌙</div>
+                    <h4 style="color: var(--accent-primary); margin-bottom: 0.5rem; font-size: 1rem;">Dark/Light Mode</h4>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Umgesetzter Feature-Request: Wechsel zwischen dunklem und hellem Design per Klick in der Navigationsleiste. Einstellung wird pro Benutzer gespeichert.</p>
                 </div>
                 <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.25rem;">
                     <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔑</div>
@@ -299,11 +317,39 @@
         </p>
     </section>
 
+    <!-- Kubernetes / Hyperscaler Coming Soon -->
+    <section class="container" style="margin-bottom: 4rem;">
+        <div style="background: linear-gradient(135deg, rgba(6,182,212,0.12) 0%, rgba(99,102,241,0.10) 100%); border: 1px solid rgba(6,182,212,0.35); border-radius: 16px; padding: 2rem 2.5rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                <span style="background: rgba(6,182,212,0.2); color: #06b6d4; font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.8rem; border-radius: 20px; letter-spacing: 0.05em; white-space: nowrap; border: 1px solid rgba(6,182,212,0.4);">DEMNÄCHST</span>
+                <h3 style="margin: 0; font-size: 1.4rem;">Kubernetes &amp; Hyperscaler-Unterstützung</h3>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">Der nächste große Entwicklungsblock: YADS erhält native Unterstützung für Cloud-native Deployments auf GKE (Google Kubernetes Engine) und AKS (Azure Kubernetes Service) — mit auto-skalierenden Worker-Pools, KEDA-basierter Event-Skalierung und Azure AD-Integration.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.1rem;">
+                    <div style="font-size: 1.3rem; margin-bottom: 0.4rem;">☁️</div>
+                    <h4 style="color: var(--accent-secondary); margin-bottom: 0.4rem; font-size: 0.95rem;">GKE (Google Cloud)</h4>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Autopilot-Cluster mit automatischer Node-Skalierung. Horizontal Pod Autoscaler für Worker-Pools basierend auf Queue-Tiefe.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.1rem;">
+                    <div style="font-size: 1.3rem; margin-bottom: 0.4rem;">🔷</div>
+                    <h4 style="color: var(--accent-secondary); margin-bottom: 0.4rem; font-size: 0.95rem;">AKS (Azure) — Bevorzugt</h4>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">KEDA-Integration für eventgesteuerte Skalierung auf Basis von Redis-Queue-Länge. Azure AD Workload Identity für sichere, schlüssellose Authentifizierung.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 10px; padding: 1.1rem;">
+                    <div style="font-size: 1.3rem; margin-bottom: 0.4rem;">⚡</div>
+                    <h4 style="color: var(--accent-secondary); margin-bottom: 0.4rem; font-size: 0.95rem;">Auto-Skalierung</h4>
+                    <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">Worker-Pods skalieren automatisch mit der Scan-Last — null Worker bei Inaktivität, Hunderte bei Hochlast. Pay-per-use für Enterprise-Deployments.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="container" style="margin-bottom: 4rem; text-align: center;">
         <div class="glass-card" style="padding: 2rem; max-width: 800px; margin: 0 auto;">
             <p style="font-size: 1.1rem; line-height: 1.6; color: var(--text-secondary);">
-                <span class="text-gradient" style="font-weight: bold;">YADS</span> entstand aus einer Vision für <strong style="color: #fff;">umfassende Transparenz</strong>. 
-                Es versteht sich <strong style="color: #ff6b6b;">NICHT</strong> als die ultimative Endlösung, sondern als 
+                <span class="text-gradient" style="font-weight: bold;">YADS</span> entstand aus einer Vision für <strong style="color: #fff;">umfassende Transparenz</strong>.
+                Es versteht sich <strong style="color: #ff6b6b;">NICHT</strong> als die ultimative Endlösung, sondern als
                 <span style="color: #fff;">Experimentierfeld und Baukasten</span> für neue Ideen im Bereich Domain- und Attack Surface Monitoring.
             </p>
         </div>

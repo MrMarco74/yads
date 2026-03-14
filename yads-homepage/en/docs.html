@@ -123,6 +123,10 @@
 <li><a href="#14-finding-management--vulnerability-tracking">14. Finding Management</a></li>
 <li><a href="#15-asset-tagging--organization">15. Asset Tagging</a></li>
 <li><a href="#16-executive-report--portfolio-view">16. Executive Report &amp; Portfolio</a></li>
+<li><a href="#17-dark-mode-light-mode">17. Dark/Light Mode</a></li>
+<li><a href="#18-in-app-bug-reporting">18. In-App Bug Reporting</a></li>
+<li><a href="#19-asset-discovery">19. Asset Discovery</a></li>
+<li><a href="#20-multilanguage-en-de">20. Multilanguage (EN/DE)</a></li>
 <li style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
     <a href="docs-advanced.html" style="color: var(--accent-primary); font-weight: 600;">→ Advanced / Technical Guide</a>
 </li>
@@ -131,8 +135,8 @@
         </aside>
         <main class="docs-content">
             <h1>YADS - Comprehensive User Guide</h1>
-<p><strong>Version:</strong> 1.40.0
-<strong>Last Updated:</strong> 2026-03-13</p>
+<p><strong>Version:</strong> 1.45.3
+<strong>Last Updated:</strong> 2026-03-14</p>
 <p>Welcome to the <strong>YADS (Yet Another Domain Scanner)</strong> manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.</p>
 <hr />
 <h2>Table of Contents</h2>
@@ -160,7 +164,23 @@
 <li><a href="#14-finding-management--vulnerability-tracking">Finding Management &amp; Vulnerability Tracking</a></li>
 <li><a href="#15-asset-tagging--organization">Asset Tagging &amp; Organization</a></li>
 <li><a href="#16-executive-report--portfolio-view">Executive Report &amp; Portfolio View</a></li>
-<li><a href="#20-standalone-local-installation">20. Standalone &amp; Local Installation</a></li>
+<li><a href="#17-dark-mode-light-mode">17. Dark/Light Mode</a></li>
+<li><a href="#18-in-app-bug-reporting">18. In-App Bug Reporting</a></li>
+<li><a href="#19-asset-discovery">19. Asset Discovery</a></li>
+<li><a href="#20-multilanguage-en-de">20. Multilanguage (EN/DE)</a></li>
+<li><a href="docs-advanced.html#21-best-practices">21. Best Practices</a></li>
+<li><a href="docs-advanced.html#22-troubleshooting">22. Troubleshooting</a></li>
+<li><a href="docs-advanced.html#23-standalone-local-installation">23. Standalone &amp; Local Installation</a></li>
+<li><a href="docs-advanced.html#24-identity-provider-sso">24. Identity Provider &amp; SSO</a></li>
+<li><a href="docs-advanced.html#25-developer-portal">25. Developer Portal</a></li>
+<li><a href="docs-advanced.html#26-scan-profiles">26. Scan Profiles</a></li>
+<li><a href="docs-advanced.html#27-excel-export">27. Excel Export</a></li>
+<li><a href="docs-advanced.html#28-attack-path-visualizer">28. Attack Path Visualizer</a></li>
+<li><a href="docs-advanced.html#29-scan-comparison">29. Scan Comparison</a></li>
+<li><a href="docs-advanced.html#30-waf-analysis">30. WAF Analysis</a></li>
+<li><a href="docs-advanced.html#31-scanner-import">31. Scanner Import</a></li>
+<li><a href="docs-advanced.html#32-integrations">32. Integrations</a></li>
+<li><a href="docs-advanced.html#33-extended-scanner-reference">33. Scanner Reference</a></li>
 </ol>
 <hr />
 <h2>1. Introduction</h2>
@@ -1011,6 +1031,79 @@ docker pull registry.yads-security.com/yads/yads-worker:latest
 docker compose up -d --force-recreate
 </div>
 <p>Always create a backup before updating (Settings → Backup &amp; Restore).</p>
+
+<hr />
+<h2 id="17-dark-mode-light-mode">17. Dark / Light Mode</h2>
+<p>YADS supports both a dark (default) and light theme. Switching is instant and does not require re-login. The preference is stored per user.</p>
+<h3>Toggling the Theme</h3>
+<ul>
+    <li>Click the <strong>Moon/Sun icon</strong> in the top navigation bar (to the right of your user menu).</li>
+    <li>The interface switches immediately between <strong>Dark Mode</strong> (default, dark background) and <strong>Light Mode</strong> (light background).</li>
+    <li>Your preference is stored in the browser and persists across sessions.</li>
+</ul>
+<blockquote>
+    <p><strong>Note:</strong> Light Mode CSS has been optimized for all UI elements including Slate and Grey palette overrides for consistent readability. Both modes are fully supported.</p>
+</blockquote>
+
+<hr />
+<h2 id="18-in-app-bug-reporting">18. In-App Bug Reporting</h2>
+<p>YADS includes a built-in error monitoring and reporting system that automatically detects scan errors and allows users to report issues directly from the interface.</p>
+<h3>Automatic Error Detection</h3>
+<ul>
+    <li>A background watcher continuously monitors Redis logs for scan errors.</li>
+    <li>Detected errors appear as a <strong>tenant badge</strong> in the navigation bar showing the number of unresolved errors.</li>
+    <li>Each error can be individually reviewed and dismissed via the <strong>Dismiss button</strong>.</li>
+</ul>
+<h3>Submitting a Bug Report</h3>
+<ul>
+    <li>Click the error badge or navigate to <strong>Settings → Bug Reports</strong>.</li>
+    <li>The report is auto-populated with relevant system info, log excerpts, and the tenant ID.</li>
+    <li>Reports can be sent via email to the support team (requires SMTP configuration).</li>
+</ul>
+
+<hr />
+<h2 id="19-asset-discovery">19. Asset Discovery</h2>
+<p>The Asset Discovery module automatically detects subdomains and related infrastructure for a target domain — without running active network scans.</p>
+<h3>How It Works</h3>
+<ul>
+    <li><strong>Passive Techniques</strong>: Certificate Transparency logs (crt.sh), DNS databases, Wayback Machine, and public OSINT sources.</li>
+    <li><strong>Recursive Discovery</strong>: Newly discovered subdomains are automatically registered as additional targets and scanned in turn (configurable).</li>
+    <li><strong>Automatic Queue Integration</strong>: Discovered assets are immediately added to the scan queue — no manual input required.</li>
+</ul>
+<h3>Configuration</h3>
+<ul>
+    <li>Enable <strong>Auto-Queue Subdomains</strong> under <strong>Settings → Scan Settings</strong>.</li>
+    <li>Recursive mode can be limited to a maximum depth to prevent unbounded growth of the target list.</li>
+    <li>Discovery results are available in the <strong>DNS Scanner</strong> report for each target.</li>
+</ul>
+<blockquote>
+    <p><strong>Tip:</strong> Combine Asset Discovery with the <strong>DNS Health Check</strong> module to automatically archive unreachable subdomains.</p>
+</blockquote>
+<div style="margin: 1.5rem 0;">
+    <img src="images/yads/v145/02_targets_table.png" alt="Targets table with discovered assets" style="max-width:100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+    <p style="font-size:0.8rem; color:#64748b; margin-top:0.5rem;">Targets table showing automatically discovered subdomains and asset discovery results.</p>
+</div>
+
+<hr />
+<h2 id="20-multilanguage-en-de">20. Multilanguage (EN/DE)</h2>
+<p>YADS is fully available in English and German. The language setting applies to the entire interface, all exports, and AI outputs.</p>
+<h3>Changing Language</h3>
+<ol>
+    <li>Open your <strong>User Profile</strong> (top right → your username).</li>
+    <li>Under <strong>Language Preference</strong>, select <strong>English</strong> or <strong>Deutsch</strong>.</li>
+    <li>Save — the interface switches immediately without re-login.</li>
+</ol>
+<h3>What is Translated?</h3>
+<ul>
+    <li><strong>Interface</strong>: All sidebar entries, menus, buttons, labels, and error messages.</li>
+    <li><strong>PDF Reports</strong>: All generated reports use the logged-in user's selected language.</li>
+    <li><strong>Excel Exports</strong>: Column headers and category labels in the selected language.</li>
+    <li><strong>AI Outputs</strong>: AI analysis, risk scoring, and remediation recommendations are delivered in the user's language.</li>
+    <li><strong>Schedule Strings</strong>: Scan schedule descriptions are displayed in the selected language.</li>
+</ul>
+<blockquote>
+    <p><strong>Note:</strong> Scan result raw data is stored language-independently. Only UI labels and report outputs are translated.</p>
+</blockquote>
 
 <hr />
 <p style="margin-top: 2rem; padding: 1rem; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 8px;">
