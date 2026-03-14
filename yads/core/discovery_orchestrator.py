@@ -23,7 +23,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 
 from yads.database import engine, redis_client
-from yads.models import DiscoverySession, DiscoveryCandidate, Target, ScanResult
+from yads.models import DiscoverySession, DiscoveryCandidate, DiscoveryDomainBlocklist, Target, ScanResult
 
 # Scan types for below-threshold targets — same lightweight set as the discovery phase
 DISCOVERY_SCAN_TYPES = ["dns_scanner", "ssl_scanner", "ct_monitor", "asn_scanner"]
@@ -50,6 +50,17 @@ SIGNAL_WEIGHTS = {
     "srv_record":            0.4,  # SRV record points to this host
     "sitemap_reference":     0.35, # referenced in sitemap/robots.txt
 }
+
+
+def _matches_blocklist(domain: str, patterns: List[str]) -> bool:
+    for pattern in patterns:
+        if pattern.startswith("*."):
+            parent = pattern[2:]
+            if domain == parent or domain.endswith("." + parent):
+                return True
+        elif domain == pattern:
+            return True
+    return False
 
 
 def _string_similarity_score(candidate: str, seed_domains: List[str]) -> float:
@@ -207,10 +218,27 @@ class DiscoveryOrchestrator:
                 )
             ).all()
 
+            # Load tenant blocklist once for this batch
+            blocklist_entries = db.exec(
+                select(DiscoveryDomainBlocklist).where(
+                    DiscoveryDomainBlocklist.tenant_id == sess.tenant_id
+                )
+            ).all()
+            blocked_patterns = [e.pattern for e in blocklist_entries]
+
             accepted = 0
             rejected = 0
 
             for cand in candidates:
+                # Skip silently if domain matches tenant blocklist
+                if blocked_patterns and _matches_blocklist(cand.domain, blocked_patterns):
+                    cand.status = "rejected"
+                    cand.rejection_reason = "domain_blocked"
+                    db.add(cand)
+                    rejected += 1
+                    sess.total_rejected += 1
+                    continue
+
                 # Check global limits
                 if sess.total_accepted >= sess.max_targets:
                     cand.status = "rejected"
