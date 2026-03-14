@@ -4978,20 +4978,17 @@ class BugReportPage(QWidget):
             url = data.get('support_portal_url', '').strip()
             token = data.get('support_admin_token', '').strip()
             return url, token
-        except Exception as e:
-            print(f"[BugReportPage] _load_cfg error: {e}")
+        except Exception:
             return '', ''
 
     # ------------------------------------------------------------------
     # Data fetch (background thread)
     # ------------------------------------------------------------------
     def _fetch(self):
-        print("[BugReportPage] _fetch() called", flush=True)
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("Lade…")
 
         url, token = self._load_cfg()
-        print(f"[BugReportPage] url={url!r} token_ok={bool(token)}", flush=True)
         if not url or not token:
             self.status_label.setText("⚠ Support-Portal URL / Token fehlt (Einstellungen → Support Portal)")
             self.refresh_btn.setEnabled(True)
@@ -5009,41 +5006,27 @@ class BugReportPage(QWidget):
                     data = _json.loads(resp.read())
                     return data.get("reports", []), None
             except urllib.error.HTTPError as e:
-                msg = f"HTTP {e.code}: {e.read().decode()[:120]}"
-                print(f"[BugReportPage] HTTPError: {msg}", flush=True)
-                return [], msg
+                return [], f"HTTP {e.code}: {e.read().decode()[:120]}"
             except Exception as e:
-                import traceback as _tb
-                msg = str(e)
-                print(f"[BugReportPage] fetch error: {msg}\n{_tb.format_exc()}", flush=True)
-                return [], msg
+                return [], str(e)
 
         def _thread():
-            print("[BugReportPage] thread started", flush=True)
             reports, err = _worker()
-            print(f"[BugReportPage] thread done, emitting signal", flush=True)
             self._fetch_done_signal.emit(reports, err or "")
 
         threading.Thread(target=_thread, daemon=True).start()
 
     @Slot(list, str)
     def _on_fetch_done(self, reports, err):
-        print(f"[BugReportPage] _on_fetch_done reports={len(reports)} err={err!r}", flush=True)
-        try:
-            self.refresh_btn.setEnabled(True)
-            if err:
-                self.status_label.setText(f"⚠ {err}")
-                InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
-                return
-            self._reports = reports
-            self._known_ids = {r["report_id"] for r in reports}
-            self._apply_filter(self.filter_combo.currentText())
-            self.status_label.setText(f"{len(reports)} Report(s)")
-        except Exception as e:
-            import traceback as _tb
-            print(f"[BugReportPage] _on_fetch_done crash: {e}\n{_tb.format_exc()}", flush=True)
-            self.refresh_btn.setEnabled(True)
-            self.status_label.setText(f"⚠ Interner Fehler: {e}")
+        self.refresh_btn.setEnabled(True)
+        if err:
+            self.status_label.setText(f"⚠ {err}")
+            InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP, duration=5000)
+            return
+        self._reports = reports
+        self._known_ids = {r["report_id"] for r in reports}
+        self._apply_filter(self.filter_combo.currentText())
+        self.status_label.setText(f"{len(reports)} Report(s)")
 
     # ------------------------------------------------------------------
     # Table population
