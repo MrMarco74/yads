@@ -152,6 +152,14 @@
                         <span class="ml-3 text-sm font-medium">System-Alerts</span>
                     </a>
                 </li>
+                <li>
+                    <a href="/discovery/blocklist" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/discovery/blocklist' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Discovery Blocklist</span>
+                    </a>
+                </li>
                 {% endif %}
                 <!-- OSINT Search (Licensed) -->
             <li>
