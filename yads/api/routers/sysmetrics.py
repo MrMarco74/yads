@@ -15,7 +15,6 @@ from yads.auth.deps import get_current_user_html, PlatformAdminChecker
 from yads.models import User
 
 router = APIRouter(prefix="/api/system", tags=["system-metrics"])
-router = APIRouter(prefix="/api/system", tags=["system-metrics"])
 ui_router = APIRouter(tags=["system-ui"])
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
