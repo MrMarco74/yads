@@ -124,6 +124,14 @@
                 </li>
                 {% if user and user.role == 'admin' %}
                 <li>
+                    <a href="/system/health" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/system/health' in request.path %}bg-slate-800 text-white{% endif %}">
+                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span class="ml-3 text-sm font-medium">Operations Center</span>
+                    </a>
+                </li>
+                <li>
                     <a href="/workers" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/workers' or request.path.startswith('/workers/') %}bg-slate-800 text-white{% endif %}">
                         <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
