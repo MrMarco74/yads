@@ -227,3 +227,43 @@ async def list_customer_keys(
             for k in keys
         ]
     }
+
+
+@router.get("/api/admin/reports", status_code=200)
+async def list_reports(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+    status: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    """
+    List all bug reports (optionally filtered by status).
+
+    Protected by Bearer token + IP allowlist only.
+    """
+    from sqlmodel import col
+    from app.models import BugReport
+
+    _check_bearer(authorization)
+    _check_ip(request)
+
+    query = select(BugReport).order_by(col(BugReport.submitted_at).desc())
+    reports = session.exec(query).all()
+
+    if status:
+        reports = [r for r in reports if r.status == status]
+
+    return {
+        "reports": [
+            {
+                "report_id": r.report_id,
+                "customer_name": r.customer_name,
+                "tenant_name": r.tenant_name,
+                "yads_version": r.yads_version,
+                "status": r.status,
+                "description": r.description,
+                "submitted_at": r.submitted_at.isoformat(),
+            }
+            for r in reports
+        ]
+    }
