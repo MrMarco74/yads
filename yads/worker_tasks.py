@@ -432,6 +432,9 @@ def run_all_scans(
                 if not target:
                     logger.warning(f"[Worker] Target {domain} (ID: {target_id}) not found in DB. Aborting scan.")
                     return
+                if target.is_archived:
+                    logger.info(f"[Worker] Target {domain} (ID: {target_id}) is archived — skipping scan.")
+                    return
 
                 target.scan_status = "running"
                 target.scan_progress = "Initializing scan..."
