@@ -415,9 +415,9 @@ def run_all_scans(
             conf_val = conf.value if conf else "None"
             logger.info(f"[Worker] Checking QUEUE_ACTIVE for {domain}. DB Value: '{conf_val}', IgnorePause: {ignore_queue_pause}")
 
-            is_paused = True
-            if conf and conf.value.lower() == "true":
-                is_paused = False
+            # Default: active. Only pause if QUEUE_ACTIVE is explicitly "false".
+            # Missing key (fresh DB after wipe) = treat as active.
+            is_paused = conf is not None and conf.value.lower() == "false"
 
             if ignore_queue_pause:
                 is_paused = False
