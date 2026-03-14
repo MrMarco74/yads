@@ -291,6 +291,15 @@ async def upload_module(
 
         # Copy module file to custom modules dir
         module_file = manifest["module_file"]
+
+        # Prevent path traversal: module_file must be a plain filename ending in .py
+        if (os.sep in module_file or "/" in module_file or "\\" in module_file
+                or not module_file.endswith(".py") or module_file.startswith(".")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid module_file '{module_file}': must be a plain .py filename with no path separators."
+            )
+
         src = os.path.join(tmpdir, module_file)
         if not os.path.exists(src):
             raise HTTPException(status_code=400, detail=f"Module file '{module_file}' not found in ZIP")
@@ -319,7 +328,7 @@ async def upload_module(
         im.installed_at = datetime.utcnow()
         im.installed_by = user.id
         im.is_active = True
-        im.setup_log = setup_log or None
+        im.setup_log = None
 
         session.add(im)
         session.commit()
