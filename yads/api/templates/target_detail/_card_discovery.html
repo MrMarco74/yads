@@ -1,0 +1,260 @@
+            <!-- CONTENT DISCOVERY CARD -->
+            {% if content_discovery_result and content_discovery_result.data %}
+            <div class="bg-gray-800/50 border border-teal-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">Content Discovery (Fuzzing)</h2>
+                        <p class="text-xs text-gray-400">Active enumeration of hidden files and directories.</p>
+                    </div>
+                    {% if content_discovery_result.data and content_discovery_result.data.found_assets %}
+                        <span class="text-xs bg-teal-900/50 text-teal-300 px-2 py-1 rounded border border-teal-700">
+                            {{ content_discovery_result.data.found_assets|length }} Found
+                        </span>
+                    {% endif %}
+                </div>
+
+                {% if content_discovery_result.data.found_assets %}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="bg-gray-900/50 text-xs uppercase text-gray-500">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-l-lg">Status</th>
+                                    <th class="px-4 py-3">Path</th>
+                                    <th class="px-4 py-3">Type</th>
+                                    <th class="px-4 py-3 text-right rounded-r-lg">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-700/50">
+                                {% for asset in content_discovery_result.data.found_assets %}
+                                <tr class="hover:bg-white/5 transition-colors">
+                                    <td class="px-4 py-3">
+                                        {% if asset.status == 200 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-green-900/40 text-green-300 border border-green-700/50">200 OK</span>
+                                        {% elif asset.status == 403 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-orange-900/40 text-orange-300 border border-orange-700/50">403 Forbidden</span>
+                                        {% elif asset.status == 301 or asset.status == 302 %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-blue-900/40 text-blue-300 border border-blue-700/50">{{ asset.status }} Redirect</span>
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">{{ asset.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-3 font-mono text-white select-all">{{ asset.path }}</td>
+                                    <td class="px-4 py-3 text-xs">{{ asset.type or '-' }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        <a href="{{ asset.url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 hover:underline text-xs">Open &nearr;</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-8 bg-gray-900/20 rounded-lg border border-gray-700/50 border-dashed">
+                            <p class="text-gray-500 text-sm">No interesting assets found.</p>
+                            {% if content_discovery_result.data.error %}
+                                <p class="text-red-400 text-xs mt-2">{{ content_discovery_result.data.error }}</p>
+                            {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if content_discovery_result.log_content %}
+                <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                    <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                        <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        View Fuzzing Logs
+                    </summary>
+                    <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ content_discovery_result.log_content }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- TYPOSQUAT ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-orange-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-orange-500/10 rounded-lg text-orange-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Typosquatting Discovery</h2>
+                </div>
+
+                {% if typosquat_result and typosquat_result.data %}
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-gray-900/30 rounded-lg p-4">
+                            <p class="text-xs text-gray-500 mb-1">Total Variations Checked</p>
+                            <p class="text-2xl font-bold text-white">{{ typosquat_result.data.scanned_count }} / {{ typosquat_result.data.total_variations }}</p>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg p-4">
+                            <p class="text-xs text-gray-500 mb-1">Potential Squats Found</p>
+                            <p class="text-2xl font-bold text-orange-400">{{ typosquat_result.data.found|length }}</p>
+                        </div>
+                    </div>
+
+                    {% if typosquat_result.data.found %}
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-400">
+                                <thead class="bg-gray-900/50 text-xs uppercase text-gray-500">
+                                    <tr>
+                                        <th class="px-4 py-3 rounded-l-lg">Domain Variant</th>
+                                        <th class="px-4 py-3">IP Address</th>
+                                        <th class="px-4 py-3">Registrar / Info</th>
+                                        <th class="px-4 py-3 rounded-r-lg">Risk</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-700/50">
+                                    {% for squat in typosquat_result.data.found %}
+                                    <tr class="hover:bg-white/5 transition-colors">
+                                        <td class="px-4 py-3 font-mono text-gray-200">{{ squat.domain }}</td>
+                                        <td class="px-4 py-3 text-xs">{{ squat.ip }}</td>
+                                        <td class="px-4 py-3 text-xs">{{ squat.fuzzer }}</td>
+                                        <td class="px-4 py-3">
+                                            <span class="px-2 py-0.5 rounded text-xs bg-red-900/40 text-red-300 border border-red-700/50">High</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8 bg-gray-900/20 rounded-lg border border-gray-700/50 border-dashed">
+                             <p class="text-gray-500 text-sm">No active typosquatting domains detected.</p>
+                        </div>
+                    {% endif %}
+                    
+                    {% if typosquat_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ typosquat_result.log_content }}</pre>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No Typosquatting data available.</p>
+                {% endif %}
+            </div>
+
+
+            <!-- TLD ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-cyan-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">Global TLD Availability</h2>
+                        <p class="text-xs text-gray-400">Availability of '{{ target.domain.split('.')[0] }}' across other TLDs.</p>
+                    </div>
+                </div>
+
+                {% if tld_result and tld_result.data %}
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-gray-900/30 rounded-lg p-4 text-center">
+                            <p class="text-xs text-gray-500 mb-1">Total TLDs Scanned</p>
+                            <p class="text-2xl font-bold text-white">{{ tld_result.data.scanned_count }}</p>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg p-4 text-center border border-green-500/20">
+                            <p class="text-xs text-green-400 mb-1">Available (Free)</p>
+                            <p class="text-2xl font-bold text-green-400">{{ tld_result.data.free_count }}</p>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg p-4 text-center border border-red-500/20">
+                            <p class="text-xs text-red-400 mb-1">Registered</p>
+                            <p class="text-2xl font-bold text-red-400">
+                                {{ (tld_result.data.registered_count_diff_owner or 0) + (tld_result.data.registered_count_same or 0) }}
+                                <span class="text-xs font-normal text-gray-500 block mt-1">
+                                    {{ tld_result.data.registered_count_diff_owner}} Diff / {{ tld_result.data.registered_count_same }} Same
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Missing (Free) TLDs -->
+                    <div class="mb-6">
+                         <h3 class="text-sm font-bold text-green-400 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Available TLDs (Missing)
+                         </h3>
+                         <div class="bg-gray-900/20 rounded-lg p-4 border border-green-500/10 max-h-64 overflow-y-auto custom-scrollbar">
+                            <div class="flex flex-wrap gap-2">
+                                {% for detail in tld_result.data.details %}
+                                    {% if detail.status == 'free' %}
+                                        <a href="https://www.namecheap.com/domains/registration/results/?domain={{ detail.domain }}" target="_blank" 
+                                           class="px-2 py-1 bg-green-900/20 hover:bg-green-900/40 text-green-300 hover:text-green-200 border border-green-500/30 rounded text-xs transition-colors"
+                                           title="Register {{ detail.domain }}">
+                                            .{{ detail.tld }}
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                         </div>
+                    </div>
+
+                    <!-- Registered TLDs Table -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-bold text-red-400 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            Registered Maps
+                        </h3>
+                         <div class="bg-gray-900/40 rounded-lg overflow-hidden border border-gray-700/50">
+                            <table class="w-full text-left text-sm text-gray-400">
+                                <thead class="bg-gray-800/50 text-xs uppercase text-gray-500 font-medium">
+                                    <tr>
+                                        <th class="px-4 py-3">Domain</th>
+                                        <th class="px-4 py-3">IP Address</th>
+                                        <th class="px-4 py-3">ASN / Org</th>
+                                        <th class="px-4 py-3">Server</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-700/50">
+                                    {% for detail in tld_result.data.details %}
+                                        {% if detail.status == 'registered' %}
+                                        <tr class="hover:bg-white/5 transition-colors">
+                                            <td class="px-4 py-3 font-medium text-gray-200">
+                                                {{ detail.domain }}
+                                                {% if detail.same_owner %}
+                                                    <span class="ml-2 text-[10px] bg-blue-900/40 text-blue-300 border border-blue-500/30 px-1.5 py-0.5 rounded">SAME</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-3 font-mono text-xs">{{ detail.primary_ip }}</td>
+                                            <td class="px-4 py-3 text-xs max-w-[200px] truncate" title="{{ detail.asn.org if detail.asn else 'N/A' }}">
+                                                {% if detail.asn %}
+                                                    <span class="font-bold text-gray-300">AS{{ detail.asn.asn }}</span>
+                                                    <span class="block text-gray-500 text-[10px] truncate">{{ detail.asn.org }}</span>
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-4 py-3 text-xs max-w-[150px] truncate" title="{{ detail.server }}">
+                                                {{ detail.server or '-' }}
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                         </div>
+                    </div>
+
+                    {% if tld_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View TLD Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ tld_result.log_content }}</pre>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No TLD Scan data available.</p>
+                {% endif %}
+            </div>

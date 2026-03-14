@@ -1,0 +1,230 @@
+            <!-- WEB ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-emerald-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Web Analysis</h2>
+                    {% if 'web_analyzer' in changed_modules %}<span class="ml-1 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}
+                </div>
+
+                {% if web_result and web_result.data %}
+                    <div class="space-y-6">
+                        <!-- Top Row: Screenshot & Visual Identity -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <!-- Visuals -->
+                             <div>
+                                <div class="flex items-center gap-4 mb-4">
+                                     {% if web_result.data.visuals and web_result.data.visuals.favicon %}
+                                        <img src="{{ web_result.data.visuals.favicon }}" class="w-12 h-12 rounded shadow bg-white p-1" alt="Favicon">
+                                     {% endif %}
+                                     <div>
+                                         <h3 class="text-white font-bold text-lg">{{ web_result.data.title or 'No Title' }}</h3>
+                                         <p class="text-sm text-gray-400">{{ web_result.data.status_code }} {{ web_result.data.server or '' }}</p>
+                                     </div>
+                                 </div>
+
+                                 <!-- Tech Stack -->
+                                 {% if web_result.data.tech_stack %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-gray-500 uppercase tracking-wider mb-2">Tech Stack</h4>
+                                        <div class="flex flex-wrap gap-2">
+                                            {% for tech in web_result.data.tech_stack %}
+                                                <span class="bg-gray-700/50 text-gray-300 text-xs px-2 py-1 rounded border border-gray-600">
+                                                    {{ tech }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- Risk Hints -->
+                                 {% if web_result.data.risk_hints %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-red-400 uppercase tracking-wider mb-2 font-bold">Risk Indicators</h4>
+                                        <ul class="space-y-1">
+                                            {% for hint in web_result.data.risk_hints %}
+                                                <li class="flex items-center gap-2 text-xs text-red-300 bg-red-900/10 p-1.5 rounded">
+                                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                                    {{ hint }}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- Secret Leaks -->
+                                 {% if web_result.data.secrets %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-pink-500 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                            Secret Keys & Tokens Found
+                                        </h4>
+                                        <div class="space-y-3">
+                                            {% for secret in web_result.data.secrets %}
+                                                <div class="bg-pink-900/10 border border-pink-500/20 rounded-lg p-4 flex flex-col gap-2 shadow-sm">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-xs font-bold text-pink-400">{{ secret.type }}</span>
+                                                        <span class="text-[10px] bg-red-900/40 text-red-200 px-1.5 py-0.5 rounded font-mono border border-red-500/20 uppercase tracking-wider">Critical Leak</span>
+                                                    </div>
+                                                    
+                                                    <div class="flex items-center gap-2 text-[10px] text-slate-500 font-mono truncate" title="{{ secret.source }}">
+                                                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                                        <span class="truncate">{{ secret.source }}</span>
+                                                        {% if secret.line %}
+                                                            <span class="text-slate-600 px-1.5 py-0.5 bg-slate-800 rounded">Line {{ secret.line }}</span>
+                                                        {% endif %}
+                                                    </div>
+
+                                                    <pre class="font-mono text-[10px] text-pink-100 bg-slate-950/50 p-3 rounded border border-white/5 overflow-x-auto custom-scrollbar leading-relaxed"><code>{{ secret.context or secret.value }}</code></pre>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- CVEs -->
+                                 {% if web_result.data.cves %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-red-500 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                            Potential Vulnerabilities
+                                        </h4>
+                                        <div class="space-y-2">
+                                            {% for cve in web_result.data.cves %}
+                                                <div class="bg-red-900/20 border border-red-900/50 rounded p-2">
+                                                    <div class="flex items-center justify-between mb-1">
+                                                        <a href="https://cve.circl.lu/cve/{{ cve.id }}" target="_blank" class="text-xs font-bold text-red-400 hover:text-red-300 underline">{{ cve.id }}</a>
+                                                        <span class="text-[10px] bg-red-900/50 text-red-200 px-1.5 py-0.5 rounded">CVSS: {{ cve.cvss }}</span>
+                                                    </div>
+                                                    <p class="text-[10px] text-gray-400 line-clamp-2" title="{{ cve.summary }}">{{ cve.summary }}</p>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- API Endpoints -->
+                                 {% if web_result.data.api_endpoints %}
+                                    <div class="mb-4">
+                                        <h4 class="text-xs text-indigo-400 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                            API Endpoints & Documentation
+                                        </h4>
+                                        <div class="space-y-2">
+                                            {% for api in web_result.data.api_endpoints %}
+                                                <div class="bg-indigo-900/20 border border-indigo-500/30 rounded p-2 flex items-center justify-between">
+                                                    <div>
+                                                        <span class="text-xs font-bold text-indigo-300">{{ api.type }}</span>
+                                                        <span class="text-[10px] text-gray-500 ml-2">({{ api.source }})</span>
+                                                    </div>
+                                                    {% if api.url %}
+                                                        <a href="{{ api.url }}" target="_blank" class="text-xs text-indigo-400 hover:text-white underline">Open Link</a>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- Broken Link Hijacking -->
+                                 {% if web_result.data.broken_links %}
+                                    <div class="mb-4 bg-red-900/10 border border-red-500/30 rounded p-3">
+                                        <h4 class="text-xs text-red-500 uppercase tracking-wider mb-2 font-bold flex items-center gap-2">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                            Broken Link Hijacking Risks
+                                        </h4>
+                                        <div class="space-y-1">
+                                            {% for link in web_result.data.broken_links %}
+                                                <div class="flex items-center justify-between text-xs">
+                                                    <span class="text-red-300 truncate w-3/4" title="{{ link.url }}">{{ link.url }}</span>
+                                                    <span class="bg-red-900/50 text-red-200 px-1.5 py-0.5 rounded">{{ link.error }}</span>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+
+                                 <!-- Sensitive Keywords -->
+                                 {% if web_result.data.keywords_found %}
+                                    <div class="bg-yellow-900/20 border border-yellow-500/30 rounded p-3">
+                                        <h4 class="text-yellow-400 font-bold text-xs mb-1">! Sensitive Keywords Found</h4>
+                                        <div class="flex flex-wrap gap-2">
+                                            {% for kw in web_result.data.keywords_found %}
+                                                <span class="text-xs text-yellow-200 bg-yellow-900/40 px-1.5 py-0.5 rounded">{{ kw }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                 {% endif %}
+                             </div>
+
+                             <!-- Screenshot -->
+                             <div>
+                                {% if web_result.data.screenshot_path %}
+                                    <h4 class="text-xs text-gray-500 uppercase tracking-wider mb-2">Screenshot</h4>
+                                    <a href="/static/screenshots/{{ web_result.data.screenshot_path }}" target="_blank" class="block group relative overflow-hidden rounded-lg border border-gray-700">
+                                        <img src="/static/screenshots/{{ web_result.data.screenshot_path }}" class="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105" alt="Screenshot">
+                                        <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <span class="text-white text-sm font-medium">View Full Size</span>
+                                        </div>
+                                    </a>
+                                {% else %}
+                                    <div class="w-full h-48 bg-gray-900 rounded-lg flex items-center justify-center border border-gray-700 border-dashed">
+                                        <span class="text-gray-600 text-sm">No Screenshot Available</span>
+                                    </div>
+                                {% endif %}
+                             </div>
+                        </div>
+
+                        <!-- Headers & Redirects (Collapsible or Bottom) -->
+                        <div class="border-t border-gray-700 pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="text-xs text-gray-500 uppercase tracking-wider mb-2">HTTP Headers</h4>
+                                <div class="bg-gray-900 rounded p-3 h-32 overflow-y-auto text-xs font-mono text-gray-400">
+                                    {% for k, v in web_result.data.http_headers.items() %}
+                                        <div class="flex gap-2">
+                                            <span class="text-indigo-400">{{ k }}:</span>
+                                            <span class="text-gray-300 break-all">{{ v }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h4 class="text-xs text-gray-500 uppercase tracking-wider mb-2">Redirect Chain</h4>
+                                {% if web_result.data.redirect_chain %}
+                                    <ul class="space-y-2 text-xs font-mono">
+                                        {% for url in web_result.data.redirect_chain %}
+                                            <li class="flex items-center gap-2 text-gray-400">
+                                                <span class="text-gray-600">{{ loop.index }}.</span>
+                                                <span class="truncate">{{ url }}</span>
+                                            </li>
+                                        {% endfor %}
+                                            <li class="flex items-center gap-2 text-green-400 font-bold">
+                                                <span class="text-gray-600">→</span>
+                                                <span>Final</span>
+                                            </li>
+                                    </ul>
+                                {% else %}
+                                    <p class="text-gray-500 text-xs italic">No redirects.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if web_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ web_result.log_content }}</pre>
+                            </div>
+                        </details>
+                        {% endif %}
+                    </div>
+
+                {% else %}
+                    <p class="text-gray-500 italic">No Web analysis data available.</p>
+                {% endif %}
+            </div>

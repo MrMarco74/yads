@@ -1,0 +1,70 @@
+            <!-- VISUAL BRAND INTELLIGENCE CARD -->
+            {% if visual_result or target.brand_logo_url %}
+            <div class="bg-gray-800/50 border border-pink-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm mt-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                        <h2 class="text-xl font-semibold text-white">Visual Brand Intelligence</h2>
+                    </div>
+                    
+                    <!-- Primary Logo Display -->
+                    {% if target.brand_logo_url %}
+                    <div class="flex items-center gap-3 bg-pink-900/20 border border-pink-500/30 px-4 py-2 rounded-lg">
+                        <span class="text-xs uppercase font-bold text-pink-400 tracking-wider">Primary Logo</span>
+                        <img src="{{ target.brand_logo_url }}" class="h-8 w-8 object-contain bg-white p-0.5">
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- OSINT Logos -->
+                {% if visual_result and visual_result.data.logos %}
+                     <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Discovered Assets</h3>
+                     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        {% for logo in visual_result.data.logos %}
+                            <div class="bg-gray-900/40 p-3 rounded-lg flex flex-col items-center justify-center border border-gray-700/50 hover:border-pink-500/50 transition-colors group relative h-32">
+                                <div class="w-12 h-12 mb-2 flex items-center justify-center bg-white rounded p-1">
+                                    <img src="{{ logo.url }}" class="max-w-full max-h-full object-contain" alt="{{ logo.source }}">
+                                </div>
+                                <span class="text-xs font-bold text-gray-400 group-hover:text-pink-300">{{ logo.source }}</span>
+                                <span class="text-[10px] text-gray-500 uppercase">{{ logo.type }}</span>
+                                
+                                <!-- Set as Primary Button (Overlay) -->
+                                <div class="absolute inset-0 bg-gray-900/90 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg z-20">
+                                    {% if user and user.role != 'viewer' %}
+                                    <form action="/targets/{{ target.id }}/logo" method="POST" class="inline-block">
+                                        <input type="hidden" name="logo_url" value="{{ logo.url }}">
+                                        <button type="submit" class="px-3 py-1 bg-pink-600 hover:bg-pink-500 text-white rounded text-xs font-bold shadow-lg">
+                                            Set Primary
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <a href="{{ logo.url }}" target="_blank" class="mt-2 text-[10px] text-gray-400 hover:text-white underline">View Original</a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                     </div>
+                {% endif %}
+                
+                <!-- Manual Upload / Management -->
+                {% if user and user.role != 'viewer' %}
+                <div class="border-t border-gray-700/50 pt-4 mt-4">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Manual Override</h3>
+                    <div class="flex flex-col md:flex-row gap-4 items-start">
+                        <!-- Upload Form -->
+                        <form action="/targets/{{ target.id }}/logo/upload" method="POST" enctype="multipart/form-data" class="flex items-center gap-2 bg-gray-900/30 p-2 rounded border border-gray-700/30">
+                             <input type="file" name="file" accept="image/*" class="text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600" required>
+                             <button type="submit" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-medium">Upload</button>
+                        </form>
+                        
+                        <!-- Manual URL Form -->
+                        <form action="/targets/{{ target.id }}/logo" method="POST" class="flex items-center gap-2 flex-grow">
+                             <input type="url" name="logo_url" placeholder="https://example.com/logo.png" class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-pink-500" required>
+                             <button type="submit" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-medium whitespace-nowrap">Set URL</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}

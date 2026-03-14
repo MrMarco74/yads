@@ -1,0 +1,374 @@
+            <!-- VISUAL OSINT CARD -->
+            <div class="bg-gray-800/50 border border-pink-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm"
+                 x-data="{ 
+                    hunting: false, 
+                    matches: [], 
+                    message: '', 
+                    hunt(logoUrl) {
+                        this.hunting = true;
+                        this.message = 'Scanning known typosquats for visual matches...';
+                        this.matches = [];
+                        fetch('/api/targets/{{ target.id }}/brand-hunt', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({logo_url: logoUrl})
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            this.hunting = false;
+                            this.matches = data.matches || [];
+                            if (this.matches.length === 0) {
+                                this.message = data.message || 'No visual matches found.';
+                            } else {
+                                this.message = `Found ${this.matches.length} potential lookalikes!`;
+                            }
+                        })
+                        .catch(e => {
+                            this.hunting = false;
+                            this.message = 'Error: ' + e;
+                        });
+                    }
+                 }">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Visual Identity (OSINT)</h2>
+                    <span x-show="hunting" class="ml-auto text-xs text-pink-400 animate-pulse font-bold">Hunting...</span>
+                </div>
+
+                <!-- Main Target Screenshot -->
+                {% if visual_result and visual_result.data and visual_result.data.screenshot_path %}
+                <div class="mb-6 rounded-xl overflow-hidden border border-gray-700 bg-black/40 group relative">
+                    <div class="absolute top-3 left-3 z-10">
+                        <span class="px-2 py-1 bg-pink-600/80 text-white text-[10px] font-bold rounded shadow-lg backdrop-blur-md border border-pink-400/30">
+                            FULL SCAN CAPTURE
+                        </span>
+                    </div>
+                    <a href="/static/screenshots/{{ visual_result.data.screenshot_path }}" target="_blank">
+                        <img src="/static/screenshots/{{ visual_result.data.screenshot_path }}" 
+                             class="w-full h-auto max-h-[400px] object-cover object-top opacity-80 group-hover:opacity-100 transition-opacity duration-500"
+                             alt="Full Page Screenshot">
+                    </a>
+                    {% if visual_result.data.has_baseline and visual_result.data.diff_score is defined %}
+                    <div class="p-3 bg-gray-900/90 border-t border-gray-700 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                             <div class="w-2 h-2 rounded-full {% if visual_result.data.diff_score > 0.05 %}bg-red-500 animate-pulse{% else %}bg-green-500{% endif %}"></div>
+                             <span class="text-xs text-gray-400 font-medium">Visual Stability Score:</span>
+                             <span class="text-xs font-bold {% if visual_result.data.diff_score > 0.05 %}text-red-400{% else %}text-green-400{% endif %}">
+                                {{ (100 - (visual_result.data.diff_score * 100))|round(1) }}%
+                             </span>
+                        </div>
+                        <a href="#" class="text-[10px] text-pink-400 hover:text-pink-300 font-bold uppercase tracking-widest">Compare Baseline &rarr;</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if visual_result and visual_result.data %}
+                    {% if visual_result.data.logos %}
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                            {% for logo in visual_result.data.logos %}
+                                <div class="bg-gray-900 rounded-lg p-4 flex flex-col items-center justify-center gap-3 group hover:border-pink-500/30 border border-transparent transition-all relative">
+                                    <div class="w-16 h-16 bg-white rounded-lg flex items-center justify-center p-2 shadow-lg">
+                                        <img src="{{ logo.url }}" class="max-w-full max-h-full object-contain" alt="{{ logo.source }} Logo">
+                                    </div>
+                                    <div class="text-center w-full">
+                                        <p class="text-xs font-bold text-gray-300">{{ logo.source }}</p>
+                                        <p class="text-[10px] text-gray-500 uppercase mb-2">{{ logo.type }}</p>
+                                        {% if user and user.role != 'viewer' %}
+                                        <button @click="hunt('{{ logo.url }}')" 
+                                                class="w-full text-[10px] bg-pink-900/30 hover:bg-pink-600 hover:text-white text-pink-300 border border-pink-500/30 rounded py-1 transition-colors"
+                                                :disabled="hunting"
+                                                :class="{'opacity-50 cursor-not-allowed': hunting}">
+                                            Hunt Lookalikes
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Hunt Results -->
+                        <div x-show="message" class="mt-6 border-t border-gray-700/50 pt-4" style="display: none;">
+                            <h4 class="text-sm font-bold text-pink-400 mb-2" x-text="message"></h4>
+                            
+                            <div class="grid grid-cols-1 gap-2" x-show="matches.length > 0">
+                                <template x-for="match in matches">
+                                    <div class="flex items-center gap-4 bg-gray-900/80 p-3 rounded-lg border border-pink-500/30">
+                                        <img :src="match.match_url" class="w-8 h-8 rounded bg-white p-1 object-contain">
+                                        
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-sm font-bold text-white truncate" x-text="match.domain"></p>
+                                                <span class="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">MATCH</span>
+                                            </div>
+                                            <p class="text-xs text-gray-500 font-mono">
+                                                Score: <span x-text="Math.round(match.score * 100) + '%'"></span> | 
+                                                Dist: <span x-text="match.distance"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                    {% else %}
+                        <p class="text-gray-500 italic">No external visual identity found.</p>
+                    {% endif %}
+                    
+                    {% if visual_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ visual_result.log_content }}</pre>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% else %}
+                     <p class="text-gray-500 italic">No Visual OSINT data available.</p>
+                {% endif %}
+            </div>
+
+
+
+            <!-- SSL ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-teal-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-teal-500/10 rounded-lg text-teal-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">SSL/TLS Configuration</h2>
+                    {% if 'ssl_scanner' in changed_modules %}<span class="ml-1 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}
+                </div>
+
+                {% if ssl_result and ssl_result.data %}
+                    {% if ssl_result.data.error %}
+                         <div class="bg-red-900/20 border border-red-900/50 rounded p-4 text-center">
+                            <p class="text-red-400 text-sm font-bold">SSL Connection Failed</p>
+                            <p class="text-red-300 text-xs mt-1">{{ ssl_result.data.error }}</p>
+                         </div>
+                    {% else %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Certificate Details -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Certificate Identity</h3>
+                                <div class="space-y-3">
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-1">Issued To</p>
+                                        <p class="text-white font-mono text-sm break-all">{{ ssl_result.data.subject.commonName }}</p>
+                                        <p class="text-xs text-gray-500 mt-1">{{ ssl_result.data.subject.organizationName }}</p>
+                                    </div>
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-1">Issued By</p>
+                                        <p class="text-blue-300 font-mono text-sm break-all">{{ ssl_result.data.issuer.commonName }}</p>
+                                        <p class="text-xs text-gray-500 mt-1">{{ ssl_result.data.issuer.organizationName }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Validity & SANs -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Validity & Scope</h3>
+                                <div class="space-y-3">
+                                    <div class="bg-gray-900/50 rounded p-3 flex justify-between">
+                                        <div>
+                                            <p class="text-xs text-gray-500 mb-1">Valid From</p>
+                                            <p class="text-white text-sm">{{ ssl_result.data.notBefore }}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xs text-gray-500 mb-1">Valid To</p>
+                                            <p class="text-white text-sm">{{ ssl_result.data.notAfter }}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if ssl_result.data.subjectAltName %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-1 cursor-pointer hover:text-gray-300" title="Subject Alternative Names">SANs ({{ ssl_result.data.subjectAltName|length }})</p>
+                                        <div class="flex flex-wrap gap-1 mt-1 max-h-32 overflow-y-auto">
+                                            {% for san in ssl_result.data.subjectAltName %}
+                                                <span class="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded border border-gray-700">{{ san[1] }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detected Ciphers -->
+                         <div class="mt-6 border-t border-gray-700/50 pt-4">
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Detected Ciphers</h3>
+                            {% if ssl_result.data.ciphers %}
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {% for cipher in ssl_result.data.ciphers %}
+                                    {% set is_compliant = cipher.name in approved_ciphers %}
+                                    <div class="flex items-center justify-between p-2 rounded {{ 'bg-green-900/10 border border-green-500/20' if is_compliant else 'bg-red-900/10 border border-red-500/20' }}">
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-mono {{ 'text-green-300' if is_compliant else 'text-red-300' }}">{{ cipher.name }}</span>
+                                            <span class="text-[10px] text-gray-500">{{ cipher.version }} - {{ cipher.bits }} bits</span>
+                                        </div>
+                                        <div>
+                                            {% if is_compliant %}
+                                                <span class="text-[10px] uppercase font-bold text-green-500 bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/10">OK</span>
+                                            {% else %}
+                                                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-900/20 px-1.5 py-0.5 rounded border border-red-500/10">Risk</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                                <p class="text-xs text-gray-500 italic">No specific cipher suites detected.</p>
+                            {% endif %}
+                         </div>
+
+                         <!-- PQC READINESS SECTION -->
+                         {% if ssl_result.data.pqc_readiness %}
+                         {% set pqc = ssl_result.data.pqc_readiness %}
+                         <div class="mt-6 border-t border-gray-700/50 pt-4">
+                             <h3 class="text-sm font-medium text-gray-400 mb-4 uppercase tracking-wider flex items-center gap-2">
+                                 <svg class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                 Post-Quantum Readiness (PQC)
+                             </h3>
+
+                             <!-- Status Badge + Score -->
+                             <div class="flex items-center gap-4 mb-4">
+                                 {% if pqc.status == 'PQC Active' %}
+                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                         <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse inline-block"></span>
+                                         PQC Active
+                                     </span>
+                                 {% elif pqc.status == 'PQC Capable' %}
+                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                                         <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
+                                         PQC Capable
+                                     </span>
+                                 {% elif pqc.status == 'Evaluation Failed' or pqc.status == 'No Data' %}
+                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                         <span class="w-2 h-2 rounded-full bg-gray-400 inline-block"></span>
+                                         {{ pqc.status }}
+                                     </span>
+                                 {% else %}
+                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                         <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                                         Not Ready
+                                     </span>
+                                 {% endif %}
+
+                                 <div class="flex-1">
+                                     <div class="flex justify-between items-center mb-1">
+                                         <span class="text-xs text-gray-500">PQC Score</span>
+                                         <span class="text-xs font-bold
+                                             {{ 'text-cyan-400' if pqc.score >= 80 else ('text-yellow-400' if pqc.score >= 50 else 'text-red-400') }}">
+                                             {{ pqc.score }}/100
+                                         </span>
+                                     </div>
+                                     <div class="w-full bg-gray-800 rounded-full h-2">
+                                         <div class="h-2 rounded-full transition-all duration-700
+                                             {{ 'bg-cyan-500' if pqc.score >= 80 else ('bg-yellow-500' if pqc.score >= 50 else 'bg-red-500') }}"
+                                             style="width: {{ pqc.score }}%">
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <!-- Detected Hybrid Groups -->
+                             {% if pqc.hybrid_groups_detected %}
+                             <div class="mb-3">
+                                 <p class="text-xs text-gray-500 mb-2">Detected Hybrid Key Exchange Groups</p>
+                                 <div class="flex flex-wrap gap-1.5">
+                                     {% for group in pqc.hybrid_groups_detected %}
+                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-cyan-900/30 text-cyan-300 border border-cyan-700/40">
+                                         ✦ {{ group }}
+                                     </span>
+                                     {% endfor %}
+                                 </div>
+                             </div>
+                             {% endif %}
+
+                             <!-- Flags -->
+                             {% if pqc.flags %}
+                             <div class="mb-3">
+                                 <p class="text-xs text-gray-500 mb-2">Findings</p>
+                                 <div class="space-y-1.5">
+                                     {% for flag in pqc.flags %}
+                                     <div class="flex items-start gap-2 text-xs text-gray-300">
+                                         <svg class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                         {{ flag }}
+                                     </div>
+                                     {% endfor %}
+                                 </div>
+                             </div>
+                             {% endif %}
+
+                             <!-- Recommendations -->
+                             {% if pqc.recommendations %}
+                             <div class="bg-violet-900/10 border border-violet-800/30 rounded-lg p-3">
+                                 <p class="text-xs font-bold text-violet-300 mb-2 uppercase tracking-wider">Recommendations</p>
+                                 <ul class="space-y-1.5">
+                                     {% for rec in pqc.recommendations %}
+                                     <li class="flex items-start gap-2 text-xs text-violet-200/80">
+                                         <svg class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                         {{ rec }}
+                                     </li>
+                                     {% endfor %}
+                                 </ul>
+                             </div>
+                             {% endif %}
+                         </div>
+                         {% endif %}
+                         <!-- END PQC SECTION -->
+
+                    {% endif %}
+                    <!-- AI Remediate: SSL/TLS -->
+                    <div x-data="{ open:false, loading:false, result:null, errorMsg:'', async run() { if(this.open && this.result) { this.open=false; return; } this.open=true; if(this.result) return; this.loading=true; this.errorMsg=''; try { const lang=document.cookie.match(/yads_lang=([^;]+)/)?.[1]||'en'; const r=await fetch('/api/ai/remediate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({finding_title:'SSL/TLS Configuration',finding_description:'TLS configuration review for {{ target.domain }}',severity:'medium',domain:'{{ target.domain }}',lang:lang})}); this.result=await r.json(); } catch(e) { this.errorMsg='Failed: '+e.message; } this.loading=false; } }" class="mt-4">
+                        <button @click="run()" class="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/40 rounded-lg px-3 py-1.5 transition-all">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                            <span x-text="open && result ? 'Hide AI Remediation' : 'AI SSL/TLS Hardening Guide'"></span>
+                        </button>
+                        <div x-show="open" x-transition class="mt-2 p-4 bg-slate-800/80 border border-indigo-700/30 rounded-lg" style="display:none;">
+                            <template x-if="loading"><div class="flex items-center gap-2 text-gray-400 text-xs"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div> Generating hardening guide...</div></template>
+                            <template x-if="!loading && errorMsg"><p class="text-red-400 text-xs" x-text="errorMsg"></p></template>
+                            <template x-if="!loading && result">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="text-xs font-bold text-indigo-300">SSL/TLS Hardening Steps</span>
+                                        <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="result.ai_generated ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600' : 'bg-slate-700 text-slate-400 border-slate-600'" x-text="result.ai_generated ? 'AI-powered' : 'Rule-based'"></span>
+                                        <span class="text-[10px] text-gray-500 ml-auto" x-text="'Effort: ' + result.estimated_effort"></span>
+                                    </div>
+                                    <ol class="space-y-1.5 mb-3">
+                                        <template x-for="(step, si) in result.steps" :key="si">
+                                            <li class="flex items-start gap-2 text-xs text-gray-300"><span class="shrink-0 w-4 h-4 rounded-full bg-indigo-900/60 text-indigo-300 text-[9px] font-bold flex items-center justify-center mt-0.5" x-text="si+1"></span><span x-text="step"></span></li>
+                                        </template>
+                                    </ol>
+                                    <template x-if="result.references && result.references.length">
+                                        <div class="border-t border-gray-700/50 pt-2">
+                                            <p class="text-[10px] text-gray-500 mb-1">References</p>
+                                            <template x-for="(ref, ri) in result.references" :key="ri">
+                                                <a :href="ref" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 truncate" x-text="ref"></a>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    {% if ssl_result.log_content %}
+                    <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                        <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                            <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                            View Scan Logs
+                        </summary>
+                        <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ ssl_result.log_content }}</pre>
+                        </div>
+                    </details>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No SSL data available.</p>
+                {% endif %}
+            </div>

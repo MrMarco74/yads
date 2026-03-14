@@ -1,0 +1,496 @@
+            <!-- INFRASTRUCTURE ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-purple-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Infrastructure & Reputation</h2>
+                </div>
+
+                {% if infra_result and infra_result.data %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- IP & ASN -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Network</h3>
+                            <div class="space-y-4">
+                                <div class="bg-gray-900/50 rounded-lg p-3">
+                                    <p class="text-xs text-gray-500 mb-1">IP Address</p>
+                                    <p class="font-mono text-white text-lg">{{ infra_result.data.ip or 'N/A' }}</p>
+                                </div>
+                                <div class="bg-gray-900/50 rounded-lg p-3">
+                                    <p class="text-xs text-gray-500 mb-1">ASN / Organization</p>
+                                    <p class="text-white">
+                                        {{ infra_result.data.asn.asn }}
+                                        <span class="block text-sm text-gray-400 truncate" title="{{ infra_result.data.asn.asn_description }}">
+                                            {{ infra_result.data.asn.asn_description or 'Unknown' }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="bg-gray-900/50 rounded-lg p-3 flex justify-between items-center">
+                                    <div>
+                                        <p class="text-xs text-gray-500 mb-1">Cloud Provider</p>
+                                        <p class="text-white font-medium">{{ infra_result.data.cloud_provider or 'Unknown' }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xs text-gray-500 mb-1">Location</p>
+                                        <p class="text-white font-mono">{{ infra_result.data.asn.country or '??' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Whois Info -->
+                            {% if infra_result.data.whois %}
+                            <div class="bg-gray-900/50 rounded-lg p-3 mt-4 border border-gray-700/50">
+                                <h4 class="text-xs text-gray-500 mb-2 uppercase font-bold">Whois Registration</h4>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between items-center bg-gray-800/30 p-1.5 rounded">
+                                        <span class="text-gray-400 text-xs">Registrar</span>
+                                        <span class="text-indigo-300 font-mono text-xs truncate max-w-[150px]" title="{{ infra_result.data.whois.registrar }}">{{ infra_result.data.whois.registrar or 'Unknown' }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-1">
+                                        <span class="text-gray-400 text-xs">Created</span>
+                                        <span class="text-white text-xs font-mono">{{ infra_result.data.whois.creation_date or '-' }}</span>
+                                    </div>
+                                     <div class="flex justify-between items-center p-1">
+                                        <span class="text-gray-400 text-xs">Expires</span>
+                                        <span class="text-xs font-mono {{ 'text-red-400 font-bold' if infra_result.data.whois.days_to_expire and infra_result.data.whois.days_to_expire < 30 else 'text-green-400' }}">
+                                            {{ infra_result.data.whois.expiration_date or '-' }}
+                                            {% if infra_result.data.whois.days_to_expire %}
+                                                <span class="opacity-75">({{ infra_result.data.whois.days_to_expire }}d)</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% if infra_result.data.whois.emails %}
+                                    <div class="pt-2 border-t border-gray-700/50">
+                                        <p class="text-[10px] text-gray-500 mb-1">Contact Emails</p>
+                                        <div class="flex flex-wrap gap-1">
+                                            {% for email in infra_result.data.whois.emails %}
+                                                <span class="text-[10px] bg-gray-800 text-gray-300 px-1 py-0.5 rounded">{{ email }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Findings & Buckets -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Storage & Findings</h3>
+                            {% if infra_result.data.buckets %}
+                                <div class="space-y-2">
+                                    {% for bucket in infra_result.data.buckets %}
+                                    <div class="flex items-center justify-between bg-gray-900/50 rounded p-2 border border-gray-700">
+                                        <span class="text-xs font-mono text-gray-300 truncate w-2/3" title="{{ bucket.url }}">{{ bucket.url }}</span>
+                                        <span class="text-xs px-2 py-1 rounded {{ 'bg-red-900/50 text-red-400' if bucket.status == 'Public' else 'bg-yellow-900/50 text-yellow-400' }}">
+                                            {{ bucket.status }} ({{ bucket.code }})
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="bg-gray-900/30 rounded-lg p-4 text-center border border-gray-800 border-dashed mb-4">
+                                    <span class="text-gray-500 text-sm">No public storage buckets found.</span>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Future: Reputation list -->
+                            {% if infra_result.data.reputation %}
+                                <div class="mt-4">
+                                     <h4 class="text-xs text-red-400 font-bold mb-2">Reputation Flags</h4>
+                                     <ul class="text-sm text-gray-300 list-disc pl-4">
+                                        {% for flag in infra_result.data.reputation %}
+                                            {% if flag.link is defined %}
+                                                <li>
+                                                    <a href="{{ flag.link }}" target="_blank" class="text-red-300 hover:text-red-200 underline">
+                                                        {{ flag.message }}
+                                                    </a>
+                                                </li>
+                                            {% else %}
+                                                <li>{{ flag }}</li>
+                                            {% endif %}
+                                        {% endfor %}
+                                     </ul>
+                                </div>
+                            {% endif %}
+                        </div>
+                        </div>
+
+                    
+                    {% if infra_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ infra_result.log_content }}</pre>
+                            </div>
+                        </details>
+                        {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No Infrastructure data available.</p>
+                {% endif %}
+            </div>
+
+            <!-- SEED FILES ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-cyan-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">Seed Files (robots.txt & sitemap.xml)</h2>
+                </div>
+
+                {% if seed_files_result and seed_files_result.data %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- robots.txt Section -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">robots.txt</h3>
+                            {% if seed_files_result.data.robots_txt and seed_files_result.data.robots_txt.found %}
+                                <div class="space-y-3">
+                                    <div class="bg-green-900/20 border border-green-500/30 rounded p-3">
+                                        <span class="text-green-400 text-xs font-bold">Found</span>
+                                        <p class="text-[10px] text-gray-400 mt-1">{{ seed_files_result.data.robots_txt.url }}</p>
+                                    </div>
+
+                                    {% if seed_files_result.data.robots_txt.disallow_rules %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-2">Disallowed Paths ({{ seed_files_result.data.robots_txt.disallow_rules|length }})</p>
+                                        <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                                            {% for rule in seed_files_result.data.robots_txt.disallow_rules[:20] %}
+                                                <span class="text-[10px] bg-red-900/30 text-red-300 px-1.5 py-0.5 rounded border border-red-700/30 font-mono">{{ rule.path }}</span>
+                                            {% endfor %}
+                                            {% if seed_files_result.data.robots_txt.disallow_rules|length > 20 %}
+                                                <span class="text-[10px] text-gray-500">+{{ seed_files_result.data.robots_txt.disallow_rules|length - 20 }} more</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if seed_files_result.data.robots_txt.sitemaps %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <p class="text-xs text-gray-500 mb-2">Referenced Sitemaps</p>
+                                        <div class="space-y-1">
+                                            {% for sitemap in seed_files_result.data.robots_txt.sitemaps[:5] %}
+                                                <p class="text-[10px] font-mono text-cyan-300 truncate" title="{{ sitemap }}">{{ sitemap }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded p-3">
+                                    <span class="text-yellow-400 text-xs font-bold">Not Found</span>
+                                    <p class="text-[10px] text-gray-400 mt-1">{{ seed_files_result.data.robots_txt.error if seed_files_result.data.robots_txt else 'No robots.txt detected' }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Sitemaps Section -->
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Sitemaps</h3>
+                            {% if seed_files_result.data.sitemaps %}
+                                <div class="space-y-3">
+                                    {% for sitemap in seed_files_result.data.sitemaps[:3] %}
+                                    <div class="bg-gray-900/50 rounded p-3">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="text-xs text-cyan-400 font-mono truncate" title="{{ sitemap.url }}">{{ sitemap.url|truncate(40) }}</span>
+                                            <span class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{{ sitemap.type }}</span>
+                                        </div>
+                                        <p class="text-[10px] text-gray-400">{{ sitemap.url_count }} URLs found</p>
+                                    </div>
+                                    {% endfor %}
+                                    {% if seed_files_result.data.sitemaps|length > 3 %}
+                                        <p class="text-[10px] text-gray-500 text-center">+{{ seed_files_result.data.sitemaps|length - 3 }} more sitemaps</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                    <span class="text-gray-500 text-xs">No sitemaps found</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Sensitive Paths Section -->
+                    {% if seed_files_result.data.sensitive_paths %}
+                    <div class="mt-6 border-t border-gray-700/50 pt-4">
+                        <h3 class="text-sm font-medium text-red-400 mb-3 uppercase tracking-wider">Potentially Sensitive Paths ({{ seed_files_result.data.sensitive_paths|length }})</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {% for path in seed_files_result.data.sensitive_paths[:10] %}
+                            <div class="flex items-center justify-between bg-red-900/10 border border-red-500/20 rounded p-2">
+                                <span class="text-xs font-mono text-red-300">{{ path.path }}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded {{ 'bg-red-600 text-white' if path.risk_indicator == 'high' else 'bg-yellow-600 text-white' }}">
+                                    {{ path.risk_indicator|upper }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Statistics -->
+                    <div class="mt-6 pt-4 border-t border-gray-700/50 grid grid-cols-4 gap-4 text-center">
+                        <div>
+                            <p class="text-lg font-bold text-white">{{ seed_files_result.data.statistics.total_paths or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Total Paths</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-white">{{ seed_files_result.data.statistics.total_sitemap_urls or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sitemap URLs</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-red-400">{{ seed_files_result.data.statistics.sensitive_paths_count or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sensitive</p>
+                        </div>
+                        <div>
+                            <p class="text-lg font-bold text-cyan-400">{{ seed_files_result.data.statistics.sitemaps_analyzed or 0 }}</p>
+                            <p class="text-[10px] text-gray-500">Sitemaps</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-gray-500 italic">No Seed Files data available. Run the "Seed Files" scanner to analyze robots.txt and sitemap.xml.</p>
+                {% endif %}
+            </div>
+
+            <!-- CSP SCANNER CARD -->
+            <div class="bg-gray-800/50 border border-emerald-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">CSP Analysis (External Domain Discovery)</h2>
+                </div>
+
+                {% if csp_result and csp_result.data %}
+                    {% if csp_result.data.error %}
+                        <div class="bg-red-900/20 border border-red-900/50 rounded p-4 text-center">
+                            <p class="text-red-400 text-sm font-bold">Error</p>
+                            <p class="text-red-300 text-xs mt-1">{{ csp_result.data.error }}</p>
+                        </div>
+                    {% else %}
+                        <!-- CSP Header Status -->
+                        <div class="mb-6">
+                            {% if csp_result.data.csp_header %}
+                                <div class="bg-green-900/20 border border-green-500/30 rounded p-3 mb-3">
+                                    <span class="text-green-400 text-xs font-bold">Content-Security-Policy Header Found</span>
+                                </div>
+                            {% elif csp_result.data.csp_report_only %}
+                                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded p-3 mb-3">
+                                    <span class="text-yellow-400 text-xs font-bold">CSP Report-Only Mode (Not Enforcing)</span>
+                                </div>
+                            {% else %}
+                                <div class="bg-red-900/20 border border-red-500/30 rounded p-3 mb-3">
+                                    <span class="text-red-400 text-xs font-bold">No CSP Header Detected</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Potential Company Assets -->
+                            <div>
+                                <h3 class="text-sm font-medium text-emerald-400 mb-3 uppercase tracking-wider">Potential Company Assets</h3>
+                                {% if csp_result.data.potential_assets %}
+                                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                                        {% for asset in csp_result.data.potential_assets %}
+                                        <div class="bg-emerald-900/20 border border-emerald-500/30 rounded p-2">
+                                            <p class="text-xs font-mono text-emerald-300">{{ asset.domain }}</p>
+                                            <p class="text-[10px] text-gray-400">{{ asset.reason }}</p>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                        <span class="text-gray-500 text-xs">No potential company assets identified</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Third-Party Services -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Third-Party Services</h3>
+                                {% if csp_result.data.third_party_services %}
+                                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                                        {% for category, domains in csp_result.data.third_party_services.items() %}
+                                        <div class="bg-gray-900/50 rounded p-2">
+                                            <p class="text-xs font-bold text-gray-300 mb-1 capitalize">{{ category }}</p>
+                                            <div class="flex flex-wrap gap-1">
+                                                {% for domain in domains[:5] %}
+                                                    <span class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded font-mono">{{ domain }}</span>
+                                                {% endfor %}
+                                                {% if domains|length > 5 %}
+                                                    <span class="text-[10px] text-gray-500">+{{ domains|length - 5 }}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="bg-gray-900/30 rounded p-3 text-center border border-gray-700 border-dashed">
+                                        <span class="text-gray-500 text-xs">No third-party services detected</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Security Findings -->
+                        {% if csp_result.data.security_findings %}
+                        <div class="mt-6 border-t border-gray-700/50 pt-4">
+                            <h3 class="text-sm font-medium text-amber-400 mb-3 uppercase tracking-wider">Security Findings</h3>
+                            <div class="space-y-2">
+                                {% for finding in csp_result.data.security_findings %}
+                                <div class="flex items-start gap-3 p-2 rounded {{ 'bg-red-900/20 border border-red-500/30' if finding.severity == 'high' else ('bg-yellow-900/20 border border-yellow-500/30' if finding.severity == 'medium' else 'bg-gray-900/50 border border-gray-700') }}">
+                                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {{ 'bg-red-600 text-white' if finding.severity == 'high' else ('bg-yellow-600 text-white' if finding.severity == 'medium' else 'bg-gray-600 text-gray-200') }}">
+                                        {{ finding.severity|upper }}
+                                    </span>
+                                    <div>
+                                        <p class="text-xs font-medium text-white">{{ finding.finding }}</p>
+                                        <p class="text-[10px] text-gray-400">{{ finding.description }}</p>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- All External Domains -->
+                        {% if csp_result.data.external_domains %}
+                        <details class="mt-6 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                All External Domains ({{ csp_result.data.external_domains|length }})
+                            </summary>
+                            <div class="p-4 bg-gray-950">
+                                <div class="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
+                                    {% for domain in csp_result.data.external_domains %}
+                                        <span class="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-mono border border-gray-700">{{ domain }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </details>
+                        {% endif %}
+
+                        <!-- Statistics -->
+                        <div class="mt-6 pt-4 border-t border-gray-700/50 grid grid-cols-4 gap-4 text-center">
+                            <div>
+                                <p class="text-lg font-bold text-white">{{ csp_result.data.statistics.total_external_domains or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">External Domains</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-emerald-400">{{ csp_result.data.statistics.potential_company_assets or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Potential Assets</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-gray-400">{{ csp_result.data.statistics.third_party_domains or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Third-Party</p>
+                            </div>
+                            <div>
+                                <p class="text-lg font-bold text-amber-400">{{ csp_result.data.statistics.security_issues or 0 }}</p>
+                                <p class="text-[10px] text-gray-500">Security Issues</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-gray-500 italic">No CSP data available. Run the "CSP Scanner" to analyze Content-Security-Policy headers and discover external domains.</p>
+                {% endif %}
+            </div>
+
+            </div>
+
+            <!-- EMAIL SECURITY CARD (SPF/DKIM/DMARC) -->
+            <div class="bg-gray-800/50 border border-blue-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-semibold text-white">Email Security{% if 'email_security' in changed_modules %}<span class="ml-2 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}</h2>
+                        <p class="text-xs text-gray-400">SPF, DKIM, DMARC, BIMI and MX record analysis.</p>
+                    </div>
+                    {% if email_security_result and email_security_result.data %}
+                    <div class="text-right">
+                        <span class="text-2xl font-bold {% if email_security_result.data.score >= 80 %}text-emerald-400{% elif email_security_result.data.score >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ email_security_result.data.score }}<span class="text-sm text-gray-400">/100</span></span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if email_security_result and email_security_result.data %}
+                {% set es = email_security_result.data %}
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">SPF</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.spf.present %}{% if es.spf.policy in ['fail','softfail'] %}bg-emerald-900/50 text-emerald-300{% else %}bg-amber-900/50 text-amber-300{% endif %}{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.spf.present %}{{ es.spf.policy or 'present' }}{% else %}Missing{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">DMARC</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.dmarc.present %}{% if es.dmarc.policy == 'reject' %}bg-emerald-900/50 text-emerald-300{% elif es.dmarc.policy == 'quarantine' %}bg-amber-900/50 text-amber-300{% else %}bg-yellow-900/50 text-yellow-300{% endif %}{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.dmarc.present %}{{ es.dmarc.policy }}{% else %}Missing{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">DKIM</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.dkim.count > 0 %}bg-emerald-900/50 text-emerald-300{% else %}bg-red-900/50 text-red-300{% endif %}">
+                            {% if es.dkim.count > 0 %}{{ es.dkim.count }} selector(s){% else %}None found{% endif %}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/60 rounded-lg p-3 text-center">
+                        <p class="text-xs text-gray-400 mb-1">MX</p>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if es.mx.count > 0 %}bg-blue-900/50 text-blue-300{% else %}bg-gray-700 text-gray-400{% endif %}">
+                            {{ es.mx.count }} record(s)
+                        </span>
+                    </div>
+                </div>
+                {% if es.findings %}
+                <div class="space-y-2">
+                    {% for f in es.findings %}
+                    <div class="flex items-start gap-2 p-2 rounded bg-gray-900/40">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase {% if f.severity == 'high' or f.severity == 'critical' %}bg-red-900/50 text-red-300{% elif f.severity == 'medium' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">{{ f.severity }}</span>
+                        <span class="text-xs text-gray-300">[{{ f.section }}] {{ f.issue }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- AI Remediate: Email Security -->
+                {% if es.findings %}
+                <div x-data="{ open:false, loading:false, result:null, errorMsg:'', async run() { if(this.open && this.result) { this.open=false; return; } this.open=true; if(this.result) return; this.loading=true; this.errorMsg=''; try { const lang=document.cookie.match(/yads_lang=([^;]+)/)?.[1]||'en'; const f={{ es.findings[0]|tojson }}; const r=await fetch('/api/ai/remediate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({finding_title:'['+f.section+'] '+f.issue,finding_description:'',severity:f.severity,domain:'{{ target.domain }}',lang:lang})}); this.result=await r.json(); } catch(e) { this.errorMsg='Failed: '+e.message; } this.loading=false; } }" class="mt-3">
+                    <button @click="run()" class="flex items-center gap-1.5 text-xs bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/40 rounded-lg px-3 py-1.5 transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        <span x-text="open && result ? 'Hide AI Remediation' : 'AI Remediation Guide'"></span>
+                    </button>
+                    <div x-show="open" x-transition class="mt-2 p-4 bg-slate-800/80 border border-indigo-700/30 rounded-lg" style="display:none;">
+                        <template x-if="loading"><div class="flex items-center gap-2 text-gray-400 text-xs"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div> Generating remediation guide...</div></template>
+                        <template x-if="!loading && errorMsg"><p class="text-red-400 text-xs" x-text="errorMsg"></p></template>
+                        <template x-if="!loading && result">
+                            <div>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-xs font-bold text-indigo-300">Remediation Steps</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded border" :class="result.ai_generated ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600' : 'bg-slate-700 text-slate-400 border-slate-600'" x-text="result.ai_generated ? 'AI-powered' : 'Rule-based'"></span>
+                                    <span class="text-[10px] text-gray-500 ml-auto" x-text="'Effort: ' + result.estimated_effort"></span>
+                                </div>
+                                <ol class="space-y-1.5 mb-3">
+                                    <template x-for="(step, si) in result.steps" :key="si">
+                                        <li class="flex items-start gap-2 text-xs text-gray-300"><span class="shrink-0 w-4 h-4 rounded-full bg-indigo-900/60 text-indigo-300 text-[9px] font-bold flex items-center justify-center mt-0.5" x-text="si+1"></span><span x-text="step"></span></li>
+                                    </template>
+                                </ol>
+                                <template x-if="result.references && result.references.length">
+                                    <div class="border-t border-gray-700/50 pt-2">
+                                        <p class="text-[10px] text-gray-500 mb-1">References</p>
+                                        <template x-for="(ref, ri) in result.references" :key="ri">
+                                            <a :href="ref" target="_blank" class="block text-[10px] text-indigo-400 hover:text-indigo-300 truncate" x-text="ref"></a>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-emerald-400 text-sm">✓ No email security issues found.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Email Security (SPF/DKIM/DMARC)" scan.</p>
+                {% endif %}
+            </div>

@@ -1,0 +1,86 @@
+            <!-- AXFR + SECURITY.TXT COMBINED ROW -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- AXFR CARD -->
+            <div class="bg-gray-800/50 border {% if axfr_result and axfr_result.data and axfr_result.data.vulnerable %}border-red-500/50{% else %}border-slate-700/30{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-red-500/10 rounded-lg text-red-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">DNS Zone Transfer (AXFR)</h2>
+                        <p class="text-xs text-gray-400">Checks if nameservers allow full zone transfer.</p>
+                    </div>
+                </div>
+                {% if axfr_result and axfr_result.data %}
+                {% set axfr = axfr_result.data %}
+                {% if axfr.vulnerable %}
+                <div class="bg-red-900/30 border border-red-500/40 rounded-lg p-3 mb-3">
+                    <p class="text-red-300 font-bold text-sm">⚠ CRITICAL: Zone transfer succeeded!</p>
+                    <p class="text-red-200 text-xs mt-1">{{ axfr.finding.issue }}</p>
+                    <p class="text-gray-400 text-xs mt-1">Fix: {{ axfr.finding.recommendation }}</p>
+                </div>
+                {% else %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-3 mb-3">
+                    <p class="text-emerald-400 text-sm">✓ Zone transfer refused by all nameservers.</p>
+                </div>
+                {% endif %}
+                <div class="space-y-1">
+                    {% for r in axfr.transfer_results %}
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-gray-400 font-mono">{{ r.nameserver }}</span>
+                        <span class="{% if r.success %}text-red-400 font-bold{% else %}text-emerald-400{% endif %}">{{ 'VULNERABLE' if r.success else r.reason }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "DNS Zone Transfer (AXFR)" scan.</p>
+                {% endif %}
+            </div>
+
+            <!-- SECURITY.TXT CARD -->
+            <div class="bg-gray-800/50 border border-slate-700/30 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2 bg-slate-500/10 rounded-lg text-slate-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg font-semibold text-white">Security.txt (RFC 9116)</h2>
+                        <p class="text-xs text-gray-400">Vulnerability disclosure policy file.</p>
+                    </div>
+                    {% if security_txt_result and security_txt_result.data and security_txt_result.data.found %}
+                    <span class="text-lg font-bold {% if security_txt_result.data.score >= 70 %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ security_txt_result.data.score }}<span class="text-xs text-gray-400">/100</span></span>
+                    {% endif %}
+                </div>
+                {% if security_txt_result and security_txt_result.data %}
+                {% set stxt = security_txt_result.data %}
+                {% if stxt.found %}
+                <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-2 mb-3">
+                    <p class="text-emerald-400 text-xs font-mono">{{ stxt.url }}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mb-3 text-xs">
+                    {% for field, values in stxt.fields.items() %}
+                    <div class="bg-gray-900/40 rounded px-2 py-1">
+                        <span class="text-gray-400">{{ field }}:</span> <span class="text-white">{{ values[0][:40] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if stxt.issues %}
+                <div class="space-y-1">
+                    {% for issue in stxt.issues %}
+                    <p class="text-xs text-amber-300">⚠ {{ issue }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="bg-amber-900/20 border border-amber-500/20 rounded-lg p-3">
+                    <p class="text-amber-300 text-sm">Security.txt not found.</p>
+                    <p class="text-gray-400 text-xs mt-1">Create /.well-known/security.txt with Contact, Expires fields.</p>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-gray-500 italic text-sm">No data. Run "Security.txt (RFC 9116)" scan.</p>
+                {% endif %}
+            </div>
+
+            </div><!-- end AXFR+SecurityTxt grid -->

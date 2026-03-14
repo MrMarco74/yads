@@ -1,0 +1,87 @@
+        <!-- HISTORY SIDEBAR -->
+        <div class="lg:col-span-1">
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 shadow-lg max-h-[800px] overflow-y-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white">Scan History</h3>
+                    {% if current_history_id %}
+                        <a href="/targets/{{ target.id }}" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded transition-colors">
+                            Back to Latest
+                        </a>
+                    {% endif %}
+                </div>
+                
+                <div class="space-y-2">
+                    {% for entry in history_entries %}
+                        <a href="?history_id={{ entry.id }}" 
+                           class="block p-2 rounded-lg text-sm border transition-all 
+                                  {% if current_history_id == entry.id %}
+                                    bg-indigo-900/40 border-indigo-500 text-white
+                                  {% else %}
+                                    bg-gray-900/30 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-gray-200
+                                  {% endif %}">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold {% if entry.module_name == 'web_analyzer' %}text-emerald-400{% elif entry.module_name == 'typosquat_scanner' %}text-orange-400{% else %}text-blue-400{% endif %}">
+                                    {{ entry.module_name.replace('_scanner', '').replace('_analyzer', '').upper() }}
+                                </span>
+                                <span class="text-xs opacity-70">{{ entry.scanned_at.strftime('%Y-%m-%d') }}</span>
+                            </div>
+                            <div class="mt-1 text-xs font-mono opacity-60">
+                                {{ entry.scanned_at.strftime('%H:%M:%S') }}
+                            </div>
+                        </a>
+                    {% endfor %}
+                    
+                    {% if not history_entries %}
+                        <p class="text-gray-500 text-sm italic text-center py-4">No history available.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- SCHEDULING CARD -->
+            <div class="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 shadow-lg mt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white">Scheduling</h3>
+                    <span id="schedule-status-badge">
+                        {% if schedule %}
+                            <span class="text-emerald-400 font-medium" title="Next: {{ schedule.next_run_at.strftime('%Y-%m-%d') }}">
+                                {% if schedule.frequency == 'daily' %}🌞 Daily
+                                {% elif schedule.frequency == 'weekly' %}📆 Weekly
+                                {% else %}📅 {{ schedule.frequency|title }}
+                                {% endif %}
+                            </span>
+                        {% else %}
+                            <span class="text-slate-400">Not Scheduled</span>
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <form hx-post="/schedules/set" hx-target="#schedule-status-badge" 
+                      x-data="{ freq: '{{ schedule.frequency if schedule else "daily" }}' }"
+                      class="flex flex-col gap-3">
+                    <input type="hidden" name="target_id" value="{{ target.id }}">
+                    
+                    <div class="flex gap-2">
+                        <select name="frequency" x-model="freq" class="bg-gray-900 border border-gray-700 text-gray-300 text-xs rounded p-1.5 flex-grow focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="daily">Daily (24h)</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="custom">Custom (Cron)</option>
+                            <option value="none">Disabled</option>
+                        </select>
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded font-medium transition-colors shadow-lg shadow-indigo-900/20">
+                            Save
+                        </button>
+                    </div>
+
+                    <!-- Cron Input -->
+                    <div x-show="freq === 'custom'" x-transition class="bg-gray-900/50 p-2 rounded border border-gray-700">
+                        <label class="block text-[10px] text-gray-400 mb-1">Cron Expression (UTC)</label>
+                        <input type="text" name="cron_expression" 
+                               placeholder="0 0 * * *" 
+                               value="{{ schedule.cron_expression if schedule and schedule.cron_expression else '' }}"
+                               class="w-full bg-slate-950 border border-slate-700 rounded text-xs px-2 py-1 text-white font-mono placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                        <p class="text-[9px] text-gray-500 mt-1">Example: <code class="text-gray-400">0 3 * * *</code> = 3 AM Daily</p>
+                    </div>
+                </form>
+                 <p class="text-[10px] text-gray-500 mt-2 text-center">Auto-runs "Full Scan" profile.</p>
+            </div>
+        </div>
