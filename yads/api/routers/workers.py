@@ -885,6 +885,13 @@ async def worker_monitor_page(
     stats = worker_manager.get_cluster_stats()
     worker_mode = os.getenv("WORKER_MODE", "standalone").lower()
 
+    if worker_mode == "standalone":
+        with Session(engine) as _s:
+            _running = _s.exec(select(Target).where(Target.scan_status == "running")).all()
+        stats = dict(stats)
+        stats["total_running_tasks"] = len(_running)
+        stats["total_capacity"] = stats.get("total_capacity") or 1
+
     # Fetch running tasks
     running_tasks = []
     with Session(engine) as session:
