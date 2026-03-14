@@ -124,7 +124,7 @@ class DiscoverySession(SQLModel, table=True):
 
     # Configuration
     max_depth: int = Field(default=3)
-    relevance_threshold: float = Field(default=0.5)
+    relevance_threshold: float = Field(default=0.7)
     max_targets: int = Field(default=500)
     include_typosquats: bool = Field(default=False)
     allowed_tld_filter: List[str] = Field(default=[], sa_column=Column(JSONB))
@@ -155,6 +155,20 @@ class DiscoveryCandidate(SQLModel, table=True):
     # status: pending / accepted / rejected / duplicate
     status: str = Field(default="pending")
     rejection_reason: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DiscoveryDomainBlocklist(SQLModel, table=True):
+    """
+    Tenant-wide blocklist of domain patterns for Discovery sessions.
+    Pattern format: "*.example.com" (all subdomains) or "example.com" (exact).
+    Candidates matching a pattern are silently skipped — never added to Target list.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+    pattern: str = Field(index=True)      # e.g. "*.example.com"
+    created_by: Optional[int] = Field(default=None, foreign_key="user.id")
+    note: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
