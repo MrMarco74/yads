@@ -1,0 +1,114 @@
+            <!-- DNS ANALYSIS CARD -->
+            <div class="bg-gray-800/50 border border-blue-500/20 rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white">DNS Analysis</h2>
+                    {% if 'dns_scanner' in changed_modules or 'subdomain_scanner' in changed_modules %}<span class="ml-1 text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">CHANGED</span>{% endif %}
+                </div>
+
+                {% if dns_result and dns_result.data %}
+                    <!-- Subdomains -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wider">Discovered Subdomains</h3>
+                        {% if dns_result.data.subdomains %}
+                
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                                {% for sub in dns_result.data.subdomains %}
+                                <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-mono text-indigo-300 font-bold">{{ sub.subdomain }}</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ sub.ips|join(', ') }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-gray-500 text-sm italic">No active subdomains found from common list.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="space-y-4">
+                        {% for record_type, records in dns_result.data.records.items() %}
+                            {% if records %}
+                            <div class="border-b border-gray-700/50 pb-4 last:border-0 last:pb-0">
+                                <h3 class="text-sm font-medium text-gray-400 mb-2 flex items-center justify-between">
+                                    {{ record_type }} Records
+                                    {% if record_type == 'SPF' %}
+                                        <span class="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">Policy Found</span>
+                                    {% endif %}
+                                </h3>
+                                
+                                <div class="bg-gray-900/50 rounded-lg p-3 font-mono text-sm text-blue-300 break-all">
+                                    {% if records is iterable and not records is string %}
+                                        <ul class="space-y-1">
+                                        {% for r in records %}
+                                            <li>{{ r }}</li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        {{ records }}
+                                    {% endif %}
+                                </div>
+
+                                <!-- Reverse DNS Context for A Records -->
+                                {% if record_type == 'A' and dns_result.data.reverse_dns %}
+                                    <div class="mt-2 pl-4 border-l-2 border-gray-700">
+                                        <p class="text-xs text-gray-400 mb-1">Reverse DNS Verification</p>
+                                        <ul class="space-y-2">
+                                        {% for ip, info in dns_result.data.reverse_dns.items() %}
+                                            <li class="text-xs">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-gray-300">{{ ip }}</span>
+                                                    {% if info.verified %}
+                                                        <span class="text-green-400 flex items-center gap-1" title="Forward & Reverse Match">
+                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                                            Verified
+                                                        </span>
+                                                    {% elif info.error %}
+                                                        <span class="text-red-400" title="{{ info.error }}">Error</span>
+                                                    {% else %}
+                                                        <span class="text-yellow-400" title="PTR exists but does not resolve back to IP">Unverified</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if info.hostnames %}
+                                                    <div class="text-gray-500 pl-4 mt-0.5">↳ {{ info.hostnames|join(', ') }}</div>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if dns_result.data.dangling_cnames %}
+                             <div class="bg-red-900/20 border border-red-500/50 rounded p-3 mt-4">
+                                <h4 class="text-red-400 font-bold text-sm mb-1">⚠️ Dangling CNAMEs Detected</h4>
+                                <ul class="list-disc list-inside text-xs text-red-300">
+                                    {% for cname in dns_result.data.dangling_cnames %}
+                                        <li>{{ cname }}</li>
+                                    {% endfor %}
+                                </ul>
+                             </div>
+                        {% endif %}
+                        
+                        {% if dns_result.log_content %}
+                        <details class="mt-4 border border-gray-700/50 rounded-lg group">
+                            <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none">
+                                <svg class="w-4 h-4 mr-2 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                View Scan Logs
+                            </summary>
+                            <div class="p-4 bg-gray-950 font-mono text-xs text-gray-400 overflow-x-auto">
+<pre>{{ dns_result.log_content }}</pre>
+                            </div>
+                        </details>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>

@@ -1,0 +1,25 @@
+    <!-- WHAT CHANGED BANNER -->
+    {% if recent_changes %}
+    <div class="change-banner bg-amber-900/30 border border-amber-700/60 rounded-xl p-4 mb-2 shadow-lg">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path></svg>
+                <strong class="text-amber-300 text-sm">{{ recent_changes|length }} change(s) detected in the last 24 hours</strong>
+            </div>
+            <button onclick="this.closest('.change-banner').querySelector('.change-list').classList.toggle('hidden')"
+                    class="text-amber-400 text-xs hover:text-amber-200 transition-colors px-2 py-1 rounded border border-amber-700/50 hover:border-amber-500">
+                Show / Hide
+            </button>
+        </div>
+        <ul class="change-list mt-3 space-y-1.5 text-sm text-slate-300 hidden">
+            {% for change in recent_changes %}
+            <li class="flex items-start gap-2 py-1 border-b border-amber-800/30 last:border-0">
+                <span class="text-amber-500 mt-0.5">&#x2022;</span>
+                <span class="font-mono text-amber-400 text-xs shrink-0 mt-0.5">[{{ change.module_name }}]</span>
+                <span class="flex-1 text-slate-300 text-xs">{{ change.description }}</span>
+                <span class="text-slate-500 text-xs shrink-0 ml-2">{{ change.created_at.strftime('%H:%M') }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
