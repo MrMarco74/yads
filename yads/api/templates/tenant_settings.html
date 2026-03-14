@@ -893,8 +893,8 @@
         var area = document.getElementById('import-preview-area');
         area.innerHTML = '<div class="text-xs text-slate-400 animate-pulse p-4">Lade Vorschau…</div>';
         var fd = new FormData();
-        fd.append('file', file);
-        fd.append('password', pw);
+        fd.append('config_file', file);
+        fd.append('import_password', pw);
         try {
             var resp = await fetch('/tenant-settings/import-config/preview', { method: 'POST', body: fd });
             area.innerHTML = await resp.text();
@@ -910,8 +910,8 @@
         if (!file || !pw) { alert('Datei oder Passwort fehlt. Bitte erneut auswählen.'); return; }
         var area = document.getElementById('import-preview-area');
         var fd = new FormData();
-        fd.append('file', file);
-        fd.append('password', pw);
+        fd.append('config_file', file);
+        fd.append('import_password', pw);
         try {
             var resp = await fetch('/tenant-settings/import-config/apply', { method: 'POST', body: fd });
             area.innerHTML = await resp.text();
