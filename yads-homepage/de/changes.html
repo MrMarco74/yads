@@ -154,6 +154,32 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.47.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.47.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Überwachung und Stabilität</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Implementierung eines System-Tray-Bugreport-Watchers mit Desktop-Benachrichtigungen, Browser-Link und Funktion zum Markieren als gelesen, zugänglich über ein manuelles Launcher-Skript.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behebung eines Problems, bei dem Scans nach einem Volume-Wipe aufgrund einer fehlenden QUEUE_ACTIVE-Konfiguration stillschweigend neu in die Warteschlange eingereiht wurden, indem ein fehlendes QUEUE_ACTIVE als aktiv behandelt und in einer frischen Datenbank initialisiert wird.</li>
+                    <li>Behebung von Authentifizierungsfehlern nach einem Volume-Wipe durch Einfügen der DATABASE_URL in docker-compose und URL-Kodierung des Passworts in der Konfiguration.</li>
+                    <li>Behebung eines Problems, bei dem der WORKER_REGISTRATION_TOKEN und SUPPORT_ADMIN_TOKEN bei Neuinstallationen nicht generiert wurden, was zu Fehlern im Support-Portal und bei der Worker-Registrierung führte.</li>
+                    <li>Behebung eines Problems, bei dem das Tools-Image-Tag nicht in release_gui.yaml gespeichert wurde.</li>
+                    <li>Ersetzung der IPv6-Adresse durch eine statische IPv4-Adresse in der Admin-Zulassungsliste des Support-Portals.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Hinzufügung des internen IP-Bereichs von Docker Swarm (10.0.0.0/8) zur Admin-Zulassungsliste des Support-Portals.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 6f950fb289afa7e75a8a793b83d899f122102b15b2814a2372ce54ee54004a8d</p>
+            </div>
+        </div>
+
         <!-- Version 1.46.1 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.46.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
