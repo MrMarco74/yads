@@ -284,6 +284,14 @@ async def lifespan(app: FastAPI):
             # --- Seed Default Report Templates ---
             seed_default_report_templates()
 
+            # --- Ensure QUEUE_ACTIVE is set (fresh DB after wipe has no entry) ---
+            with Session(engine) as session:
+                from yads.models import SystemConfig
+                if not session.get(SystemConfig, "QUEUE_ACTIVE"):
+                    session.add(SystemConfig(key="QUEUE_ACTIVE", value="true"))
+                    session.commit()
+                    logger.info("Seeded QUEUE_ACTIVE=true into SystemConfig.")
+
             # --- Load License Key to Settings ---
             with Session(engine) as session:
                 from yads.models import SystemConfig
