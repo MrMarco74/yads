@@ -331,8 +331,8 @@ async def bulk_delete_targets(
             celery_app.control.revoke(tid_revoke, terminate=True)
             
         # 1b. Delete Dependencies
-        session.exec(text("DELETE FROM scanresult WHERE target_id IN :ids"), {"ids": tuple(ids_to_delete)})
-        session.exec(text("DELETE FROM modulestate WHERE target_id IN :ids"), {"ids": tuple(ids_to_delete)})
+        session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), {"ids": list(ids_to_delete)})
+        session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), {"ids": list(ids_to_delete)})
         
         # 2. Delete Targets (Verify ownership implicitly by filtering ID list first? Better to rely on prior checks or simple query)
         # But here we used raw delete for speed. 
