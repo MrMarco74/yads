@@ -226,8 +226,17 @@ async def upload_bug_report(
         return _err(f"Verschlüsselungsfehler: {e}")
 
     # POST to support portal
+    # SSL verification: use custom CA bundle if configured, otherwise system default.
+    # Can be disabled via SUPPORT_PORTAL_VERIFY_SSL=false for dev/staging setups
+    # where a proper cert is not yet in place.
+    _verify: bool | str = True
+    if not getattr(settings, "SUPPORT_PORTAL_VERIFY_SSL", True):
+        _verify = False
+    elif getattr(settings, "CUSTOM_CA_CERT_PATH", None):
+        _verify = settings.CUSTOM_CA_CERT_PATH
+
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=_verify) as client:
             resp = await client.post(
                 f"{settings.SUPPORT_PORTAL_URL}/api/report",
                 json=upload_payload,
