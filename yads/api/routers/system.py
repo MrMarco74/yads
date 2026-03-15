@@ -532,7 +532,8 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "metrics_enabled": metrics_enabled,
         "metrics_auth_mode": metrics_auth_mode,
         "metrics_token": metrics_token,
-        "metrics_include_tenant_labels": metrics_include_tenant_labels
+        "metrics_include_tenant_labels": metrics_include_tenant_labels,
+        "worker_nodes": __import__('yads.api.utils.celery_inspect', fromlist=['get_celery_worker_nodes']).get_celery_worker_nodes(),
     })
 
 @router.post("/settings", response_class=HTMLResponse)

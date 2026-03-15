@@ -276,6 +276,9 @@
         {% endif %}
     </div>
 
+    <!-- Celery Worker Nodes -->
+    {% include '_celery_worker_nodes.html' %}
+
     <!-- Running Tasks (all workers) -->
     {% if running_tasks %}
     <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">

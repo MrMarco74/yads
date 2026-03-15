@@ -34,6 +34,7 @@ ui_router = APIRouter(prefix="/workers", tags=["workers-ui"])
 from yads.config import settings
 
 from yads.api.templating import templates
+from yads.api.utils.celery_inspect import get_celery_worker_nodes
 templates.env.globals['settings'] = settings
 
 def get_all_tenants():
@@ -1010,6 +1011,7 @@ async def worker_monitor_page(
         "stats": stats,
         "running_tasks": running_tasks,
         "worker_mode": worker_mode,
+        "worker_nodes": get_celery_worker_nodes(),
     })
 
 
