@@ -48,100 +48,16 @@
         </div>
     </div>
     
-    <!-- Worker Nodes -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
-                Worker Nodes
-            </h2>
-            <span class="bg-violet-900/50 text-violet-300 text-xs font-bold px-2 py-1 rounded-full border border-violet-700/50">{{ worker_nodes|length }} online</span>
-        </div>
-        {% if worker_nodes %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
-            {% for w in worker_nodes %}
-            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-4 flex flex-col gap-2">
-                <div class="flex items-center gap-2">
-                    <span class="flex h-2.5 w-2.5 relative">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span class="text-white font-semibold text-sm font-mono truncate" title="{{ w.full_name }}">{{ w.display }}</span>
-                </div>
-                <div class="flex items-center gap-3 text-xs text-slate-400">
-                    <span title="Active tasks">
-                        <span class="{% if w.active > 0 %}text-indigo-300 font-bold{% else %}text-slate-500{% endif %}">{{ w.active }}</span>
-                        <span class="text-slate-600"> / {{ w.concurrency }}</span>
-                        <span class="ml-1">active</span>
-                    </span>
-                    {% if w.reserved > 0 %}
-                    <span class="text-amber-400">{{ w.reserved }} reserved</span>
-                    {% endif %}
-                </div>
-                {% if w.active > 0 %}
-                <div class="w-full bg-slate-700 rounded-full h-1.5 mt-1">
-                    <div class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width: {{ [(w.active / w.concurrency * 100)|round|int, 100]|min }}%"></div>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="px-6 py-8 text-center text-slate-600 italic text-sm">No worker nodes connected.</div>
-        {% endif %}
-    </div>
-
-    <!-- Active Tasks -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                Active Executing Tasks
-            </h2>
-            <span class="bg-indigo-900/50 text-indigo-300 text-xs font-bold px-2 py-1 rounded-full border border-indigo-700/50">{{ active_tasks|length }}</span>
-        </div>
-        
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-slate-400">
-                <thead class="bg-slate-950 text-xs uppercase font-medium text-slate-500">
-                    <tr>
-                        <th class="px-6 py-3">Task ID</th>
-                        <th class="px-6 py-3">Type</th>
-                        <th class="px-6 py-3">Target / Args</th>
-                        <th class="px-6 py-3">Worker</th>
-                        <th class="px-6 py-3">Started</th>
-                        <th class="px-6 py-3 text-right">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-800">
-                    {% for task in active_tasks %}
-                    <tr class="hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-3 font-mono text-xs text-slate-500">{{ task.get('id', '?')[:12] }}...</td>
-                        <td class="px-6 py-3 text-white font-medium">{{ task.get('name', 'Unknown') }}</td>
-                        <td class="px-6 py-3 font-mono text-xs">{{ task.get('args', '') }}</td>
-                        <td class="px-6 py-3 text-slate-500">{{ task.get('hostname', '-') }}</td>
-                        <td class="px-6 py-3 text-emerald-400">{{ task.get('time_start')|timestamp_to_time }}</td>
-                        <td class="px-6 py-3 text-right">
-                            <button
-                                hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
-                                hx-swap="outerHTML"
-                                hx-confirm="Cancel this running task? The scan will be terminated."
-                                class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
-                                title="Cancel task {{ task.get('id', '') }}"
-                            >
-                                Cancel
-                            </button>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-slate-600 italic">
-                            No tasks currently executing.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Celery live data: worker nodes + active/reserved/scheduled (loaded async) -->
+    <div hx-get="/queue/celery-live"
+         hx-trigger="load"
+         hx-swap="outerHTML">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl px-6 py-8 text-center text-slate-500 text-sm italic">
+            <svg class="animate-spin inline w-4 h-4 mr-2 text-violet-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Worker Nodes &amp; aktive Tasks werden geladen…
         </div>
     </div>
 
@@ -206,95 +122,5 @@
          </div>
     </div>
 
-    <!-- Reserved / Scheduled -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Reserved (Prefetched by Worker) -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>
-                    Reserved
-                </h2>
-                <span class="bg-slate-800 text-slate-300 text-xs font-bold px-2 py-1 rounded-full border border-slate-700">{{ reserved_tasks|length }}</span>
-            </div>
-             <div class="overflow-x-auto">
-                 <table class="w-full text-left text-sm text-slate-400">
-                    <thead class="bg-slate-950 text-xs uppercase font-medium text-slate-500">
-                        <tr>
-                            <th class="px-4 py-2">Task</th>
-                            <th class="px-4 py-2">Args</th>
-                            <th class="px-4 py-2 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                         {% for task in reserved_tasks %}
-                        <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown') }}</td>
-                            <td class="px-4 py-2 font-mono text-xs">{{ task.get('args', '') }}</td>
-                            <td class="px-4 py-2 text-right">
-                                <button
-                                    hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
-                                    hx-swap="outerHTML"
-                                    hx-confirm="Cancel this reserved task?"
-                                    class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
-                                >
-                                    Cancel
-                                </button>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="3" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                 </table>
-             </div>
-        </div>
-
-        <!-- Scheduled / ETA -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-             <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-                <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Scheduled
-                </h2>
-                <span class="bg-slate-800 text-slate-300 text-xs font-bold px-2 py-1 rounded-full border border-slate-700">{{ scheduled_tasks|length }}</span>
-            </div>
-             <div class="overflow-x-auto">
-                 <table class="w-full text-left text-sm text-slate-400">
-                    <thead class="bg-slate-950 text-xs uppercase font-medium text-slate-500">
-                        <tr>
-                            <th class="px-4 py-2">Task</th>
-                            <th class="px-4 py-2">ETA</th>
-                            <th class="px-4 py-2 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                         {% for task in scheduled_tasks %}
-                        <tr class="hover:bg-slate-800/50">
-                            <td class="px-4 py-2 text-white">{{ task.get('name', 'Unknown') }}</td>
-                            <td class="px-4 py-2 font-mono text-xs text-purple-400">{{ task.get('eta', '-') }}</td>
-                            <td class="px-4 py-2 text-right">
-                                <button
-                                    hx-post="/queue/tasks/{{ task.get('id', '') }}/cancel"
-                                    hx-swap="outerHTML"
-                                    hx-confirm="Cancel this scheduled task?"
-                                    class="text-red-400 hover:text-red-300 text-xs font-medium hover:underline"
-                                >
-                                    Cancel
-                                </button>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="3" class="px-6 py-6 text-center text-slate-600 italic">Empty</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                 </table>
-             </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
