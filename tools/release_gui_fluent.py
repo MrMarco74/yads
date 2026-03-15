@@ -2687,9 +2687,10 @@ class LocalDeployWorker(QThread):
     def _log(self, message: str, level: str = "info"):
         self.signals.log_message.emit(message, level)
 
-    def _run_cmd(self, cmd: list, shell=False) -> bool:
+    def _run_cmd(self, cmd: list, shell=False, silent=False) -> bool:
         if self.cancelled: return False
-        self._log(f"Running: {' '.join(cmd) if not shell else cmd}", "info")
+        if not silent:
+            self._log(f"Running: {' '.join(cmd) if not shell else cmd}", "info")
         try:
             self.current_process = subprocess.Popen(
                 cmd,
@@ -2705,11 +2706,13 @@ class LocalDeployWorker(QThread):
                 if self.cancelled:
                     self.current_process.terminate()
                     break
-                self._log(line.strip(), "info")
+                if not silent:
+                    self._log(line.strip(), "info")
             self.current_process.wait()
             return self.current_process.returncode == 0
         except Exception as e:
-            self._log(f"Error executing command: {e}", "error")
+            if not silent:
+                self._log(f"Error executing command: {e}", "error")
             return False
         finally:
             self.current_process = None
@@ -2771,6 +2774,14 @@ class LocalDeployWorker(QThread):
 
             build_cmd = ["docker", "compose"] + profile_flags + ["build"]
             up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d", "--remove-orphans"]
+
+            # Silently remove any stopped containers to avoid name conflicts
+            # (e.g. from manually started or orphaned containers)
+            self._run_cmd(
+                ["docker", "compose", "--profile", "keycloak", "--profile", "monitoring",
+                 "rm", "-f", "--stop"],
+                silent=True,
+            )
 
             self._log("Building containers...", "info")
             if not self._run_cmd(build_cmd):
