@@ -316,7 +316,7 @@ Scan-Profile ermöglichen die Definition wiederverwendbarer Scanner-Modul-Sets. 
     <li><strong>Teilen</strong>: Profile sind mandantengebunden und für alle Benutzer im Mandanten sichtbar.</li>
 </ul>
 <h3>Geplante Scans</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 Sie können Ihre Reconnaissance automatisieren, indem Sie wiederkehrende Zeitpläne einrichten.
 1.  Navigieren Sie zur <strong>Zeitpläne</strong>-Seite über die Seitenleiste.
 2.  Klicken Sie auf <strong>"Zeitplan erstellen"</strong>.
@@ -354,28 +354,28 @@ Sie können Ihre Reconnaissance automatisieren, indem Sie wiederkehrende Zeitpl�
 </li>
 </ul>
 <h3>Schwachstellen-Scanning (Aktiv)</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 YADS integriert jetzt <strong>Nuclei</strong> für aktive Schwachstellenerkennung.
 *   <strong>Fähigkeiten</strong>: Scannt nach 5000+ bekannten Schwachstellen (CVEs), Fehlkonfigurationen und exponierten Panels.
 *   <strong>Schweregrad</strong>: Befunde werden als Critical, High, Medium, Low oder Info kategorisiert.
 *   <strong>Verwendung</strong>: Wählen Sie "Nuclei Vulnerability Scan" im <em>Neuer Scan</em>-Dialog.</p>
 <h3>Stealth Port-Scanning</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 *   <strong>Stealth-Modus</strong>: Verwendet Nmap mit Evasion-Flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>), um Ports zu prüfen, ohne IDS/IPS auszulösen.
 *   <strong>Langsam &amp; Sicher</strong>: Für Stealth konzipiert, dauert dieser Scan länger, reduziert aber das Erkennungsrisiko.</p>
 <h3>JavaScript SAST</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 *   <strong>Statische Analyse</strong>: Lädt automatisch clientseitige JavaScript-Dateien herunter und analysiert sie.
 *   <strong>Sink-Erkennung</strong>: Identifiziert potenzielle DOM-XSS-Sinks (z.B. <code>innerHTML</code>, <code>document.write</code>).
 *   <strong>Routen-Erkennung</strong>: Extrahiert versteckte API-Routen aus JS-Code.</p>
 <h3>API-Erkennung</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 Teil des Web Analyzers, dieses Modul erkennt automatisch:
 *   <strong>Dokumentation</strong>: Findet <code>swagger.json</code>, <code>openapi.yaml</code> und WSDL-Dateien.
 *   <strong>Endpunkte</strong>: Identifiziert GraphQL-Endpunkte (<code>/graphql</code>) und versionierte REST-Pfade (<code>/api/v1/</code>).
 *   <strong>Ergebnisse</strong>: Werden in der <strong>Web-Analyse</strong>-Karte auf der Target-Detailseite angezeigt.</p>
 <h3>SOC2 Compliance-Engine</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 Echtzeit-Bewertung der Compliance-Bereitschaft Ihrer Infrastruktur.
 *   <strong>Score</strong>: Wird dynamisch (0-100%) basierend auf aktiven Scan-Ergebnissen berechnet.
 *   <strong>Abzüge</strong>:
@@ -466,7 +466,7 @@ Prüft das Vorhandensein und die Gültigkeit einer <code>security.txt</code>-Dat
 
 <hr />
 <h2>7. OSINT Markenüberwachung</h2>
-<p><strong>(Neu in v1.48.2)</strong></p>
+<p><strong>(Neu in v1.48.3)</strong></p>
 <p>Das OSINT-Modul hilft Ihnen, nicht überwachte Assets zu entdecken, indem es findet, wo Ihre Marken-Assets (Logos) im Web erscheinen.</p>
 <h3>Google Cloud Einrichtung (Voraussetzung)</h3>
 <p>Um diese Funktion zu nutzen, muss Ihr Mandanten-Admin die <strong>Google Cloud Vision API</strong> konfigurieren:
@@ -500,7 +500,7 @@ Prüft das Vorhandensein und die Gültigkeit einer <code>security.txt</code>-Dat
     *   <strong>DNS ausgrauen</strong>: Blendet DNS-Verbindungen grau aus, um die Web-Struktur hervorzuheben.
 *   <strong>Cluster</strong>: Sehen Sie, welche Domains dieselbe Hosting-Infrastruktur teilen.
 *   <strong>Zoom/Schwenken</strong>: Navigieren Sie einfach in großen Infrastrukturen.
-*   <strong>Angriffspfad-Visualisierung</strong> (Neu in v1.48.2):
+*   <strong>Angriffspfad-Visualisierung</strong> (Neu in v1.48.3):
     *   <strong>Umschalten</strong>: Aktivieren Sie "Angriffspfade", um riskante Kanten und kompromittierte Knoten hervorzuheben.
     *   <strong>Einblicke</strong>: Visualisiert potenzielle laterale Bewegungspfade basierend auf Schwachstellen- und Netzwerkdaten.</p>
 <h3>Analytics-Dashboard</h3>
@@ -509,7 +509,7 @@ Prüft das Vorhandensein und die Gültigkeit einer <code>security.txt</code>-Dat
     *   <strong>Tech-Verteilung</strong>: Diagramme, die die häufigsten Technologien zeigen (z.B. "80% Nginx").
     *   <strong>Risiko-Überblick</strong>: Zusammenfassung kritischer Schwachstellen im gesamten Portfolio.</p>
 <h3>Compliance &amp; Bewertung</h3>
-<p><strong>(Aktualisiert in v1.48.2)</strong>
+<p><strong>(Aktualisiert in v1.48.3)</strong>
 Oben auf jeder <strong>Target-Detail</strong>-Seite zu finden:
 *   <strong>Sicherheitsbewertung (A-F)</strong>: Ein zusammengesetzter Score basierend auf SSL, Headern, Schwachstellen und offenen Ports.
 *   <strong>Risikofaktoren</strong>: Listet explizit die Gründe für Score-Abzüge auf (z.B. "Fehlendes HSTS -10").
@@ -529,7 +529,7 @@ Oben auf jeder <strong>Target-Detail</strong>-Seite zu finden:
     - <strong>Typ</strong>: Zeigt an, ob der Link über einen Webseiten-Link (<code>link</code>), Mail Exchange Record (<code>MX</code>), Nameserver (<code>NS</code>) etc. gefunden wurde.
     - <strong>Export</strong>: Klicken Sie auf "PDF exportieren" auf der <strong>Berichte</strong>-Seite.</p>
 <h3>Tote Links Analyse</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 Identifizieren Sie Gesundheitsprobleme in Ihrem eigenen Inventar.
 - <strong>Zugriff</strong>: Gehen Sie zu <code>Analytics &gt; Tote Links</code>.
 - <strong>Nicht erreichbare Targets</strong>: Listet Targets, bei denen kürzliche Scans fehlgeschlagen sind (Offline oder Server-Fehler).
@@ -670,7 +670,7 @@ Sicherheitsscore: {{ t.security_score }}
 *   <strong>Verwaltung</strong>: Admins können Mandanten umbenennen und Mitgliedschaften über die <strong>Mandanten</strong>-Seite verwalten.
 *   <strong>Plattform-Admin</strong>: Ein Admin ohne spezifischen Mandanten sieht <em>alles</em> und kann die Mandanten selbst verwalten.</p>
 <h3>Webhook-Benachrichtigungen</h3>
-<p><strong>(Neu in v1.48.2)</strong>
+<p><strong>(Neu in v1.48.3)</strong>
 Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integrieren (Slack, Discord, Tines, etc.).
 1.  Gehen Sie zu <strong>Mandanten-Einstellungen</strong>.
 2.  Scrollen Sie zur <strong>Webhook-Benachrichtigungen</strong>-Karte.
@@ -717,7 +717,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <p><strong>Hinweis</strong>: Detaillierte Einrichtungsanweisungen finden Sie in der <a href="support.html#distributed-workers">Anleitung für verteilte Worker</a>.</p>
 </blockquote>
 <h3 id="one-click-updates">One-Click Updates</h3>
-<p><strong>(Neu in v1.48.2)</strong></p>
+<p><strong>(Neu in v1.48.3)</strong></p>
 <p>YADS enthält einen In-App Update-Mechanismus, der kontrollierte Updates ohne manuellen Eingriff durchführt.</p>
 <ul>
 <li><strong>Nach Updates suchen</strong>: Navigieren Sie zu <strong>Einstellungen</strong> und finden Sie die "System Updates"-Karte. Klicken Sie auf "Nach Updates suchen", um zu prüfen, ob eine neue Version verfügbar ist.</li>
@@ -737,7 +737,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <p><strong>⚠️ Wichtig</strong>: Updates können nicht abgebrochen werden, sobald die Neustart-Phase begonnen hat. Stellen Sie sicher, dass Sie aktuelle Backups haben, bevor Sie aktualisieren.</p>
 </blockquote>
 <h3 id="sicherheits-audit-logging">Sicherheits-Audit-Logging (MITRE ATT&CK)</h3>
-<p><strong>(Neu in v1.48.2)</strong></p>
+<p><strong>(Neu in v1.48.3)</strong></p>
 <p>YADS enthält umfassendes Sicherheits-Audit-Logging, das am MITRE ATT&CK Framework ausgerichtet ist. Alle Authentifizierungs- und Benutzerverwaltungsereignisse werden mit vollständigem Kontext für SIEM-Integration und Compliance protokolliert.</p>
 <h4>Protokollierte Ereignisse</h4>
 <table>
@@ -772,7 +772,7 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <p><strong>💡 Tipp</strong>: Verwenden Sie die MITRE-Technik-IDs, um YADS-Ereignisse mit anderen Sicherheitstools in Ihrem SOC zu korrelieren.</p>
 </blockquote>
 <h3 id="prometheus-metriken">Prometheus Metriken-Export</h3>
-<p><strong>(Neu in v1.48.2)</strong></p>
+<p><strong>(Neu in v1.48.3)</strong></p>
 <p>YADS bietet native Prometheus-Metriken für Infrastruktur-Monitoring, Alerting und Performance-Dashboards.</p>
 <h4>Metriken aktivieren</h4>
 <p>Setzen Sie die folgenden Umgebungsvariablen, um den <code>/metrics</code>-Endpunkt zu aktivieren:</p>
