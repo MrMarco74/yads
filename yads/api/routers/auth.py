@@ -40,9 +40,9 @@ async def login_page(request: Request):
 
 @router.post("/login", response_class=HTMLResponse)
 async def login(
-    request: Request, 
-    username: str = Form(...), 
-    password: str = Form(...),
+    request: Request,
+    username: str = Form(..., max_length=150),
+    password: str = Form(..., max_length=1024),
     otp_code: Optional[str] = Form(None),
     response: Response = None,
     session: Session = Depends(get_db_session)
@@ -251,8 +251,8 @@ async def change_password_page(request: Request):
 @router.post("/auth/change-password")
 async def change_password_action(
     request: Request,
-    new_password: str = Form(...),
-    confirm_password: str = Form(...),
+    new_password: str = Form(..., max_length=1024),
+    confirm_password: str = Form(..., max_length=1024),
     session: Session = Depends(get_db_session),
     user: User = Depends(get_current_user)
 ):

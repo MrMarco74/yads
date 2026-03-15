@@ -30,6 +30,25 @@
 
     <div class="space-y-4">
       <div>
+        <label class="block text-xs text-slate-400 mb-1.5" for="topic">
+          Topic / Kategorie
+        </label>
+        <select id="topic" name="topic"
+          class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5 text-sm text-slate-200
+                 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50">
+          <option value="">— Bitte wählen (optional) —</option>
+          <option value="scanner">Scanner / Scan-Ergebnisse</option>
+          <option value="ui">UI / Darstellung</option>
+          <option value="performance">Performance / Ladezeit</option>
+          <option value="auth">Anmeldung / Rechte</option>
+          <option value="worker">Worker / Queue</option>
+          <option value="report">Report / Export</option>
+          <option value="api">API</option>
+          <option value="other">Sonstiges</option>
+        </select>
+      </div>
+
+      <div>
         <label class="block text-xs text-slate-400 mb-1.5" for="description">
           Was ist passiert? <span class="text-red-400">*</span>
         </label>
@@ -99,7 +118,7 @@
       hx-post="/help/bug-report/upload"
       hx-target="#upload-result"
       hx-swap="outerHTML"
-      hx-include="#description, #affected_url, input[name='attach_errors'], input[name='attach_alerts']"
+      hx-include="#topic, #description, #affected_url, input[name='attach_errors'], input[name='attach_alerts']"
       hx-indicator="#upload-spinner"
       onclick="this.disabled=true; document.getElementById('upload-spinner').style.display='inline-flex';"
       class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60

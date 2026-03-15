@@ -1090,6 +1090,42 @@ docker compose up -d --force-recreate
 </blockquote>
 
 <hr />
+<h2>21. Support-Tickets &amp; Messaging</h2>
+<p>
+    YADS-Kunden können ihre eingereichten Bug-Reports einsehen und direkt aus der Anwendung heraus mit dem YADS-Support-Team kommunizieren.
+</p>
+<h3>Support-Tickets aufrufen</h3>
+<p>Navigiere zu <strong>Hilfe → Support Tickets</strong> in der Seitenleiste. Die Ticket-Liste zeigt alle eingereichten Reports mit Status, Topic und ungelesenen Nachrichten.</p>
+<h3>Messaging (Pro-Feature)</h3>
+<p>
+    Bidirektionales Messaging zwischen Kunde und Support ist ein <strong>Pro-Lizenz-Feature</strong> (<code>support_messaging</code>).
+    Community-Edition-Nutzer können Tickets und Support-Antworten lesen, aber keine Nachrichten senden.
+</p>
+<ul>
+    <li>Ticket anklicken → Nachrichtenverlauf öffnet sich.</li>
+    <li>Nachricht schreiben und auf <em>Senden</em> klicken.</li>
+    <li>Ungelesene Support-Nachrichten werden durch ein blaues Badge in der Ticket-Liste angezeigt.</li>
+</ul>
+<h3>Bug-Report-Topics</h3>
+<p>Beim Erstellen eines Bug-Reports kann ein Topic-Kategorie ausgewählt werden (Scanner, UI, Performance, Auth, Worker, Report, API, Other). Topics helfen bei der Priorisierung und Zuweisung.</p>
+
+<hr />
+<h2>22. Anonymes Installations-Reporting</h2>
+<p>
+    Im Onboarding-Wizard (Schritt 4) wird angeboten, einen einmaligen anonymen Bericht zu senden, um YADS zu verbessern.
+    Dieser Schritt ist vollständig optional und erfordert eine explizite Zustimmung.
+</p>
+<h3>Was gesendet wird</h3>
+<ul>
+    <li><strong>instance_uuid</strong>: Eine zufällige UUID, die beim ersten Start generiert wird. Nicht mit Nutzern, Tenants oder IP-Adressen verknüpft.</li>
+    <li><strong>version</strong>: Die aktuell installierte YADS-Version.</li>
+    <li><strong>submitted_at</strong>: Der aktuelle Zeitstempel in UTC.</li>
+</ul>
+<p>Es werden keine persönlichen Daten, keine Hostnamen, keine Tenant-Namen und keine Nutzerdaten übertragen. Im Wizard kann die genaue Nutzlast vor dem Klick auf <em>Senden &amp; Weiter</em> eingesehen werden.</p>
+<h3>Reporting überspringen</h3>
+<p>Auf <em>Überspringen</em> klicken. Der Wizard geht direkt zur Fertig-Ansicht und das Onboarding wird normal abgeschlossen.</p>
+
+<hr />
 <p><em>Für technische, Enterprise- und Scanner-Modul-Dokumentation: <a href="docs-advanced.html">Erweiterte Referenz →</a></em></p>
         </main>
     </div>

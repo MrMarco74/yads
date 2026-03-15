@@ -541,6 +541,8 @@ app.include_router(portfolio.ui_router)
 app.include_router(api_keys.router)
 app.include_router(changelog.router)
 app.include_router(help.router)
+from yads.api.routers import support_tickets
+app.include_router(support_tickets.router)
 app.include_router(profile.router)
 app.include_router(schedules.router)
 app.include_router(queue.router)
