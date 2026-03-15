@@ -3001,8 +3001,8 @@ class DanaWorkerThread(QThread):
             # in the Celery node list instead of duplicating edward's names.
             ok = self._run_ssh(
                 f"cd {self.remote_path} && "
-                f"{common_env} WORKER_NAME='dana-worker-1' docker compose up -d yads-worker 2>&1 && "
-                f"{common_env} WORKER_NAME_2='dana-worker-2' docker compose up -d yads-worker-2 2>&1"
+                f"{common_env} WORKER_NAME='dana-worker-1' docker compose up -d --no-deps yads-worker 2>&1 && "
+                f"{common_env} WORKER_NAME_2='dana-worker-2' docker compose up -d --no-deps yads-worker-2 2>&1"
             )
             if not ok:
                 return self.signals.operation_finished.emit(False, "docker compose up failed on dana")
