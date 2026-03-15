@@ -18,6 +18,22 @@
   </span>
 </div>
 
+{% if eos_customer %}
+<div class="card mb-3" style="background:#3b0a0a; border:1px solid #7f1d1d; padding:0.85rem 1.25rem; display:flex; align-items:center; gap:0.75rem;">
+  <svg style="width:1.2rem;height:1.2rem;color:#f87171;flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+  <div>
+    <strong style="color:#fca5a5;">End of Support (EOS)</strong>
+    <span style="color:#f87171; margin-left:0.5rem; font-size:0.82rem;">
+      Dieser Kunde ist seit {{ eos_customer.eos_since.strftime('%Y-%m-%d') if eos_customer.eos_since else '—' }} als EOS markiert.
+      Neue Bug Reports werden nicht mehr akzeptiert.
+    </span>
+  </div>
+</div>
+{% endif %}
+
 <!-- Info Grid -->
 <div class="detail-grid card mb-3">
   <div class="detail-item">
@@ -42,6 +58,16 @@
       {% set url = report_data.get('affected_url', '') %}
       {% if url %}
         <a href="{{ url }}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem;">{{ url }}</a>
+      {% else %}
+        <span class="text-muted">—</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-item__label">Topic</div>
+    <div class="detail-item__value">
+      {% if report.topic %}
+        <span style="padding:0.2rem 0.6rem; background:#1e3a5f; color:#93c5fd; border-radius:4px; font-size:0.8rem;">{{ report.topic }}</span>
       {% else %}
         <span class="text-muted">—</span>
       {% endif %}
@@ -114,6 +140,48 @@
     </select>
     <button type="submit" class="btn btn--primary">Speichern</button>
   </form>
+</div>
+
+<!-- Message Thread -->
+<div class="card mb-3">
+  <h3 style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+    Support-Nachrichten ({{ messages|length }})
+  </h3>
+
+  {% if messages %}
+  <div style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1rem; max-height:28rem; overflow-y:auto; padding-right:0.25rem;">
+    {% for m in messages %}
+    <div style="display:flex; {% if m.sender == 'support' %}justify-content:flex-end{% else %}justify-content:flex-start{% endif %};">
+      <div style="max-width:75%; padding:0.6rem 0.9rem; border-radius:10px;
+                  {% if m.sender == 'support' %}background:#1e3a5f; color:#bfdbfe;{% else %}background:#1e1e2e; color:#e2e8f0; border:1px solid #334155;{% endif %}">
+        <div style="font-size:0.72rem; margin-bottom:0.3rem; opacity:0.65;">
+          <strong>{{ m.author_name }}</strong> · {{ m.created_at.strftime('%d.%m.%Y %H:%M') }} UTC
+          {% if m.sender == 'support' and not m.is_read_by_customer %}
+            <span style="margin-left:0.4rem; font-size:0.65rem; color:#f59e0b;">● ungelesen</span>
+          {% endif %}
+        </div>
+        <p style="margin:0; white-space:pre-wrap; font-size:0.84rem; line-height:1.55;">{{ m.text }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.75rem;">Noch keine Nachrichten.</p>
+  {% endif %}
+
+  <!-- Reply form -->
+  {% if not eos_customer %}
+  <form method="post" action="/reports/{{ report.report_id }}/reply" style="display:flex; flex-direction:column; gap:0.5rem;">
+    <textarea name="text" rows="3" placeholder="Antwort schreiben…"
+              style="width:100%; background:#0a0f1d; color:#e2e8f0; border:1px solid #334155; border-radius:8px; padding:0.6rem 0.8rem; font-size:0.84rem; resize:vertical;"
+              required></textarea>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <input name="author_name" type="text" value="Support" placeholder="Absendername"
+             style="width:160px; background:#0a0f1d; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:0.4rem 0.6rem; font-size:0.82rem;">
+      <button type="submit" class="btn btn--primary">Senden</button>
+    </div>
+  </form>
+  {% endif %}
 </div>
 
 <!-- LLM Prompt -->

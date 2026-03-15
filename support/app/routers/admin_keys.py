@@ -140,6 +140,7 @@ class UpsertKeyRequest(BaseModel):
     customer_id: str
     public_key_b64: str
     customer_name: str
+    is_eos: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +187,13 @@ async def upsert_customer_key(
         existing.public_key_b64 = body.public_key_b64
         existing.customer_name = body.customer_name
         existing.last_sync = now
+        if body.is_eos and not existing.is_eos:
+            existing.is_eos = True
+            existing.eos_since = now
+        elif not body.is_eos and existing.is_eos:
+            # Re-activate (key re-issued)
+            existing.is_eos = False
+            existing.eos_since = None
         session.add(existing)
     else:
         new_key = CustomerKey(
@@ -194,6 +202,8 @@ async def upsert_customer_key(
             public_key_b64=body.public_key_b64,
             registered_at=now,
             last_sync=now,
+            is_eos=body.is_eos,
+            eos_since=now if body.is_eos else None,
         )
         session.add(new_key)
 
@@ -229,6 +239,47 @@ async def list_customer_keys(
     }
 
 
+@router.post("/api/admin/keys/{customer_id}/eos", status_code=200)
+async def mark_customer_eos(
+    request: Request,
+    customer_id: str,
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+):
+    """
+    Mark a customer as End-of-Support (EOS).
+
+    Protected by Bearer token + IP allowlist only (no body to sign).
+    Existing bug reports are retained but the customer is flagged in the UI.
+    """
+    _check_bearer(authorization)
+    _check_ip(request)
+
+    now = datetime.now(timezone.utc)
+    existing = session.exec(
+        select(CustomerKey).where(CustomerKey.customer_id == customer_id)
+    ).first()
+
+    if existing:
+        existing.is_eos = True
+        existing.eos_since = now
+        session.add(existing)
+    else:
+        # Customer was never synced — create a tombstone entry
+        tombstone = CustomerKey(
+            customer_id=customer_id,
+            customer_name="[unknown]",
+            public_key_b64="",
+            registered_at=now,
+            is_eos=True,
+            eos_since=now,
+        )
+        session.add(tombstone)
+
+    session.commit()
+    return {"status": "eos", "customer_id": customer_id, "eos_since": now.isoformat()}
+
+
 @router.get("/api/admin/reports", status_code=200)
 async def list_reports(
     request: Request,
@@ -253,16 +304,25 @@ async def list_reports(
     if status:
         reports = [r for r in reports if r.status == status]
 
+    # Build a quick lookup for EOS customer IDs
+    eos_ids = {
+        ck.customer_id
+        for ck in session.exec(select(CustomerKey).where(CustomerKey.is_eos == True)).all()
+    }
+
     return {
         "reports": [
             {
                 "report_id": r.report_id,
                 "customer_name": r.customer_name,
+                "customer_id": r.customer_id,
                 "tenant_name": r.tenant_name,
                 "yads_version": r.yads_version,
                 "status": r.status,
+                "topic": r.topic,
                 "description": r.description,
                 "submitted_at": r.submitted_at.isoformat(),
+                "is_eos": r.customer_id in eos_ids,
             }
             for r in reports
         ]

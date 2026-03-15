@@ -154,6 +154,33 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.49.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.49.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Support-Messaging, Installations-Reporting & Sicherheitshärtung</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li><strong>Support-Messaging (Pro):</strong> Bidirektionale Kommunikation zwischen Kunden und Support direkt in YADS. Kunden sehen ihre Tickets und den Nachrichtenverlauf auf der neuen Seite „Support Tickets" unter Hilfe. Das Senden von Antworten erfordert das Lizenz-Feature <code>support_messaging</code>. Community-Edition-Nutzer können ihre Tickets lesen, aber nicht antworten.</li>
+                    <li><strong>Topic-Feld für Bug Reports:</strong> Bug-Reports erhalten jetzt ein Themenfeld (scanner, ui, performance, auth, worker, report, api, other). Das Topic wird in der Ticket-Liste, der Detailansicht und im Support-Portal-Filter angezeigt. Der Desktop-Watcher zeigt das Topic ebenfalls in Benachrichtigungen.</li>
+                    <li><strong>End of Support (EOS):</strong> Wenn ein Kunde im License Manager gelöscht wird, markiert das Support-Portal ihn automatisch als EOS. EOS-Kunden sehen eine rote Warnung im Portal; Antworten werden blockiert. Der License Manager hat jetzt eine Löschen-Schaltfläche mit automatischer EOS-Synchronisierung.</li>
+                    <li><strong>Installations-Reporting (opt-in):</strong> Neuer optionaler letzter Schritt im Onboarding-Wizard. Zeigt eine Vorschau der anonymen Daten (Instanz-UUID, Version, Zeitstempel — keine persönlichen Daten), bevor sie gesendet werden. Das Support-Portal erhält ein neues Installations-Dashboard mit Versionsverteilung und Instanz-Zeitleiste.</li>
+                    <li><strong>Auto-Sync beim Lizenz-Speichern:</strong> Das Speichern eines Kundendatensatzes im License Manager synchronisiert öffentlichen Schlüssel und Metadaten automatisch im Hintergrund mit dem Support-Portal.</li>
+                </ul>
+                <h3>🔒 Sicherheitsverbesserungen</h3>
+                <ul>
+                    <li>SSRF-Schutz für Integrations-URLs: Jira-Base-URL und SIEM-HTTP-Endpunkt werden vor dem Speichern auf Schema (nur http/https) und blockierte Cloud-Metadata-Hostnamen geprüft.</li>
+                    <li>Eingabelängenbeschränkungen für Form-Parameter in Auth-, Hilfe- und Integrations-Routen hinzugefügt (Benutzername max. 150, Passwort max. 1024, Beschreibung max. 2000, Topic max. 80, URL max. 500 Zeichen).</li>
+                    <li>Domain-Format-Validierung im Onboarding-Wizard mittels strikter Regex — ungültige oder fehlerhafte Domains werden abgelehnt.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>SSH-Statusprüfung im Release Manager bleibt nicht mehr unendlich lang bei unbekannten Hosts hängen. <code>StrictHostKeyChecking=accept-new</code> und ein Concurrent-Check-Guard-Flag wurden hinzugefügt.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.48.4 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

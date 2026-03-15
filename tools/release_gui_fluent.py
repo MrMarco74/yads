@@ -1677,17 +1677,22 @@ class ProdDeployPage(QWidget):
 
     def _check_ssh(self):
         """Check SSH connectivity to prod host in background."""
+        if getattr(self, "_ssh_checking", False):
+            return
+        self._ssh_checking = True
         import threading
         def run():
             try:
                 result = subprocess.run(
                     ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+                     "-o", "StrictHostKeyChecking=accept-new",
                      "root@prod.example.com", "echo", "ok"],
-                    capture_output=True, text=True, timeout=8
+                    capture_output=True, text=True, timeout=10
                 )
                 ok = result.returncode == 0
             except Exception:
                 ok = False
+            self._ssh_checking = False
             # Update label from main thread
             QTimer.singleShot(0, lambda: self._update_ssh_status(ok))
         threading.Thread(target=run, daemon=True).start()
@@ -2502,6 +2507,8 @@ class DanaDeployPage(QWidget):
     # ── SSH reachability ──────────────────────────────────────────────────────
 
     def _check_ssh(self):
+        if getattr(self, "_ssh_checking", False):
+            return
         host = self.host_edit.text().strip()
         if not host:
             self.ssh_status_label.setText("⚠ No host configured")
@@ -2512,11 +2519,17 @@ class DanaDeployPage(QWidget):
         user = self.user_edit.text().strip() or "root"
         port = self.port_edit.text().strip() or "22"
         key = self.key_edit.text().strip()
+        self._ssh_checking = True
         self.ssh_status_label.setText("○ Checking…")
         self.ssh_status_label.setStyleSheet("color: gray; font-size: 12px;")
         self._log(f"Testing SSH connection to {user}@{host}:{port} …", "info")
 
-        opts = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes", "-p", port]
+        opts = [
+            "-o", "ConnectTimeout=5",
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-p", port,
+        ]
         if key:
             opts += ["-i", str(Path(key).expanduser())]
 
@@ -2526,13 +2539,14 @@ class DanaDeployPage(QWidget):
             try:
                 r = subprocess.run(
                     ["ssh"] + opts + [f"{user}@{host}", "echo ok"],
-                    capture_output=True, text=True, timeout=8,
+                    capture_output=True, text=True, timeout=10,
                 )
                 ok = r.returncode == 0
                 stderr_out = r.stderr.strip()
             except Exception as e:
                 ok = False
                 stderr_out = str(e)
+            self._ssh_checking = False
             QTimer.singleShot(0, lambda: self._update_ssh_status(ok, host, stderr_out))
         threading.Thread(target=run, daemon=True).start()
 
@@ -3254,6 +3268,8 @@ class LocalDeployPage(QWidget):
         return ""
 
     def _dana_check_ssh(self):
+        if getattr(self, "_dana_ssh_checking", False):
+            return
         ssh = self._dana_ssh_params()
         host = ssh["host"]
         if not host:
@@ -3265,9 +3281,15 @@ class LocalDeployPage(QWidget):
                 parent=self, position=InfoBarPosition.TOP, duration=5000,
             )
             return
+        self._dana_ssh_checking = True
         self.dana_ssh_status.setText("○ Checking…")
         self.dana_ssh_status.setStyleSheet("color: gray; font-size: 12px;")
-        opts = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes", "-p", ssh["port"]]
+        opts = [
+            "-o", "ConnectTimeout=5",
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-p", ssh["port"],
+        ]
         if ssh["key"]:
             opts += ["-i", str(Path(ssh["key"]).expanduser())]
 
@@ -3275,12 +3297,13 @@ class LocalDeployPage(QWidget):
             try:
                 r = subprocess.run(
                     ["ssh"] + opts + [f"{ssh['user']}@{host}", "echo ok"],
-                    capture_output=True, text=True, timeout=8,
+                    capture_output=True, text=True, timeout=10,
                 )
                 ok = r.returncode == 0
                 detail = r.stderr.strip()
             except Exception as e:
                 ok, detail = False, str(e)
+            self._dana_ssh_checking = False
             QTimer.singleShot(0, lambda: self._dana_update_ssh_status(ok, host, detail))
 
         import threading
@@ -5461,19 +5484,21 @@ class BugReportPage(QWidget):
         tbl_layout.setContentsMargins(0, 0, 0, 0)
 
         self.table = QTableWidget(self)
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["Status", "Report-ID", "Kunde", "Version", "Datum", "Beschreibung"])
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["Status", "Report-ID", "Kunde", "Topic", "Version", "Datum", "Beschreibung"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(0, 80)
         self.table.setColumnWidth(1, 130)
-        self.table.setColumnWidth(2, 160)
-        self.table.setColumnWidth(3, 70)
-        self.table.setColumnWidth(4, 130)
+        self.table.setColumnWidth(2, 150)
+        self.table.setColumnWidth(3, 100)
+        self.table.setColumnWidth(4, 70)
+        self.table.setColumnWidth(5, 130)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -5568,7 +5593,12 @@ class BugReportPage(QWidget):
 
             self.table.setItem(row, 1, QTableWidgetItem(r.get("report_id", "")))
             self.table.setItem(row, 2, QTableWidgetItem(r.get("customer_name", "")))
-            self.table.setItem(row, 3, QTableWidgetItem(r.get("yads_version", "")))
+
+            topic_item = QTableWidgetItem(r.get("topic", "") or "")
+            topic_item.setForeground(QColor("#93c5fd"))
+            self.table.setItem(row, 3, topic_item)
+
+            self.table.setItem(row, 4, QTableWidgetItem(r.get("yads_version", "")))
 
             # Format date
             dt_raw = r.get("submitted_at", "")
@@ -5578,13 +5608,13 @@ class BugReportPage(QWidget):
                 dt_str = dt.strftime("%d.%m.%Y %H:%M")
             except Exception:
                 dt_str = dt_raw[:16]
-            self.table.setItem(row, 4, QTableWidgetItem(dt_str))
+            self.table.setItem(row, 5, QTableWidgetItem(dt_str))
 
             desc = r.get("description", "")[:100]
-            self.table.setItem(row, 5, QTableWidgetItem(desc))
+            self.table.setItem(row, 6, QTableWidgetItem(desc))
 
             # Store report_id in row for click handler
-            for col in range(6):
+            for col in range(7):
                 item = self.table.item(row, col)
                 if item:
                     item.setData(Qt.ItemDataRole.UserRole, r.get("report_id", ""))

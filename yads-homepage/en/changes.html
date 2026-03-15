@@ -153,6 +153,33 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.49.0 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.49.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Support Messaging, Installation Reporting & Security Hardening</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li><strong>Support Messaging (Pro):</strong> Bidirectional messaging between customers and support directly inside YADS. Customers can view their tickets and message history from the new "Support Tickets" page under Help. Sending replies requires the <code>support_messaging</code> license feature. Community Edition users can read their tickets but not reply.</li>
+                    <li><strong>Bug Report Topic Field:</strong> Bug reports now include a topic category (scanner, ui, performance, auth, worker, report, api, other). Shown on the ticket list, detail page, and in support portal filters. Desktop watcher now also displays the topic in notifications.</li>
+                    <li><strong>End of Support (EOS):</strong> When a customer is deleted in the License Manager, the support portal automatically marks them EOS. EOS customers see a red warning banner in the portal; replies are blocked. License Manager now shows a delete button with EOS auto-sync.</li>
+                    <li><strong>Installation Reporting (opt-in):</strong> New optional last step in the Onboarding Wizard. Shows a preview of the anonymous data (instance UUID, version, timestamp — no personal data) before sending. Support portal gets a new Installations dashboard with version distribution and instance timeline.</li>
+                    <li><strong>Auto-sync on License Save:</strong> Saving a customer record in the License Manager automatically syncs the public key and metadata to the support portal in the background.</li>
+                </ul>
+                <h3>🔒 Security Improvements</h3>
+                <ul>
+                    <li>SSRF protection on integration URLs: Jira base_url and SIEM HTTP endpoint are now validated for scheme (http/https only) and blocked cloud metadata hostnames before being stored.</li>
+                    <li>Input length limits added to Form parameters in auth, help, and integration routes (username max 150, password max 1024, description max 2000, topic max 80, URL max 500 chars).</li>
+                    <li>Domain format validation in Onboarding Wizard using strict regex — rejects invalid or malformed domain inputs.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Release Manager SSH status check no longer hangs indefinitely on unknown hosts. Added <code>StrictHostKeyChecking=accept-new</code> and a concurrent check guard flag to prevent overlapping checks.</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Version 1.48.4 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>

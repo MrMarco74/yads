@@ -13,8 +13,29 @@ class BugReport(SQLModel, table=True):
     yads_version: str
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = Field(default="new")  # "new" | "open" | "resolved"
+    topic: str = Field(default="")  # short category, e.g. "scanner", "ui", "performance"
     description: str = Field(default="")  # first 300 chars of description field
     full_report: str  # full decrypted JSON as string
+
+
+class BugReportMessage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    report_id: str = Field(index=True)        # matches BugReport.report_id
+    sender: str                                # "support" | "customer"
+    author_name: str = Field(default="")
+    text: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    is_read_by_customer: bool = Field(default=False)
+    is_read_by_support: bool = Field(default=False)
+
+
+class InstallationReport(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    instance_uuid: str = Field(unique=True, index=True)
+    version: str
+    first_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    report_count: int = Field(default=1)
 
 
 class CustomerKey(SQLModel, table=True):
@@ -23,3 +44,5 @@ class CustomerKey(SQLModel, table=True):
     public_key_b64: str  # Ed25519 raw public key, base64
     registered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_sync: Optional[datetime] = None
+    is_eos: bool = Field(default=False)          # End of Support — customer deleted/terminated
+    eos_since: Optional[datetime] = None

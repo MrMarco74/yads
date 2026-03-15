@@ -27,8 +27,17 @@
       {% endfor %}
     </select>
   </div>
+  <div>
+    <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:0.2rem;">Topic</label>
+    <select name="topic">
+      <option value="">— Alle Topics —</option>
+      {% for t in all_topics %}
+      <option value="{{ t }}" {% if t == selected_topic %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <button type="submit" class="btn btn--primary">Filter</button>
-  {% if selected_customer or selected_status %}
+  {% if selected_customer or selected_status or selected_topic %}
   <a href="/reports" class="btn btn--secondary">Reset</a>
   {% endif %}
 </form>
@@ -42,7 +51,7 @@
         <tr>
           <th>Report-ID</th>
           <th>Kunde</th>
-          <th>Tenant</th>
+          <th>Topic</th>
           <th>Version</th>
           <th>Datum</th>
           <th>Status</th>
@@ -55,9 +64,24 @@
             <a href="/reports/{{ r.report_id }}" style="font-family: monospace; font-size: 0.8rem;">
               {{ r.report_id }}
             </a>
+            {% set unread = unread_counts.get(r.report_id, 0) %}
+            {% if unread > 0 %}
+              <span style="margin-left:0.35rem; padding:0.1rem 0.45rem; background:#1d4ed8; color:#fff; border-radius:9px; font-size:0.7rem; font-weight:700;">{{ unread }}</span>
+            {% endif %}
           </td>
-          <td>{{ r.customer_name }}</td>
-          <td>{{ r.tenant_name }}</td>
+          <td>
+            {{ r.customer_name }}
+            {% if r.customer_id in eos_ids %}
+              <span style="margin-left:0.35rem; padding:0.1rem 0.4rem; background:#7f1d1d; color:#fca5a5; border-radius:3px; font-size:0.68rem; font-weight:700; vertical-align:middle;">EOS</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.8rem;">
+            {% if r.topic %}
+              <span style="padding:0.15rem 0.5rem; background:#1e3a5f; color:#93c5fd; border-radius:4px; font-size:0.75rem;">{{ r.topic }}</span>
+            {% else %}
+              <span style="color:var(--text-muted);">—</span>
+            {% endif %}
+          </td>
           <td style="font-size:0.8rem; color:var(--text-muted);">{{ r.yads_version }}</td>
           <td style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">
             {{ r.submitted_at.strftime('%Y-%m-%d %H:%M') }} UTC

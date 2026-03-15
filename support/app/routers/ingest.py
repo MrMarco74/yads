@@ -105,6 +105,9 @@ async def ingest_report(
     raw_description = report_data.get("description", "")
     description_preview = str(raw_description)[:300]
 
+    # Extract topic (optional, max 80 chars)
+    topic = str(report_data.get("topic", ""))[:80]
+
     # Generate report ID and persist
     report_id = generate_report_id(session)
 
@@ -115,6 +118,7 @@ async def ingest_report(
         tenant_name=tenant_name,
         yads_version=yads_version,
         status="new",
+        topic=topic,
         description=description_preview,
         full_report=json.dumps(report_data, ensure_ascii=False),
     )
