@@ -154,6 +154,34 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.49.1 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.49.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Sicherheits- & Stabilitätsverbesserungen</h2>
+
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>XSS-, SQLi- und DoS-Schwachstellen behoben, die in einem kürzlich durchgeführten Sicherheitsaudit gemeldet wurden, indem die HTML-Ausgabe bereinigt und die Eingabevalidierung auf Routen, die für Administratoren zugänglich sind, implementiert wurde.</li>
+                    <li>Server-Side Request Forgery (SSRF)-Schutz auf Integrations-URLs implementiert.</li>
+                    <li>SSH-Konfiguration verbessert, um automatisch nach gängigen Schlüsselspeicherorten zu suchen und schneller auszufallen, wenn die Passwortauthentifizierung abgelehnt wird, um eine längere Blockierung zu verhindern.</li>
+                    <li>Parametrisierte SQL-Abfragen in Bereinigungsskripten, um potenzielle SQL-Injection-Schwachstellen zu verhindern.</li>
+                </ul>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Bidirektionale Support-Messaging-Funktion für Pro-Benutzer hinzugefügt, die es Kunden ermöglicht, Tickets innerhalb von YADS anzuzeigen und zu verwalten.</li>
+                    <li>Einführung der Installationsberichterstattung (Opt-in) zur Verfolgung von Instanz-UUID, Version und Übermittlungszeit für Nutzungsanalysen.</li>
+                    <li>Bugreport-Themen zur Kategorisierung und Filterung von Support-Tickets implementiert.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte End-of-Support (EOS)-Verfolgung mit automatischer Synchronisierung bei Kundenlöschung und visuellen Indikatoren im Portal.</li>
+                    <li>Verbesserte SSH-Schlüsselbehandlung für Uploads, die nun automatisch gängige Schlüsselspeicherorte erkennt und nur als letzten Ausweg auf die Passwortauthentifizierung zurückgreift.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 6dd954aa01a6a20299e4ea58724536e236969d97ef142e4b0fee76f7c8515e3b</p>
+            </div>
+        </div>
+
         <!-- Version 1.49.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.49.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
@@ -223,7 +251,7 @@
                 <ul>
                     <li>Ein Commit-Msg-Hook wurde implementiert, um Bug-Report-Referenzkonventionen durchzusetzen und Warnungen auszugeben, wenn Fix-Commits die erforderliche Referenz vermissen lassen.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 6dd954aa01a6a20299e4ea58724536e236969d97ef142e4b0fee76f7c8515e3b</p>
             </div>
         </div>
 

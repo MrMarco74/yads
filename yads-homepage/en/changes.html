@@ -153,6 +153,34 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.49.1 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.49.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Security & Stability Enhancements</h2>
+
+                <h3>🔒 Security</h3>
+                <ul>
+                    <li>Addressed XSS, SQLi, and DoS vulnerabilities reported in a recent security audit by sanitizing HTML output and implementing input validation on admin-accessible routes.</li>
+                    <li>Implemented Server-Side Request Forgery (SSRF) protection on integration URLs.</li>
+                    <li>Enhanced SSH configuration to automatically discover common key locations and fail faster when password authentication is rejected to prevent prolonged blocking.</li>
+                    <li>Parameterized SQL queries in cleanup scripts to prevent potential SQL injection vulnerabilities.</li>
+                </ul>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added bidirectional support messaging for Pro users, allowing customers to view and manage tickets within YADS.</li>
+                    <li>Introduced installation reporting (opt-in) to track instance UUID, version, and submission time for usage analytics.</li>
+                    <li>Implemented bug report topics to categorize and filter support tickets.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Improved End-of-Support (EOS) tracking with automatic synchronization on customer deletion and visual indicators in the portal.</li>
+                    <li>Enhanced SSH key handling for uploads, now automatically discovering common key locations and falling back to password authentication only as a last resort.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 6dd954aa01a6a20299e4ea58724536e236969d97ef142e4b0fee76f7c8515e3b</p>
+            </div>
+        </div>
+
         <!-- Version 1.49.0 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.49.0</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
@@ -222,7 +250,7 @@
                 <ul>
                     <li>Implemented a commit-msg hook to enforce bug report reference conventions, providing warnings when fix commits are missing the required reference.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 6dd954aa01a6a20299e4ea58724536e236969d97ef142e4b0fee76f7c8515e3b</p>
             </div>
         </div>
 
