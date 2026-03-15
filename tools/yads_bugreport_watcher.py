@@ -237,9 +237,10 @@ class BugWatcher:
     # ---- polling thread ----
 
     def _poll_loop(self):
-        # First run: seed existing reports without notification
+        # First run: seed existing report IDs so we don't notify for pre-existing reports.
+        # Badge count is always the live count of status=new reports from the API.
         if not self.seen_ids:
-            _log("First run — seeding existing reports (no notifications)")
+            _log("First run — seeding existing report IDs (no notifications)")
             reports        = _fetch_reports(self.base_url, self.token)
             self.seen_ids  = {r["report_id"] for r in reports if "report_id" in r}
             _save_state(self.seen_ids)
@@ -248,19 +249,25 @@ class BugWatcher:
         while True:
             try:
                 reports     = _fetch_reports(self.base_url, self.token)
+
+                # Badge = live count of status=new reports (not just newly arrived)
+                open_count  = sum(1 for r in reports if r.get("status") == "new")
+
+                # Notify for truly new (not seen before) reports
                 new_reports = [r for r in reports
                                if r.get("report_id") and r["report_id"] not in self.seen_ids]
-
                 if new_reports:
                     _log(f"{len(new_reports)} neue Report(s) gefunden")
                     for r in new_reports:
                         _notify(r)
                         self.seen_ids.add(r["report_id"])
                     _save_state(self.seen_ids)
-                    self.new_count += len(new_reports)
+
+                if open_count != self.new_count:
+                    self.new_count = open_count
                     self._update_tray()
-                else:
-                    _log(f"Keine neuen Reports (bekannt: {len(self.seen_ids)})")
+
+                _log(f"Status: {open_count} offene Reports (bekannt: {len(self.seen_ids)})")
             except Exception as exc:
                 _log(f"Poll-Fehler: {exc}")
 

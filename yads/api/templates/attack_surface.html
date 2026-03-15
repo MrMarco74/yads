@@ -8,9 +8,21 @@
             <h1 class="text-2xl font-bold text-white">{{ _('nav.attack_surface') }}</h1>
             <p class="text-slate-400 text-sm mt-1">Risk coverage matrix across all targets and scanner modules.</p>
         </div>
-        <a href="/security-findings/" class="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-800 rounded-lg px-3 py-2 transition-colors">
-            View All Findings →
-        </a>
+        <div class="flex items-center gap-2">
+            <button onclick="exportHeatmapCSV()"
+                    class="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-2 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Export CSV
+            </button>
+            <button onclick="window.print()"
+                    class="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-2 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Print
+            </button>
+            <a href="/security-findings/" class="text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-800 rounded-lg px-3 py-2 transition-colors">
+                View All Findings →
+            </a>
+        </div>
     </div>
 
     <!-- KPIs -->
@@ -193,4 +205,31 @@
     {% endif %}
 
 </div>
+
+<script>
+function exportHeatmapCSV() {
+  const table = document.querySelector('table');
+  if (!table) { alert('No heatmap data to export.'); return; }
+
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('th, td').forEach(td => {
+      // Get text, strip whitespace, quote if needed
+      let text = (td.innerText || td.textContent || '').trim().replace(/\s+/g, ' ');
+      if (text.includes(',') || text.includes('"')) text = '"' + text.replace(/"/g, '""') + '"';
+      cells.push(text);
+    });
+    rows.push(cells.join(','));
+  });
+
+  const csv  = rows.join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'risk-heatmap.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
 {% endblock %}

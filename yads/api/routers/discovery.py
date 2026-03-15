@@ -17,7 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlmodel import Session, select, func
+from sqlmodel import Session, delete, select, func
 
 from yads.api.templating import templates
 from yads.auth.deps import RoleChecker, get_current_user_html
@@ -175,6 +175,27 @@ async def stop_session(
     db.add(disc_sess)
     db.commit()
     return JSONResponse({"status": "stopped"})
+
+
+@router.delete("/api/discovery/sessions/{session_id}", dependencies=[Depends(manager_only)])
+async def delete_session(
+    session_id: int,
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    """Delete a discovery session and all its candidates."""
+    disc_sess = db.get(DiscoverySession, session_id)
+    if not disc_sess:
+        raise HTTPException(status_code=404, detail="Not found")
+    if current_user.tenant_id is not None and disc_sess.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=403)
+    if disc_sess.status == "running":
+        raise HTTPException(status_code=400, detail="Cannot delete a running session — stop it first")
+    # Cascade delete candidates
+    db.exec(delete(DiscoveryCandidate).where(DiscoveryCandidate.session_id == session_id))
+    db.delete(disc_sess)
+    db.commit()
+    return JSONResponse({"deleted": True})
 
 
 # ── JSON API ──────────────────────────────────────────────────────────────────
