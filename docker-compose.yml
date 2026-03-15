@@ -107,6 +107,7 @@ services:
   # --- Infrastructure (Core) ---
   db:
     image: postgres:15-alpine
+    command: postgres -N 300
     environment:
       - POSTGRES_USER=yads
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
