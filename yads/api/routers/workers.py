@@ -1023,14 +1023,16 @@ async def unified_logs_page(
     from yads.database import engine
     from yads.models import Tenant
 
-    # Get tenants for filter dropdown
+    # Get tenants for filter dropdown — extract as dicts before session closes
     with Session(engine) as session:
         if user.role == "admin":
-            tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
+            rows = session.exec(select(Tenant).order_by(Tenant.name)).all()
         elif user.tenant_id:
-            tenants = [session.get(Tenant, user.tenant_id)]
+            t = session.get(Tenant, user.tenant_id)
+            rows = [t] if t else []
         else:
-            tenants = []
+            rows = []
+        tenants = [{"id": t.id, "name": t.name} for t in rows]
 
     # Get workers for filter dropdown
     workers = worker_manager.get_worker_list() if user.role == "admin" else []
