@@ -270,9 +270,10 @@ class ReleaseOrchestrator:
             print("  STEP 4: Code Generation")
             print("="*60 + "\n")
 
-            # We use a placeholder for SHA256 if we don't know it yet
-            checksum_placeholder = "[SHA256_HASH_TBD]"
-            
+            # Beta releases have no package artifact → no checksum to verify.
+            # Stable releases: use a placeholder that gets replaced after packaging.
+            checksum_placeholder = None if channel == 'beta' else "[SHA256_HASH_TBD]"
+
             python_code_en = self.changelog_manager.generate_python_code(changelog_en, 'en', checksum=checksum_placeholder, channel=channel)
             notification_code = self.changelog_manager.generate_notification_code(changelog_en, 'en')
             html_en = self.changelog_manager.generate_html(changelog_en, checksum=checksum_placeholder, channel=channel)
