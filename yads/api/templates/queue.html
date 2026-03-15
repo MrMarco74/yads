@@ -48,6 +48,49 @@
         </div>
     </div>
     
+    <!-- Worker Nodes -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
+                Worker Nodes
+            </h2>
+            <span class="bg-violet-900/50 text-violet-300 text-xs font-bold px-2 py-1 rounded-full border border-violet-700/50">{{ worker_nodes|length }} online</span>
+        </div>
+        {% if worker_nodes %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+            {% for w in worker_nodes %}
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-4 flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-2.5 w-2.5 relative">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-white font-semibold text-sm font-mono truncate" title="{{ w.full_name }}">{{ w.display }}</span>
+                </div>
+                <div class="flex items-center gap-3 text-xs text-slate-400">
+                    <span title="Active tasks">
+                        <span class="{% if w.active > 0 %}text-indigo-300 font-bold{% else %}text-slate-500{% endif %}">{{ w.active }}</span>
+                        <span class="text-slate-600"> / {{ w.concurrency }}</span>
+                        <span class="ml-1">active</span>
+                    </span>
+                    {% if w.reserved > 0 %}
+                    <span class="text-amber-400">{{ w.reserved }} reserved</span>
+                    {% endif %}
+                </div>
+                {% if w.active > 0 %}
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+                    <div class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width: {{ [(w.active / w.concurrency * 100)|round|int, 100]|min }}%"></div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-6 py-8 text-center text-slate-600 italic text-sm">No worker nodes connected.</div>
+        {% endif %}
+    </div>
+
     <!-- Active Tasks -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
