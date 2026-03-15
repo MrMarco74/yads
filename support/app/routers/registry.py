@@ -195,7 +195,14 @@ async def purge_tag(body: PurgeRequest, _: None = Depends(_check_ip)):
 
     async with httpx.AsyncClient(verify=True) as client:
         url = f"{REGISTRY_URL}/v2/{body.repo}/manifests/{body.digest}"
-        r = await client.delete(url, auth=_auth(), timeout=10)
+        r = await client.delete(
+            url, auth=_auth(), timeout=10,
+            headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json"},
+        )
         if r.status_code in (200, 202):
             return {"ok": True}
-        raise HTTPException(r.status_code, f"Registry DELETE returned {r.status_code}: {r.text[:200]}")
+        if r.status_code == 405:
+            raise HTTPException(405, "Registry lässt DELETE nicht zu — bitte REGISTRY_STORAGE_DELETE_ENABLED=true in der Registry-Konfiguration setzen.")
+        if r.status_code == 404:
+            raise HTTPException(404, "Manifest nicht gefunden — möglicherweise bereits gelöscht.")
+        raise HTTPException(r.status_code, f"Registry DELETE: {r.status_code} — {r.text[:300]}")
