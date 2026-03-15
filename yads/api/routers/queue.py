@@ -9,6 +9,7 @@ from yads.database import get_session, redis_client
 from yads.models import User, SystemConfig
 from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
+from yads.api.utils.celery_inspect import get_celery_worker_nodes
 import logging
 
 scan_logger = logging.getLogger(__name__)
@@ -84,7 +85,9 @@ async def view_queue(
         queue_active = False
 
     try:
-        # Inspect Celery (Lazy Init to avoid Uvicorn/Multiprocessing issues)
+        worker_nodes = get_celery_worker_nodes()
+
+        # Inspect Celery for task lists (separate call for task details)
         celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
         i = celery_app.control.inspect(timeout=5.0)
 
@@ -95,26 +98,6 @@ async def view_queue(
         active_raw = i.active() or {}
         reserved_raw = i.reserved() or {}
         scheduled_raw = i.scheduled() or {}
-        stats_raw = i.stats() or {}
-
-        # Build worker node overview
-        all_worker_names = set(active_raw) | set(reserved_raw) | set(stats_raw)
-        worker_nodes = []
-        for wname in sorted(all_worker_names):
-            stats = stats_raw.get(wname, {})
-            pool = stats.get("pool", {})
-            concurrency = pool.get("max-concurrency") or pool.get("processes", ["?"] * 1).__len__()
-            active_count = len(active_raw.get(wname, []))
-            reserved_count = len(reserved_raw.get(wname, []))
-            # Strip "celery@" prefix for display, keep everything after @
-            display = wname.split("@", 1)[-1] if "@" in wname else wname
-            worker_nodes.append({
-                "full_name": wname,
-                "display": display,
-                "concurrency": concurrency,
-                "active": active_count,
-                "reserved": reserved_count,
-            })
 
         # Flatten lists
         active_tasks = []
