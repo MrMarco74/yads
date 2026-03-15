@@ -15,17 +15,24 @@
   ] %}
   .cat-badge--{{ color }} { background: {{ bg }}; color: {{ text }}; border: 1px solid {{ border }}; }
   .cat-dot--{{ color }}   { background: {{ text }}; }
+  .cat-group-row--{{ color }} td { background: {{ bg }}; color: {{ text }}; border-top: 2px solid {{ border }}; border-bottom: 1px solid {{ border }}; }
   {% endfor %}
   .cat-badge { display:inline-block; padding:0.15rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:600; white-space:nowrap; }
   .cat-dot   { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:0.3rem; flex-shrink:0; }
-  .cat-manage { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem; margin-bottom:1.25rem; }
-  .cat-manage summary { cursor:pointer; font-size:0.85rem; font-weight:600; color:var(--text-muted); user-select:none; }
-  .cat-manage summary:hover { color:var(--text); }
-  .cat-list  { display:flex; flex-wrap:wrap; gap:0.5rem; margin:0.75rem 0; }
+
+  /* Kategorie-Panel */
+  .cat-panel { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:1rem 1.25rem; margin-bottom:1.25rem; }
+  .cat-panel__head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem; }
+  .cat-panel__title { font-size:0.88rem; font-weight:700; color:var(--text); }
+  .cat-list  { display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem; }
   .cat-item  { display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.6rem; border-radius:6px; background:var(--surface); border:1px solid var(--border); font-size:0.8rem; }
   .cat-del   { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:0.85rem; padding:0 0.1rem; line-height:1; }
   .cat-del:hover { color:var(--status-new); }
-  .cat-create { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:flex-end; margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem; }
+  .cat-create { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:flex-end; border-top:1px solid var(--border); padding-top:0.75rem; }
+
+  /* Gruppen-Trennzeile */
+  .cat-group-row td { padding:0.4rem 0.75rem; font-size:0.78rem; font-weight:700; letter-spacing:0.04em; }
+  .cat-group-row--none td { background:var(--surface-2); color:var(--text-muted); border-top:2px solid var(--border); border-bottom:1px solid var(--border); }
 </style>
 
 <div class="section-header mb-2" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
@@ -33,9 +40,12 @@
   <span class="text-muted" style="font-size:0.85rem;">{{ reports|length }} Ergebnis(se)</span>
 </div>
 
-<!-- Category Management -->
-<details class="cat-manage mb-3">
-  <summary>⊞ Kategorien verwalten ({{ all_categories|length }})</summary>
+<!-- Kategorie-Verwaltung (immer sichtbar) -->
+<div class="cat-panel mb-3">
+  <div class="cat-panel__head">
+    <span class="cat-panel__title">Kategorien</span>
+    <span style="font-size:0.78rem; color:var(--text-muted);">{{ all_categories|length }} definiert · Neue Kategorie unten erstellen</span>
+  </div>
 
   {% if all_categories %}
   <div class="cat-list">
@@ -50,7 +60,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <p style="font-size:0.82rem; color:var(--text-muted); margin:0.5rem 0;">Noch keine Kategorien. Erstelle deine erste:</p>
+  <p style="font-size:0.82rem; color:var(--text-muted); margin:0 0 0.75rem;">Noch keine Kategorien — erstelle deine erste:</p>
   {% endif %}
 
   <form method="post" action="/categories/create" class="cat-create">
@@ -69,7 +79,7 @@
     </div>
     <button type="submit" class="btn btn--primary" style="font-size:0.82rem;">+ Erstellen</button>
   </form>
-</details>
+</div>
 
 <!-- Filter Form -->
 <form method="get" action="/reports" class="filter-form card mb-3">
@@ -132,7 +142,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for r in reports %}
+        {% macro report_row(r) %}
         <tr>
           <td>
             <a href="/reports/{{ r.report_id }}" style="font-family: monospace; font-size: 0.8rem;">{{ r.report_id }}</a>
@@ -170,7 +180,30 @@
             {% else %}<span class="badge badge--resolved">resolved</span>{% endif %}
           </td>
         </tr>
-        {% endfor %}
+        {% endmacro %}
+
+        {% if show_grouped and grouped_reports %}
+          {% for group_cat, group_rows in grouped_reports %}
+          <tr class="cat-group-row {% if group_cat %}cat-group-row--{{ group_cat.color }}{% else %}cat-group-row--none{% endif %}">
+            <td colspan="7">
+              {% if group_cat %}
+                <span class="cat-dot cat-dot--{{ group_cat.color }}"></span>
+                {{ group_cat.name }}
+              {% else %}
+                Ohne Kategorie
+              {% endif %}
+              <span style="margin-left:0.6rem; opacity:0.7; font-weight:400;">{{ group_rows|length }}</span>
+            </td>
+          </tr>
+          {% for r in group_rows %}
+            {{ report_row(r) }}
+          {% endfor %}
+          {% endfor %}
+        {% else %}
+          {% for r in reports %}
+            {{ report_row(r) }}
+          {% endfor %}
+        {% endif %}
       </tbody>
     </table>
   </div>

@@ -165,6 +165,20 @@ async def report_list(
         except ValueError:
             pass
 
+    # Build grouped view (only when no active filter)
+    show_grouped = not any([customer, status, topic, selected_category])
+    grouped_reports: list = []
+    if show_grouped:
+        from collections import defaultdict
+        cat_map: dict = defaultdict(list)
+        for r in reports:
+            cat_map[r.category_id].append(r)
+        for cat in all_categories:
+            if cat.id in cat_map:
+                grouped_reports.append((cat, cat_map[cat.id]))
+        if cat_map.get(None):
+            grouped_reports.append((None, cat_map[None]))
+
     # Unread customer messages (not yet read by support)
     unread_msgs = session.exec(
         select(BugReportMessage).where(
@@ -192,6 +206,8 @@ async def report_list(
             "all_categories": all_categories,
             "categories_by_id": categories_by_id,
             "valid_statuses": VALID_STATUSES,
+            "show_grouped": show_grouped,
+            "grouped_reports": grouped_reports,
         },
     )
 
