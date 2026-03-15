@@ -259,7 +259,7 @@ async def view_search(request: Request, q: str = ""):
 @router.post("/targets/bulk/tag", response_class=RedirectResponse)
 async def bulk_add_tag(
     target_ids: List[int] = Form(default=[]),
-    tag: str = Form(...),
+    tag: str = Form(..., max_length=100),
     session: Session = Depends(get_session)
 ):
     if not target_ids:

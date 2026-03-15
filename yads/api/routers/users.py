@@ -125,8 +125,8 @@ async def set_session_timeout(
 @router.post("/create", dependencies=[Depends(admin_only)])
 async def create_user(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
+    username: str = Form(..., max_length=150),
+    password: str = Form(..., max_length=1024),
     role: str = Form("auditor"),
     target_tenant_id: Optional[int] = Form(None),  # From Dropdown
     force_change: bool = Form(False),
