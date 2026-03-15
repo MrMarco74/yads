@@ -963,7 +963,8 @@ async def worker_monitor_page(
             stats = dict(stats)
             stats["total_running_tasks"] = n_running
             # Read actual Celery concurrency from SystemConfig (source of truth)
-            actual_concurrency = 4
+            import multiprocessing as _mp
+            actual_concurrency = max(1, _mp.cpu_count())
             try:
                 conf = session.exec(
                     select(SystemConfig).where(SystemConfig.key == "WORKER_CONCURRENCY")
