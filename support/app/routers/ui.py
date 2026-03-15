@@ -22,6 +22,7 @@ _templates_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_templates_dir))
 
 VALID_STATUSES = ["new", "open", "resolved"]
+VALID_CONTACT_STATUSES = ["offen", "in_arbeit", "potenzial", "kunde", "spam"]
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
     last_10     = all_reports[:10]
 
     new_contacts = session.exec(
-        select(ContactRequest).where(ContactRequest.status == "new")
+        select(ContactRequest).where(ContactRequest.status == "offen")
         .order_by(col(ContactRequest.submitted_at).desc())
     ).all()
 
@@ -305,7 +306,6 @@ async def contact_list(
     ).all()
 
     all_topics = sorted({c.topic for c in contacts if c.topic})
-    VALID_CONTACT_STATUSES = ["new", "read", "replied"]
 
     if status and status in VALID_CONTACT_STATUSES:
         contacts = [c for c in contacts if c.status == status]
@@ -331,11 +331,84 @@ async def update_contact_status(
     contact = session.exec(
         select(ContactRequest).where(ContactRequest.contact_id == contact_id)
     ).first()
-    if contact and status in ["new", "read", "replied"]:
+    if contact and status in VALID_CONTACT_STATUSES:
         contact.status = status
         session.add(contact)
         session.commit()
     return RedirectResponse(url="/contacts", status_code=303)
+
+
+@router.post("/contacts/{contact_id}/notes")
+async def update_contact_notes(
+    contact_id: str,
+    notes: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    contact = session.exec(
+        select(ContactRequest).where(ContactRequest.contact_id == contact_id)
+    ).first()
+    if contact:
+        contact.notes = notes[:4000].strip()
+        session.add(contact)
+        session.commit()
+    return RedirectResponse(url="/contacts", status_code=303)
+
+
+@router.post("/contacts/{contact_id}/convert")
+async def convert_contact_to_report(
+    contact_id: str,
+    session: Session = Depends(get_session),
+):
+    """Convert a contact request into a bug report so it appears in the Reports view."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    contact = session.exec(
+        select(ContactRequest).where(ContactRequest.contact_id == contact_id)
+    ).first()
+    if not contact:
+        return HTMLResponse(content="<h1>Contact not found</h1>", status_code=404)
+
+    # Build a synthetic report_id: YAD-CON-XXXXX derived from contact_id
+    derived_id = "YAD-" + contact.contact_id  # e.g. YAD-CON-2026-00001
+
+    # Check if already converted
+    existing = session.exec(
+        select(BugReport).where(BugReport.report_id == derived_id)
+    ).first()
+    if existing:
+        return RedirectResponse(url=f"/reports/{derived_id}", status_code=303)
+
+    full_report_data = {
+        "source":        "contact_form",
+        "contact_id":    contact.contact_id,
+        "topic":         contact.topic,
+        "description":   contact.message,
+        "browser":       "N/A",
+        "affected_url":  "N/A",
+        "scan_errors":   [],
+        "system_alerts": [],
+    }
+
+    report = BugReport(
+        report_id=derived_id,
+        customer_id=contact.email,
+        customer_name=contact.name + (f" ({contact.company})" if contact.company else ""),
+        tenant_name=contact.company or "Homepage Contact",
+        yads_version="N/A",
+        topic=contact.topic,
+        description=contact.message[:300],
+        full_report=_json.dumps(full_report_data),
+        submitted_at=contact.submitted_at,
+        status="new",
+    )
+    session.add(report)
+    # Mark contact as in_arbeit
+    contact.status = "in_arbeit"
+    session.add(contact)
+    session.commit()
+
+    return RedirectResponse(url=f"/reports/{derived_id}", status_code=303)
 
 
 @router.get("/installations", response_class=HTMLResponse)

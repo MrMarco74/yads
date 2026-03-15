@@ -48,7 +48,8 @@ class ContactRequest(SQLModel, table=True):
     message: str
     client_ip: str = Field(default="")
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    status: str = Field(default="new")                 # new | read | replied
+    status: str = Field(default="new")                 # offen | in_arbeit | potenzial | kunde | spam
+    notes: str = Field(default="")                     # internal support notes
 
 
 class CustomerKey(SQLModel, table=True):

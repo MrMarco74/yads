@@ -98,8 +98,8 @@
           <td style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">{{ c.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
           <td>
             <form method="post" action="/contacts/{{ c.contact_id }}/status">
-              <input type="hidden" name="status" value="read">
-              <button class="btn btn--secondary" style="font-size:0.75rem;">Als gelesen</button>
+              <input type="hidden" name="status" value="in_arbeit">
+              <button class="btn btn--secondary" style="font-size:0.75rem;">In Arbeit</button>
             </form>
           </td>
         </tr>
