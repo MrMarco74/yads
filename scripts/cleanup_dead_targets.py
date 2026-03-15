@@ -66,12 +66,11 @@ def cleanup_dead_targets(tenant_name_filter=None):
             if confirm.lower() == 'y':
                 print("  🗑️ Deleting...")
                 ids = [t.id for t, _ in dead_targets]
-                
-                # Cleanup Dependencies
-                ids_str = ",".join(map(str, ids))
-                session.exec(text(f"DELETE FROM scanresult WHERE target_id IN ({ids_str})"))
-                session.exec(text(f"DELETE FROM modulestate WHERE target_id IN ({ids_str})"))
-                session.exec(text(f"DELETE FROM target WHERE id IN ({ids_str})"))
+
+                # Cleanup Dependencies — use parameterized ANY to avoid f-string SQL
+                session.exec(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), {"ids": ids})
+                session.exec(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), {"ids": ids})
+                session.exec(text("DELETE FROM target WHERE id = ANY(:ids)"), {"ids": ids})
                 session.commit()
                 print("  ✅ Deleted.")
             else:
