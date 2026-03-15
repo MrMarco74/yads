@@ -64,6 +64,32 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
+      - WORKER_QUEUES=celery,discovery
+    volumes:
+      - ./logs:/app/logs
+      - .:/app
+      - nuclei_templates:/root/nuclei-templates
+    depends_on:
+      - db
+      - redis
+    networks:
+      - yads-net
+
+  # Second worker — handles overflow when main worker is saturated (dev only)
+  yads-worker-2:
+    build:
+      context: .
+      target: dev
+    command: python /app/scripts/start_worker.py
+    environment:
+      - DATABASE_URL=postgresql://yads:***@db:5432/yads
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
+      - LOG_DIR=/app/logs
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
+      - WORKER_QUEUES=celery,discovery
     volumes:
       - ./logs:/app/logs
       - .:/app
