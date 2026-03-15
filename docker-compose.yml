@@ -60,13 +60,13 @@ services:
       target: dev
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:***@db:5432/yads
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:***@db:5432/yads}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
-      - WORKER_QUEUES=celery,discovery
+      - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
       - WORKER_NAME=yads-worker-1
     volumes:
       - ./logs:/app/logs
@@ -86,13 +86,13 @@ services:
       target: dev
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=postgresql://yads:***@db:5432/yads
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:***@db:5432/yads}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
-      - WORKER_QUEUES=celery,discovery
+      - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
       - WORKER_NAME=yads-worker-2
     volumes:
       - ./logs:/app/logs
