@@ -63,7 +63,6 @@
     <p style="font-size:0.82rem; color:var(--text-muted); font-family:monospace;">{{ registry_url }}</p>
   </div>
   <div style="display:flex; gap:0.5rem; align-items:center;">
-    {% set purge_count = repos | sum(attribute='tags') | selectattr('purgeable') | list | length %}
     {% if purge_count %}
     <button class="purge-btn" style="font-size:0.82rem; padding:0.4rem 0.9rem;"
             onclick="purgeAll(this, {{ purge_count }})">
