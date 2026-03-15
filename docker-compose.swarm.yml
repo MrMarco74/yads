@@ -196,8 +196,8 @@ services:
       - LICENSE_AUTHORITY_PUBLIC_KEY=${LICENSE_AUTHORITY_PUBLIC_KEY:-}
       # Docker registry viewer
       - REGISTRY_URL=${REGISTRY_URL:-https://registry.yads-security.com}
-      - REGISTRY_USER=${REGISTRY_USER:-}
-      - REGISTRY_PASS=${REGISTRY_PASS:-}
+      - REGISTRY_USER=${REGISTRY_USER:-yads-push}
+      - REGISTRY_PASS=${REGISTRY_PASS:-REDACTED}
     volumes:
       - support_keys:/app/keys:ro
       - support_data:/app/data
