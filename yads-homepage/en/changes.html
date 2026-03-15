@@ -153,6 +153,31 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.51.2 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.51.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Worker and Connectivity Enhancements</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Introduced worker locations panel in /workers and /settings displaying physical hostnames.</li>
+                    <li>Implemented dynamic hostnames for Dana workers (dana-worker-1, dana-worker-2) in Docker Compose to avoid naming conflicts.</li>
+                    <li>Workers are now started separately with distinct WORKER_NAME environment variables.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Exposed Redis port 6379 for remote worker access, enabling Dana workers to connect to Redis via LAN.</li>
+                    <li>Fixed environment variable substitution for DATABASE_URL and REDIS_URL in worker services, allowing overriding via environment prefix when starting workers remotely.</li>
+                </ul>
+                <h3>🔒 Security</h3>
+                <ul>
+                    <li>Restricted Redis port binding to the LAN IP address specified by the REDIS_HOST_IP environment variable.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 391536f94e58eaf4fe9c44446a0e7b53b6ae2ed1822bb678238aef48dbee8abe</p>
+            </div>
+        </div>
+
         <!-- Version 1.51.1 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.51.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
