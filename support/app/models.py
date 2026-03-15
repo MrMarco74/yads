@@ -38,6 +38,19 @@ class InstallationReport(SQLModel, table=True):
     report_count: int = Field(default=1)
 
 
+class ContactRequest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    contact_id: str = Field(unique=True, index=True)   # "CON-2026-00001"
+    name: str
+    email: str
+    company: str = Field(default="")
+    topic: str = Field(default="general")              # demo | support | sales | general
+    message: str
+    client_ip: str = Field(default="")
+    submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: str = Field(default="new")                 # new | read | replied
+
+
 class CustomerKey(SQLModel, table=True):
     customer_id: str = Field(primary_key=True)
     customer_name: str

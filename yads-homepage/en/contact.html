@@ -25,7 +25,7 @@
                 <a href="roadmap.html">Roadmap</a>
                 <a href="story.html">Origin Story</a>
                 <a href="contact.html" class="active">Contact</a>
-                <a href="https://yads-security.de/contact.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
+                <a href="https://yads-security.de/de/contact.html" class="lang-switch" style="opacity: 0.7;">🇩🇪 DE</a>
             </div>
             <a href="contact.html" class="btn-primary">Get Demo</a>
         </div>
@@ -33,28 +33,56 @@
 
     <div class="hero" style="min-height: 60vh;">
         <div class="hero-content container">
-            <h1>Get specific <span class="text-gradient">Answer</span></h1>
-            <p>Ready to secure your infrastructure? Request a demo or contact our sales team.</p>
-            
+            <h1>Get in <span class="text-gradient">Touch</span></h1>
+            <p>Request a demo, ask a question, or reach out to our team directly.</p>
+
             <div class="contact-form">
-                <h2 style="margin-bottom: 2rem; color: #fff;">Request a Demo</h2>
-                <form action="mailto:info@yads-security.de" method="GET">
+                <h2 style="margin-bottom: 2rem; color: #fff;">Send us a Message</h2>
+
+                <div id="form-success" style="display:none; background: rgba(34,197,94,0.15); border: 1px solid #22c55e; border-radius: 8px; padding: 1.5rem; color: #86efac; margin-bottom: 1.5rem;">
+                    ✅ <strong>Message sent!</strong> We'll get back to you shortly.
+                </div>
+                <div id="form-error" style="display:none; background: rgba(239,68,68,0.15); border: 1px solid #ef4444; border-radius: 8px; padding: 1.5rem; color: #fca5a5; margin-bottom: 1.5rem;"></div>
+
+                <form id="contact-form" novalidate>
+                    <!-- Honeypot: hidden field — real users never see/fill this -->
+                    <div style="display:none" aria-hidden="true">
+                        <label for="website">Leave this empty</label>
+                        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                    </div>
+
                     <div class="form-group">
-                        <label>Name</label>
-                        <input type="text" class="form-input" placeholder="John Doe">
+                        <label>Name *</label>
+                        <input type="text" id="f-name" class="form-input" placeholder="John Doe" maxlength="120" required>
                     </div>
                     <div class="form-group">
                         <label>Company</label>
-                        <input type="text" class="form-input" placeholder="Acme Inc.">
+                        <input type="text" id="f-company" class="form-input" placeholder="Acme Inc." maxlength="200">
                     </div>
                     <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" class="form-input" placeholder="john@acme.com">
+                        <label>Email *</label>
+                        <input type="email" id="f-email" class="form-input" placeholder="you@company.com" maxlength="200" required>
                     </div>
-                    <button type="submit" class="btn-primary" style="width: 100%;">Send Request</button>
+                    <div class="form-group">
+                        <label>Topic</label>
+                        <select id="f-topic" class="form-input">
+                            <option value="demo">Request Demo</option>
+                            <option value="sales">Sales / Pricing</option>
+                            <option value="support">Technical Support</option>
+                            <option value="general" selected>General Inquiry</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Message *</label>
+                        <textarea id="f-message" class="form-input" placeholder="How can we help you?" maxlength="2000" rows="5" required style="resize: vertical;"></textarea>
+                        <small id="msg-counter" style="color: var(--text-secondary); float: right; font-size: 0.75rem;">0 / 2000</small>
+                    </div>
+                    <button type="submit" id="submit-btn" class="btn-primary" style="width: 100%;">Send Message</button>
                 </form>
+
                 <div style="margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-secondary);">
-                    Prefer email? reach us at <a href="mailto:info@yads-security.de">info@yads-security.de</a>
+                    Prefer email? <a href="mailto:info@yads-security.de">info@yads-security.de</a>
                 </div>
             </div>
         </div>
@@ -64,11 +92,87 @@
         <div class="container">
             <p>&copy; 2026 YADS Security. All rights reserved.</p>
             <div style="margin-top: 1rem; font-size: 0.9rem;">
-                <a href="impressum.html">Imprint</a> | 
-                <a href="datenschutz.html">Privacy</a> | 
+                <a href="impressum.html">Imprint</a> |
+                <a href="datenschutz.html">Privacy</a> |
                 <a href="haftungsausschluss.html">Disclaimer</a>
             </div>
         </div>
     </footer>
+
+    <script>
+    (function () {
+        'use strict';
+
+        const PORTAL  = 'https://support.yads-security.com';
+        const form    = document.getElementById('contact-form');
+        const btn     = document.getElementById('submit-btn');
+        const msgEl   = document.getElementById('f-message');
+        const counter = document.getElementById('msg-counter');
+        const success = document.getElementById('form-success');
+        const errBox  = document.getElementById('form-error');
+
+        msgEl.addEventListener('input', function () {
+            counter.textContent = msgEl.value.length + ' / 2000';
+        });
+
+        function looksLikeAttack(val) {
+            return /<script|javascript:|on\w+\s*=|<iframe/i.test(val);
+        }
+
+        function showError(msg) {
+            errBox.textContent = '\u26a0\ufe0f ' + msg;
+            errBox.style.display = 'block';
+            success.style.display = 'none';
+        }
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            errBox.style.display = 'none';
+
+            var name    = document.getElementById('f-name').value.trim();
+            var email   = document.getElementById('f-email').value.trim();
+            var company = document.getElementById('f-company').value.trim();
+            var topic   = document.getElementById('f-topic').value;
+            var message = msgEl.value.trim();
+            var honey   = document.getElementById('website').value;
+
+            if (!name || !email || !message) {
+                return showError('Please fill in all required fields.');
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                return showError('Please enter a valid email address.');
+            }
+            if ([name, email, company, message].some(looksLikeAttack)) {
+                return showError('Invalid characters in your message.');
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Sending\u2026';
+
+            try {
+                var resp = await fetch(PORTAL + '/api/contact', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name, email: email, company: company, topic: topic, message: message, website: honey}),
+                });
+
+                if (resp.status === 201) {
+                    form.style.display = 'none';
+                    success.style.display = 'block';
+                } else if (resp.status === 429) {
+                    showError('Too many requests. Please wait before trying again.');
+                } else {
+                    var data = await resp.json().catch(function() { return {}; });
+                    showError(data.detail || 'Something went wrong. Please send us an email.');
+                }
+            } catch (err) {
+                showError('Could not reach the server. Please email us at info@yads-security.de.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send Message';
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
