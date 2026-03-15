@@ -946,8 +946,13 @@
                 </div>
             </div>
 
-            <!-- Celery Worker Nodes -->
+            <!-- Worker Locations (physical hosts) -->
             <div class="mt-6">
+                {% include '_worker_locations.html' %}
+            </div>
+
+            <!-- Celery Worker Nodes -->
+            <div class="mt-4">
                 {% include '_celery_worker_nodes.html' %}
             </div>
 
