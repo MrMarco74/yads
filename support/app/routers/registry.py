@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 
 from app.routers.ui import templates
-from app.routers.admin_keys import require_admin_ip
+from app.routers.admin_keys import _check_ip
 
 router = APIRouter(prefix="/registry", tags=["registry"])
 
@@ -97,7 +97,7 @@ async def _get_tag_info(client: httpx.AsyncClient, repo: str, tag: str) -> dict:
 @router.get("/", response_class=HTMLResponse)
 async def registry_overview(
     request: Request,
-    _: None = Depends(require_admin_ip),
+    _: None = Depends(_check_ip),
 ):
     repos_data = []
     error = None
