@@ -77,6 +77,12 @@ def _migrate_columns() -> None:
         ))
         conn.commit()
 
+        # category_id on bugreport (ReportCategory table created by SQLModel.metadata.create_all)
+        br_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bugreport)"))}
+        if "category_id" not in br_cols:
+            conn.execute(text("ALTER TABLE bugreport ADD COLUMN category_id INTEGER REFERENCES reportcategory(id)"))
+            conn.commit()
+
         # InstallationReport table: created by SQLModel.metadata.create_all if new,
         # no column migrations needed (table created fresh).
 
