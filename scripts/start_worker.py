@@ -15,22 +15,35 @@ def main():
     # 1. Connect to Database
     try:
         engine = create_engine(settings.DATABASE_URL)
-        concurrency = 8 # Default Safe Value
-        
-        with Session(engine) as session:
-            conf = session.exec(select(SystemConfig).where(SystemConfig.key == "WORKER_CONCURRENCY")).first()
-            if conf:
-                try:
-                    val = int(conf.value)
-                    if val > 0:
-                        concurrency = val
-                        print(f"[Startup] Found WORKER_CONCURRENCY in DB: {concurrency}")
-                    else:
-                        print(f"[Startup] Invalid WORKER_CONCURRENCY in DB ({conf.value}), using default.")
-                except ValueError:
-                     print(f"[Startup] Malformed WORKER_CONCURRENCY in DB ({conf.value}), using default.")
-            else:
-                print("[Startup] No WORKER_CONCURRENCY set in DB, using default (8).")
+        concurrency = 8  # Default safe value
+
+        # Env var takes priority over DB setting (useful for docker-compose overrides)
+        env_val = os.getenv("WORKER_CONCURRENCY")
+        if env_val:
+            try:
+                v = int(env_val)
+                concurrency = v if v > 0 else concurrency
+                print(f"[Startup] WORKER_CONCURRENCY from env: {concurrency}")
+                env_val = str(v) if v > 0 else None
+            except ValueError:
+                print(f"[Startup] Malformed WORKER_CONCURRENCY env ({env_val}), checking DB.")
+                env_val = None
+
+        if not env_val:
+            with Session(engine) as session:
+                conf = session.exec(select(SystemConfig).where(SystemConfig.key == "WORKER_CONCURRENCY")).first()
+                if conf:
+                    try:
+                        val = int(conf.value)
+                        if val > 0:
+                            concurrency = val
+                            print(f"[Startup] Found WORKER_CONCURRENCY in DB: {concurrency}")
+                        else:
+                            print(f"[Startup] Invalid WORKER_CONCURRENCY in DB ({conf.value}), using default.")
+                    except ValueError:
+                        print(f"[Startup] Malformed WORKER_CONCURRENCY in DB ({conf.value}), using default.")
+                else:
+                    print(f"[Startup] No WORKER_CONCURRENCY set in DB, using default ({concurrency}).")
     except Exception as e:
         print(f"[Startup] Failed to read settings from DB: {e}. Using default concurrency (8).")
         concurrency = 8

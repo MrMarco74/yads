@@ -153,6 +153,31 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.48.4 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Stability and Documentation Enhancements</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed ValueError related to ChangeEvent's module_name due to Pydantic v2 incompatibility. This was achieved by wrapping ChangeEvent and module_name in a SimpleNamespace object.</li>
+                    <li>Resolved CORS errors on German documentation pages by updating asset URLs to relative paths and adjusting the CSP meta tag.</li>
+                    <li>Corrected a broken link to docs-advanced.html on documentation pages by adjusting TOC Javascript logic.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Updated the Redis description in the support documentation to accurately reflect its role as a Task Queue Broker, Result Backend & Real-time Log Streaming.</li>
+                    <li>Improved documentation accuracy by correcting version numbers.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Implemented a commit-msg hook to enforce bug report reference conventions, providing warnings when fix commits are missing the required reference.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.48.3 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.48.3</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
