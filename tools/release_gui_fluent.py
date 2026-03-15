@@ -2784,6 +2784,200 @@ class LocalDeployWorker(QThread):
             self.signals.operation_finished.emit(True, msg)
 
 
+class DanaWorkerThread(QThread):
+    """
+    Start / stop / check YADS workers on the dana remote host via SSH.
+
+    Workers on dana connect back to edward's PostgreSQL + Redis so that the
+    database and GUI stay local while scan workload is distributed.
+    Network-bandwidth thresholds are *shared* between local and dana workers
+    (they count against the same uplink from edward's perspective).
+    """
+
+    def __init__(
+        self,
+        action: str,                # "start" | "stop" | "status"
+        ssh_host: str,
+        ssh_user: str = "root",
+        ssh_port: str = "22",
+        ssh_key: str = "",
+        remote_path: str = "~/yads-workers",
+        edward_host: str = "",      # IP/hostname of edward reachable from dana
+        worker_concurrency: int = 8,
+        postgres_password: str = "",
+        project_root: Path = None,
+    ):
+        super().__init__()
+        self.action = action
+        self.ssh_host = ssh_host
+        self.ssh_user = ssh_user
+        self.ssh_port = ssh_port
+        self.ssh_key = ssh_key
+        self.remote_path = remote_path or "~/yads-workers"
+        self.edward_host = edward_host
+        self.worker_concurrency = worker_concurrency
+        self.postgres_password = postgres_password
+        self.project_root = project_root or Path(__file__).parent.parent
+        self.signals = LogSignals()
+        self.cancelled = False
+        self.current_process = None
+
+    def cancel(self):
+        self.cancelled = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except Exception:
+                pass
+
+    def _log(self, msg: str, level: str = "info"):
+        self.signals.log_message.emit(msg, level)
+
+    def _ssh_opts(self) -> list:
+        opts = ["-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-p", self.ssh_port]
+        if self.ssh_key:
+            opts += ["-i", str(Path(self.ssh_key).expanduser())]
+        return opts
+
+    def _ssh_target(self) -> str:
+        return f"{self.ssh_user}@{self.ssh_host}"
+
+    def _run_local(self, cmd: list) -> bool:
+        if self.cancelled:
+            return False
+        self._log(f"$ {' '.join(cmd)}", "info")
+        try:
+            self.current_process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1,
+            )
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                stripped = line.strip()
+                if stripped:
+                    self._log(stripped, "info")
+            self.current_process.wait()
+            return self.current_process.returncode == 0
+        except Exception as e:
+            self._log(f"Command error: {e}", "error")
+            return False
+        finally:
+            self.current_process = None
+
+    def _run_ssh(self, remote_cmd: str) -> bool:
+        if self.cancelled:
+            return False
+        cmd = ["ssh"] + self._ssh_opts() + [self._ssh_target(), remote_cmd]
+        return self._run_local(cmd)
+
+    def run(self):
+        try:
+            self._execute()
+        except Exception as e:
+            self._log(f"Dana worker error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    def _execute(self):
+        if self.action == "status":
+            self._log(f"Checking dana worker status on {self.ssh_host}…", "info")
+            ok = self._run_ssh(
+                f"cd {self.remote_path} && docker compose ps yads-worker yads-worker-2 2>&1 || true"
+            )
+            self.signals.operation_finished.emit(ok, "Status retrieved" if ok else "Status check failed")
+            return
+
+        if self.action == "stop":
+            self._log(f"Stopping dana workers on {self.ssh_host}…", "warning")
+            ok = self._run_ssh(
+                f"cd {self.remote_path} && "
+                f"docker compose stop yads-worker yads-worker-2 2>&1; "
+                f"docker compose rm -f yads-worker yads-worker-2 2>&1 || true"
+            )
+            self.signals.operation_finished.emit(ok, "Dana workers stopped" if ok else "Stop failed")
+            return
+
+        if self.action == "start":
+            if not self.edward_host:
+                self.signals.operation_finished.emit(False, "Edward's IP/hostname not configured — cannot start dana workers.")
+                return
+
+            self._log(f"Starting dana workers on {self.ssh_host}…", "info")
+            self._log(f"  → DB + Redis point back to edward: {self.edward_host}", "info")
+
+            # 1. Create remote directory
+            self._log("Creating remote directory…", "info")
+            if not self._run_ssh(f"mkdir -p {self.remote_path}"):
+                return self.signals.operation_finished.emit(False, "mkdir failed on dana")
+
+            # 2. Rsync project source (worker needs full Python source to build image)
+            self._log("Syncing project to dana (this may take a moment on first run)…", "info")
+            rsync_opts = self._ssh_opts()
+            ssh_opts_str = " ".join(rsync_opts)
+            rsync_cmd = [
+                "rsync", "-az", "--delete",
+                f"--rsh=ssh {ssh_opts_str}",
+                "--exclude=.git",
+                "--exclude=tools/.venv",
+                "--exclude=**/__pycache__",
+                "--exclude=*.pyc",
+                "--exclude=logs/",
+                "--exclude=data/",
+                "--exclude=tests/",
+                str(self.project_root) + "/",
+                f"{self._ssh_target()}:{self.remote_path}/",
+            ]
+            if not self._run_local(rsync_cmd):
+                return self.signals.operation_finished.emit(False, "rsync to dana failed")
+
+            if self.cancelled:
+                return
+
+            # 3. Build worker image on dana
+            self._log("Building worker image on dana (Docker cache speeds this up)…", "info")
+            if not self._run_ssh(
+                f"cd {self.remote_path} && docker compose build yads-worker 2>&1"
+            ):
+                return self.signals.operation_finished.emit(False, "Docker build failed on dana")
+
+            if self.cancelled:
+                return
+
+            # 4. Start workers with overridden DATABASE_URL / REDIS_URL → edward
+            db_url = f"postgresql://yads:***@{self.edward_host}:5432/yads"
+            redis_url = f"redis://{self.edward_host}:6379/0"
+            concurrency = self.worker_concurrency
+            pg_pass = self.postgres_password.replace("'", "'\\''")  # shell-escape
+
+            env_prefix = (
+                f"DATABASE_URL='{db_url}' "
+                f"REDIS_URL='{redis_url}' "
+                f"POSTGRES_PASSWORD='{pg_pass}' "
+                f"WORKER_CONCURRENCY='{concurrency}' "
+                f"WORKER_QUEUES='celery,discovery'"
+            )
+
+            self._log("Starting worker containers on dana…", "info")
+            # Stop old ones first so env vars are refreshed
+            self._run_ssh(
+                f"cd {self.remote_path} && "
+                f"docker compose stop yads-worker yads-worker-2 2>&1 || true; "
+                f"docker compose rm -f yads-worker yads-worker-2 2>&1 || true"
+            )
+            ok = self._run_ssh(
+                f"cd {self.remote_path} && "
+                f"{env_prefix} docker compose up -d yads-worker yads-worker-2 2>&1"
+            )
+            if not ok:
+                return self.signals.operation_finished.emit(False, "docker compose up failed on dana")
+
+            self._log(f"✅ Dana workers started (concurrency={concurrency} per container, DB/Redis → {self.edward_host})", "success")
+            self.signals.operation_finished.emit(True, f"Dana workers running (concurrency {concurrency} × 2)")
+
+
 class LocalDeployPage(QWidget):
     """Local deployment page for dev environment management"""
     def __init__(self, parent=None):
@@ -2842,6 +3036,92 @@ class LocalDeployPage(QWidget):
 
         layout.addWidget(profile_card)
         self._load_profiles_from_env()
+
+        # ── Remote Workers (Dana) ──────────────────────────────────────────────
+        dana_card = CardWidget(self)
+        dana_card_layout = QVBoxLayout(dana_card)
+        dana_card_layout.setContentsMargins(20, 14, 20, 14)
+        dana_card_layout.setSpacing(10)
+
+        # Header row: title + SSH status
+        dana_header = QHBoxLayout()
+        dana_header.addWidget(StrongBodyLabel("Remote Workers (Dana)", self))
+        dana_header.addSpacing(16)
+        self.dana_ssh_status = BodyLabel("○ Not checked", self)
+        self.dana_ssh_status.setStyleSheet("color: gray; font-size: 12px;")
+        dana_header.addWidget(self.dana_ssh_status)
+        dana_header.addStretch()
+        dana_test_ssh_btn = PushButton(FIF.SYNC, "Test SSH", self)
+        dana_test_ssh_btn.setFixedWidth(90)
+        dana_test_ssh_btn.clicked.connect(self._dana_check_ssh)
+        dana_header.addWidget(dana_test_ssh_btn)
+        dana_card_layout.addLayout(dana_header)
+
+        # Edward IP row
+        dana_ip_row = QHBoxLayout()
+        dana_ip_row.setSpacing(10)
+        dana_ip_row.addWidget(BodyLabel("Edward's IP:", self))
+        self.dana_edward_ip = LineEdit(self)
+        self.dana_edward_ip.setPlaceholderText("e.g. 192.168.1.10")
+        self.dana_edward_ip.setFixedWidth(180)
+        dana_ip_row.addWidget(self.dana_edward_ip)
+        dana_autodetect_btn = PushButton(FIF.WIFI, "Auto-detect", self)
+        dana_autodetect_btn.setFixedWidth(110)
+        dana_autodetect_btn.setToolTip("Detect this machine's LAN IP (what dana should reach back to)")
+        dana_autodetect_btn.clicked.connect(self._dana_autodetect_ip)
+        dana_ip_row.addWidget(dana_autodetect_btn)
+        dana_ip_row.addSpacing(20)
+        dana_ip_row.addWidget(BodyLabel("Concurrency:", self))
+        self.dana_concurrency = LineEdit(self)
+        self.dana_concurrency.setText("8")
+        self.dana_concurrency.setFixedWidth(55)
+        self.dana_concurrency.setToolTip(
+            "Workers per container on dana.\n"
+            "⚠ Bandwidth limit applies to local + dana workers combined!"
+        )
+        dana_ip_row.addWidget(self.dana_concurrency)
+        dana_ip_row.addWidget(BodyLabel("per container × 2 containers", self))
+        dana_ip_row.addStretch()
+        dana_card_layout.addLayout(dana_ip_row)
+
+        # Bandwidth warning note
+        dana_bw_note = BodyLabel(
+            "⚠  Bandwidth thresholds apply to local + dana workers combined (shared uplink from edward).",
+            self,
+        )
+        dana_bw_note.setStyleSheet("color: #d97706; font-size: 11px;")
+        dana_bw_note.setWordWrap(True)
+        dana_card_layout.addWidget(dana_bw_note)
+
+        # Action buttons
+        dana_btn_row = QHBoxLayout()
+        dana_btn_row.setSpacing(10)
+        self.dana_start_btn = PrimaryPushButton(FIF.PLAY, "Start Dana Workers", self)
+        self.dana_start_btn.setFixedWidth(180)
+        self.dana_start_btn.clicked.connect(self._dana_start)
+        dana_btn_row.addWidget(self.dana_start_btn)
+
+        self.dana_stop_btn = PushButton(FIF.POWER_BUTTON, "Stop Dana Workers", self)
+        self.dana_stop_btn.setFixedWidth(180)
+        self.dana_stop_btn.clicked.connect(self._dana_stop)
+        dana_btn_row.addWidget(self.dana_stop_btn)
+
+        self.dana_status_btn = PushButton(FIF.SEARCH, "Status", self)
+        self.dana_status_btn.setFixedWidth(100)
+        self.dana_status_btn.clicked.connect(self._dana_status)
+        dana_btn_row.addWidget(self.dana_status_btn)
+
+        self.dana_cancel_btn = PushButton(FIF.CLOSE, "Cancel", self)
+        self.dana_cancel_btn.setFixedWidth(90)
+        self.dana_cancel_btn.setEnabled(False)
+        self.dana_cancel_btn.clicked.connect(self._dana_cancel)
+        dana_btn_row.addWidget(self.dana_cancel_btn)
+
+        dana_btn_row.addStretch()
+        dana_card_layout.addLayout(dana_btn_row)
+
+        layout.addWidget(dana_card)
+        self._dana_load_settings()
 
         # Action Card
         action_card = CardWidget(self)
@@ -2909,6 +3189,210 @@ class LocalDeployPage(QWidget):
         log_layout.addWidget(self.log_view)
 
         layout.addWidget(log_card, 1)
+
+    # ── Dana Worker helpers ───────────────────────────────────────────────────
+
+    def _dana_config_path(self) -> Path:
+        return Path.home() / ".yads" / "release_gui.yaml"
+
+    def _dana_load_settings(self):
+        p = self._dana_config_path()
+        if not p.exists():
+            return
+        try:
+            import yaml
+            with open(p) as f:
+                d = yaml.safe_load(f) or {}
+            self.dana_edward_ip.setText(d.get("dana_worker_edward_host", ""))
+            self.dana_concurrency.setText(str(d.get("dana_worker_concurrency", "8")))
+        except Exception:
+            pass
+
+    def _dana_save_settings(self):
+        import yaml
+        p = self._dana_config_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if p.exists():
+            try:
+                with open(p) as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception:
+                pass
+        data["dana_worker_edward_host"] = self.dana_edward_ip.text().strip()
+        try:
+            data["dana_worker_concurrency"] = int(self.dana_concurrency.text().strip() or "8")
+        except ValueError:
+            data["dana_worker_concurrency"] = 8
+        with open(p, "w") as f:
+            yaml.dump(data, f)
+
+    def _dana_ssh_params(self) -> dict:
+        """Read dana SSH connection params from shared yaml config."""
+        p = self._dana_config_path()
+        try:
+            import yaml
+            with open(p) as f:
+                d = yaml.safe_load(f) or {}
+            return {
+                "host": d.get("dana_host", ""),
+                "user": d.get("dana_user", "root"),
+                "port": str(d.get("dana_port", "22")),
+                "key":  d.get("dana_key", ""),
+                "path": d.get("dana_remote_path", "~/yads-workers"),
+            }
+        except Exception:
+            return {"host": "", "user": "root", "port": "22", "key": "", "path": "~/yads-workers"}
+
+    def _dana_read_postgres_password(self) -> str:
+        env_path = Path(__file__).parent.parent / ".env"
+        if not env_path.exists():
+            return ""
+        for line in env_path.read_text().splitlines():
+            if line.startswith("POSTGRES_PASSWORD="):
+                return line.split("=", 1)[1].strip()
+        return ""
+
+    def _dana_check_ssh(self):
+        ssh = self._dana_ssh_params()
+        host = ssh["host"]
+        if not host:
+            self.dana_ssh_status.setText("⚠ No dana host in settings")
+            self.dana_ssh_status.setStyleSheet("color: orange; font-size: 12px;")
+            InfoBar.warning(
+                "Dana nicht konfiguriert",
+                "Bitte zuerst den dana Host unter 'Test Env · Dana' konfigurieren und speichern.",
+                parent=self, position=InfoBarPosition.TOP, duration=5000,
+            )
+            return
+        self.dana_ssh_status.setText("○ Checking…")
+        self.dana_ssh_status.setStyleSheet("color: gray; font-size: 12px;")
+        opts = ["-o", "ConnectTimeout=5", "-o", "BatchMode=yes", "-p", ssh["port"]]
+        if ssh["key"]:
+            opts += ["-i", str(Path(ssh["key"]).expanduser())]
+
+        def _check():
+            try:
+                r = subprocess.run(
+                    ["ssh"] + opts + [f"{ssh['user']}@{host}", "echo ok"],
+                    capture_output=True, text=True, timeout=8,
+                )
+                ok = r.returncode == 0
+                detail = r.stderr.strip()
+            except Exception as e:
+                ok, detail = False, str(e)
+            QTimer.singleShot(0, lambda: self._dana_update_ssh_status(ok, host, detail))
+
+        import threading
+        threading.Thread(target=_check, daemon=True).start()
+
+    def _dana_update_ssh_status(self, ok: bool, host: str = "", detail: str = ""):
+        if ok:
+            self.dana_ssh_status.setText(f"✓ SSH {host}")
+            self.dana_ssh_status.setStyleSheet("color: #22c55e; font-size: 12px;")
+        else:
+            self.dana_ssh_status.setText("✗ Unreachable")
+            self.dana_ssh_status.setStyleSheet("color: #ef4444; font-size: 12px;")
+            self._log(f"❌ Dana SSH failed: {detail or 'timeout'}", "error")
+
+    def _dana_autodetect_ip(self):
+        """Detect the LAN IP of edward (this machine) — what dana should connect back to."""
+        import socket
+        try:
+            # Connect to a known remote to determine which interface is used for LAN traffic
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            ip = ""
+        if ip and not ip.startswith("127."):
+            self.dana_edward_ip.setText(ip)
+            InfoBar.success("IP erkannt", f"Edward's LAN IP: {ip}", parent=self,
+                            position=InfoBarPosition.TOP, duration=3000)
+        else:
+            InfoBar.warning("Nicht erkannt", "Bitte IP manuell eintragen.",
+                            parent=self, position=InfoBarPosition.TOP, duration=4000)
+
+    def _dana_run_action(self, action: str):
+        ssh = self._dana_ssh_params()
+        if not ssh["host"]:
+            InfoBar.warning(
+                "Dana nicht konfiguriert",
+                "Bitte den dana Host unter 'Test Env · Dana' konfigurieren.",
+                parent=self, position=InfoBarPosition.TOP,
+            )
+            return
+
+        edward_host = self.dana_edward_ip.text().strip()
+        if action == "start" and not edward_host:
+            InfoBar.warning(
+                "Edward IP fehlt",
+                "Bitte Edward's IP/Hostname eintragen, damit dana zurückverbinden kann.",
+                parent=self, position=InfoBarPosition.TOP,
+            )
+            return
+
+        try:
+            concurrency = int(self.dana_concurrency.text().strip() or "8")
+        except ValueError:
+            concurrency = 8
+
+        self._dana_save_settings()
+
+        self.dana_start_btn.setEnabled(False)
+        self.dana_stop_btn.setEnabled(False)
+        self.dana_status_btn.setEnabled(False)
+        self.dana_cancel_btn.setEnabled(True)
+
+        self._dana_worker_thread = DanaWorkerThread(
+            action=action,
+            ssh_host=ssh["host"],
+            ssh_user=ssh["user"],
+            ssh_port=ssh["port"],
+            ssh_key=ssh["key"],
+            remote_path=ssh["path"],
+            edward_host=edward_host,
+            worker_concurrency=concurrency,
+            postgres_password=self._dana_read_postgres_password(),
+            project_root=Path(__file__).parent.parent,
+        )
+        self._dana_worker_thread.signals.log_message.connect(self._on_log)
+        self._dana_worker_thread.signals.operation_finished.connect(self._dana_on_finished)
+        self._dana_worker_thread.start()
+
+    def _dana_start(self):
+        self._dana_run_action("start")
+
+    def _dana_stop(self):
+        self._dana_run_action("stop")
+
+    def _dana_status(self):
+        self._dana_run_action("status")
+
+    def _dana_cancel(self):
+        if hasattr(self, "_dana_worker_thread") and self._dana_worker_thread:
+            self._dana_worker_thread.cancel()
+            self._log("Dana: cancel requested…", "warning")
+
+    def _dana_on_finished(self, success: bool, message: str):
+        self.dana_start_btn.setEnabled(True)
+        self.dana_stop_btn.setEnabled(True)
+        self.dana_status_btn.setEnabled(True)
+        self.dana_cancel_btn.setEnabled(False)
+        if success:
+            InfoBar.success("Dana Worker", message, parent=self,
+                            position=InfoBarPosition.TOP, duration=5000)
+            self._log(f"✅ {message}", "success")
+        else:
+            InfoBar.error("Dana Worker", message, parent=self,
+                          position=InfoBarPosition.TOP, duration=7000)
+            self._log(f"❌ {message}", "error")
+        if hasattr(self, "_dana_worker_thread"):
+            self._dana_worker_thread.deleteLater()
+            self._dana_worker_thread = None
+
+    # ── End dana worker helpers ───────────────────────────────────────────────
 
     def _on_wipe_toggled(self, state):
         if self.wipe_check.isChecked():

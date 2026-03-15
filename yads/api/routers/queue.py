@@ -326,13 +326,58 @@ async def control_queue(
 
     if action == "pause":
         conf.value = "false"
-        celery_app.control.cancel_consumer('celery', reply=True)
+        session.add(conf)
+        session.commit()
+
+        # Stop workers from fetching new tasks from both queues
+        celery_app.control.cancel_consumer('celery', reply=False)
+        celery_app.control.cancel_consumer('discovery', reply=False)
+
+        # Revoke + terminate all prefetched (reserved) and actively running tasks
+        import threading
+        def _hard_stop():
+            import time
+            try:
+                i = celery_app.control.inspect(timeout=5.0)
+                reserved = i.reserved() or {}
+                active   = i.active()   or {}
+                for tasks in list(reserved.values()) + list(active.values()):
+                    for task in tasks:
+                        # terminate=True sends SIGTERM to the worker subprocess
+                        celery_app.control.revoke(task["id"], terminate=True, signal="SIGTERM")
+            except Exception as exc:
+                import logging
+                logging.getLogger("yads.queue").warning(f"[Stop] revoke broadcast failed: {exc}")
+            # After workers stop, reset any 'running' targets → 'queued' so they
+            # restart cleanly when the queue is resumed.
+            time.sleep(3)
+            try:
+                from sqlalchemy import text as _sql
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Sess
+                with _Sess(_engine) as s:
+                    result = s.execute(_sql(
+                        "UPDATE target SET scan_status='queued' WHERE scan_status='running'"
+                    ))
+                    s.commit()
+                    if result.rowcount:
+                        logging.getLogger("yads.queue").info(
+                            f"[Stop] Reset {result.rowcount} running targets → queued"
+                        )
+            except Exception as exc:
+                logging.getLogger("yads.queue").warning(f"[Stop] DB reset failed: {exc}")
+
+        threading.Thread(target=_hard_stop, daemon=True).start()
+
     elif action == "resume":
         conf.value = "true"
-        celery_app.control.add_consumer('celery', reply=True)
-
-    session.add(conf)
-    session.commit()
+        session.add(conf)
+        session.commit()
+        celery_app.control.add_consumer('celery', reply=False)
+        celery_app.control.add_consumer('discovery', reply=False)
+    else:
+        session.add(conf)
+        session.commit()
 
     # HTMX Support: Return updated widget if requested
     if request.headers.get("HX-Request"):

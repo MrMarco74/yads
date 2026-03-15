@@ -258,20 +258,38 @@ def send_daily_digests():
 @celery_app.task(name="yads.worker.reset_stuck_targets")
 def reset_stuck_targets():
     """
-    Periodically reset targets stuck in 'queued' or 'running' state.
-    These can occur when a worker crashes mid-task or Redis loses tasks.
+    Reset only genuinely stuck 'running' targets — i.e. scans that started more
+    than 45 minutes ago and never finished (worker crash).
+
+    We intentionally do NOT reset 'queued' targets here because:
+    - Queued targets legitimately sit in the Redis queue waiting for a worker slot.
+    - Mass-resetting them causes the header widget to show 0/0 even when the queue
+      is full, and re-scanning them would create duplicate Celery tasks.
+
+    Startup seeding resets ALL queued/running once on boot (safe because Redis is
+    just starting too). This periodic task only handles post-crash hangers.
     """
     from sqlmodel import text as sql_text
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=45)
+    # Use ISO-8601 string — works for both TEXT and TIMESTAMP columns
+    cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+
     with Session(engine) as db:
+        # Only reset 'running' targets whose last_scan timestamp predates the cutoff.
+        # 'queued' targets are legitimately waiting in Celery — leave them alone.
         result = db.execute(sql_text(
-            "UPDATE target SET scan_status='idle' WHERE scan_status IN ('queued', 'running')"
-        ))
+            "UPDATE target SET scan_status='idle' "
+            "WHERE scan_status = 'running' "
+            "AND (last_scan IS NULL OR last_scan < :cutoff)"
+        ), {"cutoff": cutoff_str})
         db.commit()
         stuck = result.rowcount
         if stuck:
-            logger.warning(f"[StuckCleaner] Reset {stuck} stuck target(s) → idle")
+            logger.warning(f"[StuckCleaner] Reset {stuck} stuck running target(s) → idle (> 45 min)")
         else:
-            logger.debug("[StuckCleaner] No stuck targets found")
+            logger.debug("[StuckCleaner] No stuck running targets found")
 
 
 # ── Data Retention ────────────────────────────────────────────────────────────
