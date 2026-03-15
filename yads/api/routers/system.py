@@ -24,6 +24,56 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _register_license_key_with_portal(license_token: str) -> None:
+    """
+    Auto-register the Ed25519 report-signing public key with the support portal.
+    Called in a background thread after a license key is saved.
+    Uses the self-service /api/register-key endpoint — no admin credentials needed.
+    """
+    try:
+        import base64
+        import requests
+        from yads.core.license import _get_license_payload
+
+        # Decode payload without DB (inline decode — token is already validated by caller)
+        payload_b64 = license_token.split(".")[0]
+        pad = len(payload_b64) % 4
+        if pad:
+            payload_b64 += "=" * (4 - pad)
+        import json as _json
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+
+        report_signing_key_b64 = payload.get("report_signing_key")
+        customer_id = payload.get("customer_id")
+        if not report_signing_key_b64 or not customer_id:
+            logger.warning("[LicenseSync] License has no report_signing_key or customer_id — skipping portal sync.")
+            return
+
+        # Derive public key from private key seed
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        raw_seed = base64.b64decode(report_signing_key_b64)
+        pub_bytes = Ed25519PrivateKey.from_private_bytes(raw_seed).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        pub_b64 = base64.b64encode(pub_bytes).decode()
+
+        portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
+        verify_ssl = settings.SUPPORT_PORTAL_VERIFY_SSL
+        resp = requests.post(
+            f"{portal_url}/api/register-key",
+            json={"license_token": license_token},
+            timeout=10,
+            verify=verify_ssl,
+        )
+        if resp.status_code == 200:
+            logger.info(f"[LicenseSync] Successfully registered public key for customer {customer_id} with support portal.")
+        elif resp.status_code == 503:
+            logger.warning("[LicenseSync] Support portal self-registration not configured (LICENSE_AUTHORITY_PUBLIC_KEY missing).")
+        else:
+            logger.warning(f"[LicenseSync] Support portal returned {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        logger.warning(f"[LicenseSync] Failed to sync license key with support portal: {e}")
+
+
 @router.get("/logs", response_class=HTMLResponse)
 async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["admin", "tenant_admin"]))):
     """
@@ -552,6 +602,14 @@ async def update_settings(
         set_conf("license_key", trimmed_lic)
         settings.LICENSE_KEY = trimmed_lic
         logger.info(f"Runtime License Key updated via UI.")
+        # Auto-register Ed25519 public key with support portal (fire-and-forget)
+        if trimmed_lic:
+            import threading
+            threading.Thread(
+                target=_register_license_key_with_portal,
+                args=(trimmed_lic,),
+                daemon=True,
+            ).start()
     
     # Update Auto Queue
     if auto_queue is not None: set_conf("AUTO_QUEUE_SUBDOMAINS", "true") 
