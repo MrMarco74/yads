@@ -312,8 +312,9 @@ class ReleaseUploader:
 
             ssh_opts = (
                 f'ssh -p {port} -o StrictHostKeyChecking=no -o PubkeyAuthentication=no'
+                f' -o ConnectTimeout=8 -o NumberOfPasswordPrompts=1'
                 if use_password else
-                f'ssh -i {key_file} -p {port} -o StrictHostKeyChecking=no'
+                f'ssh -i {key_file} -p {port} -o StrictHostKeyChecking=no -o ConnectTimeout=8'
             )
             rsync_base = ['sshpass', '-p', password, 'rsync'] if use_password else ['rsync']
             cmd = rsync_base + ['-avz', '--progress', '-e', ssh_opts,
