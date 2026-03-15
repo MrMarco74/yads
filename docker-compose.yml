@@ -54,7 +54,7 @@ services:
       - proxy-net
 
   yads-worker:
-    hostname: yads-worker-1
+    hostname: ${WORKER_NAME:-yads-worker-1}
     build:
       context: .
       target: dev
@@ -67,7 +67,7 @@ services:
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
       - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
-      - WORKER_NAME=yads-worker-1
+      - WORKER_NAME=${WORKER_NAME:-yads-worker-1}
     volumes:
       - ./logs:/app/logs
       - .:/app
@@ -80,7 +80,7 @@ services:
 
   # Second worker — handles overflow when main worker is saturated (dev only)
   yads-worker-2:
-    hostname: yads-worker-2
+    hostname: ${WORKER_NAME_2:-yads-worker-2}
     build:
       context: .
       target: dev
@@ -93,7 +93,7 @@ services:
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
       - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
-      - WORKER_NAME=yads-worker-2
+      - WORKER_NAME=${WORKER_NAME_2:-yads-worker-2}
     volumes:
       - ./logs:/app/logs
       - .:/app
@@ -121,8 +121,11 @@ services:
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes
+    # Expose Redis only on the LAN interface (not all interfaces).
+    # REDIS_HOST_IP defaults to edward's LAN IP so remote workers (dana) can connect.
+    # Set REDIS_HOST_IP=127.0.0.1 in .env to restrict to localhost only.
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_IP:-192.168.10.92}:6379:6379"
     volumes:
       - redis_data:/data
     networks:
