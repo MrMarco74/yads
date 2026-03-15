@@ -310,10 +310,10 @@ class SupportWatcher:
             self.seen_reports.add(r["report_id"])
 
         # --- Contact requests ---
-        contacts      = _fetch_contacts(self.base_url, self.token)
-        new_contacts  = [c for c in contacts
-                         if c.get("contact_id") and c["contact_id"] not in self.seen_contacts]
-        contact_new_count = len(new_contacts)
+        contacts     = _fetch_contacts(self.base_url, self.token)
+        offen_count  = sum(1 for c in contacts if c.get("status") == "offen")
+        new_contacts = [c for c in contacts
+                        if c.get("contact_id") and c["contact_id"] not in self.seen_contacts]
         for c in new_contacts:
             _notify_contact(c)
             self.seen_contacts.add(c["contact_id"])
@@ -322,14 +322,12 @@ class SupportWatcher:
             _save_state({"seen_report_ids": self.seen_reports,
                          "seen_contact_ids": self.seen_contacts})
 
-        new_contact_badge = self.contact_count + contact_new_count
-
-        if open_count != self.report_count or new_contact_badge != self.contact_count:
+        if open_count != self.report_count or offen_count != self.contact_count:
             self.report_count  = open_count
-            self.contact_count = new_contact_badge
+            self.contact_count = offen_count
             self._update_tray()
 
-        _log(f"Status: {open_count} offene Reports, {self.contact_count} neue Kontaktanfragen "
+        _log(f"Status: {open_count} offene Reports, {offen_count} offene Kontaktanfragen "
              f"(bekannt: {len(self.seen_reports)} rep / {len(self.seen_contacts)} cont)")
 
     # ---- startup ----
@@ -368,15 +366,16 @@ class SupportWatcher:
                     _log(f"Startup: neue Kontaktanfrage gefunden — {c.get('contact_id')}")
                     _notify_contact(c)
                     self.seen_contacts.add(c["contact_id"])
-                self.contact_count = len(new_contacts)
                 if new_contacts:
                     _log(f"Startup: {len(new_contacts)} Kontaktanfrage(n) während Offline verpasst, notifiziert")
 
             _save_state({"seen_report_ids": self.seen_reports,
                          "seen_contact_ids": self.seen_contacts})
 
-            self.report_count = sum(1 for r in reports if r.get("status") == "new")
-            _log(f"Startup: {self.report_count} offene Reports, {self.contact_count} neue Kontaktanfragen")
+            # Badge = DB-driven counts (same pattern as reports)
+            self.report_count  = sum(1 for r in reports if r.get("status") == "new")
+            self.contact_count = sum(1 for c in contacts if c.get("status") == "offen")
+            _log(f"Startup: {self.report_count} offene Reports, {self.contact_count} offene Kontaktanfragen")
         except Exception as exc:
             _log(f"Startup fetch failed: {exc}")
 
