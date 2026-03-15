@@ -2,11 +2,11 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://yads-security.com; font-src 'self' https://yads-security.com; img-src 'self' data: https://yads-security.com; script-src 'self' 'unsafe-inline' https://yads-security.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Support & Installation - YADS</title>
-    <link rel="stylesheet" href="https://yads-security.com/css/style.css">
-    <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="images/favicon.png">
     <style>
         .support-section { margin-bottom: 4rem; padding: 2.5rem; }
         .support-header { margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
@@ -20,7 +20,7 @@
     <nav>
         <div class="container">
             <a href="index.html" class="logo">
-                <img src="https://yads-security.com/images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <img src="images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
                 <span class="text-gradient">YADS</span> Security
             </a>
             <div class="nav-links">
@@ -196,7 +196,7 @@ docker compose up -d
                 </div>
                 <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem;">
                     <h4 style="margin-top: 0; color: #f59e0b;">Redis</h4>
-                    <p style="font-size: 0.9rem; margin-bottom: 0;">Task Queue & Caching Layer.</p>
+                    <p style="font-size: 0.9rem; margin-bottom: 0;">Task Queue Broker, Result Backend & Echtzeit-Log-Streaming.</p>
                 </div>
             </div>
         </div>

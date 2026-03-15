@@ -135,7 +135,7 @@
         </aside>
         <main class="docs-content">
             <h1>YADS - Comprehensive User Guide</h1>
-<p><strong>Version:</strong> 1.45.3
+<p><strong>Version:</strong> 1.48.3
 <strong>Last Updated:</strong> 2026-03-15</p>
 <p>Welcome to the <strong>YADS (Yet Another Domain Scanner)</strong> manual. This guide covers all aspects of the application, from running your first scan to advanced configuration and multi-tenancy.</p>
 <hr />
@@ -1129,9 +1129,11 @@ For technical, enterprise, and extended scanner documentation, see the <a href="
             const id = h.textContent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
             h.id = id;
         });
-        // Correct TOC anchor links to match slugified IDs
+        // Correct TOC anchor links to match slugified IDs — skip links to other files
         document.querySelectorAll(".docs-sidebar a").forEach(a => {
-            const targetId = a.getAttribute("href").replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            const href = a.getAttribute("href") || "";
+            if (!href.startsWith("#")) return;
+            const targetId = href.replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
             a.setAttribute("href", "#" + targetId);
         });
 
