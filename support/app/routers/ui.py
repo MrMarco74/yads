@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
 from app.database import get_session
-from app.models import BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport
+from app.models import BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport, ReportCategory
 
 router = APIRouter()
 
@@ -146,6 +146,10 @@ async def report_list(
     # Collect distinct customer names and topics before filtering
     all_customers = sorted({r.customer_name for r in reports})
     all_topics = sorted({r.topic for r in reports if r.topic})
+    all_categories = session.exec(select(ReportCategory).order_by(ReportCategory.name)).all()
+    categories_by_id = {c.id: c for c in all_categories}
+
+    selected_category = request.query_params.get("category", "")
 
     # Apply filters in-memory (small dataset expected)
     if customer:
@@ -154,6 +158,12 @@ async def report_list(
         reports = [r for r in reports if r.status == status]
     if topic:
         reports = [r for r in reports if r.topic == topic]
+    if selected_category:
+        try:
+            cat_id = int(selected_category)
+            reports = [r for r in reports if r.category_id == cat_id]
+        except ValueError:
+            pass
 
     # Unread customer messages (not yet read by support)
     unread_msgs = session.exec(
@@ -178,6 +188,9 @@ async def report_list(
             "selected_customer": customer or "",
             "selected_status": status or "",
             "selected_topic": topic or "",
+            "selected_category": selected_category,
+            "all_categories": all_categories,
+            "categories_by_id": categories_by_id,
             "valid_statuses": VALID_STATUSES,
         },
     )
@@ -222,6 +235,8 @@ async def report_detail(
     session.commit()
 
     llm_prompt = build_llm_prompt(report, report_data)
+    all_categories = session.exec(select(ReportCategory).order_by(ReportCategory.name)).all()
+    current_category = session.get(ReportCategory, report.category_id) if report.category_id else None
 
     return templates.TemplateResponse(
         "report_detail.html",
@@ -235,6 +250,8 @@ async def report_detail(
             "system_alerts": report_data.get("system_alerts", []),
             "eos_customer": eos_customer,
             "messages": messages,
+            "all_categories": all_categories,
+            "current_category": current_category,
         },
     )
 

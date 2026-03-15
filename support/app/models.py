@@ -4,6 +4,13 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 
+class ReportCategory(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    color: str = Field(default="blue")   # blue|green|red|yellow|purple|orange|gray
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class BugReport(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     report_id: str = Field(unique=True, index=True)  # "YAD-2026-00042"
@@ -16,6 +23,7 @@ class BugReport(SQLModel, table=True):
     topic: str = Field(default="")  # short category, e.g. "scanner", "ui", "performance"
     description: str = Field(default="")  # first 300 chars of description field
     full_report: str  # full decrypted JSON as string
+    category_id: Optional[int] = Field(default=None, foreign_key="reportcategory.id")
 
 
 class BugReportMessage(SQLModel, table=True):

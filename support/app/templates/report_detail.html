@@ -3,6 +3,15 @@
 
 {% block content %}
 <style>
+  {% for color, bg, text, border in [
+    ('blue','#1e3a5f','#93c5fd','#1d4ed8'),('green','#052e16','#4ade80','#166534'),
+    ('red','#450a0a','#fca5a5','#991b1b'),('yellow','#451a03','#fde68a','#92400e'),
+    ('purple','#2e1065','#c4b5fd','#6d28d9'),('orange','#431407','#fdba74','#c2410c'),
+    ('gray','#1e293b','#94a3b8','#475569'),('pink','#500724','#f9a8d4','#9d174d'),
+  ] %}
+  .cat-badge--{{ color }} { background:{{ bg }}; color:{{ text }}; border:1px solid {{ border }}; }
+  {% endfor %}
+  .cat-badge { display:inline-block; padding:0.15rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:600; }
   .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
   .tab-btn {
     padding: 0.55rem 1.1rem;
@@ -169,19 +178,43 @@
 
 <!-- Tab: Kommunikation -->
 <div id="tab-kommunikation" class="tab-pane">
-  <!-- Status -->
+  <!-- Status + Kategorie -->
   <div class="card mb-3">
-    <h3 style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
-      Status ändern
-    </h3>
-    <form method="post" action="/reports/{{ report.report_id }}/status" class="flex items-center" style="gap:0.75rem; flex-wrap:wrap;">
-      <select name="status">
-        {% for s in valid_statuses %}
-        <option value="{{ s }}" {% if s == report.status %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="btn btn--primary">Speichern</button>
-    </form>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; flex-wrap:wrap;">
+      <div>
+        <h3 style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Status</h3>
+        <form method="post" action="/reports/{{ report.report_id }}/status" class="flex items-center" style="gap:0.75rem; flex-wrap:wrap;">
+          <select name="status">
+            {% for s in valid_statuses %}
+            <option value="{{ s }}" {% if s == report.status %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn--primary">Speichern</button>
+        </form>
+      </div>
+      <div>
+        <h3 style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">
+          Kategorie
+          {% if current_category %}
+            <span class="cat-badge cat-badge--{{ current_category.color }}" style="margin-left:0.5rem; text-transform:none; letter-spacing:0;">{{ current_category.name }}</span>
+          {% endif %}
+        </h3>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;" id="cat-assign-area">
+          <select id="cat-select" style="background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:0.35rem 0.6rem; font-size:0.82rem;">
+            <option value="">— keine —</option>
+            {% for cat in all_categories %}
+            <option value="{{ cat.id }}" {% if report.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn--primary" style="font-size:0.82rem;" onclick="assignCategory('{{ report.report_id }}')">Zuweisen</button>
+        </div>
+        {% if not all_categories %}
+        <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem;">
+          Noch keine Kategorien — <a href="/reports">in der Listenansicht erstellen</a>.
+        </p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
   <!-- Messages -->
@@ -252,6 +285,16 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
+}
+
+async function assignCategory(reportId) {
+  const sel = document.getElementById('cat-select');
+  const catId = sel.value;
+  const fd = new FormData();
+  if (catId) fd.append('category_id', catId);
+  const r = await fetch(`/categories/assign/${reportId}`, { method: 'POST', body: fd });
+  if (r.ok) location.reload();
+  else alert('Fehler beim Zuweisen der Kategorie');
 }
 
 function copyPrompt() {
