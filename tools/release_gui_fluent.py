@@ -2996,6 +2996,18 @@ class DanaWorkerThread(QThread):
                 f"docker compose stop yads-worker yads-worker-2 2>&1 || true; "
                 f"docker compose rm -f yads-worker yads-worker-2 2>&1 || true"
             )
+
+            # Overwrite data/config.env on dana so pydantic-settings (dotenv > env vars)
+            # picks up edward's host instead of the internal 'db' hostname.
+            pg_pass_encoded = self.postgres_password.replace("'", "'\\''")
+            self._log("Writing data/config.env on dana with edward's DB/Redis URLs…", "info")
+            self._run_ssh(
+                f"mkdir -p {self.remote_path}/data && "
+                f"printf 'DATABASE_URL=postgresql://yads:***@{self.edward_host}:5432/yads\\n"
+                f"POSTGRES_PASSWORD={pg_pass_encoded}\\n"
+                f"REDIS_URL=redis://{self.edward_host}:6379/0\\n' "
+                f"> {self.remote_path}/data/config.env"
+            )
             # Start each worker separately with distinct names so they appear
             # as "dana-worker-1@dana-worker-1" / "dana-worker-2@dana-worker-2"
             # in the Celery node list instead of duplicating edward's names.
