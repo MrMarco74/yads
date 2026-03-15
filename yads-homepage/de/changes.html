@@ -154,6 +154,25 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.51.1 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.51.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbessertes Worker-Management</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Ein Worker-Standort-Panel in /workers und /settings wurde hinzugefügt, das Hostname, IP und Status für jeden registrierten Worker-Knoten anzeigt.</li>
+                    <li>Ein Celery-Worker-Knoten-Panel wurde in /workers und /settings implementiert, das Einblicke in den Celery-Worker-Status und die Auslastung bietet.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Probleme mit Container-Namenskonflikten beim lokalen Start wurden behoben, indem alle YADS-Container (einschließlich manuell erstellter) zwangsweise entfernt und das Flag `--remove-orphans` während `docker compose up` verwendet wurde.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 41321105209ddce2f1310f438a7016d8a56ba463f68599604e239c4ebac5dec6</p>
+            </div>
+        </div>
+
         <!-- Version 1.51.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.51.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
