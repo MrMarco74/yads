@@ -489,30 +489,30 @@ async def view_settings(request: Request, session: Session = Depends(get_session
 async def update_settings(
     request: Request,
     user: User = Depends(RoleChecker(["admin"])),
-    auto_queue: bool = Form(False), 
-    rate_limit: str = Form(None),
-    web_request_delay: str = Form(None),
+    auto_queue: bool = Form(False),
+    rate_limit: str = Form(None, max_length=20),
+    web_request_delay: str = Form(None, max_length=10),
     web_request_timeout: int = Form(None),
     worker_concurrency: int = Form(4),
     session_minutes: int = Form(60),
     otp_window: int = Form(1),
-    approved_ciphers: Optional[str] = Form(None),
-    custom_dns_servers: str = Form(None),
-    network_rate_limit: str = Form(None),
-    splunk_hec_url: str = Form(None),
-    splunk_hec_token: str = Form(None),
-    smtp_host: str = Form(None),
-    smtp_port: str = Form(None),
-    smtp_user: Optional[str] = Form(None),
-    smtp_password: Optional[str] = Form(None),
-    smtp_from: Optional[str] = Form(None),
-    email_notification_address: Optional[str] = Form(None),
+    approved_ciphers: Optional[str] = Form(None, max_length=2000),
+    custom_dns_servers: str = Form(None, max_length=500),
+    network_rate_limit: str = Form(None, max_length=20),
+    splunk_hec_url: str = Form(None, max_length=500),
+    splunk_hec_token: str = Form(None, max_length=256),
+    smtp_host: str = Form(None, max_length=253),
+    smtp_port: str = Form(None, max_length=5),
+    smtp_user: Optional[str] = Form(None, max_length=254),
+    smtp_password: Optional[str] = Form(None, max_length=256),
+    smtp_from: Optional[str] = Form(None, max_length=254),
+    email_notification_address: Optional[str] = Form(None, max_length=254),
     email_notifications_enabled: bool = Form(False),
-    base_url: Optional[str] = Form(None),
+    base_url: Optional[str] = Form(None, max_length=500),
     data_retention_days: int = Form(90),
 
     # License
-    license_key: Optional[str] = Form(None),
+    license_key: Optional[str] = Form(None, max_length=2048),
 
     # Distributed Worker Settings
     global_max_concurrent_scans: int = Form(50),
@@ -520,15 +520,15 @@ async def update_settings(
 
     # TLS/SSL Settings
     https_only: bool = Form(False),
-    custom_ca_cert_path: Optional[str] = Form(None),
-    client_cert_path: Optional[str] = Form(None),
-    client_key_path: Optional[str] = Form(None),
+    custom_ca_cert_path: Optional[str] = Form(None, max_length=500),
+    client_cert_path: Optional[str] = Form(None, max_length=500),
+    client_key_path: Optional[str] = Form(None, max_length=500),
     verify_ssl: bool = Form(True),
 
     # Prometheus Metrics Settings
     metrics_enabled: bool = Form(False),
-    metrics_auth_mode: str = Form("token"),
-    metrics_token: Optional[str] = Form(None),
+    metrics_auth_mode: str = Form("token", max_length=20),
+    metrics_token: Optional[str] = Form(None, max_length=256),
     metrics_include_tenant_labels: bool = Form(False),
 
     session: Session = Depends(get_session)

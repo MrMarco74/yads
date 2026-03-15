@@ -81,6 +81,23 @@ def render_markdown_with_data(
     return markdown_to_html(rendered_markdown)
 
 
+_UNSAFE_TAGS_RE = re.compile(
+    r'<(script|iframe|object|embed|form|base|link|meta|style)[^>]*>.*?</\1>|'
+    r'<(script|iframe|object|embed|form|base|link|meta)[^>]*/?>',
+    re.IGNORECASE | re.DOTALL,
+)
+_UNSAFE_ATTR_RE = re.compile(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)', re.IGNORECASE)
+_JAVASCRIPT_HREF_RE = re.compile(r'href\s*=\s*["\']?\s*javascript:', re.IGNORECASE)
+
+
+def _sanitize_html(raw: str) -> str:
+    """Strip script/iframe/form tags and event-handler attributes from HTML."""
+    raw = _UNSAFE_TAGS_RE.sub('', raw)
+    raw = _UNSAFE_ATTR_RE.sub('', raw)
+    raw = _JAVASCRIPT_HREF_RE.sub('href="#"', raw)
+    return raw
+
+
 def markdown_to_html(markdown_content: str) -> str:
     """
     Convert markdown to HTML with extensions.
@@ -102,7 +119,7 @@ def markdown_to_html(markdown_content: str) -> str:
         }
     )
 
-    html_content = md.convert(markdown_content)
+    html_content = _sanitize_html(md.convert(markdown_content))
 
     # Wrap in styled container
     styled_html = f"""
