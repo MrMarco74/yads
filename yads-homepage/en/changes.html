@@ -153,6 +153,72 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.48.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Discovery and Stability</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added web scraping as an opt-in feature during discovery, allowing for deeper scans with configurable settings and a new 'web_resource_origin' signal.</li>
+                    <li>Implemented automatic resetting of stuck queued or running targets on API startup and every 5 minutes via Celery beat, preventing queue hangs.</li>
+                    <li>Discovery sessions now automatically tag accepted targets with the session name for easier identification and management.</li>
+                    <li>Blocklist panel open/closed state is now persisted in local storage, preserving the user's preferred view across page reloads.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Resolved an issue causing DetachedInstanceError on the /logs page due to Jinja2 rendering after session closure.</li>
+                    <li>Fixed an issue where the concurrent scan limit was incorrectly counting queued targets, preventing bulk scans from processing more than 5 targets concurrently.</li>
+                    <li>Removed the artificial concurrent limit on bulk scans, allowing Celery to manage task parallelism effectively.</li>
+                    <li>Addressed several bug reports including: Language middleware exception handling, watcher badge report count accuracy, inspect timeout errors, session deletion functionality, and heatmap export/print functionality.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
+        <!-- Version 1.48.2 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Scanning and Reliability</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed an issue where the scan concurrency limit incorrectly included queued targets, preventing bulk scans from running.</li>
+                </ul>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added an option to enable web scraping for enhanced discovery, including new signals and adapter extractors.  A new 'discovery:<session_name>' tag is applied to accepted targets.</li>
+                    <li>Implemented automatic reset of stuck queued or running targets on API startup and every 5 minutes via a Celery beat task to prevent queue hangs after worker crashes or Redis task loss.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>The open/closed state of the blocklist panel is now persisted in localStorage per session, surviving page reloads.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
+        <!-- Version 1.48.1 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Scanning & Stability</h2>
+
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Concurrent scan limit now accurately counts only running targets, preventing bulk scans from being prematurely skipped.</li>
+                </ul>
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added opt-in web scraping for enhanced discovery, including new discovery tags and persistent blocklist state.</li>
+                    <li>Implemented automatic reset of stuck queued/running targets on startup and every 5 minutes to prevent queue hangs.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.48.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.48.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
