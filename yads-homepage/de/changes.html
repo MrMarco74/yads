@@ -154,6 +154,40 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.51.4 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.51.4</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserungen und Registry-Verwaltung</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Docker-Registry-Viewer im Support-Portal implementiert, um Repositories, Tags, Bildgrößen und Erstellungsdaten anzuzeigen.</li>
+                    <li>Funktion zur Berichts-Kategorisierung mit benutzerdefinierten Kategorien hinzugefügt, einschließlich Kategorieerstellung, -löschung, -zuweisung und -anzeige in Berichtslisten und -details.</li>
+                    <li>Schaltfläche 'Alle ungenutzten entfernen' im Registry-Viewer mit Live-Fortschrittszähler hinzugefügt.</li>
+                    <li>Anzeige des Bereitstellungsstatus (Live/Ungenutzt) für Tags im Registry-Viewer und Schaltfläche zum Entfernen ungenutzter Tags hinzugefügt.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte automatische Erkennung der Worker-Concurrency durch Rückgriff auf die Anzahl der CPUs.</li>
+                    <li>Verbesserte Ladegeschwindigkeit von Worker-, Queue- und Einstellungsseiten durch Verwendung von asynchronem HTMX-Laden für Celery-Inspect-Aufrufe.</li>
+                    <li>Tab-Layout für die Detailansicht von Fehlerberichten implementiert, um die Übersichtlichkeit zu verbessern.</li>
+                    <li>Auch :latest Tag beim Bauen des yads-tools Images pushen</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Problem behoben, bei dem Registry-Anmeldeinformationen nicht in den Swarm-Compose-Standardeinstellungen gespeichert wurden.</li>
+                    <li>Accept-Header für Registry-Purge korrigiert und Fehlermeldungen für Registry-Operationen verbessert.</li>
+                    <li>Korrektur der Berechnung der Anzahl der Löschvorgänge.</li>
+                    <li>Fehler bei der Benachrichtigungsunterdrückung und Alpine-Reinitialisierung nach HTMX-Swap behoben, um Speicherplatzprobleme zu vermeiden.</li>
+                    <li>Konfigurationsüberschreibungsproblem bei Dana behoben, um sicherzustellen, dass sich die Worker mit der korrekten Datenbank verbinden.</li>
+                    <li>Dana-Worker-Diagnose korrigiert und Container-Neuerstellung beim Neustart erzwungen, um frische Umgebungsvariablen sicherzustellen.</li>
+                    <li>Verhindert, dass Dana-Worker versucht, lokale DB/Redis-Abhängigkeiten mit der Option --no-deps zu starten.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 84fb50b6cba73eb65a86f3e68349959e629751a49e3d548261f38b9b5b575bcc</p>
+            </div>
+        </div>
+
         <!-- Version 1.51.3 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.51.3</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -164,7 +198,7 @@
                 <ul>
                     <li>Behebung eines Problems, bei dem Dana-Worker aufgrund unnötiger lokaler Datenbank-/Redis-Abhängigkeiten im Status 'Erstellt' hängen blieben. Worker verbinden sich nun korrekt mit der Edward-Hauptdatenbank und den Redis-Instanzen.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 84fb50b6cba73eb65a86f3e68349959e629751a49e3d548261f38b9b5b575bcc</p>
             </div>
         </div>
 
