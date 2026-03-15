@@ -951,9 +951,18 @@
                 {% include '_worker_locations.html' %}
             </div>
 
-            <!-- Celery Worker Nodes -->
-            <div class="mt-4">
-                {% include '_celery_worker_nodes.html' %}
+            <!-- Celery Worker Nodes (loaded async) -->
+            <div class="mt-4"
+                 hx-get="/workers/celery-nodes"
+                 hx-trigger="load"
+                 hx-swap="outerHTML">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl px-6 py-6 text-center text-slate-500 text-sm italic">
+                    <svg class="animate-spin inline w-4 h-4 mr-2 text-violet-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    Celery Worker Nodes werden geladen…
+                </div>
             </div>
 
             <!-- Unified Logs Link -->

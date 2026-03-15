@@ -84,59 +84,10 @@ async def view_queue(
     if conf and conf.value.lower() == "false":
         queue_active = False
 
-    try:
-        worker_nodes = get_celery_worker_nodes()
-
-        # Inspect Celery for task lists (separate call for task details)
-        celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-        i = celery_app.control.inspect(timeout=5.0)
-
-        if i is None:
-            raise Exception("Celery inspector returned None (Connection failed?)")
-
-        # These return dicts of {worker_name: [tasks]} or None
-        active_raw = i.active() or {}
-        reserved_raw = i.reserved() or {}
-        scheduled_raw = i.scheduled() or {}
-
-        # Flatten lists
-        active_tasks = []
-        for worker, tasks in active_raw.items():
-            for t in tasks:
-                t['hostname'] = worker.split("@", 1)[-1] if "@" in worker else worker
-                t['name'] = prettify_task_name(t.get('name', ''))
-                active_tasks.append(t)
-
-        reserved_tasks = []
-        for worker, tasks in reserved_raw.items():
-            for t in tasks:
-                 t['name'] = prettify_task_name(t.get('name', ''))
-            reserved_tasks.extend(tasks)
-
-        scheduled_tasks = []
-        for worker, tasks in scheduled_raw.items():
-            for t in tasks:
-                 t['name'] = prettify_task_name(t.get('name', ''))
-            scheduled_tasks.extend(tasks)
-
-        # Filter by tenant (unless platform admin with no tenant)
-        active_tasks = filter_tasks_by_tenant(active_tasks, user.tenant_id)
-        reserved_tasks = filter_tasks_by_tenant(reserved_tasks, user.tenant_id)
-        scheduled_tasks = filter_tasks_by_tenant(scheduled_tasks, user.tenant_id)
-
-    except Exception as e:
-        print(f"Error inspecting Celery: {e}")
-        return templates.TemplateResponse("queue.html", {
-            "request": request,
-            "user": user,
-            "active_tasks": [],
-            "reserved_tasks": [],
-            "scheduled_tasks": [],
-            "worker_nodes": [],
-            "queue_active": queue_active,
-            "settings": settings,
-            "error": f"Connection Error: {str(e)}"
-        })
+    active_tasks = []
+    reserved_tasks = []
+    scheduled_tasks = []
+    worker_nodes = []
         
     # Inspect Redis Backlog (Queued items not yet picked up)
     import json
@@ -253,6 +204,49 @@ async def view_queue(
         "worker_nodes": worker_nodes,
         "settings": settings
     })
+
+@router.get("/celery-live", response_class=HTMLResponse)
+async def queue_celery_live(
+    request: Request,
+    user: User = Depends(get_current_user_html),
+):
+    """HTMX partial — Celery live data (worker nodes + active/reserved/scheduled)."""
+    worker_nodes = get_celery_worker_nodes()
+    active_tasks, reserved_tasks, scheduled_tasks = [], [], []
+    try:
+        celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        i = celery_app.control.inspect(timeout=5.0)
+        if i:
+            active_raw    = i.active()    or {}
+            reserved_raw  = i.reserved()  or {}
+            scheduled_raw = i.scheduled() or {}
+            for worker, tasks in active_raw.items():
+                for t in tasks:
+                    t['hostname'] = worker.split("@", 1)[-1] if "@" in worker else worker
+                    t['name'] = prettify_task_name(t.get('name', ''))
+                    active_tasks.append(t)
+            for tasks in reserved_raw.values():
+                for t in tasks:
+                    t['name'] = prettify_task_name(t.get('name', ''))
+                reserved_tasks.extend(tasks)
+            for tasks in scheduled_raw.values():
+                for t in tasks:
+                    t['name'] = prettify_task_name(t.get('name', ''))
+                scheduled_tasks.extend(tasks)
+        active_tasks    = filter_tasks_by_tenant(active_tasks,    user.tenant_id)
+        reserved_tasks  = filter_tasks_by_tenant(reserved_tasks,  user.tenant_id)
+        scheduled_tasks = filter_tasks_by_tenant(scheduled_tasks, user.tenant_id)
+    except Exception as e:
+        scan_logger.debug(f"Celery inspect failed: {e}")
+
+    return templates.TemplateResponse("_queue_celery_live.html", {
+        "request": request,
+        "worker_nodes":     worker_nodes,
+        "active_tasks":     active_tasks,
+        "reserved_tasks":   reserved_tasks,
+        "scheduled_tasks":  scheduled_tasks,
+    })
+
 
 # Admin/Scanner Only for Controls
 scanner_only = RoleChecker(["admin", "tenant_admin", "scanner"])
