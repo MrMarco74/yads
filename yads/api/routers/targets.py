@@ -1454,11 +1454,20 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
             .order_by(ChangeEvent.created_at.desc())
             .limit(30)
         ).all()
-        # Attach module_name onto each ChangeEvent for template convenience
+        # Wrap (ChangeEvent, module_name) tuples in a plain namespace so templates
+        # can access .module_name — Pydantic v2 forbids setting undeclared fields
+        # on SQLModel instances directly (ValueError).
+        import types
         enriched = []
         for ce, mod_name in recent_changes:
-            ce.module_name = mod_name  # dynamic attribute, not in model
-            enriched.append(ce)
+            enriched.append(types.SimpleNamespace(
+                id=ce.id,
+                scan_result_id=ce.scan_result_id,
+                event_type=ce.event_type,
+                description=ce.description,
+                created_at=ce.created_at,
+                module_name=mod_name,
+            ))
         recent_changes = enriched
 
     # Build a set of module names that have changes (for per-card badges)
