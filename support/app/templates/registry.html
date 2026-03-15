@@ -13,10 +13,12 @@
   }
   .reg-repo__head:hover { background:var(--border); }
   .reg-repo__name { font-family:monospace; font-size:0.9rem; font-weight:600; }
-  .reg-repo__meta { font-size:0.78rem; color:var(--text-muted); margin-left:auto; display:flex; gap:1rem; }
+  .reg-repo__meta { font-size:0.78rem; color:var(--text-muted); margin-left:auto; display:flex; gap:1rem; align-items:center; }
   .reg-repo__body { border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px; overflow:hidden; }
+
   .reg-tag {
-    display:grid; grid-template-columns: 1fr 7rem 7rem 10rem 1.5rem;
+    display:grid;
+    grid-template-columns: 1fr 7rem 7rem 10rem 6rem 6rem;
     align-items:center; gap:0.5rem;
     padding:0.5rem 1rem; font-size:0.82rem;
     border-bottom:1px solid var(--border);
@@ -24,19 +26,32 @@
   .reg-tag:last-child { border-bottom:none; }
   .reg-tag:nth-child(even) { background:rgba(255,255,255,0.02); }
   .reg-tag__head {
-    display:grid; grid-template-columns: 1fr 7rem 7rem 10rem 1.5rem;
+    display:grid;
+    grid-template-columns: 1fr 7rem 7rem 10rem 6rem 6rem;
     gap:0.5rem; padding:0.4rem 1rem;
     font-size:0.72rem; font-weight:600; text-transform:uppercase;
     letter-spacing:0.06em; color:var(--text-muted);
     background:var(--surface); border-bottom:1px solid var(--border);
   }
-  .tag-pill {
-    display:inline-block; font-family:monospace; font-size:0.78rem;
-    padding:0.15rem 0.5rem; border-radius:4px;
-    background:#1e3a5f; color:#93c5fd;
-  }
+
+  .tag-pill { display:inline-block; font-family:monospace; font-size:0.78rem; padding:0.15rem 0.5rem; border-radius:4px; background:#1e3a5f; color:#93c5fd; }
   .tag-pill--latest { background:#052e16; color:#4ade80; }
   .digest { font-family:monospace; font-size:0.75rem; color:var(--text-muted); }
+
+  .status-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.72rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:4px; white-space:nowrap; }
+  .status-badge--live   { background:#052e16; color:#4ade80; border:1px solid #166534; }
+  .status-badge--unused { background:#1e293b; color:#64748b; border:1px solid #334155; }
+  .status-badge--noinfo { background:#1e293b; color:#475569; border:1px solid #2d3748; font-style:italic; }
+
+  .purge-btn {
+    font-size:0.72rem; font-weight:600; padding:0.2rem 0.6rem; border-radius:4px;
+    background:#3b0a0a; color:#fca5a5; border:1px solid #7f1d1d;
+    cursor:pointer; transition:background 0.15s;
+  }
+  .purge-btn:hover { background:#7f1d1d; }
+  .purge-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .socket-warn { font-size:0.78rem; color:var(--status-open); background:#451a03; border:1px solid #78350f; padding:0.5rem 0.9rem; border-radius:6px; margin-bottom:1rem; }
   .chevron { transition:transform 0.2s; display:inline-block; }
   .chevron.open { transform:rotate(180deg); }
   .reg-error { color:var(--status-new); font-size:0.82rem; padding:0.75rem 1rem; }
@@ -50,6 +65,13 @@
   <a href="/registry/" class="btn btn--secondary" style="font-size:0.82rem;">↺ Aktualisieren</a>
 </div>
 
+{% if not socket_available %}
+<div class="socket-warn">
+  ⚠ Docker Socket nicht verfügbar — Deployment-Status kann nicht ermittelt werden.
+  Bitte <code>/var/run/docker.sock</code> als Read-only-Volume einbinden.
+</div>
+{% endif %}
+
 {% if error %}
 <div class="card" style="border-color:var(--status-new); background:#3b0a0a; color:#fca5a5; padding:1rem;">
   <strong>Fehler beim Laden der Registry:</strong> {{ error }}
@@ -61,7 +83,7 @@
 {% else %}
 
 <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1.25rem;">
-  {{ repos|length }} Repositories gefunden.
+  {{ repos|length }} Repositories
 </p>
 
 {% for repo in repos %}
@@ -75,6 +97,9 @@
       <span style="font-size:0.75rem; color:var(--status-new); margin-left:0.5rem;">⚠ Fehler</span>
     {% endif %}
     <div class="reg-repo__meta">
+      {% if socket_available and repo.in_use_count %}
+        <span style="color:#4ade80; font-weight:600;">● {{ repo.in_use_count }} live</span>
+      {% endif %}
       <span>{{ repo.tag_count }} Tags</span>
       <span>{{ repo.total_size }}</span>
     </div>
@@ -89,17 +114,41 @@
         <span>Digest</span>
         <span>Größe</span>
         <span>Erstellt</span>
-        <span></span>
+        <span>Status</span>
+        <span>Aktion</span>
       </div>
       {% for t in repo.tags %}
-      <div class="reg-tag">
+      <div class="reg-tag" id="tag-row-{{ repo.name | replace('/', '-') }}-{{ t.tag }}">
         <span>
           <span class="tag-pill {% if t.tag == 'latest' %}tag-pill--latest{% endif %}">{{ t.tag }}</span>
         </span>
-        <span class="digest">{{ t.digest_short }}…</span>
+        <span class="digest" title="{{ t.full_digest }}">{{ t.digest_short }}…</span>
         <span style="color:var(--text-muted);">{{ t.size_fmt }}</span>
         <span style="color:var(--text-muted);">{{ t.created }}</span>
-        <span></span>
+
+        <!-- Status -->
+        <span>
+          {% if not socket_available %}
+            <span class="status-badge status-badge--noinfo">?</span>
+          {% elif t.in_use %}
+            <span class="status-badge status-badge--live">● Live</span>
+          {% else %}
+            <span class="status-badge status-badge--unused">○ Ungenutzt</span>
+          {% endif %}
+        </span>
+
+        <!-- Purge -->
+        <span>
+          {% if t.purgeable %}
+            <button class="purge-btn"
+                    onclick="purgeTag(this, '{{ repo.name }}', '{{ t.full_digest }}', '{{ t.tag }}')"
+                    title="Manifest aus Registry löschen">
+              Purge
+            </button>
+          {% else %}
+            <span style="font-size:0.72rem; color:var(--text-muted);">—</span>
+          {% endif %}
+        </span>
       </div>
       {% endfor %}
     {% else %}
@@ -118,6 +167,39 @@ function toggleRepo(id, head) {
   const hidden = body.style.display === 'none';
   body.style.display = hidden ? '' : 'none';
   chev.classList.toggle('open', hidden);
+}
+
+async function purgeTag(btn, repo, digest, tag) {
+  if (!confirm(`Tag "${tag}" aus Repository "${repo}" löschen?\n\n${digest.slice(0,30)}…\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) return;
+
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const r = await fetch('/registry/purge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, digest }),
+    });
+    if (r.ok) {
+      const rowId = 'tag-row-' + repo.replace(/\//g, '-') + '-' + tag;
+      const row = document.getElementById(rowId);
+      if (row) {
+        row.style.opacity = '0.4';
+        row.style.transition = 'opacity 0.4s';
+        setTimeout(() => row.remove(), 500);
+      }
+    } else {
+      const data = await r.json().catch(() => ({}));
+      alert('Fehler: ' + (data.detail || r.status));
+      btn.disabled = false;
+      btn.textContent = 'Purge';
+    }
+  } catch (e) {
+    alert('Netzwerkfehler: ' + e);
+    btn.disabled = false;
+    btn.textContent = 'Purge';
+  }
 }
 </script>
 {% endblock %}
