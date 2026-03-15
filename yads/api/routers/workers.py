@@ -1011,6 +1011,17 @@ async def worker_monitor_page(
         "stats": stats,
         "running_tasks": running_tasks,
         "worker_mode": worker_mode,
+    })
+
+
+@ui_router.get("/celery-nodes", response_class=HTMLResponse)
+async def celery_nodes_partial(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker()),
+):
+    """HTMX partial — Celery worker nodes (slow inspect call, loaded async)."""
+    return templates.TemplateResponse("_celery_worker_nodes.html", {
+        "request": request,
         "worker_nodes": get_celery_worker_nodes(),
     })
 
