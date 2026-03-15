@@ -162,6 +162,7 @@ async def submit_contact(request: Request):
         logger.warning("Honeypot triggered from %s", ip)
         # Silently return 201 so bots think it worked
         return JSONResponse(
+            status_code=201,
             content={"status": "received"},
             headers=_cors_headers(origin),
         )
@@ -208,6 +209,7 @@ async def submit_contact(request: Request):
 
     logger.info("Contact %s from %s (%s)", contact_id, name, ip)
     return JSONResponse(
+        status_code=201,
         content={"status": "received", "contact_id": contact_id},
         headers=_cors_headers(origin),
     )
