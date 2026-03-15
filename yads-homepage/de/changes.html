@@ -158,6 +158,27 @@
         <div class="change-entry">
             <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
             <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Remote Workers & Queue-Korrekturen</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Unterstützung für die Ausführung von YADS-Workern in Remote-Dana-Umgebungen hinzugefügt, einschließlich automatisierter Bereitstellung und Konfiguration über SSH.</li>
+                    <li>Eine 'Remote Workers (Dana)'-Karte in Local ENV eingeführt, um YADS-Worker-Container auf Dana über SSH zu starten/stoppen.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Queue STOP (Pause) widerruft und beendet nun alle reservierten und aktiven Celery-Tasks, wodurch verhindert wird, dass Worker nach der Pause vorgeholte Tasks verarbeiten.</li>
+                    <li>Ein Problem behoben, bei dem der Reset_Stuck_Targets-Beat fälschlicherweise 'queued'-Ziele zurücksetzte, was zu einer ungenauen Anzeige des Queue-Widgets führte. Er setzt nun nur noch 'running'-Ziele zurück, die älter als 45 Minuten sind.</li>
+                    <li>Queue RESUME fügt nun den 'discovery'-Consumer korrekt wieder hinzu.</li>
+                    <li>Die Bezeichnung 'Max Network (Mbps)' im Worker-Konfigurationsmodal wurde in 'NIC Capacity (Mbps)' mit einem Hinweis präzisiert, der den Zweck in Resource-Check-Validierungswarnungen erklärt. Die tatsächliche Netzwerkdrosselung wird in den Einstellungen verwaltet.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Version 1.48.4 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
                 <h2 style="margin-bottom: 1rem; color: #fff;">Stabilitäts- und Dokumentationsverbesserungen</h2>
 
                 <h3>🐛 Fehlerbehebungen</h3>
