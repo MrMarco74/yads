@@ -6,7 +6,7 @@ from celery import Celery
 from datetime import datetime
 
 from yads.database import get_session, redis_client
-from yads.models import User, SystemConfig
+from yads.models import User, SystemConfig, Target
 from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
 from yads.api.utils.celery_inspect import get_celery_worker_nodes
@@ -374,6 +374,25 @@ async def control_queue(
         session.commit()
         celery_app.control.add_consumer('celery', reply=False)
         celery_app.control.add_consumer('discovery', reply=False)
+
+        # Re-dispatch targets that are marked 'queued' in DB but not in Redis.
+        # These accumulate when the queue is paused (running → queued) or after
+        # an API restart where Redis was flushed but DB retained status.
+        try:
+            queued_targets = session.exec(
+                select(Target).where(Target.scan_status == "queued")
+            ).all()
+            redispatched = 0
+            for t in queued_targets:
+                celery_app.send_task(
+                    "yads.worker.run_all_scans",
+                    args=[t.id, t.domain, None, t.tenant_id],
+                )
+                redispatched += 1
+            if redispatched:
+                scan_logger.info(f"[Resume] Re-dispatched {redispatched} queued targets to Redis.")
+        except Exception as exc:
+            scan_logger.warning(f"[Resume] Re-dispatch failed: {exc}")
     else:
         session.add(conf)
         session.commit()
