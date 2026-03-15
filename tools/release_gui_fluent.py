@@ -2770,7 +2770,7 @@ class LocalDeployWorker(QThread):
                 self._log(f"⚠️  Missing critical .env vars: {', '.join(_missing)} — Swarm/prod may fail!", "warning")
 
             build_cmd = ["docker", "compose"] + profile_flags + ["build"]
-            up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d"]
+            up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d", "--remove-orphans"]
 
             self._log("Building containers...", "info")
             if not self._run_cmd(build_cmd):
