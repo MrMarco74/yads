@@ -166,12 +166,15 @@ async def registry_overview(request: Request, _: None = Depends(_check_ip)):
     except Exception as e:
         error = str(e)
 
+    purge_count = sum(1 for r in repos_data for t in r.get("tags", []) if t.get("purgeable"))
+
     return templates.TemplateResponse("registry.html", {
         "request": request,
         "repos": repos_data,
         "registry_url": REGISTRY_URL,
         "error": error,
         "socket_available": socket_available,
+        "purge_count": purge_count,
     })
 
 
