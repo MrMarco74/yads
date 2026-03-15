@@ -19,42 +19,50 @@
   {% if sessions %}
   <div class="grid grid-cols-1 gap-4">
     {% for sess in sessions %}
-    <a href="/discovery/{{ sess.id }}"
-       class="block bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors p-5">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="font-semibold text-white">{{ sess.name }}</span>
-            {% if sess.status == 'running' %}
-              <span class="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full animate-pulse">Running</span>
-            {% elif sess.status == 'completed' %}
-              <span class="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full">Completed</span>
-            {% elif sess.status == 'stopped' %}
-              <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">Stopped</span>
-            {% elif sess.status == 'failed' %}
-              <span class="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">Failed</span>
-            {% else %}
-              <span class="text-xs bg-slate-600/60 text-slate-400 px-2 py-0.5 rounded-full">{{ sess.status|capitalize }}</span>
-            {% endif %}
+    <div class="relative bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors" id="sess-{{ sess.id }}">
+      <a href="/discovery/{{ sess.id }}" class="block p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-white">{{ sess.name }}</span>
+              {% if sess.status == 'running' %}
+                <span class="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full animate-pulse">Running</span>
+              {% elif sess.status == 'completed' %}
+                <span class="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full">Completed</span>
+              {% elif sess.status == 'stopped' %}
+                <span class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full">Stopped</span>
+              {% elif sess.status == 'failed' %}
+                <span class="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">Failed</span>
+              {% else %}
+                <span class="text-xs bg-slate-600/60 text-slate-400 px-2 py-0.5 rounded-full">{{ sess.status|capitalize }}</span>
+              {% endif %}
+            </div>
+            <p class="text-slate-400 text-sm mt-1">Seeds: {{ sess.seed_domains|join(", ") }}</p>
           </div>
-          <p class="text-slate-400 text-sm mt-1">Seeds: {{ sess.seed_domains|join(", ") }}</p>
+          <div class="flex gap-6 text-center shrink-0 pr-8">
+            <div>
+              <div class="text-xl font-bold text-green-400">{{ sess.total_accepted }}</div>
+              <div class="text-xs text-slate-500">Accepted</div>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-red-400">{{ sess.total_rejected }}</div>
+              <div class="text-xs text-slate-500">Rejected</div>
+            </div>
+            <div>
+              <div class="text-xl font-bold text-blue-400">{{ sess.current_depth }}/{{ sess.max_depth }}</div>
+              <div class="text-xs text-slate-500">Depth</div>
+            </div>
+          </div>
         </div>
-        <div class="flex gap-6 text-center shrink-0">
-          <div>
-            <div class="text-xl font-bold text-green-400">{{ sess.total_accepted }}</div>
-            <div class="text-xs text-slate-500">Accepted</div>
-          </div>
-          <div>
-            <div class="text-xl font-bold text-red-400">{{ sess.total_rejected }}</div>
-            <div class="text-xs text-slate-500">Rejected</div>
-          </div>
-          <div>
-            <div class="text-xl font-bold text-blue-400">{{ sess.current_depth }}/{{ sess.max_depth }}</div>
-            <div class="text-xs text-slate-500">Depth</div>
-          </div>
-        </div>
-      </div>
-    </a>
+      </a>
+      {% if sess.status != 'running' %}
+      <button onclick="deleteSession({{ sess.id }}, '{{ sess.name }}')"
+              class="absolute top-3 right-3 text-slate-600 hover:text-red-400 transition-colors p-1"
+              title="Delete session">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+      {% endif %}
+    </div>
     {% endfor %}
   </div>
   {% else %}
@@ -160,4 +168,17 @@
     </div>
   </div>
 </div>
+
+<script>
+async function deleteSession(id, name) {
+  if (!confirm(`Delete session "${name}" and all its candidates?`)) return;
+  const r = await fetch(`/api/discovery/sessions/${id}`, {method: 'DELETE'});
+  if (r.ok) {
+    document.getElementById('sess-' + id)?.remove();
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert('Error: ' + (err.detail || r.status));
+  }
+}
+</script>
 {% endblock %}
