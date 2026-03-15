@@ -101,12 +101,12 @@ async def new_template_form(
 @router.post("/templates", dependencies=[Depends(report_access)])
 async def create_template(
     request: Request,
-    name: str = Form(...),
-    description: str = Form(None),
-    category: str = Form("custom"),
-    markdown_content: str = Form(...),
+    name: str = Form(..., max_length=200),
+    description: str = Form(None, max_length=500),
+    category: str = Form("custom", max_length=50),
+    markdown_content: str = Form(..., max_length=200000),
     available_sections: str = Form("[]"),
-    custom_css: str = Form(None),
+    custom_css: str = Form(None, max_length=50000),
     user: User = Depends(get_current_user_html),
     session: Session = Depends(get_session)
 ):
@@ -179,12 +179,12 @@ async def view_template(
 async def update_template(
     template_id: int,
     request: Request,
-    name: str = Form(...),
-    description: str = Form(None),
-    category: str = Form("custom"),
-    markdown_content: str = Form(...),
+    name: str = Form(..., max_length=200),
+    description: str = Form(None, max_length=500),
+    category: str = Form("custom", max_length=50),
+    markdown_content: str = Form(..., max_length=200000),
     available_sections: str = Form("[]"),
-    custom_css: str = Form(None),
+    custom_css: str = Form(None, max_length=50000),
     user: User = Depends(get_current_user_html),
     session: Session = Depends(get_session)
 ):
