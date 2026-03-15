@@ -154,6 +154,72 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.48.3 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.3</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Erkennung und Stabilität</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Web Scraping wurde als optionale Funktion während der Erkennung hinzugefügt, um tiefere Scans mit konfigurierbaren Einstellungen und einem neuen 'web_resource_origin'-Signal zu ermöglichen.</li>
+                    <li>Automatische Rücksetzung von blockierten, in der Warteschlange befindlichen oder laufenden Zielen beim API-Start und alle 5 Minuten über Celery Beat implementiert, um das Hängenbleiben der Warteschlange zu verhindern.</li>
+                    <li>Erkennungssitzungen versehen nun automatisch akzeptierte Ziele mit dem Sitzungsnamen, um die Identifizierung und Verwaltung zu erleichtern.</li>
+                    <li>Der geöffnete/geschlossene Zustand des Blocklisten-Panels wird nun im lokalen Speicher gespeichert, wodurch die bevorzugte Ansicht des Benutzers bei Seitenneuladungen erhalten bleibt.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Problem behoben, das DetachedInstanceError auf der /logs-Seite aufgrund von Jinja2-Rendering nach Sitzungsschließung verursachte.</li>
+                    <li>Problem behoben, bei dem die gleichzeitige Scan-Begrenzung fälschlicherweise in der Warteschlange befindliche Ziele zählte, wodurch verhindert wurde, dass Bulk-Scans mehr als 5 Ziele gleichzeitig verarbeiten.</li>
+                    <li>Die künstliche gleichzeitige Begrenzung für Bulk-Scans wurde entfernt, sodass Celery die Aufgabenparallelität effektiv verwalten kann.</li>
+                    <li>Mehrere Fehlerberichte behoben, darunter: Ausnahmebehandlung der Sprach-Middleware, Genauigkeit der Watcher-Badge-Berichtszählung, Inspect-Timeout-Fehler, Sitzungslöschfunktion und Heatmap-Export-/Druckfunktion.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
+        <!-- Version 1.48.2 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Scanfunktionen und Zuverlässigkeit</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Ein Problem wurde behoben, bei dem das Scan-Konkurrenzlimit fälschlicherweise in der Warteschlange befindliche Ziele einschloss, wodurch Massenscans verhindert wurden.</li>
+                </ul>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Eine Option zur Aktivierung von Web Scraping für verbesserte Erkennung wurde hinzugefügt, einschließlich neuer Signale und Adapter-Extraktoren. Ein neues Tag 'discovery:<session_name>' wird auf akzeptierte Ziele angewendet.</li>
+                    <li>Automatische Rücksetzung von festsitzenden, in der Warteschlange befindlichen oder laufenden Zielen beim API-Start und alle 5 Minuten über eine Celery-Beat-Aufgabe implementiert, um das Hängen der Warteschlange nach Worker-Abstürzen oder Redis-Aufgabenverlusten zu verhindern.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Der geöffnete/geschlossene Zustand des Blocklisten-Panels wird nun pro Sitzung im localStorage gespeichert und übersteht Seitenneuladungen.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
+        <!-- Version 1.48.1 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.1</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbessertes Scannen & Stabilität</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Das Limit für gleichzeitige Scans zählt jetzt korrekt nur aktive Ziele, wodurch verhindert wird, dass Massenscans vorzeitig übersprungen werden.</li>
+                </ul>
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Web Scraping zur erweiterten Erkennung optional hinzugefügt, einschließlich neuer Discovery-Tags und persistentem Zustand der Blocklist.</li>
+                    <li>Automatische Rücksetzung von blockierten, in der Warteschlange befindlichen/aktiven Zielen beim Start und alle 5 Minuten implementiert, um Hängenbleiben der Warteschlange zu verhindern.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+            </div>
+        </div>
+
         <!-- Version 1.48.1 (beta) -->
         <div class="change-entry">
             <span class="version-badge">v1.48.1</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
