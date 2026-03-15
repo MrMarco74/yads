@@ -23,8 +23,48 @@ engine = create_engine(
 
 
 def create_db_tables() -> None:
-    """Create all SQLModel tables."""
+    """Create all SQLModel tables and run lightweight column migrations."""
     SQLModel.metadata.create_all(engine)
+    _migrate_columns()
+
+
+def _migrate_columns() -> None:
+    """Add any missing columns to existing tables and backfill data (idempotent)."""
+    import json as _json
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        # Add topic column to bugreport if not present
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bugreport)"))}
+        if "topic" not in cols:
+            conn.execute(text("ALTER TABLE bugreport ADD COLUMN topic TEXT NOT NULL DEFAULT ''"))
+            conn.commit()
+
+        # Add EOS columns to customerkey if not present
+        ck_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(customerkey)"))}
+        if "is_eos" not in ck_cols:
+            conn.execute(text("ALTER TABLE customerkey ADD COLUMN is_eos INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+        if "eos_since" not in ck_cols:
+            conn.execute(text("ALTER TABLE customerkey ADD COLUMN eos_since TEXT"))
+            conn.commit()
+            # Backfill: derive topic from full_report JSON if topic field is present
+            rows = conn.execute(text("SELECT id, full_report FROM bugreport")).fetchall()
+            for row_id, full_report in rows:
+                try:
+                    data = _json.loads(full_report)
+                    topic = str(data.get("topic", ""))[:80]
+                except Exception:
+                    topic = ""
+                if topic:
+                    conn.execute(
+                        text("UPDATE bugreport SET topic = :t WHERE id = :id"),
+                        {"t": topic, "id": row_id},
+                    )
+            conn.commit()
+
+        # InstallationReport table: created by SQLModel.metadata.create_all if new,
+        # no column migrations needed (table created fresh).
 
 
 def get_session():

@@ -161,6 +161,104 @@ except ImportError:
     from cryptography.hazmat.primitives import serialization
 
 
+def _read_portal_settings() -> dict:
+    """Read support portal connection settings from ~/.yads/license_manager_settings.json."""
+    try:
+        p = Path.home() / ".yads" / "license_manager_settings.json"
+        data = json.loads(p.read_text())
+        return {
+            "url": data.get("support_portal_url", "").strip(),
+            "token": data.get("support_admin_token", "").strip(),
+            "key_path": data.get("support_admin_key_path", "").strip()
+                        or str(Path.home() / ".yads" / "admin_signing_private.key"),
+        }
+    except Exception:
+        return {"url": "", "token": "", "key_path": ""}
+
+
+def _portal_push_customer(customer_name: str, is_eos: bool = False) -> str | None:
+    """
+    Sync one customer to the support portal in a background thread.
+    Returns None on success, error string on failure.
+    Silently skips if customer has no keys or portal settings are missing.
+    """
+    cfg = _read_portal_settings()
+    if not cfg["url"] or not cfg["token"]:
+        return None  # Not configured — skip silently
+
+    customer_uuid, pub_key_b64 = db_manager.get_customer_by_name(customer_name)
+    if not customer_uuid or not pub_key_b64:
+        return None  # No keys yet — skip silently
+
+    import urllib.request, urllib.error
+
+    try:
+        from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed
+        raw = Path(cfg["key_path"]).expanduser().read_bytes().strip()
+        priv = _ed.Ed25519PrivateKey.from_private_bytes(base64.b64decode(raw))
+    except Exception as e:
+        return f"Admin signing key error: {e}"
+
+    body = json.dumps({
+        "customer_id": customer_uuid,
+        "public_key_b64": pub_key_b64,
+        "customer_name": customer_name,
+        "is_eos": is_eos,
+    }, sort_keys=True).encode()
+
+    ts = str(time.time())
+    sig = base64.b64encode(priv.sign(body)).decode()
+
+    req = urllib.request.Request(
+        f"{cfg['url'].rstrip('/')}/api/admin/keys",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg['token']}",
+            "X-Timestamp": ts,
+            "X-Signature": sig,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+        return None
+    except urllib.error.HTTPError as e:
+        return f"HTTP {e.code}: {e.read().decode()[:120]}"
+    except Exception as e:
+        return str(e)
+
+
+def _portal_mark_eos(customer_uuid: str) -> str | None:
+    """
+    POST /api/admin/keys/{uuid}/eos to mark a customer as End-of-Support.
+    Returns None on success, error string on failure.
+    """
+    cfg = _read_portal_settings()
+    if not cfg["url"] or not cfg["token"]:
+        return None
+
+    import urllib.request, urllib.error
+
+    req = urllib.request.Request(
+        f"{cfg['url'].rstrip('/')}/api/admin/keys/{customer_uuid}/eos",
+        data=b"",
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg['token']}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+        return None
+    except urllib.error.HTTPError as e:
+        return f"HTTP {e.code}: {e.read().decode()[:120]}"
+    except Exception as e:
+        return str(e)
+
+
 class SettingsCard(CardWidget):
     """A card widget for settings sections"""
 
@@ -292,7 +390,7 @@ class IssueLicensePage(SmoothScrollArea):
         features_card = SettingsCard("Features", FIF.CHECKBOX, self)
 
         self.feature_vars = {}
-        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants", "analytics"]
+        features_list = ["reports", "api", "scheduled_scans", "osint", "webhooks", "tenants", "analytics", "support_messaging"]
 
         features_grid = QHBoxLayout()
         features_grid.setSpacing(20)
@@ -326,6 +424,12 @@ class IssueLicensePage(SmoothScrollArea):
         btn_layout.addWidget(self.btn_save)
 
         btn_layout.addStretch()
+
+        self.btn_delete = PushButton(FIF.DELETE, "Delete Customer", self)
+        self.btn_delete.clicked.connect(self._delete_customer)
+        self.btn_delete.setStyleSheet("color: #ef4444;")
+        btn_layout.addWidget(self.btn_delete)
+
         layout.addLayout(btn_layout)
 
         # Output Card
@@ -402,7 +506,7 @@ class IssueLicensePage(SmoothScrollArea):
             self.txt_infobox.setPlainText(details.get("info_box") or "")
 
     def _save_defaults(self):
-        """Save customer defaults"""
+        """Save customer defaults and auto-sync to portal if keys exist."""
         if self._save_customer_data():
             name = self.cmb_customer.currentText().strip()
             InfoBar.success(
@@ -413,6 +517,66 @@ class IssueLicensePage(SmoothScrollArea):
                 duration=3000
             )
             self._load_customers()
+            # Auto-sync to support portal in background (silent — only logs on error)
+            def _bg_sync():
+                err = _portal_push_customer(name)
+                if err:
+                    QTimer.singleShot(0, lambda: InfoBar.warning(
+                        "Portal Sync",
+                        f"Auto-sync to portal failed: {err}",
+                        parent=self,
+                        position=InfoBarPosition.TOP,
+                        duration=5000,
+                    ))
+            threading.Thread(target=_bg_sync, daemon=True).start()
+
+    def _delete_customer(self):
+        """Delete customer from local DB and mark EOS on the support portal."""
+        name = self.cmb_customer.currentText().strip()
+        if not name:
+            return
+
+        dialog = MessageBox(
+            "Kunden löschen",
+            f"Wirklich '{name}' löschen?\n\n"
+            "• Alle Lizenzen werden gelöscht\n"
+            "• Auf dem Support-Portal wird der Kunde als EOS (End of Support) markiert\n"
+            "• Bestehende Bug Reports bleiben erhalten",
+            self,
+        )
+        if not dialog.exec():
+            return
+
+        # Get UUID before deletion
+        customer_uuid, _ = db_manager.get_customer_by_name(name)
+
+        # Delete from local DB
+        db_manager.delete_customer(name)
+        self._load_customers()
+        InfoBar.success("Gelöscht", f"Kunde '{name}' wurde gelöscht.", parent=self,
+                        position=InfoBarPosition.TOP, duration=3000)
+
+        # Mark EOS on portal in background
+        if customer_uuid:
+            def _bg_eos():
+                err = _portal_mark_eos(customer_uuid)
+                if err:
+                    QTimer.singleShot(0, lambda: InfoBar.warning(
+                        "Portal EOS",
+                        f"EOS-Markierung fehlgeschlagen: {err}",
+                        parent=self,
+                        position=InfoBarPosition.TOP,
+                        duration=5000,
+                    ))
+                else:
+                    QTimer.singleShot(0, lambda: InfoBar.success(
+                        "Portal EOS",
+                        f"'{name}' auf Support-Portal als EOS markiert.",
+                        parent=self,
+                        position=InfoBarPosition.TOP,
+                        duration=4000,
+                    ))
+            threading.Thread(target=_bg_eos, daemon=True).start()
 
     def _save_customer_data(self) -> bool:
         """Save customer data to database"""
@@ -531,6 +695,19 @@ class IssueLicensePage(SmoothScrollArea):
 
             # Store report signing keys for this customer
             db_manager.save_report_signing_keys(cust, _cust_uuid, _report_pub_b64)
+
+            # Auto-sync new/updated key to support portal
+            def _bg_sync_new(name=cust):
+                err = _portal_push_customer(name)
+                if err:
+                    QTimer.singleShot(0, lambda: InfoBar.warning(
+                        "Portal Sync",
+                        f"Auto-sync to portal failed: {err}",
+                        parent=self,
+                        position=InfoBarPosition.TOP,
+                        duration=5000,
+                    ))
+            threading.Thread(target=_bg_sync_new, daemon=True).start()
 
             # Refresh history if available
             if hasattr(self.parent_window, 'history_page'):

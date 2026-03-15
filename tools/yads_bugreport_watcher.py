@@ -126,11 +126,14 @@ def _notify(report: dict) -> None:
     customer    = report.get("customer_name") or "unknown"
     tenant      = report.get("tenant_name") or ""
     version     = report.get("yads_version") or ""
+    topic       = report.get("topic") or ""
     description = (report.get("description") or "").strip()[:120]
     report_id   = report.get("report_id", "?")
 
     summary = f"Neuer Bug Report — {customer}"
     parts   = []
+    if topic:
+        parts.append(f"Topic: {topic}")
     if tenant:
         parts.append(f"Tenant: {tenant}")
     if version:

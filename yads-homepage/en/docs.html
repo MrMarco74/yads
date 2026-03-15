@@ -1106,6 +1106,42 @@ docker compose up -d --force-recreate
 </blockquote>
 
 <hr />
+<h2>21. Support Tickets & Messaging</h2>
+<p>
+    YADS customers can view their submitted bug reports and communicate directly with the YADS support team from within the application.
+</p>
+<h3>Accessing Support Tickets</h3>
+<p>Navigate to <strong>Help → Support Tickets</strong> in the sidebar. The ticket list shows all your submitted reports with their status, topic, and any unread messages.</p>
+<h3>Messaging (Pro Feature)</h3>
+<p>
+    Bidirectional messaging between you and the support team is a <strong>Pro license feature</strong> (<code>support_messaging</code>).
+    Community Edition users can view tickets and read replies but cannot send messages.
+</p>
+<ul>
+    <li>Click any ticket to open the message thread.</li>
+    <li>Type your message and click <em>Senden</em> / <em>Send</em>.</li>
+    <li>Unread messages from support are indicated by a blue badge on the ticket list.</li>
+</ul>
+<h3>Bug Report Topics</h3>
+<p>When submitting a bug report, select a topic category (Scanner, UI, Performance, Auth, Worker, Report, API, Other). Topics help prioritize and route your report to the right team.</p>
+
+<hr />
+<h2>22. Anonymous Installation Reporting</h2>
+<p>
+    During the Onboarding Wizard (Step 4), you are offered the option to send a single anonymous report to help improve YADS.
+    This step is entirely optional and requires explicit approval.
+</p>
+<h3>What is Sent</h3>
+<ul>
+    <li><strong>instance_uuid</strong>: A random UUID generated on first setup. Not linked to any user, tenant, or IP address.</li>
+    <li><strong>version</strong>: The YADS version currently installed.</li>
+    <li><strong>submitted_at</strong>: The current timestamp in UTC.</li>
+</ul>
+<p>No personal data, no hostnames, no tenant names, no user data is ever included. You can inspect the exact payload in the wizard before clicking <em>Send &amp; Continue</em>.</p>
+<h3>Skipping the Report</h3>
+<p>Click <em>Skip</em> on the reporting step. The wizard proceeds to the Done screen and onboarding completes normally.</p>
+
+<hr />
 <p style="margin-top: 2rem; padding: 1rem; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 8px;">
 For technical, enterprise, and extended scanner documentation, see the <a href="docs-advanced.html" style="color: var(--accent-primary); font-weight: 600;">Advanced Reference →</a>
 </p>

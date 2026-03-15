@@ -119,8 +119,9 @@ async def view_bug_report(request: Request, user: User = Depends(get_current_use
 async def upload_bug_report(
     request: Request,
     user: User = Depends(get_current_user_html),
-    description: str = Form(""),
-    affected_url: str = Form(""),
+    topic: str = Form("", max_length=80),
+    description: str = Form("", max_length=2000),
+    affected_url: str = Form("", max_length=500),
     attach_errors: Optional[str] = Form(None),
     attach_alerts: Optional[str] = Form(None),
 ):
@@ -200,6 +201,7 @@ async def upload_bug_report(
             pass
 
     report_dict = {
+        "topic": topic.strip(),
         "description": description.strip(),
         "affected_url": affected_url.strip(),
         "yads_version": settings.VERSION,

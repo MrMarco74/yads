@@ -223,6 +223,38 @@ def save_report_signing_keys(customer_name: str, customer_uuid: str, public_key_
     conn.close()
 
 
+def get_customer_by_name(name: str):
+    """Return (customer_uuid, report_signing_public_key) for a customer, or (None, None)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT customer_uuid, report_signing_public_key FROM customers WHERE name = ?",
+        (name,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row[0], row[1]
+    return None, None
+
+
+def delete_customer(name: str) -> str | None:
+    """Delete customer and all their licenses. Returns customer_uuid (for portal EOS call) or None."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, customer_uuid FROM customers WHERE name = ?", (name,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return None
+    cid, customer_uuid = row
+    c.execute("DELETE FROM licenses WHERE customer_id = ?", (cid,))
+    c.execute("DELETE FROM customers WHERE id = ?", (cid,))
+    conn.commit()
+    conn.close()
+    return customer_uuid
+
+
 def get_customers_with_report_keys():
     """Return all customers that have a report signing public key registered."""
     conn = get_connection()
