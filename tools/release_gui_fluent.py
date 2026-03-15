@@ -2981,7 +2981,7 @@ class DanaWorkerThread(QThread):
             concurrency = self.worker_concurrency
             pg_pass = self.postgres_password.replace("'", "'\\''")  # shell-escape
 
-            env_prefix = (
+            common_env = (
                 f"DATABASE_URL='{db_url}' "
                 f"REDIS_URL='{redis_url}' "
                 f"POSTGRES_PASSWORD='{pg_pass}' "
@@ -2996,9 +2996,13 @@ class DanaWorkerThread(QThread):
                 f"docker compose stop yads-worker yads-worker-2 2>&1 || true; "
                 f"docker compose rm -f yads-worker yads-worker-2 2>&1 || true"
             )
+            # Start each worker separately with distinct names so they appear
+            # as "dana-worker-1@dana-worker-1" / "dana-worker-2@dana-worker-2"
+            # in the Celery node list instead of duplicating edward's names.
             ok = self._run_ssh(
                 f"cd {self.remote_path} && "
-                f"{env_prefix} docker compose up -d yads-worker yads-worker-2 2>&1"
+                f"{common_env} WORKER_NAME='dana-worker-1' docker compose up -d yads-worker 2>&1 && "
+                f"{common_env} WORKER_NAME_2='dana-worker-2' docker compose up -d yads-worker-2 2>&1"
             )
             if not ok:
                 return self.signals.operation_finished.emit(False, "docker compose up failed on dana")
