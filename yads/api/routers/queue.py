@@ -95,21 +95,41 @@ async def view_queue(
         active_raw = i.active() or {}
         reserved_raw = i.reserved() or {}
         scheduled_raw = i.scheduled() or {}
+        stats_raw = i.stats() or {}
+
+        # Build worker node overview
+        all_worker_names = set(active_raw) | set(reserved_raw) | set(stats_raw)
+        worker_nodes = []
+        for wname in sorted(all_worker_names):
+            stats = stats_raw.get(wname, {})
+            pool = stats.get("pool", {})
+            concurrency = pool.get("max-concurrency") or pool.get("processes", ["?"] * 1).__len__()
+            active_count = len(active_raw.get(wname, []))
+            reserved_count = len(reserved_raw.get(wname, []))
+            # Strip "celery@" prefix for display, keep everything after @
+            display = wname.split("@", 1)[-1] if "@" in wname else wname
+            worker_nodes.append({
+                "full_name": wname,
+                "display": display,
+                "concurrency": concurrency,
+                "active": active_count,
+                "reserved": reserved_count,
+            })
 
         # Flatten lists
         active_tasks = []
         for worker, tasks in active_raw.items():
             for t in tasks:
-                t['hostname'] = worker
+                t['hostname'] = worker.split("@", 1)[-1] if "@" in worker else worker
                 t['name'] = prettify_task_name(t.get('name', ''))
                 active_tasks.append(t)
-                
+
         reserved_tasks = []
         for worker, tasks in reserved_raw.items():
             for t in tasks:
                  t['name'] = prettify_task_name(t.get('name', ''))
             reserved_tasks.extend(tasks)
-            
+
         scheduled_tasks = []
         for worker, tasks in scheduled_raw.items():
             for t in tasks:
@@ -129,6 +149,7 @@ async def view_queue(
             "active_tasks": [],
             "reserved_tasks": [],
             "scheduled_tasks": [],
+            "worker_nodes": [],
             "queue_active": queue_active,
             "settings": settings,
             "error": f"Connection Error: {str(e)}"
@@ -246,6 +267,7 @@ async def view_queue(
         "queued_tasks": all_queued,
         "queue_length": queue_length,
         "queue_active": queue_active,
+        "worker_nodes": worker_nodes,
         "settings": settings
     })
 

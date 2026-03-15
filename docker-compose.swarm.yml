@@ -96,6 +96,7 @@ services:
           memory: 512M
 
   yads-worker-primary:
+    hostname: "yads-worker-primary"
     image: registry.yads-security.com/yads/yads-worker:latest
     command: python /app/scripts/start_worker.py
     environment:
@@ -104,6 +105,7 @@ services:
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - WORKER_MODE=primary
+      - WORKER_NAME=yads-worker-primary
     volumes:
       - logs:/app/logs
       - data:/app/data

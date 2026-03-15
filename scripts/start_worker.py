@@ -55,6 +55,11 @@ def main():
     print(f"[Startup] Worker queues: {queues}")
 
     # 3. Construct Command
+    # WORKER_NAME sets a friendly Celery node name (shown in queue view)
+    # Falls back to system hostname if not set
+    worker_name = os.getenv("WORKER_NAME", "")
+    node_name = f"{worker_name}@%h" if worker_name else "celery@%h"
+
     cmd = [
         "celery",
         "-A", "yads.worker",
@@ -62,6 +67,7 @@ def main():
         "--loglevel=info",
         "--autoscale", f"{concurrency},{concurrency}",
         "-Q", queues,
+        "-n", node_name,
     ]
     
     print(f"[Startup] Executing: {' '.join(cmd)}")
