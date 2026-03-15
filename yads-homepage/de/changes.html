@@ -154,6 +154,21 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.51.5 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.51.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Warteschlangenverwaltung und Stabilität</h2>
+
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Ziele, die nach der Wiederaufnahme der Warteschlange im Status 'wartend' festhängen, werden jetzt erneut an Worker verteilt.</li>
+                    <li>Feste Worker-Concurrency-Einstellung in Docker Compose entfernt, um potenziell 100% CPU-Last zu verhindern. Die Worker-Concurrency ist jetzt standardmäßig die Anzahl der CPU-Kerne geteilt durch 2 oder ein Wert, der aus der Datenbank abgerufen wird.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: d42a71f23213a0964f2e7ae49302c80c9cb234f0d75d46f919fef4bde411327c</p>
+            </div>
+        </div>
+
         <!-- Version 1.51.4 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.51.4</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
