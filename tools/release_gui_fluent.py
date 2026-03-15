@@ -643,7 +643,7 @@ class ProdDeployWorker(QThread):
             
             if success:
                 self._log("✅ Cleanup successful. Checking disk space...", "success")
-                self._run_cmd(["ssh", self.remote_host, "df -h /"])
+                self._run_cmd(["ssh", self.remote_host, "df -h / /mnt/HC_Volume_105130320"])
                 self.signals.operation_finished.emit(True, "Remote cleanup complete.")
             else:
                 self.signals.operation_finished.emit(False, "Remote cleanup failed.")
@@ -865,17 +865,19 @@ class ProdDeployWorker(QThread):
                 self._log(f"Step 0.0/8: Registry login skipped ({_e}).", "warning")
 
             # 0.2 Automatic Cleanup if space is low
+            # Docker data-root lives on /mnt/HC_Volume_105130320 — check that volume, not /
             self._log("Step 0.1/8: Checking remote disk space...", "info")
+            DOCKER_VOLUME_PATH = "/mnt/HC_Volume_105130320"
             check_space = subprocess.run(
-                self._inject_ssh_opts(["ssh", self.remote_host, "df --output=avail / | tail -n 1"]),
+                self._inject_ssh_opts(["ssh", self.remote_host, f"df --output=avail {DOCKER_VOLUME_PATH} | tail -n 1"]),
                 capture_output=True, text=True
             )
             try:
                 avail_kb = int(check_space.stdout.strip())
                 avail_gb = avail_kb / (1024 * 1024)
-                self._log(f"Available space on remote: {avail_gb:.2f} GB", "info")
+                self._log(f"Available space on Docker volume ({DOCKER_VOLUME_PATH}): {avail_gb:.2f} GB", "info")
                 if avail_gb < 10:  # Threshold for safety (YADS image is ~5.3GB)
-                    self._log(f"⚠️  Low disk space ({avail_gb:.2f} GB). Running automatic cleanup...", "warning")
+                    self._log(f"⚠️  Low disk space on Docker volume ({avail_gb:.2f} GB). Running automatic cleanup...", "warning")
                     self._run_cmd(["ssh", self.remote_host, "docker system prune -f"])
                     self._log("Automatic cleanup finished.", "info")
             except:
