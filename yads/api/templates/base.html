@@ -9,6 +9,13 @@
     <script src="/static/vendor/htmx.min.js"></script>
     <script src="/static/vendor/json-enc.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
+    <script>
+        // Re-initialize Alpine.js on HTMX swaps so x-data blocks in swapped
+        // fragments (e.g. #system-alerts-banner) are properly activated.
+        document.addEventListener('htmx:afterSwap', function(e) {
+            if (window.Alpine) Alpine.initTree(e.detail.elt);
+        });
+    </script>
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
     <script src="/static/vendor/leaflet/leaflet.js"></script>
     <script src="/static/vendor/qrcode.min.js"></script>
@@ -310,7 +317,11 @@
                                 const response = await fetch('/notifications/');
                                 if (response.ok) {
                                     const all = await response.json();
-                                    const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                                    const activeIds = new Set(all.map(n => n.id));
+                                    // Prune dismissed list to only active IDs (prevents unbounded growth)
+                                    let dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                                    dismissed = dismissed.filter(id => activeIds.has(id));
+                                    try { localStorage.setItem('read_notifications', JSON.stringify(dismissed)); } catch(_) {}
                                     this.notifications = all.filter(n => !dismissed.includes(n.id));
                                 }
                             } catch (e) {
@@ -319,17 +330,21 @@
                         },
                         remove(id) {
                             this.notifications = this.notifications.filter(n => n.id !== id);
-                            const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
-                            if (!dismissed.includes(id)) {
-                                dismissed.push(id);
-                                localStorage.setItem('read_notifications', JSON.stringify(dismissed));
-                            }
+                            try {
+                                const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                                if (!dismissed.includes(id)) {
+                                    dismissed.push(id);
+                                    localStorage.setItem('read_notifications', JSON.stringify(dismissed));
+                                }
+                            } catch(_) {}
                         },
                         markAllRead() {
                             const ids = this.notifications.map(n => n.id);
-                            const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
-                            const newDismissed = [...new Set([...dismissed, ...ids])];
-                            localStorage.setItem('read_notifications', JSON.stringify(newDismissed));
+                            try {
+                                const dismissed = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                                const newDismissed = [...new Set([...dismissed, ...ids])];
+                                localStorage.setItem('read_notifications', JSON.stringify(newDismissed));
+                            } catch(_) {}
                             this.notifications = [];
                         }
                      }">
