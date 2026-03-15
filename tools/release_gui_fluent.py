@@ -2775,11 +2775,13 @@ class LocalDeployWorker(QThread):
             build_cmd = ["docker", "compose"] + profile_flags + ["build"]
             up_cmd    = ["docker", "compose"] + profile_flags + ["up", "-d", "--remove-orphans"]
 
-            # Silently remove any stopped containers to avoid name conflicts
-            # (e.g. from manually started or orphaned containers)
+            # Force-remove any containers matching the project name to avoid
+            # name conflicts (e.g. from manually started containers that
+            # docker compose rm cannot reach).
             self._run_cmd(
-                ["docker", "compose", "--profile", "keycloak", "--profile", "monitoring",
-                 "rm", "-f", "--stop"],
+                ["bash", "-c",
+                 "docker ps -aq --filter 'name=yads-' | xargs -r docker rm -f"],
+                shell=False,
                 silent=True,
             )
 
