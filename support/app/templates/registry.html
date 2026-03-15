@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Registry — YADS Support Portal{% endblock %}
+
+{% block content %}
+<style>
+  .reg-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:0.75rem; }
+  .reg-repo { margin-bottom:1.5rem; }
+  .reg-repo__head {
+    display:flex; align-items:center; gap:0.75rem;
+    padding:0.6rem 1rem; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:8px 8px 0 0;
+    cursor:pointer; user-select:none;
+  }
+  .reg-repo__head:hover { background:var(--border); }
+  .reg-repo__name { font-family:monospace; font-size:0.9rem; font-weight:600; }
+  .reg-repo__meta { font-size:0.78rem; color:var(--text-muted); margin-left:auto; display:flex; gap:1rem; }
+  .reg-repo__body { border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px; overflow:hidden; }
+  .reg-tag {
+    display:grid; grid-template-columns: 1fr 7rem 7rem 10rem 1.5rem;
+    align-items:center; gap:0.5rem;
+    padding:0.5rem 1rem; font-size:0.82rem;
+    border-bottom:1px solid var(--border);
+  }
+  .reg-tag:last-child { border-bottom:none; }
+  .reg-tag:nth-child(even) { background:rgba(255,255,255,0.02); }
+  .reg-tag__head {
+    display:grid; grid-template-columns: 1fr 7rem 7rem 10rem 1.5rem;
+    gap:0.5rem; padding:0.4rem 1rem;
+    font-size:0.72rem; font-weight:600; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--text-muted);
+    background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .tag-pill {
+    display:inline-block; font-family:monospace; font-size:0.78rem;
+    padding:0.15rem 0.5rem; border-radius:4px;
+    background:#1e3a5f; color:#93c5fd;
+  }
+  .tag-pill--latest { background:#052e16; color:#4ade80; }
+  .digest { font-family:monospace; font-size:0.75rem; color:var(--text-muted); }
+  .chevron { transition:transform 0.2s; display:inline-block; }
+  .chevron.open { transform:rotate(180deg); }
+  .reg-error { color:var(--status-new); font-size:0.82rem; padding:0.75rem 1rem; }
+</style>
+
+<div class="reg-header">
+  <div>
+    <h1 style="font-size:1.2rem; font-weight:700; margin-bottom:0.2rem;">Container Registry</h1>
+    <p style="font-size:0.82rem; color:var(--text-muted); font-family:monospace;">{{ registry_url }}</p>
+  </div>
+  <a href="/registry/" class="btn btn--secondary" style="font-size:0.82rem;">↺ Aktualisieren</a>
+</div>
+
+{% if error %}
+<div class="card" style="border-color:var(--status-new); background:#3b0a0a; color:#fca5a5; padding:1rem;">
+  <strong>Fehler beim Laden der Registry:</strong> {{ error }}
+</div>
+{% elif not repos %}
+<div class="card" style="color:var(--text-muted); text-align:center; padding:2rem;">
+  Keine Repositories gefunden.
+</div>
+{% else %}
+
+<p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1.25rem;">
+  {{ repos|length }} Repositories gefunden.
+</p>
+
+{% for repo in repos %}
+<div class="reg-repo">
+  <div class="reg-repo__head" onclick="toggleRepo('repo-{{ loop.index }}', this)">
+    <svg class="chevron open" id="chev-repo-{{ loop.index }}" style="width:1rem;height:1rem;color:var(--text-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+    </svg>
+    <span class="reg-repo__name">{{ repo.name }}</span>
+    {% if repo.get('error') %}
+      <span style="font-size:0.75rem; color:var(--status-new); margin-left:0.5rem;">⚠ Fehler</span>
+    {% endif %}
+    <div class="reg-repo__meta">
+      <span>{{ repo.tag_count }} Tags</span>
+      <span>{{ repo.total_size }}</span>
+    </div>
+  </div>
+
+  <div class="reg-repo__body" id="repo-{{ loop.index }}">
+    {% if repo.get('error') %}
+      <p class="reg-error">{{ repo.error }}</p>
+    {% elif repo.tags %}
+      <div class="reg-tag__head">
+        <span>Tag</span>
+        <span>Digest</span>
+        <span>Größe</span>
+        <span>Erstellt</span>
+        <span></span>
+      </div>
+      {% for t in repo.tags %}
+      <div class="reg-tag">
+        <span>
+          <span class="tag-pill {% if t.tag == 'latest' %}tag-pill--latest{% endif %}">{{ t.tag }}</span>
+        </span>
+        <span class="digest">{{ t.digest_short }}…</span>
+        <span style="color:var(--text-muted);">{{ t.size_fmt }}</span>
+        <span style="color:var(--text-muted);">{{ t.created }}</span>
+        <span></span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="padding:0.75rem 1rem; font-size:0.82rem; color:var(--text-muted);">Keine Tags gefunden.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+
+<script>
+function toggleRepo(id, head) {
+  const body = document.getElementById(id);
+  const chev = document.getElementById('chev-' + id);
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  chev.classList.toggle('open', hidden);
+}
+</script>
+{% endblock %}

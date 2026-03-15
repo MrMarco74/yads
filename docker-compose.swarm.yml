@@ -194,6 +194,10 @@ services:
       # License authority public key — same as YADS LICENSE_PUBLIC_KEY.
       # Enables self-service key registration from YADS instances.
       - LICENSE_AUTHORITY_PUBLIC_KEY=${LICENSE_AUTHORITY_PUBLIC_KEY:-}
+      # Docker registry viewer
+      - REGISTRY_URL=${REGISTRY_URL:-https://registry.yads-security.com}
+      - REGISTRY_USER=${REGISTRY_USER:-}
+      - REGISTRY_PASS=${REGISTRY_PASS:-}
     volumes:
       - support_keys:/app/keys:ro
       - support_data:/app/data

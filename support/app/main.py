@@ -12,6 +12,7 @@ from app.routers.messages import router as messages_router
 from app.routers.ui import router as ui_router
 from app.routers.contact import router as contact_router
 from app.routers.self_register import router as self_register_router
+from app.routers.registry import router as registry_router
 
 
 @asynccontextmanager
@@ -35,3 +36,4 @@ app.include_router(messages_router)
 app.include_router(ui_router)
 app.include_router(contact_router)
 app.include_router(self_register_router)
+app.include_router(registry_router)
