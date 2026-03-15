@@ -1178,42 +1178,51 @@ class RebuildToolsWorker(QThread):
         start = time.time()
         local_tag = f"yads-tools:{self.tools_tag}"
         registry_tag = f"{self.TOOLS_REGISTRY_IMAGE}:{self.tools_tag}"
+        registry_latest = f"{self.TOOLS_REGISTRY_IMAGE}:latest"
 
         self._log(f"=== Rebuild Scanner Tools Base Image (tag: {self.tools_tag}) ===", "info")
         self._log("This takes 15-20 min (Playwright/Chromium download). Run only when tool versions change.", "warning")
 
         self.signals.progress_update.emit(0, 100, "Building yads-tools image...")
 
-        # Step 1: Build
-        self._log("Step 1/3: Building Dockerfile.tools...", "info")
+        # Step 1: Build (tag both versioned and latest)
+        self._log("Step 1/4: Building Dockerfile.tools...", "info")
         if not self._run_cmd([
             "docker", "build",
             "-f", "Dockerfile.tools",
             "-t", local_tag,
             "-t", registry_tag,
+            "-t", registry_latest,
             "."
         ]):
             return self.signals.operation_finished.emit(False, "Tools image build failed")
 
-        self.signals.progress_update.emit(70, 100, "Pushing to registry...")
+        self.signals.progress_update.emit(60, 100, "Pushing versioned tag...")
 
-        # Step 2: Push
-        self._log("Step 2/3: Pushing to registry...", "info")
+        # Step 2: Push versioned tag
+        self._log(f"Step 2/4: Pushing {self.tools_tag} to registry...", "info")
         if not self._run_cmd(["docker", "push", registry_tag]):
             return self.signals.operation_finished.emit(False, "Tools image push failed")
 
+        self.signals.progress_update.emit(80, 100, "Pushing latest tag...")
+
+        # Step 3: Push latest tag
+        self._log("Step 3/4: Pushing latest to registry...", "info")
+        if not self._run_cmd(["docker", "push", registry_latest]):
+            return self.signals.operation_finished.emit(False, "Tools image push (latest) failed")
+
         self.signals.progress_update.emit(95, 100, "Verifying...")
 
-        # Step 3: Verify
-        self._log("Step 3/3: Verifying image in registry...", "info")
+        # Step 4: Verify
+        self._log("Step 4/4: Verifying image in registry...", "info")
         if not self._run_cmd(["docker", "manifest", "inspect", registry_tag]):
             self._log("Manifest check skipped (not critical)", "warning")
 
         elapsed = f"{int(time.time() - start) // 60}m {int(time.time() - start) % 60}s"
         self.signals.progress_update.emit(100, 100, f"Done! ({elapsed})")
-        self._log(f"✅ yads-tools:{self.tools_tag} built and pushed in {elapsed}", "success")
+        self._log(f"✅ yads-tools:{self.tools_tag} + :latest built and pushed in {elapsed}", "success")
         self._log(f"ℹ️  Next worker build will use this image via Dockerfile.worker.", "info")
-        self.signals.operation_finished.emit(True, f"Tools image {self.tools_tag} ready")
+        self.signals.operation_finished.emit(True, f"Tools image {self.tools_tag} + latest ready")
 
 
 class ProdDeployPage(QWidget):
