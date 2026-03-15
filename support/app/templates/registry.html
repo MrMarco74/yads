@@ -62,7 +62,16 @@
     <h1 style="font-size:1.2rem; font-weight:700; margin-bottom:0.2rem;">Container Registry</h1>
     <p style="font-size:0.82rem; color:var(--text-muted); font-family:monospace;">{{ registry_url }}</p>
   </div>
-  <a href="/registry/" class="btn btn--secondary" style="font-size:0.82rem;">↺ Aktualisieren</a>
+  <div style="display:flex; gap:0.5rem; align-items:center;">
+    {% set purge_count = repos | sum(attribute='tags') | selectattr('purgeable') | list | length %}
+    {% if purge_count %}
+    <button class="purge-btn" style="font-size:0.82rem; padding:0.4rem 0.9rem;"
+            onclick="purgeAll(this, {{ purge_count }})">
+      🗑 Alle ungenutzten purgen ({{ purge_count }})
+    </button>
+    {% endif %}
+    <a href="/registry/" class="btn btn--secondary" style="font-size:0.82rem;">↺ Aktualisieren</a>
+  </div>
 </div>
 
 {% if not socket_available %}
@@ -167,6 +176,40 @@ function toggleRepo(id, head) {
   const hidden = body.style.display === 'none';
   body.style.display = hidden ? '' : 'none';
   chev.classList.toggle('open', hidden);
+}
+
+async function purgeAll(btn, total) {
+  if (!confirm(`Alle ${total} ungenutzten Images aus der Registry löschen?\n\nNur Tags ohne Live-Deployment werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+
+  btn.disabled = true;
+  const purgeBtns = document.querySelectorAll('button.purge-btn:not([disabled])');
+  let done = 0, failed = 0;
+
+  for (const pb of purgeBtns) {
+    btn.textContent = `🗑 ${done}/${purgeBtns.length} …`;
+    const onclick = pb.getAttribute('onclick') || '';
+    const m = onclick.match(/purgeTag\(this,\s*'([^']+)',\s*'([^']+)',\s*'([^']+)'\)/);
+    if (!m) continue;
+    const [, repo, digest, tag] = m;
+    try {
+      const r = await fetch('/registry/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo, digest }),
+      });
+      if (r.ok) {
+        done++;
+        const rowId = 'tag-row-' + repo.replace(/\//g, '-') + '-' + tag;
+        const row = document.getElementById(rowId);
+        if (row) { row.style.opacity = '0.3'; setTimeout(() => row.remove(), 300); }
+      } else {
+        failed++;
+      }
+    } catch { failed++; }
+  }
+
+  btn.textContent = `✓ ${done} gelöscht${failed ? ', ' + failed + ' Fehler' : ''}`;
+  setTimeout(() => location.reload(), 1500);
 }
 
 async function purgeTag(btn, repo, digest, tag) {
