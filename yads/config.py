@@ -7,7 +7,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.51.3"
+    VERSION: str = "1.51.4"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Database

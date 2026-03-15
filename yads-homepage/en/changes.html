@@ -153,6 +153,40 @@
     <div class="container">
 
         <div class="timeline">
+        <!-- Version 1.51.4 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.51.4</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhancements and Registry Management</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Implemented Docker registry viewer in support portal to show repositories, tags, image sizes, and creation dates.</li>
+                    <li>Added report categorization feature with custom categories, including category creation, deletion, assignment, and display in report lists and details.</li>
+                    <li>Added 'Purge all unused' button in registry viewer with live progress counter.</li>
+                    <li>Display deployment status (Live/Unused) for tags in registry viewer and added purge button for unused tags.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Improved worker concurrency auto-detection by falling back to the number of CPUs.</li>
+                    <li>Improved loading speed of workers, queue, and settings pages by using asynchronous HTMX loading for Celery inspect calls.</li>
+                    <li>Implemented tab layout for bug report detail view to improve overview.</li>
+                    <li>Also push :latest tag when building yads-tools image</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed issue where registry credentials were not persisted in swarm compose defaults.</li>
+                    <li>Fixed registry purge Accept header and improved error messages for registry operations.</li>
+                    <li>Corrected purging count calculation.</li>
+                    <li>Addressed notification dismiss errors and Alpine re-initialization after HTMX swap to prevent storage quota issues.</li>
+                    <li>Fixed configuration overwrite issue on dana to ensure workers connect to the correct database.</li>
+                    <li>Fixed dana worker diagnostics and forced container recreation on restart to ensure fresh environment variables.</li>
+                    <li>Prevented dana worker start from trying to start local DB/Redis dependencies with --no-deps option.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 84fb50b6cba73eb65a86f3e68349959e629751a49e3d548261f38b9b5b575bcc</p>
+            </div>
+        </div>
+
         <!-- Version 1.51.3 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.51.3</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -163,7 +197,7 @@
                 <ul>
                     <li>Fixed an issue where Dana workers would get stuck in a 'Created' state due to unnecessary local database/Redis dependencies. Workers now correctly connect to the main Edward database and Redis instances.</li>
                 </ul>
-                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: [SHA256_HASH_TBD]</p>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 84fb50b6cba73eb65a86f3e68349959e629751a49e3d548261f38b9b5b575bcc</p>
             </div>
         </div>
 
