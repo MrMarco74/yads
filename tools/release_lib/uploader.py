@@ -260,17 +260,21 @@ class ReleaseUploader:
         host = ssh_config.get('host')
         user = ssh_config.get('user')
         password = ssh_config.get('password', '')
-        key_file = ssh_config.get('key_file', '~/.ssh/id_rsa')
+        key_file = ssh_config.get('key_file', '') or ''
         port = ssh_config.get('port', 22)
 
-        # Expand ~ in key_file path
-        key_file = os.path.expanduser(key_file)
-        key_file_exists = key_file and os.path.exists(key_file)
+        # Expand ~ in key_file path; fall back to common defaults
+        key_file = os.path.expanduser(key_file.strip()) if key_file.strip() else ''
+        if not key_file:
+            # No explicit key configured — check common default locations
+            for _candidate in ('~/.ssh/id_ed25519', '~/.ssh/id_rsa', '~/.ssh/id_ecdsa'):
+                _p = os.path.expanduser(_candidate)
+                if os.path.exists(_p):
+                    key_file = _p
+                    break
+        key_file_exists = bool(key_file) and os.path.exists(key_file)
 
-        # Determine auth method: prefer password if provided and key doesn't exist
-        # If password is set and key file doesn't exist -> use password
-        # If password is set and key file exists -> use key (more secure)
-        # If no password -> use key
+        # Use password only when explicitly set AND no key is available at all
         use_password = bool(password) and not key_file_exists
 
         if use_password and not self._check_sshpass():
