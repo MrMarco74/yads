@@ -2,10 +2,10 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://yads-security.com; font-src 'self' https://yads-security.com; img-src 'self' data: https://yads-security.com; script-src 'self' 'unsafe-inline' https://yads-security.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dokumentation - YADS</title>
-    <link rel="stylesheet" href="https://yads-security.com/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <style>
         /* Markdown Overrides */
         h1 { font-size: 2.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
@@ -55,14 +55,14 @@
             a { color: inherit; text-decoration: none; }
         }
     </style>
-    <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
+    <link rel="icon" type="image/png" href="images/favicon.png">
 </head>
 <body>
 
     <nav>
         <div class="container">
             <a href="index.html" class="logo">
-                <img src="https://yads-security.com/images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
+                <img src="images/favicon.png" alt="YADS" style="height: 64px; width: auto;">
                 <span class="text-gradient">YADS</span> Security
             </a>
             <div class="nav-links">
@@ -134,8 +134,8 @@
         </aside>
         <main class="docs-content">
             <h1>YADS - Umfassendes Benutzerhandbuch</h1>
-<p><strong>Version:</strong> 1.45.3
-<strong>Letzte Aktualisierung:</strong> 2026-03-14</p>
+<p><strong>Version:</strong> 1.48.3
+<strong>Letzte Aktualisierung:</strong> 2026-03-15</p>
 <p>Willkommen zum <strong>YADS (Yet Another Domain Scanner)</strong> Handbuch. Diese Anleitung deckt alle Aspekte der Anwendung ab, vom ersten Scan bis zur erweiterten Konfiguration und Mandantenfähigkeit.</p>
 <hr />
 <h2>Inhaltsverzeichnis</h2>
@@ -1112,7 +1112,10 @@ docker compose up -d --force-recreate
             h.id = id;
         });
         document.querySelectorAll(".docs-sidebar a").forEach(a => {
-            const targetId = a.getAttribute("href").replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            const href = a.getAttribute("href") || "";
+            // Skip links to other files (e.g. docs-advanced.html) — only rewrite in-page anchors
+            if (!href.startsWith("#")) return;
+            const targetId = href.replace("#", "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
             a.setAttribute("href", "#" + targetId);
         });
 
