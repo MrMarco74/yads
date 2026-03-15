@@ -1,5 +1,6 @@
 import os
 import sys
+import multiprocessing
 
 # Ensure /app is in path so we can import yads
 sys.path.append('/app')
@@ -9,13 +10,17 @@ from sqlmodel import Session, create_engine, select
 from yads.models import SystemConfig
 from yads.config import settings
 
+def _cpu_default() -> int:
+    """Detect usable CPU count; scanners are I/O-heavy so we use cpu_count directly."""
+    return max(1, multiprocessing.cpu_count())
+
 def main():
     print("[Startup] Initializing Worker Configuration...")
-    
+
     # 1. Connect to Database
     try:
         engine = create_engine(settings.DATABASE_URL)
-        concurrency = 8  # Default safe value
+        concurrency = _cpu_default()
 
         # Env var takes priority over DB setting (useful for docker-compose overrides)
         env_val = os.getenv("WORKER_CONCURRENCY")
@@ -39,14 +44,20 @@ def main():
                             concurrency = val
                             print(f"[Startup] Found WORKER_CONCURRENCY in DB: {concurrency}")
                         else:
-                            print(f"[Startup] Invalid WORKER_CONCURRENCY in DB ({conf.value}), using default.")
+                            print(f"[Startup] Invalid WORKER_CONCURRENCY in DB ({conf.value}), using cpu_count.")
                     except ValueError:
-                        print(f"[Startup] Malformed WORKER_CONCURRENCY in DB ({conf.value}), using default.")
+                        print(f"[Startup] Malformed WORKER_CONCURRENCY in DB ({conf.value}), using cpu_count.")
                 else:
-                    print(f"[Startup] No WORKER_CONCURRENCY set in DB, using default ({concurrency}).")
+                    # No DB entry — write detected value so UI shows it correctly
+                    print(f"[Startup] No WORKER_CONCURRENCY in DB — auto-detected {concurrency} (cpu_count). Writing to DB.")
+                    try:
+                        session.add(SystemConfig(key="WORKER_CONCURRENCY", value=str(concurrency)))
+                        session.commit()
+                    except Exception as e:
+                        print(f"[Startup] Could not write WORKER_CONCURRENCY to DB: {e}")
     except Exception as e:
-        print(f"[Startup] Failed to read settings from DB: {e}. Using default concurrency (8).")
-        concurrency = 8
+        print(f"[Startup] Failed to read settings from DB: {e}. Using cpu_count ({_cpu_default()}).")
+        concurrency = _cpu_default()
 
     # 2. Determine which queues to consume
     # Default: celery (standard scans) + discovery (recursive discovery sessions)
