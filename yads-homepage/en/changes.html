@@ -157,6 +157,27 @@
         <div class="change-entry">
             <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
             <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Remote Workers & Queue Fixes</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added support for running YADS workers on remote Dana environments, including automated deployment and configuration via SSH.</li>
+                    <li>Introduced a 'Remote Workers (Dana)' card in Local ENV to start/stop YADS worker containers on Dana via SSH.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Queue STOP (pause) now revokes and terminates all reserved and active Celery tasks, preventing workers from processing prefetched tasks after pause.</li>
+                    <li>Fixed an issue where the reset_stuck_targets beat was incorrectly resetting 'queued' targets, causing inaccurate queue widget display. It now only resets 'running' targets older than 45 minutes.</li>
+                    <li>Queue RESUME now correctly re-adds the 'discovery' consumer.</li>
+                    <li>Clarified the 'Max Network (Mbps)' label in worker configuration modal to 'NIC Capacity (Mbps)' with a hint explaining its purpose in resource-check validation warnings. The actual network throttle is managed in Settings.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Version 1.48.4 (beta) -->
+        <div class="change-entry">
+            <span class="version-badge">v1.48.4</span><span class="channel-badge beta" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Beta</span>
+            <div class="change-card">
                 <h2 style="margin-bottom: 1rem; color: #fff;">Stability and Documentation Enhancements</h2>
 
                 <h3>🐛 Bug Fixes</h3>
