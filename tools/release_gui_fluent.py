@@ -3001,11 +3001,25 @@ class DanaWorkerThread(QThread):
             # in the Celery node list instead of duplicating edward's names.
             ok = self._run_ssh(
                 f"cd {self.remote_path} && "
-                f"{common_env} WORKER_NAME='dana-worker-1' docker compose up -d --no-deps yads-worker 2>&1 && "
-                f"{common_env} WORKER_NAME_2='dana-worker-2' docker compose up -d --no-deps yads-worker-2 2>&1"
+                f"{common_env} WORKER_NAME='dana-worker-1' docker compose up -d --no-deps --force-recreate yads-worker 2>&1 && "
+                f"{common_env} WORKER_NAME_2='dana-worker-2' docker compose up -d --no-deps --force-recreate yads-worker-2 2>&1"
             )
             if not ok:
                 return self.signals.operation_finished.emit(False, "docker compose up failed on dana")
+
+            # Verify: wait for workers to initialize, then show startup logs + env check
+            import time
+            self._log("── Waiting for workers to initialize (8s)… ──", "info")
+            time.sleep(8)
+            self._log("── Dana worker env check ──", "info")
+            self._run_ssh(
+                f"cd {self.remote_path} && "
+                f"docker compose exec -T yads-worker sh -c 'echo \"REDIS_URL=$REDIS_URL\" && echo \"DATABASE_URL=$DATABASE_URL\"' 2>&1 || true"
+            )
+            self._log("── Dana worker-1 logs (last 40 lines) ──", "info")
+            self._run_ssh(f"cd {self.remote_path} && docker compose logs --no-color --tail 40 yads-worker 2>&1")
+            self._log("── Dana worker-2 logs (last 40 lines) ──", "info")
+            self._run_ssh(f"cd {self.remote_path} && docker compose logs --no-color --tail 40 yads-worker-2 2>&1")
 
             self._log(f"✅ Dana workers started (concurrency={concurrency} per container, DB/Redis → {self.edward_host})", "success")
             self.signals.operation_finished.emit(True, f"Dana workers running (concurrency {concurrency} × 2)")
