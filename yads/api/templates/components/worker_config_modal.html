@@ -76,14 +76,14 @@
                     <p class="text-xs text-slate-500 mt-1">Simultaneous scans</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">Max Network (Mbps)</label>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">NIC Capacity (Mbps)</label>
                     <input type="number" name="max_network_mbps"
                            id="input-net-{{ worker.node_id }}"
                            value="{{ worker.max_network_mbps }}"
                            min="1" max="100000" step="1"
                            oninput="yadsResourceCheck('{{ worker.node_id }}')"
                            class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                    <p class="text-xs text-slate-500 mt-1">Bandwidth limit</p>
+                    <p class="text-xs text-slate-500 mt-1">Worker's NIC capacity — for validation only, not a throttle. Throttle: Settings → Network Rate Limit</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-300 mb-2">Max Daily Scans</label>
