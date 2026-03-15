@@ -65,7 +65,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}
       - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
       - WORKER_NAME=${WORKER_NAME:-yads-worker-1}
     volumes:
@@ -91,7 +91,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}
       - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
       - WORKER_NAME=${WORKER_NAME_2:-yads-worker-2}
     volumes:
