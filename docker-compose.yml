@@ -54,6 +54,7 @@ services:
       - proxy-net
 
   yads-worker:
+    hostname: yads-worker-1
     build:
       context: .
       target: dev
@@ -66,6 +67,7 @@ services:
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
       - WORKER_QUEUES=celery,discovery
+      - WORKER_NAME=yads-worker-1
     volumes:
       - ./logs:/app/logs
       - .:/app
@@ -78,6 +80,7 @@ services:
 
   # Second worker — handles overflow when main worker is saturated (dev only)
   yads-worker-2:
+    hostname: yads-worker-2
     build:
       context: .
       target: dev
@@ -90,6 +93,7 @@ services:
       - LOG_DIR=/app/logs
       - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-16}
       - WORKER_QUEUES=celery,discovery
+      - WORKER_NAME=yads-worker-2
     volumes:
       - ./logs:/app/logs
       - .:/app
