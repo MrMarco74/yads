@@ -103,9 +103,9 @@ def run_cleanup():
                 # DELETE TARGET
                 logger.info(f"Deleting Wildcard Target: {target.domain} (IPs: {target_ips})")
                 
-                # Delete dependencies
-                session.exec(text(f"DELETE FROM scanresult WHERE target_id = {target.id}"))
-                session.exec(text(f"DELETE FROM modulestate WHERE target_id = {target.id}"))
+                # Delete dependencies — parameterized to avoid f-string SQL
+                session.exec(text("DELETE FROM scanresult WHERE target_id = :tid"), {"tid": target.id})
+                session.exec(text("DELETE FROM modulestate WHERE target_id = :tid"), {"tid": target.id})
                 session.delete(target)
                 deleted_count += 1
                 
