@@ -237,20 +237,11 @@ class BugWatcher:
     # ---- polling thread ----
 
     def _poll_loop(self):
-        # First run: seed existing report IDs so we don't notify for pre-existing reports.
-        # Badge count is always the live count of status=new reports from the API.
-        if not self.seen_ids:
-            _log("First run — seeding existing report IDs (no notifications)")
-            reports        = _fetch_reports(self.base_url, self.token)
-            self.seen_ids  = {r["report_id"] for r in reports if "report_id" in r}
-            _save_state(self.seen_ids)
-            _log(f"Seeded {len(self.seen_ids)} existing report(s)")
-
         while True:
             try:
                 reports     = _fetch_reports(self.base_url, self.token)
 
-                # Badge = live count of status=new reports (not just newly arrived)
+                # Badge = live count of status=new reports
                 open_count  = sum(1 for r in reports if r.get("status") == "new")
 
                 # Notify for truly new (not seen before) reports
@@ -276,14 +267,31 @@ class BugWatcher:
     # ---- entry point ----
 
     def run(self):
-        # Start polling in background thread
-        t         = threading.Thread(target=self._poll_loop, daemon=True)
+        # Synchronous initial fetch BEFORE the tray is created.
+        # This avoids a race where the poll thread runs _update_tray() while
+        # self.tray_icon is still None and the update is silently dropped.
+        _log("Initial fetch on startup...")
+        try:
+            reports = _fetch_reports(self.base_url, self.token)
+            if not self.seen_ids:
+                # First ever run: seed all existing IDs so we don't spam notifications
+                _log("First run — seeding existing report IDs (no notifications)")
+                self.seen_ids = {r["report_id"] for r in reports if "report_id" in r}
+                _save_state(self.seen_ids)
+                _log(f"Seeded {len(self.seen_ids)} existing report(s)")
+            self.new_count = sum(1 for r in reports if r.get("status") == "new")
+            _log(f"Startup: {self.new_count} offene Reports")
+        except Exception as exc:
+            _log(f"Startup fetch failed: {exc}")
+
+        # Start background poll thread (seen_ids already populated)
+        t = threading.Thread(target=self._poll_loop, daemon=True)
         t.start()
 
-        # Build initial tray icon and run (blocks main thread)
+        # Build tray with the correct initial badge count
         self.tray_icon = pystray.Icon(
             name   ="yads_bugreport_watcher",
-            icon   =_make_icon_image(0),
+            icon   =_make_icon_image(self.new_count),
             title  ="YADS Bug Report Watcher",
             menu   =self._build_menu(),
         )
