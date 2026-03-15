@@ -11,8 +11,12 @@ from yads.models import SystemConfig
 from yads.config import settings
 
 def _cpu_default() -> int:
-    """Detect usable CPU count; scanners are I/O-heavy so we use cpu_count directly."""
-    return max(1, multiprocessing.cpu_count())
+    """Conservative default: half of available CPUs.
+    Scanners (Playwright, Nuclei, Nmap) are CPU+memory heavy, so running
+    cpu_count() parallel scans causes 100% load. Half is a safe starting point.
+    Can be overridden via WORKER_CONCURRENCY env var or Settings UI.
+    """
+    return max(1, multiprocessing.cpu_count() // 2)
 
 def main():
     print("[Startup] Initializing Worker Configuration...")
