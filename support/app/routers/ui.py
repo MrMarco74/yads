@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
 from app.database import get_session
-from app.models import BugReport, BugReportMessage, CustomerKey, InstallationReport
+from app.models import BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport
 
 router = APIRouter()
 
@@ -97,19 +97,25 @@ async def dashboard(request: Request, session: Session = Depends(get_session)):
         select(BugReport).order_by(col(BugReport.submitted_at).desc())
     ).all()
 
-    new_count = sum(1 for r in all_reports if r.status == "new")
-    open_count = sum(1 for r in all_reports if r.status == "open")
+    new_count   = sum(1 for r in all_reports if r.status == "new")
+    open_count  = sum(1 for r in all_reports if r.status == "open")
     total_count = len(all_reports)
-    last_10 = all_reports[:10]
+    last_10     = all_reports[:10]
+
+    new_contacts = session.exec(
+        select(ContactRequest).where(ContactRequest.status == "new")
+        .order_by(col(ContactRequest.submitted_at).desc())
+    ).all()
 
     return templates.TemplateResponse(
         "dashboard.html",
         {
-            "request": request,
-            "new_count": new_count,
-            "open_count": open_count,
-            "total_count": total_count,
-            "last_10": last_10,
+            "request":       request,
+            "new_count":     new_count,
+            "open_count":    open_count,
+            "total_count":   total_count,
+            "last_10":       last_10,
+            "new_contacts":  new_contacts,
         },
     )
 
@@ -284,6 +290,52 @@ async def send_reply(
             session.commit()
 
     return RedirectResponse(url=f"/reports/{report_id}", status_code=303)
+
+
+@router.get("/contacts", response_class=HTMLResponse)
+async def contact_list(
+    request: Request,
+    status: Optional[str] = None,
+    topic: Optional[str] = None,
+    session: Session = Depends(get_session),
+):
+    """List all contact form submissions."""
+    contacts = session.exec(
+        select(ContactRequest).order_by(col(ContactRequest.submitted_at).desc())
+    ).all()
+
+    all_topics = sorted({c.topic for c in contacts if c.topic})
+    VALID_CONTACT_STATUSES = ["new", "read", "replied"]
+
+    if status and status in VALID_CONTACT_STATUSES:
+        contacts = [c for c in contacts if c.status == status]
+    if topic:
+        contacts = [c for c in contacts if c.topic == topic]
+
+    return templates.TemplateResponse("contact_list.html", {
+        "request":          request,
+        "contacts":         contacts,
+        "all_topics":       all_topics,
+        "selected_status":  status or "",
+        "selected_topic":   topic or "",
+        "valid_statuses":   VALID_CONTACT_STATUSES,
+    })
+
+
+@router.post("/contacts/{contact_id}/status")
+async def update_contact_status(
+    contact_id: str,
+    status: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    contact = session.exec(
+        select(ContactRequest).where(ContactRequest.contact_id == contact_id)
+    ).first()
+    if contact and status in ["new", "read", "replied"]:
+        contact.status = status
+        session.add(contact)
+        session.commit()
+    return RedirectResponse(url="/contacts", status_code=303)
 
 
 @router.get("/installations", response_class=HTMLResponse)

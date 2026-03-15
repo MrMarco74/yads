@@ -5,16 +5,20 @@
 <!-- KPI Cards -->
 <div class="kpi-grid">
   <div class="kpi-card kpi-card--new">
-    <div class="kpi-card__label">New</div>
+    <div class="kpi-card__label">New Reports</div>
     <div class="kpi-card__value">{{ new_count }}</div>
   </div>
   <div class="kpi-card kpi-card--open">
-    <div class="kpi-card__label">Open</div>
+    <div class="kpi-card__label">Open Reports</div>
     <div class="kpi-card__value">{{ open_count }}</div>
   </div>
   <div class="kpi-card kpi-card--total">
-    <div class="kpi-card__label">Total</div>
+    <div class="kpi-card__label">Total Reports</div>
     <div class="kpi-card__value">{{ total_count }}</div>
+  </div>
+  <div class="kpi-card" style="border-color: #22c55e44;">
+    <div class="kpi-card__label" style="color:#22c55e;">New Contacts</div>
+    <div class="kpi-card__value" style="color:#22c55e;">{{ new_contacts | length }}</div>
   </div>
 </div>
 
@@ -70,4 +74,39 @@
   <div class="empty">No reports yet.</div>
   {% endif %}
 </div>
+
+<!-- New Contact Requests -->
+{% if new_contacts %}
+<div class="card mt-2">
+  <div class="section-header">
+    <h2>&#128233; New Contact Requests</h2>
+    <a href="/contacts" class="btn btn--secondary" style="font-size:0.8rem;">View all &rarr;</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Name</th><th>Firma</th><th>Thema</th><th>Nachricht</th><th>Datum</th><th>Aktion</th></tr>
+      </thead>
+      <tbody>
+        {% for c in new_contacts %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.8rem;">{{ c.contact_id }}</td>
+          <td>{{ c.name }}<br><span style="font-size:0.75rem;color:var(--text-muted);">{{ c.email }}</span></td>
+          <td style="font-size:0.85rem;">{{ c.company or "—" }}</td>
+          <td><span class="badge" style="background:#052e16;color:#22c55e;">{{ c.topic }}</span></td>
+          <td style="font-size:0.85rem;max-width:300px;word-break:break-word;">{{ c.message[:150] }}{% if c.message|length > 150 %}…{% endif %}</td>
+          <td style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">{{ c.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            <form method="post" action="/contacts/{{ c.contact_id }}/status">
+              <input type="hidden" name="status" value="read">
+              <button class="btn btn--secondary" style="font-size:0.75rem;">Als gelesen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

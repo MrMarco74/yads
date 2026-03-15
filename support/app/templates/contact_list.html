@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Contact Requests — YADS Support Portal{% endblock %}
+
+{% block content %}
+<div class="section-header mb-2">
+  <h2>&#128233; Contact Requests</h2>
+</div>
+
+<!-- Filter -->
+<form class="filter-form" method="get" action="/contacts">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    {% for s in valid_statuses %}
+    <option value="{{ s }}" {% if selected_status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select name="topic" onchange="this.form.submit()">
+    <option value="">All topics</option>
+    {% for t in all_topics %}
+    <option value="{{ t }}" {% if selected_topic == t %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  {% if selected_status or selected_topic %}
+  <a href="/contacts" class="btn btn--secondary">Clear</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  {% if contacts %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>E-Mail</th>
+          <th>Firma</th>
+          <th>Thema</th>
+          <th>Nachricht</th>
+          <th>Datum</th>
+          <th>Status</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contacts %}
+        <tr>
+          <td style="font-family:monospace;font-size:0.8rem;white-space:nowrap;">{{ c.contact_id }}</td>
+          <td style="white-space:nowrap;">{{ c.name }}</td>
+          <td style="font-size:0.8rem;"><a href="mailto:{{ c.email }}">{{ c.email }}</a></td>
+          <td style="font-size:0.85rem;">{{ c.company or "—" }}</td>
+          <td><span class="badge" style="background:#052e16;color:#22c55e;">{{ c.topic }}</span></td>
+          <td style="font-size:0.85rem;max-width:320px;word-break:break-word;">
+            {{ c.message[:200] }}{% if c.message|length > 200 %}…{% endif %}
+          </td>
+          <td style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">
+            {{ c.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+          <td>
+            {% if c.status == "new" %}
+              <span class="badge badge--new">new</span>
+            {% elif c.status == "read" %}
+              <span class="badge badge--open">read</span>
+            {% else %}
+              <span class="badge badge--resolved">replied</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/contacts/{{ c.contact_id }}/status" style="display:inline;">
+              <select name="status" onchange="this.form.submit()" style="font-size:0.75rem;padding:0.25rem 0.5rem;">
+                {% for s in valid_statuses %}
+                <option value="{{ s }}" {% if c.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">No contact requests yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
