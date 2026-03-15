@@ -436,7 +436,16 @@ async def language_middleware(request: Request, call_next):
     """Set request-scoped language from yads_lang cookie."""
     lang = request.cookies.get("yads_lang", "en")
     set_lang(normalize_lang(lang))
-    return await call_next(request)
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        # Starlette BaseHTTPMiddleware swallows exceptions before FastAPI's
+        # exception_handler can see them — catch here and push to Redis watcher.
+        _push_api_error_to_redis(request.url, exc)
+        import traceback
+        logger.error(f"Unhandled exception at {request.url}: {exc}\n{traceback.format_exc()}")
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse("Internal Server Error", status_code=500)
 
 
 @app.middleware("http")

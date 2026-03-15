@@ -86,8 +86,8 @@ async def view_queue(
     try:
         # Inspect Celery (Lazy Init to avoid Uvicorn/Multiprocessing issues)
         celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-        i = celery_app.control.inspect()
-        
+        i = celery_app.control.inspect(timeout=5.0)
+
         if i is None:
             raise Exception("Celery inspector returned None (Connection failed?)")
 
@@ -401,7 +401,7 @@ async def cancel_single_task(
 
         # 2. Check if task is reserved or active (via Celery inspect)
         if not task_found:
-            i = celery_app.control.inspect()
+            i = celery_app.control.inspect(timeout=5.0)
             if i:
                 # Check reserved tasks
                 reserved = i.reserved() or {}
@@ -564,7 +564,7 @@ async def purge_queue(
         
         # 2. REVOKE Active & Reserved Tasks (Tenant-Filtered)
         scan_logger.warning(f"Revoking active and reserved tasks for tenant {user.tenant_id}...")
-        i = celery_app.control.inspect()
+        i = celery_app.control.inspect(timeout=5.0)
         revoked_count = 0
         
         if i:
