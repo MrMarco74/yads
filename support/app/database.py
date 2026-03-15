@@ -63,6 +63,20 @@ def _migrate_columns() -> None:
                     )
             conn.commit()
 
+        # ContactRequest: add notes column + migrate legacy statuses
+        cr_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(contactrequest)"))}
+        if "notes" not in cr_cols:
+            conn.execute(text("ALTER TABLE contactrequest ADD COLUMN notes TEXT NOT NULL DEFAULT ''"))
+            conn.commit()
+        # Migrate old statuses (new/read/replied) to new ones (offen/in_arbeit)
+        conn.execute(text(
+            "UPDATE contactrequest SET status = 'offen'    WHERE status IN ('new', 'read')"
+        ))
+        conn.execute(text(
+            "UPDATE contactrequest SET status = 'in_arbeit' WHERE status = 'replied'"
+        ))
+        conn.commit()
+
         # InstallationReport table: created by SQLModel.metadata.create_all if new,
         # no column migrations needed (table created fresh).
 
