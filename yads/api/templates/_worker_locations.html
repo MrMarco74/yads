@@ -1,0 +1,55 @@
+{# Partial: registered worker physical host locations. Requires: workers (list from WorkerNode DB) #}
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            Worker-Standorte
+        </h2>
+        <span class="bg-emerald-900/50 text-emerald-300 text-xs font-bold px-2 py-1 rounded-full border border-emerald-700/50">
+            {{ workers | selectattr('status', 'equalto', 'active') | list | length }} aktiv
+        </span>
+    </div>
+    {% if workers %}
+    <div class="divide-y divide-slate-800/60">
+        {% for w in workers %}
+        <div class="flex items-center gap-4 px-5 py-3">
+            <!-- Status indicator -->
+            <div class="flex-shrink-0">
+                {% if w.status == 'active' %}
+                <span class="flex h-2.5 w-2.5 relative">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                {% else %}
+                <span class="inline-flex rounded-full h-2.5 w-2.5 {% if w.status == 'offline' %}bg-red-500{% elif w.status == 'suspended' %}bg-amber-500{% else %}bg-slate-500{% endif %}"></span>
+                {% endif %}
+            </div>
+            <!-- Hostname (physical machine) -->
+            <span class="font-mono font-bold text-white text-sm flex-shrink-0 w-32 truncate" title="{{ w.hostname }}">
+                {{ w.hostname }}
+            </span>
+            <!-- Badges -->
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+                {% if w.is_primary %}
+                <span class="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-600/70 text-indigo-200 rounded uppercase tracking-wide">Primary</span>
+                {% else %}
+                <span class="px-1.5 py-0.5 text-[9px] font-bold bg-slate-700 text-slate-300 rounded uppercase tracking-wide">Secondary</span>
+                {% endif %}
+                <span class="text-xs text-slate-500">{{ w.ip_address }}</span>
+                {% if w.cpu_count %}<span class="text-xs text-slate-600">{{ w.cpu_count }} CPU</span>{% endif %}
+                {% if w.memory_mb %}<span class="text-xs text-slate-600">{{ (w.memory_mb / 1024) | round(1) }} GB</span>{% endif %}
+            </div>
+            <!-- Status text -->
+            <span class="text-xs {% if w.status == 'active' %}text-emerald-400{% elif w.status == 'offline' %}text-red-400{% else %}text-amber-400{% endif %} flex-shrink-0">
+                {{ w.status | capitalize }}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-6 py-8 text-center text-slate-600 italic text-sm">Keine Worker registriert.</div>
+    {% endif %}
+</div>
