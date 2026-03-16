@@ -754,6 +754,31 @@ class YADSInstallerGUI:
             if status is None or status not in (200, 201):
                 errors.append(f"DB-Reset fehlgeschlagen ({status}): {body}")
 
+        # 3b. Reinstall with data preservation: reset MFA for admin so he can re-enroll
+        # (user deleted the authenticator app expecting a fresh install)
+        is_upgrade_reinstall = self.is_upgrade and self.data.get('db_init_action', 'upgrade') == 'upgrade'
+        if is_upgrade_reinstall:
+            self.root.after(0, lambda: self._set_progress("MFA zurücksetzen (Reinstall)..."))
+            admin_user = self.data.get('admin_user', 'admin').strip() or 'admin'
+            reset_script = (
+                "from sqlmodel import Session, select; "
+                "from yads.database import engine; "
+                "from yads.models import User; "
+                f"s = Session(engine); "
+                f"u = s.exec(select(User).where(User.username == '{admin_user}')).first(); "
+                "u.mfa_enabled = False; u.mfa_secret = None; u.pending_mfa_secret = None; "
+                "s.add(u); s.commit(); print('MFA reset OK')"
+            )
+            try:
+                result = subprocess.run(
+                    ["docker", "exec", "yads-api", "python3", "-c", reset_script],
+                    capture_output=True, text=True, timeout=15
+                )
+                if result.returncode != 0:
+                    errors.append(f"MFA-Reset fehlgeschlagen: {result.stderr.strip()}")
+            except Exception as e:
+                errors.append(f"MFA-Reset Fehler: {e}")
+
         # 4. Mark setup complete
         self.root.after(0, lambda: self._set_progress("Setup abschließen..."))
         status, body = _post("/setup/finish", {})
