@@ -24,11 +24,12 @@ services:
       - METRICS_ENABLED=${METRICS_ENABLED:-false}
       - METRICS_AUTH_MODE=${METRICS_AUTH_MODE:-token}
       - METRICS_TOKEN=${METRICS_TOKEN}
-    # Direct port exposure when nginx is disabled (HAS_NGINX=false)
+    # When nginx is active: YADS_DIRECT_PORT (default 8000) for internal/debug access
+    # When nginx is inactive: set YADS_DIRECT_PORT=API_PORT in .env for direct access
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${YADS_DIRECT_PORT:-8000}:8000"
     volumes:
-      - ./logs:/app/logs
+      - yads_logs:/app/logs
       - nuclei_templates:/root/nuclei-templates
     depends_on:
       - db
@@ -61,7 +62,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LOG_DIR=/app/logs
     volumes:
-      - ./logs:/app/logs
+      - yads_logs:/app/logs
       - nuclei_templates:/root/nuclei-templates
     depends_on:
       - db
@@ -149,6 +150,7 @@ services:
 
 volumes:
   postgres_data:
+  yads_logs:
   nuclei_templates:
   redis_data:
   keycloak-db-data:

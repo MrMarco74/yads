@@ -1,6 +1,7 @@
 import sys
 import os
 import pkgutil
+import threading
 import tkinter as tk
 
 
@@ -44,7 +45,8 @@ def _create_desktop_entry():
 
 
 def main():
-    _create_desktop_entry()
+    # Run desktop entry creation in background so it doesn't block Tkinter startup
+    threading.Thread(target=_create_desktop_entry, daemon=True).start()
 
     try:
         root = tk.Tk()

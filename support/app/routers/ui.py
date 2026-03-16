@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
 from app.database import get_session
-from app.models import BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport, ReportCategory
+from app.models import ActivationRequest, BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport, ReportCategory
 
 router = APIRouter()
 
@@ -509,4 +509,43 @@ async def installations_page(
             }
             for r in rows
         ],
+    })
+
+
+@router.get("/activations", response_class=HTMLResponse)
+async def activations_page(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """Admin activation requests overview page."""
+    ar_rows = session.exec(
+        select(ActivationRequest).order_by(col(ActivationRequest.received_at).desc())
+    ).all()
+
+    # customer_id → customer_name lookup
+    cust_ids = {r.customer_id for r in ar_rows if r.customer_id}
+    cust_map: dict = {}
+    for cid in cust_ids:
+        ck = session.get(CustomerKey, cid)
+        if ck:
+            cust_map[cid] = ck.customer_name
+
+    requests_data = [
+        {
+            "id": r.id,
+            "instance_uuid": r.instance_uuid,
+            "customer_id": r.customer_id,
+            "customer_name": cust_map.get(r.customer_id) if r.customer_id else None,
+            "status": r.status,
+            "request_code": r.request_code or "",
+            "response_code": r.response_code or "",
+            "received_at": r.received_at.isoformat(),
+            "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+        }
+        for r in ar_rows
+    ]
+
+    return templates.TemplateResponse("activations.html", {
+        "request": request,
+        "requests": requests_data,
     })
