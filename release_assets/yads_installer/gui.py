@@ -460,17 +460,17 @@ class YADSInstallerGUI:
             self.write_env_file()
             self.write_nginx_config()
             self.authenticate_registry()
-                
-                msg = "Configuration applied successfully!\n\nSoll YADS jetzt gestartet und der Browser (in 5s) geöffnet werden?"
-                if messagebox.askyesno("Start YADS?", msg):
-                    # Show progress in UI
-                    self.show_startup_progress()
-                    self.start_yads_and_open_browser()
-                else:
-                    messagebox.showinfo("Success", "Setup complete. Start YADS manually with 'docker compose up -d'.")
-                    self.root.quit()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to complete setup: {e}")
+
+            msg = "Configuration applied successfully!\n\nSoll YADS jetzt gestartet und der Browser (in 5s) geöffnet werden?"
+            if messagebox.askyesno("Start YADS?", msg):
+                # Show progress in UI
+                self.show_startup_progress()
+                self.start_yads_and_open_browser()
+            else:
+                messagebox.showinfo("Success", "Setup complete. Start YADS manually with 'docker compose up -d'.")
+                self.root.quit()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to complete setup: {e}")
 
     def show_startup_progress(self):
         # Clear content and show starting message
