@@ -14,6 +14,16 @@ from yads.auth.security import get_password_hash
 router = APIRouter(prefix="/setup", tags=["setup"])
 logger = logging.getLogger("yads-setup")
 
+_SETUP_TOKEN = os.environ.get("SETUP_TOKEN", "").strip()
+
+
+def _require_setup_token(token: Optional[str] = None):
+    """If SETUP_TOKEN is configured, require it as ?token= query param."""
+    if not _SETUP_TOKEN:
+        return  # No token configured → open (backwards compatible)
+    if token != _SETUP_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid or missing setup token.")
+
 # -- Models --
 
 class LicenseRequest(BaseModel):
@@ -63,7 +73,8 @@ def update_persistent_config(key: str, value: str):
 # -- Endpoints --
 
 @router.post("/check-license")
-async def check_license(req: LicenseRequest):
+async def check_license(req: LicenseRequest, token: Optional[str] = None):
+    _require_setup_token(token)
     data = license_manager.verify(req.license_key)
     if not data:
         raise HTTPException(status_code=400, detail="Invalid or expired license key")
@@ -211,7 +222,8 @@ async def init_data(req: DataActionRequest):
     return {"status": "success", "action": action}
 
 @router.post("/create-admin")
-async def create_admin(req: AdminRequest):
+async def create_admin(req: AdminRequest, token: Optional[str] = None):
+    _require_setup_token(token)
     # Block once setup is complete — prevents unauthenticated admin creation post-setup
     if getattr(settings, "SETUP_COMPLETE", False):
         raise HTTPException(
@@ -264,7 +276,8 @@ async def create_admin(req: AdminRequest):
         temp_engine.dispose()
 
 @router.post("/finish")
-async def finish_setup():
+async def finish_setup(token: Optional[str] = None):
+    _require_setup_token(token)
     update_persistent_config("SETUP_COMPLETE", "true")
     settings.SETUP_COMPLETE = True
 
