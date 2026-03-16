@@ -583,13 +583,12 @@ class ProdDeployWorker(QThread):
 
     def __init__(self, project_root: Path, wipe_reinstall: bool = False,
                  deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True,
-                 setup_token: str = "", pg_password: str = "",
+                 pg_password: str = "",
                  setup_admin_user: str = "", setup_admin_pass: str = "",
                  setup_license: str = ""):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
-        self.setup_token = setup_token
         self.pg_password = pg_password
         self.setup_admin_user = setup_admin_user
         self.setup_admin_pass = setup_admin_pass
@@ -1056,14 +1055,9 @@ class ProdDeployWorker(QThread):
                 self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
 
             # Inject fresh credentials into remote .env for wipe+reinstall
-            if self.wipe_reinstall and (self.setup_token or self.pg_password):
+            if self.wipe_reinstall and self.pg_password:
                 self._log("Injecting fresh credentials into remote .env...", "info")
                 cmds = [f"cd {self.remote_deploy_dir}", "touch .env"]
-                if self.setup_token:
-                    cmds += [
-                        "sed -i '/^SETUP_TOKEN=/d' .env",
-                        f"echo 'SETUP_TOKEN={self.setup_token}' >> .env",
-                    ]
                 if self.pg_password:
                     db_url = f"postgresql://yads:{self.pg_password}@db:5432/yads"
                     cmds += [
@@ -1181,12 +1175,11 @@ class ProdDeployWorker(QThread):
         import time as _time
 
         base = "http://localhost:8000"
-        token_param = f"?token={self.setup_token}" if self.setup_token else ""
 
         def _curl(path, payload):
             body = _json.dumps(payload).replace("'", "'\\''")
             cmd = (
-                f"curl -sf -X POST '{base}{path}{token_param}' "
+                f"curl -sf -X POST '{base}{path}' "
                 f"-H 'Content-Type: application/json' "
                 f"-d '{body}' 2>&1"
             )
@@ -1622,26 +1615,12 @@ class ProdDeployPage(QWidget):
                               duration=4000, parent=self)
                 return
 
-            # Generate safe credentials for the fresh install (no URL-special chars)
-            self._setup_token = _secrets.token_hex(16)
+            # Generate safe POSTGRES_PASSWORD (no URL-special chars)
             self._fresh_pg_password = _secrets.token_urlsafe(24).replace('-', 'x').replace('_', 'y')
             self._setup_admin_user = admin_user
             self._setup_admin_pass = admin_pass
             self._setup_license = self.setup_license_input.text().strip()
-
-            token_box = MessageBox(
-                "Zugangsdaten für Neuinstallation",
-                f"Folgende Werte werden automatisch konfiguriert:\n\n"
-                f"  SETUP_TOKEN:       {self._setup_token}\n"
-                f"  POSTGRES_PASSWORD: {self._fresh_pg_password}\n"
-                f"  Admin-User:        {admin_user}\n\n"
-                f"Der Setup-Token wurde in die Zwischenablage kopiert.",
-                self
-            )
-            QApplication.clipboard().setText(self._setup_token)
-            token_box.exec()
         else:
-            self._setup_token = ""
             self._fresh_pg_password = ""
             self._setup_admin_user = ""
             self._setup_admin_pass = ""
@@ -1681,7 +1660,6 @@ class ProdDeployPage(QWidget):
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False,
-            setup_token=getattr(self, '_setup_token', '') if operation == "release" else '',
             pg_password=getattr(self, '_fresh_pg_password', '') if operation == "release" else '',
             setup_admin_user=getattr(self, '_setup_admin_user', '') if operation == "release" else '',
             setup_admin_pass=getattr(self, '_setup_admin_pass', '') if operation == "release" else '',

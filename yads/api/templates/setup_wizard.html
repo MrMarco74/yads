@@ -5,16 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YADS Setup</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background: #0f172a; }
-        .step { display: none; }
-        .step.active { display: block; }
-    </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-4" style="background:#0f172a">
 <div class="w-full max-w-lg">
 
-    <!-- Logo / Header -->
+    <!-- Header -->
     <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
             <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,54 +18,37 @@
             </svg>
         </div>
         <h1 class="text-2xl font-bold text-white">YADS Ersteinrichtung</h1>
-        <p class="text-gray-400 text-sm mt-1">Folge den Schritten um YADS einzurichten.</p>
+        <p class="text-gray-400 text-sm mt-1">Schritt {{ current_step }} von {{ total_steps }}</p>
     </div>
 
-    <!-- Progress bar -->
-    <div class="flex items-center gap-2 mb-8 px-2">
+    <!-- Progress -->
+    <div class="flex gap-2 mb-8 px-2">
         {% for i in range(1, total_steps + 1) %}
-        <div id="dot-{{ i }}"
-            class="flex-1 h-1.5 rounded-full transition-colors duration-300
-                   {% if i == current_step %}bg-indigo-500{% elif i < current_step %}bg-green-500{% else %}bg-gray-700{% endif %}">
-        </div>
+        <div class="flex-1 h-1.5 rounded-full
+            {% if i < current_step %}bg-green-500
+            {% elif i == current_step %}bg-indigo-500
+            {% else %}bg-gray-700{% endif %}"></div>
         {% endfor %}
     </div>
 
-    <!-- Global error / success -->
     {% if error %}
     <div class="bg-red-900/40 border border-red-600/50 text-red-200 rounded-lg px-4 py-3 text-sm mb-4 flex items-center gap-2">
         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-        {{ error }}
-    </div>
-    {% endif %}
-    {% if msg %}
-    <div class="bg-green-900/40 border border-green-600/50 text-green-200 rounded-lg px-4 py-3 text-sm mb-4 flex items-center gap-2">
-        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-        </svg>
-        {{ msg }}
+        </svg>{{ error }}
     </div>
     {% endif %}
 
     <div class="bg-gray-800 border border-gray-700 rounded-2xl p-8 shadow-2xl">
 
-        <!-- ── Step 1: Setup Token ─────────────────────────────── -->
+        <!-- Step 1: License -->
         {% if current_step == 1 %}
-        <h2 class="text-lg font-semibold text-white mb-1">Schritt 1 — Setup-Token</h2>
-        <p class="text-gray-400 text-sm mb-6">
-            Der Setup-Token wurde beim Deployment generiert und in die Zwischenablage kopiert.
-        </p>
-        <form method="POST" action="/wizard/verify-token" class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Setup-Token</label>
-                <input type="text" name="token" required autofocus
-                    placeholder="32-stelliger Hex-Token"
-                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                <p class="text-xs text-gray-500 mt-1">Nur erforderlich wenn SETUP_TOKEN in der .env konfiguriert ist.</p>
-            </div>
+        <h2 class="text-lg font-semibold text-white mb-1">Lizenzschlüssel</h2>
+        <p class="text-gray-400 text-sm mb-6">Optional — leer lassen für Community Edition.</p>
+        <form method="POST" action="/wizard/save-license" class="space-y-4">
+            <textarea name="license_key" rows="4"
+                placeholder="eyJ… (leer = Community Edition)"
+                class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
             <button type="submit"
                 class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
                 Weiter →
@@ -78,77 +56,35 @@
         </form>
         {% endif %}
 
-        <!-- ── Step 2: License Key ─────────────────────────────── -->
+        <!-- Step 2: Admin -->
         {% if current_step == 2 %}
-        <h2 class="text-lg font-semibold text-white mb-1">Schritt 2 — Lizenzschlüssel</h2>
-        <p class="text-gray-400 text-sm mb-6">
-            Gib deinen YADS-Lizenzschlüssel ein. Community Edition: Feld leer lassen.
-        </p>
-        <form method="POST" action="/wizard/save-license" class="space-y-4">
-            <input type="hidden" name="token" value="{{ setup_token }}">
-            <div>
-                <label class="block text-sm font-medium text-gray-300 mb-1">Lizenzschlüssel <span class="text-gray-500 font-normal">(optional)</span></label>
-                <textarea name="license_key" rows="4"
-                    placeholder="eyJ… (leer lassen für Community Edition)"
-                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono resize-none
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
-            </div>
-            <div class="flex gap-3">
-                <a href="/wizard?step=1&token={{ setup_token }}"
-                    class="flex-1 text-center bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
-                    ← Zurück
-                </a>
-                <button type="submit"
-                    class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
-                    Weiter →
-                </button>
-            </div>
-        </form>
-        {% endif %}
-
-        <!-- ── Step 3: Admin Account ───────────────────────────── -->
-        {% if current_step == 3 %}
-        <h2 class="text-lg font-semibold text-white mb-1">Schritt 3 — Admin-Konto</h2>
-        <p class="text-gray-400 text-sm mb-6">
-            Lege den Administrator-Account an.
-        </p>
+        <h2 class="text-lg font-semibold text-white mb-1">Admin-Konto</h2>
+        <p class="text-gray-400 text-sm mb-6">Lege den Administrator-Account an.</p>
         <form method="POST" action="/wizard/create-admin" class="space-y-4">
-            <input type="hidden" name="token" value="{{ setup_token }}">
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">Benutzername</label>
-                <input type="text" name="username" required value="admin" autofocus
-                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <input type="text" name="username" value="admin" required autofocus
+                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">Passwort</label>
-                <input type="password" name="password" required minlength="8"
-                    placeholder="Mindestens 8 Zeichen"
-                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <input type="password" name="password" required minlength="8" placeholder="Mindestens 8 Zeichen"
+                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-300 mb-1">Passwort bestätigen</label>
                 <input type="password" name="password2" required minlength="8"
-                    placeholder="Passwort wiederholen"
-                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
             <div class="flex gap-3">
-                <a href="/wizard?step=2&token={{ setup_token }}"
-                    class="flex-1 text-center bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
-                    ← Zurück
-                </a>
-                <button type="submit"
-                    class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
-                    Weiter →
-                </button>
+                <a href="/wizard?step=1" class="flex-1 text-center bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">← Zurück</a>
+                <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition-colors">Weiter →</button>
             </div>
         </form>
         {% endif %}
 
-        <!-- ── Step 4: Finish ──────────────────────────────────── -->
-        {% if current_step == 4 %}
+        <!-- Step 3: Finish -->
+        {% if current_step == 3 %}
         <div class="text-center py-4">
             <div class="inline-flex items-center justify-center w-16 h-16 bg-green-900/40 border border-green-600/40 rounded-full mb-5">
                 <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +94,6 @@
             <h2 class="text-xl font-bold text-white mb-2">Setup abgeschlossen!</h2>
             <p class="text-gray-400 text-sm mb-8">YADS ist bereit. Du kannst dich jetzt einloggen.</p>
             <form method="POST" action="/wizard/finish">
-                <input type="hidden" name="token" value="{{ setup_token }}">
                 <button type="submit"
                     class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg transition-colors text-lg">
                     Zum Login →
@@ -168,7 +103,6 @@
         {% endif %}
 
     </div>
-
     <p class="text-center text-gray-600 text-xs mt-6">YADS Security Platform</p>
 </div>
 </body>
