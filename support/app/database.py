@@ -83,8 +83,13 @@ def _migrate_columns() -> None:
             conn.execute(text("ALTER TABLE bugreport ADD COLUMN category_id INTEGER REFERENCES reportcategory(id)"))
             conn.commit()
 
-        # InstallationReport table: created by SQLModel.metadata.create_all if new,
-        # no column migrations needed (table created fresh).
+        # InstallationReport: add install_type column if missing (existing installs → "unknown")
+        ir_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(installationreport)"))}
+        if "install_type" in ir_cols:
+            pass  # already present
+        elif ir_cols:  # table exists but column missing
+            conn.execute(text("ALTER TABLE installationreport ADD COLUMN install_type TEXT NOT NULL DEFAULT 'unknown'"))
+            conn.commit()
 
 
 def get_session():
