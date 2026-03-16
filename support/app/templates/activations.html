@@ -94,6 +94,11 @@
                 style="font-size:0.75rem;padding:3px 10px;background:#22c55e;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
                 ✓
               </button>
+              <button onclick="deleteRequest('{{ r.instance_uuid }}')"
+                title="Löschen"
+                style="font-size:0.75rem;padding:3px 8px;background:#7f1d1d;color:#fca5a5;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
+                🗑
+              </button>
             </div>
             <div id="resp-result-{{ r.instance_uuid }}" style="font-size:0.75rem;margin-top:3px;display:none;"></div>
           </td>
@@ -119,6 +124,7 @@
           <th>Eingegangen</th>
           <th>Bearbeitet</th>
           <th>Antwortcode</th>
+          <th>Aktionen</th>
         </tr>
       </thead>
       <tbody>
@@ -153,6 +159,22 @@
             <span style="color:var(--text-muted);font-size:0.8rem;">—</span>
             {% endif %}
           </td>
+          <td>
+            <div style="display:flex;gap:0.3rem;">
+              {% if r.status == 'approved' %}
+              <button onclick="revokeRequest('{{ r.instance_uuid }}')"
+                title="Aktivierung widerrufen"
+                style="font-size:0.75rem;padding:2px 8px;background:#78350f;color:#fde68a;border:none;border-radius:4px;cursor:pointer;font-weight:600;white-space:nowrap;">
+                ↩ Revoke
+              </button>
+              {% endif %}
+              <button onclick="deleteRequest('{{ r.instance_uuid }}')"
+                title="Eintrag löschen"
+                style="font-size:0.75rem;padding:2px 8px;background:#7f1d1d;color:#fca5a5;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
+                🗑
+              </button>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -164,7 +186,7 @@
 </div>
 
 <script>
-const ADMIN_TOKEN = (document.cookie.match(/admin_token=([^;]+)/) || ['',''])[1];
+const ADMIN_TOKEN = "{{ admin_token }}";
 
 function copyText(text) {
   navigator.clipboard.writeText(text).then(() => {
@@ -210,6 +232,34 @@ async function submitResponse(instanceUuid) {
   } else {
     result.style.color = '#ef4444';
     result.textContent = '✗ ' + (data.detail || JSON.stringify(data));
+  }
+}
+
+async function revokeRequest(instanceUuid) {
+  if (!confirm('Aktivierung für ' + instanceUuid + ' widerrufen?\nDer Aktivierungscode wird ungültig.')) return;
+  const resp = await fetch('/api/admin/activation-requests/' + instanceUuid + '/revoke', {
+    method: 'POST',
+    headers: {'Authorization':'Bearer '+ADMIN_TOKEN}
+  });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    alert('Fehler: ' + (data.detail || resp.status));
+  }
+}
+
+async function deleteRequest(instanceUuid) {
+  if (!confirm('Eintrag für ' + instanceUuid + ' dauerhaft löschen?')) return;
+  const resp = await fetch('/api/admin/activation-requests/' + instanceUuid, {
+    method: 'DELETE',
+    headers: {'Authorization':'Bearer '+ADMIN_TOKEN}
+  });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    alert('Fehler: ' + (data.detail || resp.status));
   }
 }
 </script>

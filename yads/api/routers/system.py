@@ -908,6 +908,149 @@ async def admin_reset(session: Session = Depends(get_session)):
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
 
 
+@router.get("/license", response_class=HTMLResponse)
+async def view_license(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):
+    from yads.core.license import license_manager
+    from yads.models import SystemConfig
+
+    license_conf = session.get(SystemConfig, "license_key")
+    license_data = None
+    license_status = "Free Tier (Limit 5)"
+    license_limit = 5
+    license_key = ""
+
+    if license_conf and license_conf.value:
+        license_key = license_conf.value
+        data = license_manager.verify(license_conf.value)
+        if data:
+            license_data = data
+            license_limit = data.get("max_targets", 0)
+            exp_date = datetime.fromtimestamp(data.get("exp", 0)).strftime("%Y-%m-%d")
+            license_status = f"Valid (Customer: {data.get('sub')}, Expires: {exp_date})"
+        else:
+            license_status = "Invalid / Expired"
+
+    activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
+    activation_data = None
+    is_business_license = bool(license_data and license_data.get("customer_id"))
+    if activation_code_conf and activation_code_conf.value:
+        activation_data = license_manager.verify(activation_code_conf.value)
+    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
+
+    from yads.core.community_edition import get_ce_state
+    ce_state = get_ce_state(session)
+
+    msg = request.query_params.get("msg")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse("license.html", {
+        "request": request,
+        "user": user,
+        "license_key": license_key,
+        "license_data": license_data,
+        "license_status": license_status,
+        "license_limit": license_limit,
+        "is_business_license": is_business_license,
+        "activation_data": activation_data,
+        "instance_uuid": instance_uuid,
+        "ce_state": ce_state,
+        "msg": msg,
+        "error": error,
+    })
+
+
+@router.post("/license/save-key")
+async def save_license_key(
+    request: Request,
+    license_key: str = Form(default="", max_length=2048),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"]))
+):
+    from yads.models import SystemConfig
+    trimmed = license_key.strip()
+    # Persist to DB (for immediate effect)
+    existing = session.get(SystemConfig, "license_key")
+    if existing:
+        existing.value = trimmed
+        session.add(existing)
+    else:
+        session.add(SystemConfig(key="license_key", value=trimmed))
+    session.commit()
+    # Persist to config file + update in-memory settings
+    from yads.api.routers.setup import update_persistent_config
+    update_persistent_config("LICENSE_KEY", trimmed)
+    settings.LICENSE_KEY = trimmed
+    if trimmed:
+        import threading
+        threading.Thread(target=_register_license_key_with_portal, args=(trimmed,), daemon=True).start()
+    return RedirectResponse(url="/license?msg=Lizenzschlüssel+gespeichert", status_code=303)
+
+
+@router.post("/license/check-activation")
+async def check_activation_from_portal(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin"])),
+):
+    """
+    Poll the support portal for an approved activation response code.
+    If found, save it as the license key and redirect to /license with a success message.
+    """
+    import urllib.request as _urllib
+    import urllib.error as _urlerr
+
+    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+    if not instance_uuid_conf or not instance_uuid_conf.value:
+        return RedirectResponse(url="/license?error=Keine+Instance-UUID+konfiguriert", status_code=303)
+
+    instance_uuid = instance_uuid_conf.value.strip()
+    portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
+
+    try:
+        req = _urllib.Request(
+            f"{portal_url}/api/installation/activation/{instance_uuid}",
+            headers={"Accept": "application/json"},
+        )
+        ctx = None
+        if not settings.SUPPORT_PORTAL_VERIFY_SSL:
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        with _urllib.urlopen(req, timeout=10, context=ctx) as resp:
+            import json as _json
+            data = _json.loads(resp.read())
+    except _urlerr.URLError as e:
+        return RedirectResponse(url=f"/license?error=Portal+nicht+erreichbar:+{e.reason}", status_code=303)
+    except Exception as e:
+        return RedirectResponse(url=f"/license?error=Fehler:+{e}", status_code=303)
+
+    status = data.get("status")
+    if status == "not_found":
+        return RedirectResponse(url="/license?error=Keine+Aktivierungsanfrage+im+Portal+gefunden", status_code=303)
+    if status == "pending":
+        return RedirectResponse(url="/license?error=Aktivierung+noch+ausstehend+(pending)", status_code=303)
+    if status == "rejected":
+        return RedirectResponse(url="/license?error=Aktivierung+wurde+abgelehnt", status_code=303)
+
+    response_code = data.get("response_code", "").strip()
+    if not response_code:
+        return RedirectResponse(url="/license?error=Kein+Antwortcode+im+Portal+hinterlegt", status_code=303)
+
+    # Save as license key
+    existing = session.get(SystemConfig, "license_key")
+    if existing:
+        existing.value = response_code
+        session.add(existing)
+    else:
+        session.add(SystemConfig(key="license_key", value=response_code))
+    session.commit()
+
+    threading.Thread(target=_register_license_key_with_portal, args=(response_code,), daemon=True).start()
+    return RedirectResponse(url="/license?msg=Aktivierungscode+erfolgreich+vom+Portal+abgerufen+und+gespeichert", status_code=303)
+
+
 @router.post("/admin/license/validate", response_class=HTMLResponse)
 async def validate_license_ui(
     request: Request,

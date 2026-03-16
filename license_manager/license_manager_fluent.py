@@ -1538,6 +1538,433 @@ class BugReportKeysPage(SmoothScrollArea):
             InfoBar.warning("Partial", f"{ok_count}/{total} keys synced.", parent=self, position=InfoBarPosition.TOP)
 
 
+def _load_ed25519_key(b64: str):
+    """Load an Ed25519 private key from base64 string.
+    Supports both raw 32-byte keys and base64-encoded PEM files."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+    raw = base64.b64decode(b64)
+    try:
+        return Ed25519PrivateKey.from_private_bytes(raw)
+    except Exception:
+        return serialization.load_pem_private_key(raw, password=None)
+
+
+class ActivationRequestsPage(SmoothScrollArea):
+    """Fetch pending activation requests from the support portal, sign and submit them."""
+
+    _refresh_signal = Signal(list)   # list of request dicts
+    _log_signal     = Signal(str)
+    _done_signal    = Signal(int, int)  # signed, total
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._refresh_signal.connect(self._populate_table)
+        self._log_signal.connect(self._log)
+        self._done_signal.connect(self._on_sign_done)
+        self.setObjectName("activationRequestsPage")
+        self.setWidgetResizable(True)
+
+        container = QWidget()
+        self.setWidget(container)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(36, 20, 36, 20)
+        layout.setSpacing(20)
+
+        layout.addWidget(TitleLabel("Activation Requests", self))
+        sub = BodyLabel(
+            "Ausstehende Aktivierungsanfragen vom Support-Portal abrufen, "
+            "mit dem License-Key signieren und automatisch zurücksenden.",
+            self,
+        )
+        sub.setWordWrap(True)
+        layout.addWidget(sub)
+
+        # --- Settings ---
+        cfg_card = SettingsCard("Signatur-Einstellungen", FIF.VPN, self)
+
+        self.spin_valid_days = SpinBox(self)
+        self.spin_valid_days.setRange(30, 3650)
+        self.spin_valid_days.setValue(365)
+        cfg_card.addRow("Gültigkeitsdauer (Tage)", self.spin_valid_days,
+                        "Wie lange die Aktivierung gültig sein soll (Standard: 365)")
+
+        self.spin_install_index = SpinBox(self)
+        self.spin_install_index.setRange(1, 999)
+        self.spin_install_index.setValue(1)
+        cfg_card.addRow("Install-Index", self.spin_install_index,
+                        "Laufende Nummer der Installation beim Kunden (Standard: 1)")
+
+        layout.addWidget(cfg_card)
+
+        # --- Pre-Approve ---
+        pre_card = SettingsCard("Pre-Approve (manuell)", FIF.EDIT, self)
+
+        self._pre_uuid = LineEdit(self)
+        self._pre_uuid.setPlaceholderText("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
+        pre_card.addRow("Instance UUID", self._pre_uuid, "UUID der Ziel-Instanz")
+
+        self._pre_customer = LineEdit(self)
+        self._pre_customer.setPlaceholderText("CUSTOMER-ID")
+        pre_card.addRow("Customer ID", self._pre_customer, "customer_id aus der Lizenzdatenbank")
+
+        pre_btn_row = QHBoxLayout()
+        self._btn_pre_copy = PushButton(FIF.COPY, "Code generieren & kopieren", self)
+        self._btn_pre_copy.clicked.connect(self._do_preapprove_copy)
+        self._btn_pre_submit = PrimaryPushButton(FIF.SEND, "Generieren & ans Portal senden", self)
+        self._btn_pre_submit.clicked.connect(self._do_preapprove_submit)
+        pre_btn_row.addWidget(self._btn_pre_copy)
+        pre_btn_row.addWidget(self._btn_pre_submit)
+        pre_btn_row.addStretch()
+        pre_card.vBoxLayout.addLayout(pre_btn_row)
+
+        layout.addWidget(pre_card)
+
+        # --- Table ---
+        tbl_card = SettingsCard("Ausstehende Anfragen", FIF.CERTIFICATE, self)
+
+        self._table = TableWidget(self)
+        self._table.setColumnCount(5)
+        self._table.setHorizontalHeaderLabels(
+            ["Customer", "Instance UUID", "Eingegangen", "Typ", "Aktion"]
+        )
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setMinimumHeight(220)
+        tbl_card.vBoxLayout.addWidget(self._table)
+
+        btn_row = QHBoxLayout()
+        self._btn_refresh = PushButton(FIF.SYNC, "Aktualisieren", self)
+        self._btn_refresh.clicked.connect(self._fetch_requests)
+        self._btn_sign_all = PrimaryPushButton(FIF.SEND, "Alle signieren & senden", self)
+        self._btn_sign_all.clicked.connect(self._sign_all)
+        btn_row.addWidget(self._btn_refresh)
+        btn_row.addStretch()
+        btn_row.addWidget(self._btn_sign_all)
+        tbl_card.vBoxLayout.addLayout(btn_row)
+
+        layout.addWidget(tbl_card)
+
+        # --- Status log ---
+        self._txt_log = TextEdit(self)
+        self._txt_log.setReadOnly(True)
+        self._txt_log.setMaximumHeight(180)
+        self._txt_log.setPlaceholderText("Ergebnisse erscheinen hier…")
+        layout.addWidget(self._txt_log)
+        layout.addStretch()
+
+        self._requests: list[dict] = []
+        # Don't auto-fetch on init — user clicks "Aktualisieren"
+
+    # ------------------------------------------------------------------
+    def _log(self, msg: str):
+        self._txt_log.append(msg)
+
+    def _cfg(self) -> dict:
+        cfg = _read_portal_settings()
+        # Fallback: read live from BugReportKeysPage if settings not yet saved to file
+        mw = self.window()
+        if hasattr(mw, "bug_report_keys_page"):
+            brkp = mw.bug_report_keys_page
+            if not cfg["url"]:
+                cfg["url"] = brkp.ent_portal_url.text().strip()
+            if not cfg["token"]:
+                cfg["token"] = brkp.ent_admin_token.text().strip()
+            if not cfg["key_path"] and hasattr(brkp, "ent_admin_key_path"):
+                cfg["key_path"] = brkp.ent_admin_key_path.text().strip()
+        return cfg
+
+    def _fetch_requests(self):
+        cfg = self._cfg()
+        if not cfg["url"] or not cfg["token"]:
+            InfoBar.warning("Nicht konfiguriert",
+                            "Bitte zuerst in 'Bug Report Keys' Portal-URL und Admin-Token eintragen.",
+                            parent=self, position=InfoBarPosition.TOP)
+            return
+        self._btn_refresh.setEnabled(False)
+
+        def _do():
+            import urllib.request, urllib.error
+            try:
+                req = urllib.request.Request(
+                    f"{cfg['url'].rstrip('/')}/api/admin/activation-requests",
+                    headers={"Authorization": f"Bearer {cfg['token']}"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read())
+                pending = [r for r in data if r.get("status") == "pending"]
+                self._refresh_signal.emit(pending)
+            except urllib.error.HTTPError as e:
+                self._log_signal.emit(f"✗ HTTP {e.code}: {e.read().decode()[:200]}")
+                self._refresh_signal.emit([])
+            except Exception as ex:
+                self._log_signal.emit(f"✗ Verbindungsfehler: {ex}")
+                self._refresh_signal.emit([])
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    @Slot(list)
+    def _populate_table(self, requests: list):
+        self._btn_refresh.setEnabled(True)
+        self._requests = requests
+        self._table.setRowCount(len(requests))
+        for i, r in enumerate(requests):
+            self._table.setItem(i, 0, QTableWidgetItem(r.get("customer_name") or r.get("customer_id", "")[:16] or "CE/unbekannt"))
+            self._table.setItem(i, 1, QTableWidgetItem(r.get("instance_uuid", "")[:36]))
+            ts = r.get("received_at", "")[:16].replace("T", " ")
+            self._table.setItem(i, 2, QTableWidgetItem(ts))
+            typ = "Offline (Code)" if r.get("request_code") else "Online (kein Code)"
+            self._table.setItem(i, 3, QTableWidgetItem(typ))
+            btn = PushButton(FIF.SEND, "Signieren", self)
+            btn.clicked.connect(lambda _, row=i: self._sign_one(row))
+            self._table.setCellWidget(i, 4, btn)
+        self._table.resizeRowsToContents()
+        if not requests:
+            self._log(f"[{datetime.now().strftime('%H:%M:%S')}] Keine ausstehenden Anfragen.")
+        else:
+            self._log(f"[{datetime.now().strftime('%H:%M:%S')}] {len(requests)} ausstehende Anfrage(n) geladen.")
+
+    # ------------------------------------------------------------------
+    def _load_private_key(self):
+        """Load the license Ed25519 private key. Returns (private_key_b64, error_str)."""
+        # 1. Try key_path from portal settings
+        cfg = self._cfg()
+        candidates = []
+        if cfg.get("key_path"):
+            candidates.append(Path(cfg["key_path"]).expanduser())
+        # 2. Fallback: license_private.pem next to this script
+        candidates.append(script_dir / "license_private.pem")
+        candidates.append(Path.home() / ".yads" / "license_private.pem")
+
+        for p in candidates:
+            if p.exists():
+                try:
+                    raw = p.read_text().strip()
+                    # Verify it loads (raw Ed25519 bytes or PEM)
+                    _load_ed25519_key(raw)
+                    return raw, None
+                except Exception as e:
+                    return None, f"Schlüsselfehler ({p}): {e}"
+        return None, "Kein Private Key gefunden. Bitte in 'Bug Report Keys' → Admin Signing Key konfigurieren."
+
+    def _build_response_code(self, request: dict) -> tuple[str, str | None]:
+        """Sign one activation request. Returns (response_code, error)."""
+        priv_b64, err = self._load_private_key()
+        if err:
+            return "", err
+
+        valid_days = self.spin_valid_days.value()
+        install_index = self.spin_install_index.value()
+
+        def _sign_payload(pk, payload):
+            def enc(data):
+                return base64.urlsafe_b64encode(data).decode().rstrip("=")
+            pl = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+            pl_b64 = enc(pl)
+            return f"{pl_b64}.{enc(pk.sign(pl_b64.encode()))}"
+
+        try:
+            pk = _load_ed25519_key(priv_b64)
+        except Exception as e:
+            return "", f"Private Key konnte nicht geladen werden: {e}"
+
+        request_code = request.get("request_code", "").strip()
+        now = int(time.time())
+
+        if request_code:
+            # Decode request code to get fields
+            try:
+                padded = request_code + "=" * ((4 - len(request_code) % 4) % 4)
+                req_data = json.loads(base64.urlsafe_b64decode(padded))
+                instance_uuid = req_data.get("instance_uuid", request["instance_uuid"])
+                customer_id   = req_data.get("customer_id",   request.get("customer_id", ""))
+            except Exception as e:
+                return "", f"Request-Code konnte nicht dekodiert werden: {e}"
+        else:
+            instance_uuid = request.get("instance_uuid", "")
+            customer_id   = request.get("customer_id", "")
+            if not customer_id:
+                return "", "Kein customer_id — manuelle Aktivierung ohne customer_id nicht möglich."
+
+        payload = {
+            "instance_uuid":  instance_uuid,
+            "customer_id":    customer_id,
+            "activated_at":   now,
+            "exp":            now + valid_days * 86400,
+            "install_index":  install_index,
+        }
+        try:
+            response_code = _sign_payload(pk, payload)
+            return response_code, None
+        except Exception as e:
+            return "", f"Signierfehler: {e}"
+
+    def _submit_response(self, instance_uuid: str, response_code: str) -> str | None:
+        """POST response code to portal. Returns None on success, error string on failure."""
+        cfg = self._cfg()
+        import urllib.request, urllib.error
+        body = json.dumps({"response_code": response_code}).encode()
+        req = urllib.request.Request(
+            f"{cfg['url'].rstrip('/')}/api/admin/activation-requests/{instance_uuid}/respond",
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {cfg['token']}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp.read()
+            return None
+        except urllib.error.HTTPError as e:
+            return f"HTTP {e.code}: {e.read().decode()[:150]}"
+        except Exception as e:
+            return str(e)
+
+    # ------------------------------------------------------------------
+    def _build_preapprove_code(self) -> tuple[str, str, str | None]:
+        """Build a response code for manually entered uuid+customer. Returns (uuid, code, error)."""
+        uuid_ = self._pre_uuid.text().strip()
+        cid   = self._pre_customer.text().strip()
+        if not uuid_:
+            return "", "", "Bitte Instance UUID eingeben."
+        if not cid:
+            return "", "", "Bitte Customer ID eingeben."
+
+        priv_b64, err = self._load_private_key()
+        if err:
+            return uuid_, "", err
+
+        valid_days    = self.spin_valid_days.value()
+        install_index = self.spin_install_index.value()
+        now = int(time.time())
+
+        def _sign_payload(pk, payload):
+            def enc(data):
+                return base64.urlsafe_b64encode(data).decode().rstrip("=")
+            pl = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+            pl_b64 = enc(pl)
+            return f"{pl_b64}.{enc(pk.sign(pl_b64.encode()))}"
+
+        try:
+            pk = _load_ed25519_key(priv_b64)
+        except Exception as e:
+            return uuid_, "", f"Private Key konnte nicht geladen werden: {e}"
+
+        payload = {
+            "instance_uuid": uuid_,
+            "customer_id":   cid,
+            "activated_at":  now,
+            "exp":           now + valid_days * 86400,
+            "install_index": install_index,
+        }
+        try:
+            code = _sign_payload(pk, payload)
+            return uuid_, code, None
+        except Exception as e:
+            return uuid_, "", f"Signierfehler: {e}"
+
+    def _do_preapprove_copy(self):
+        uuid_, code, err = self._build_preapprove_code()
+        if err:
+            InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP)
+            return
+        QApplication.clipboard().setText(code)
+        self._log(f"✓ Pre-Approve Code generiert und kopiert ({uuid_[:8]}…)")
+        InfoBar.success("Kopiert", "Aktivierungscode in Zwischenablage.", parent=self,
+                        position=InfoBarPosition.TOP, duration=3000)
+
+    def _do_preapprove_submit(self):
+        uuid_, code, err = self._build_preapprove_code()
+        if err:
+            InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP)
+            return
+        cid = self._pre_customer.text().strip()
+        err2 = self._submit_response(uuid_, code)
+        if err2:
+            self._log(f"✗ Pre-Approve Portal-Fehler: {err2}")
+            InfoBar.error("Portal-Fehler", err2, parent=self, position=InfoBarPosition.TOP)
+        else:
+            QApplication.clipboard().setText(code)
+            self._log(f"✓ Pre-Approve signiert und ans Portal gesendet ({uuid_[:8]}…)")
+            InfoBar.success("Gesendet", f"Aktivierung für {cid or uuid_[:8]} übermittelt.",
+                            parent=self, position=InfoBarPosition.TOP, duration=4000)
+
+    def _sign_one(self, row: int):
+        if row >= len(self._requests):
+            return
+        request = self._requests[row]
+        uuid_ = request.get("instance_uuid", "?")
+        name  = request.get("customer_name") or request.get("customer_id", "?")[:16]
+
+        response_code, err = self._build_response_code(request)
+        if err:
+            self._log(f"✗ [{name}] {err}")
+            InfoBar.error("Fehler", err, parent=self, position=InfoBarPosition.TOP)
+            return
+
+        err = self._submit_response(uuid_, response_code)
+        if err:
+            self._log(f"✗ [{name}] Portal-Fehler: {err}")
+            InfoBar.error("Senden fehlgeschlagen", err, parent=self, position=InfoBarPosition.TOP)
+        else:
+            self._log(f"✓ [{name}] Aktivierung signiert und übermittelt ({uuid_[:8]}…)")
+            InfoBar.success("Aktiviert", f"{name} erfolgreich aktiviert.", parent=self,
+                            position=InfoBarPosition.TOP, duration=3000)
+            # Remove from table
+            self._requests.pop(row)
+            self._populate_table(self._requests)
+
+    def _sign_all(self):
+        if not self._requests:
+            InfoBar.info("Keine Anfragen", "Keine ausstehenden Anfragen vorhanden.",
+                         parent=self, position=InfoBarPosition.TOP)
+            return
+        cfg = self._cfg()
+        if not cfg["url"] or not cfg["token"]:
+            InfoBar.warning("Nicht konfiguriert", "Portal-URL und Admin-Token fehlen.",
+                            parent=self, position=InfoBarPosition.TOP)
+            return
+
+        self._btn_sign_all.setEnabled(False)
+        self._txt_log.clear()
+        requests_snapshot = list(self._requests)
+
+        def _do():
+            ok = 0
+            for r in requests_snapshot:
+                code, err = self._build_response_code(r)
+                if err:
+                    self._log_signal.emit(f"✗ [{r.get('customer_name', '?')}] {err}")
+                    continue
+                err = self._submit_response(r["instance_uuid"], code)
+                if err:
+                    self._log_signal.emit(f"✗ [{r.get('customer_name', '?')}] {err}")
+                else:
+                    self._log_signal.emit(f"✓ [{r.get('customer_name', '?')}] aktiviert ({r['instance_uuid'][:8]}…)")
+                    ok += 1
+            self._done_signal.emit(ok, len(requests_snapshot))
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    @Slot(int, int)
+    def _on_sign_done(self, ok: int, total: int):
+        self._btn_sign_all.setEnabled(True)
+        if ok == total:
+            InfoBar.success("Fertig", f"Alle {ok} Anfragen signiert und gesendet.",
+                            parent=self, position=InfoBarPosition.TOP, duration=4000)
+        else:
+            InfoBar.warning("Teilweise", f"{ok}/{total} erfolgreich.",
+                            parent=self, position=InfoBarPosition.TOP)
+        self._fetch_requests()  # Reload to confirm
+
+
 class MainWindow(FluentWindow):
     """Main application window"""
 
@@ -1566,6 +1993,7 @@ class MainWindow(FluentWindow):
         self.history_page = HistoryPage(self, archived=False)
         self.archive_page = HistoryPage(self, archived=True)
         self.bug_report_keys_page = BugReportKeysPage(self)
+        self.activation_requests_page = ActivationRequestsPage(self)
         self.about_page = AboutPage(self)
 
         # Create theme toggle widget
@@ -1607,6 +2035,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.history_page, FIF.HISTORY, "History")
         self.addSubInterface(self.archive_page, FIF.DELETE, "Archive")
         self.addSubInterface(self.bug_report_keys_page, FIF.SEND, "Bug Report Keys")
+        self.addSubInterface(self.activation_requests_page, FIF.CERTIFICATE, "Activations")
 
         # Add about at bottom
         self.addSubInterface(

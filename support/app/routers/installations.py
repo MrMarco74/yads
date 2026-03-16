@@ -6,6 +6,7 @@ POST /api/admin/activate-offline    — manually ingest an offline activation re
 GET  /api/admin/installations       — admin summary (total, per-version, timeline)
 GET  /installations                 — admin HTML dashboard page
 """
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -23,7 +24,7 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
-ADMIN_TOKEN: Optional[str] = None  # populated from env in main.py
+ADMIN_TOKEN: str = os.environ.get("ADMIN_TOKEN", "")
 
 def _require_admin(request: Request) -> None:
     auth = request.headers.get("Authorization", "")
@@ -95,6 +96,26 @@ async def ingest_installation(
         session.commit()
 
     return {"ok": True}
+
+
+@router.get("/api/installation/activation/{instance_uuid}")
+async def get_activation_status(
+    instance_uuid: str,
+    session: Session = Depends(get_session),
+):
+    """
+    Public endpoint — allows a YADS instance to poll its own activation status.
+    Returns the response_code only if approved. The UUID is unguessable (random),
+    so no auth is required.
+    """
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        return JSONResponse({"status": "not_found"})
+    if ar.status == "approved" and ar.response_code:
+        return JSONResponse({"status": "approved", "response_code": ar.response_code})
+    return JSONResponse({"status": ar.status})
 
 
 class OfflineActivationRequest(BaseModel):
@@ -254,6 +275,49 @@ async def respond_to_activation_request(
     return {"ok": True}
 
 
+@router.post("/api/admin/activation-requests/{instance_uuid}/revoke")
+async def revoke_activation_request(
+    instance_uuid: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """Revoke an approved activation — sets status back to 'rejected' and clears the response code."""
+    _require_admin(request)
+
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        raise HTTPException(status_code=404, detail="Activation request not found.")
+
+    ar.status = "rejected"
+    ar.response_code = None
+    ar.resolved_at = datetime.now(timezone.utc)
+    session.add(ar)
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete("/api/admin/activation-requests/{instance_uuid}")
+async def delete_activation_request(
+    instance_uuid: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """Permanently delete an activation request record."""
+    _require_admin(request)
+
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        raise HTTPException(status_code=404, detail="Activation request not found.")
+
+    session.delete(ar)
+    session.commit()
+    return {"ok": True}
+
+
 @router.get("/api/admin/activation-requests")
 async def list_activation_requests(
     request: Request,
@@ -287,6 +351,7 @@ async def list_activation_requests(
             "customer_id": r.customer_id,
             "customer_name": cust_map.get(r.customer_id) if r.customer_id else None,
             "status": r.status,
+            "request_code": r.request_code or "",
             "has_response_code": bool(r.response_code),
             "received_at": r.received_at.isoformat(),
             "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,

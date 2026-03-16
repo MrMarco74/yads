@@ -8,7 +8,7 @@ from yads.config import settings
 from yads.core.license import license_manager
 from yads.database import engine as current_engine, get_session
 from sqlmodel import Session, select
-from yads.models import User
+from yads.models import User, SystemConfig
 from yads.auth.security import get_password_hash
 
 router = APIRouter(prefix="/setup", tags=["setup"])
@@ -68,13 +68,22 @@ async def check_license(req: LicenseRequest):
     if not data:
         raise HTTPException(status_code=400, detail="Invalid or expired license key")
     
-    # Persist License Key
+    # Persist License Key — write to config file AND to SystemConfig DB
+    # so that get_activation_required() in templates works immediately
+    # without requiring an API restart.
     update_persistent_config("LICENSE_KEY", req.license_key)
-    
+    with Session(current_engine) as session:
+        existing = session.get(SystemConfig, "license_key")
+        if existing:
+            existing.value = req.license_key
+            session.add(existing)
+        else:
+            session.add(SystemConfig(key="license_key", value=req.license_key))
+        session.commit()
+
     # Update in-memory settings
     settings.LICENSE_KEY = req.license_key
-    
-    # Check if max_targets is present etc.
+
     return {"status": "valid", "data": data}
 
 @router.post("/configure-db")

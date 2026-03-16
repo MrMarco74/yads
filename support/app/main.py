@@ -18,7 +18,7 @@ from app.routers.categories import router as categories_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _inst_mod.ADMIN_TOKEN = os.environ.get("SUPPORT_ADMIN_TOKEN", "")
+    _inst_mod.ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
     create_db_tables()
     yield
 
