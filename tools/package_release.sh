@@ -217,9 +217,18 @@ else
     exit 1
 fi
 
-if [ -f "release_assets/setup.sh" ]; then
-    cp release_assets/setup.sh "$OUTPUT_DIR/$RELEASE_NAME/"
-    chmod +x "$OUTPUT_DIR/$RELEASE_NAME/setup.sh"
+# Build and include the GUI installer
+echo -e "${BLUE}>> Building GUI installer (yads-setup.pyz)...${NC}"
+python3 release_assets/yads_installer/build.py
+cp release_assets/yads-setup.pyz "$OUTPUT_DIR/$RELEASE_NAME/"
+chmod +x "$OUTPUT_DIR/$RELEASE_NAME/yads-setup.pyz"
+
+# Also copy monitoring and keycloak configs
+if [ -d "monitoring" ]; then
+    cp -r monitoring "$OUTPUT_DIR/$RELEASE_NAME/"
+fi
+if [ -d "keycloak" ]; then
+    cp -r keycloak "$OUTPUT_DIR/$RELEASE_NAME/"
 fi
 
 if [ -f "release_assets/nginx.conf.template" ]; then

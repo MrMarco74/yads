@@ -581,12 +581,11 @@ class GuiTestWorker(QThread):
 class ProdDeployWorker(QThread):
     """Worker thread for PROD deployment"""
 
-    def __init__(self, project_root: Path, wipe_reinstall: bool = False, setup_token: str = None,
+    def __init__(self, project_root: Path, wipe_reinstall: bool = False,
                  deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
-        self.setup_token = setup_token
         self.deploy_app = deploy_app
         self.deploy_worker = deploy_worker  # only needed when scanner tools / Python deps change
         self.deploy_backup = deploy_backup
@@ -885,11 +884,6 @@ class ProdDeployWorker(QThread):
 
             if self.wipe_reinstall:
                 import time
-                self._log("==================================================", "warning")
-                self._log(f"SETUP TOKEN: {self.setup_token}", "success")
-                self._log("Save this token to access the setup wizard!", "warning")
-                self._log("==================================================", "warning")
-
                 self._log("Step 0.5/8: Wiping existing installation...", "warning")
                 self.signals.progress_update.emit(2, 100, "Wiping existing installation...")
                 
@@ -1029,11 +1023,6 @@ class ProdDeployWorker(QThread):
             
             if (self.project_root / ".env").exists():
                 self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
-
-            if self.wipe_reinstall and hasattr(self, 'setup_token'):
-                self._log("Injecting SETUP_TOKEN into remote .env...", "info")
-                inject_cmd = f"cd {self.remote_deploy_dir} && (grep -q '^SETUP_TOKEN=' .env 2>/dev/null && sed -i 's/^SETUP_TOKEN=.*/SETUP_TOKEN={self.setup_token}/' .env || echo 'SETUP_TOKEN={self.setup_token}' >> .env)"
-                self._run_cmd(["ssh", self.remote_host, inject_cmd])
 
             self._log("Creating backup directories on remote host...", "info")
             self._run_cmd(["ssh", self.remote_host, "mkdir -p '/mnt/backups/yads/daily' '/mnt/backups/yads/monthly'"])
@@ -1451,35 +1440,7 @@ class ProdDeployPage(QWidget):
 
         box = MessageBox("Confirm Production Deployment", msg, self)
         if box.exec():
-            if self.wipe_check.isChecked():
-                import secrets
-                from PySide6.QtWidgets import QApplication
-                from qfluentwidgets import MessageBoxBase, SubtitleLabel, LineEdit
-                
-                setup_token = secrets.token_hex(16)
-                
-                class TokenDialog(MessageBoxBase):
-                    def __init__(self, token, parent=None):
-                        super().__init__(parent)
-                        self.titleLabel = SubtitleLabel("Save Setup Token", self)
-                        self.tokenEdit = LineEdit(self)
-                        self.tokenEdit.setText(token)
-                        self.tokenEdit.setReadOnly(True)
-                        self.viewLayout.addWidget(self.titleLabel)
-                        self.viewLayout.addWidget(self.tokenEdit)
-                        self.yesButton.setText("Copy and Continue")
-                        self.cancelButton.setText("Cancel")
-                        self.widget.setMinimumWidth(350)
-                
-                token_box = TokenDialog(setup_token, self)
-                if token_box.exec():
-                    QApplication.clipboard().setText(setup_token)
-                    InfoBar.success("Copied", "Setup token copied to clipboard", parent=self, position=InfoBarPosition.TOP)
-                    self._start_worker(setup_token)
-                else:
-                    return
-            else:
-                self._start_worker(None)
+            self._start_worker()
 
     def _on_cleanup_request(self):
         box = MessageBox(
@@ -1493,8 +1454,7 @@ class ProdDeployPage(QWidget):
         if box.exec():
             self._start_worker_op("cleanup_prod")
 
-    def _start_worker(self, setup_token=None):
-        self._last_setup_token = setup_token
+    def _start_worker(self):
         self._start_worker_op("release")
 
     def _start_worker_op(self, operation: str):
@@ -1511,7 +1471,6 @@ class ProdDeployPage(QWidget):
         self._active_worker = ProdDeployWorker(
             script_dir.parent,
             wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False,
-            setup_token=getattr(self, '_last_setup_token', None) if operation == "release" else None,
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False
@@ -1587,7 +1546,7 @@ class ProdDeployPage(QWidget):
         """Re-run the deployment with same parameters."""
         self.retry_btn.setVisible(False)
         self.rollback_btn.setVisible(False)
-        self._start_worker(getattr(self, '_last_setup_token', None))
+        self._start_worker()
 
     def _on_rebuild_tools(self):
         """Build and push the pre-baked yads-tools base image (Dockerfile.tools)."""
@@ -2666,12 +2625,11 @@ class DanaDeployPage(QWidget):
 
 class LocalDeployWorker(QThread):
     """Worker thread for local environment controls"""
-    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, setup_token: str = None, auth_mode: str = "local", profiles: list = None):
+    def __init__(self, project_root: Path, action: str, wipe_data: bool = False, auth_mode: str = "local", profiles: list = None):
         super().__init__()
         self.project_root = project_root
         self.action = action
         self.wipe_data = wipe_data
-        self.setup_token = setup_token
         self.auth_mode = auth_mode
         self.profiles = profiles or []
         self.signals = LogSignals()
@@ -2761,10 +2719,6 @@ class LocalDeployWorker(QThread):
                     "-v", f"{self.project_root}/data:/data",
                     "alpine", "sh", "-c", "rm -f /data/config.env"
                 ])
-
-            if self.setup_token:
-                self._log("Injecting SETUP_TOKEN into .env...", "info")
-                self._update_env("SETUP_TOKEN", self.setup_token)
 
             self._log(f"Setting AUTH_MODE={self.auth_mode} in .env...", "info")
             self._update_env("AUTH_MODE", self.auth_mode)
@@ -3512,33 +3466,6 @@ class LocalDeployPage(QWidget):
 
         box = MessageBox(f"Confirm Local {action.title()}", msg, self)
         if box.exec():
-            setup_token = None
-            if action == "start" and self.wipe_check.isChecked():
-                import secrets
-                from PySide6.QtWidgets import QApplication
-                from qfluentwidgets import MessageBoxBase, SubtitleLabel, LineEdit as _LineEdit
-
-                setup_token = secrets.token_hex(16)
-
-                class TokenDialog(MessageBoxBase):
-                    def __init__(self, token, parent=None):
-                        super().__init__(parent)
-                        self.titleLabel = SubtitleLabel("Save Setup Token", self)
-                        self.tokenEdit = _LineEdit(self)
-                        self.tokenEdit.setText(token)
-                        self.tokenEdit.setReadOnly(True)
-                        self.viewLayout.addWidget(self.titleLabel)
-                        self.viewLayout.addWidget(self.tokenEdit)
-                        self.yesButton.setText("Copy and Continue")
-                        self.cancelButton.setText("Cancel")
-                        self.widget.setMinimumWidth(350)
-
-                token_box = TokenDialog(setup_token, self)
-                if token_box.exec():
-                    QApplication.clipboard().setText(setup_token)
-                    InfoBar.success("Copied", "Setup token copied to clipboard", parent=self, position=InfoBarPosition.TOP)
-                else:
-                    return
             # Disk space check before starting a build
             if action == "start":
                 import shutil
@@ -3552,9 +3479,9 @@ class LocalDeployPage(QWidget):
                     )
                     if not warn_box.exec():
                         return
-            self._start_worker(action, setup_token)
+            self._start_worker(action)
 
-    def _start_worker(self, action: str, setup_token=None):
+    def _start_worker(self, action: str):
         self._last_action = action
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
@@ -3564,7 +3491,7 @@ class LocalDeployPage(QWidget):
         self.log_view.clear()
 
         auth_mode = "oidc" if self.oidc_switch.isChecked() else "local"
-        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), setup_token=setup_token, auth_mode=auth_mode, profiles=self._active_profiles())
+        self._active_worker = LocalDeployWorker(script_dir.parent, action, wipe_data=self.wipe_check.isChecked(), auth_mode=auth_mode, profiles=self._active_profiles())
         self._active_worker.signals.log_message.connect(self._on_log)
         self._active_worker.signals.operation_finished.connect(self._on_finished)
         self._active_worker.start()
