@@ -604,9 +604,25 @@ class ProdDeployWorker(QThread):
 
         # Image names — pushed to registry.yads-security.com for prod pulls
         self.docker_compose_file = "docker-compose.swarm.yml"
-        self.registry_image        = "registry.yads-security.com/yads/yads-api:latest"
-        self.worker_registry_image = "registry.yads-security.com/yads/yads-worker:latest"
-        self.backup_registry_image = "registry.yads-security.com/yads/yads-backup:latest"
+
+        # Read version from releases/version.json
+        _ver = "latest"
+        try:
+            import json as _j
+            _vf = project_root / "releases" / "version.json"
+            if _vf.exists():
+                _ver = _j.loads(_vf.read_text()).get("version", "latest") or "latest"
+        except Exception:
+            pass
+        self.app_version = _ver
+
+        _reg = "registry.yads-security.com/yads"
+        self.registry_image        = f"{_reg}/yads-api:latest"
+        self.registry_image_ver    = f"{_reg}/yads-api:{_ver}"
+        self.worker_registry_image = f"{_reg}/yads-worker:latest"
+        self.worker_registry_image_ver = f"{_reg}/yads-worker:{_ver}"
+        self.backup_registry_image = f"{_reg}/yads-backup:latest"
+        self.backup_registry_image_ver = f"{_reg}/yads-backup:{_ver}"
 
         self.services_to_update = [
             f"{self.stack_name}_yads-api",
@@ -928,7 +944,7 @@ class ProdDeployWorker(QThread):
                         ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                         cwd=str(self.project_root)
                     ).stdout.strip()
-                    self._log("Step 1a: Building YADS API image (no scanner tools)...", "info")
+                    self._log(f"Step 1a: Building YADS API image v{self.app_version}...", "info")
                     self.signals.progress_update.emit(5, 100, "Building API image...")
                     build_cmd = [
                         "docker", "build",
@@ -936,6 +952,7 @@ class ProdDeployWorker(QThread):
                         "--build-arg", f"YADS_GIT_SHA={git_sha}",
                         "-t", "yads-api:latest",
                         "-t", self.registry_image,
+                        "-t", self.registry_image_ver,
                         "."
                     ]
                     if not self._run_cmd(build_cmd):
@@ -960,6 +977,7 @@ class ProdDeployWorker(QThread):
                         "--build-arg", f"TOOLS_IMAGE={tools_image}",
                         "-t", "yads-worker:latest",
                         "-t", self.worker_registry_image,
+                        "-t", self.worker_registry_image_ver,
                         "."
                     ]
                 else:
@@ -969,6 +987,7 @@ class ProdDeployWorker(QThread):
                         "--target", "worker",
                         "-t", "yads-worker:latest",
                         "-t", self.worker_registry_image,
+                        "-t", self.worker_registry_image_ver,
                         "."
                     ]
                 if not self._run_cmd(worker_build_cmd):
@@ -981,10 +1000,11 @@ class ProdDeployWorker(QThread):
             if self.deploy_backup:
                 self._log("Step 2: Building backup container image...", "info")
                 self.signals.progress_update.emit(15, 100, "Building backup image...")
-                if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest", "backup/"]):
+                if not self._run_cmd(["docker", "build", "-t", "yads-backup:latest",
+                                      "-t", self.backup_registry_image,
+                                      "-t", self.backup_registry_image_ver,
+                                      "backup/"]):
                     return self.signals.operation_finished.emit(False, "Backup build failed")
-                if not self._run_cmd(["docker", "tag", "yads-backup:latest", self.backup_registry_image]):
-                    return self.signals.operation_finished.emit(False, "Backup tagging failed")
             else:
                 self._log("Step 2: Skipping Backup build.", "warning")
 
@@ -995,11 +1015,14 @@ class ProdDeployWorker(QThread):
 
             images_to_push = []
             if self.deploy_app and not use_cached_api:
-                images_to_push.append((self.registry_image, "API"))
+                images_to_push.append((self.registry_image, "API :latest"))
+                images_to_push.append((self.registry_image_ver, f"API :{self.app_version}"))
             if self.deploy_worker:
-                images_to_push.append((self.worker_registry_image, "Worker"))
+                images_to_push.append((self.worker_registry_image, "Worker :latest"))
+                images_to_push.append((self.worker_registry_image_ver, f"Worker :{self.app_version}"))
             if self.deploy_backup:
-                images_to_push.append((self.backup_registry_image, "Backup"))
+                images_to_push.append((self.backup_registry_image, "Backup :latest"))
+                images_to_push.append((self.backup_registry_image_ver, f"Backup :{self.app_version}"))
 
             if not images_to_push:
                 self._log("All images cached — nothing to push.", "success")
