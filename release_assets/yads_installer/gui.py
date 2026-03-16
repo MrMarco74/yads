@@ -820,6 +820,8 @@ class YADSInstallerGUI:
             "install_type": "installer",
             "customer_id": customer_id,
         }
+        sent = False
+        send_error = None
         try:
             data = _json.dumps(payload).encode()
             req = urllib.request.Request(
@@ -829,10 +831,75 @@ class YADSInstallerGUI:
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=10):
-                pass
+                sent = True
         except Exception as exc:
-            # Non-fatal — just log, don't surface to user
-            print(f"[Telemetry] Could not send installation report: {exc}")
+            send_error = str(exc)
+
+        if not sent:
+            # --- Offline fallback (A): save JSON file ---
+            import os as _os
+            report_path = _os.path.expanduser("~/yads-installation-report.json")
+            try:
+                with open(report_path, "w") as f:
+                    _json.dump(payload, f, indent=2)
+            except Exception:
+                report_path = None
+
+            # --- Offline fallback (C): queue in YADS API for auto-retry ---
+            try:
+                q_data = _json.dumps(payload).encode()
+                q_req = urllib.request.Request(
+                    f"{self._base_url_for_api()}/setup/queue-report",
+                    data=q_data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                urllib.request.urlopen(q_req, timeout=5)
+            except Exception:
+                pass  # Best-effort
+
+            # --- Transparent user notification ---
+            lines = [
+                "Die Installationsmeldung konnte jetzt nicht gesendet werden",
+                f"(kein Internetzugang oder Server nicht erreichbar: {send_error}).",
+                "",
+                "Was passiert als Nächstes:",
+                "  • YADS sendet die Meldung automatisch beim nächsten Start,",
+                "    sobald eine Internetverbindung verfügbar ist.",
+            ]
+            if report_path:
+                lines += [
+                    f"  • Eine Kopie wurde gespeichert unter: {report_path}",
+                    "    Sie können die Datei auch manuell an",
+                    "    support@yads-security.com schicken.",
+                ]
+            lines += [
+                "",
+                "Inhalt der Meldung (nur diese Daten werden gesendet):",
+                f"  instance_uuid : {payload['instance_uuid']}",
+                f"  version       : {payload['version']}",
+                f"  install_type  : {payload['install_type']}",
+            ]
+            if payload.get('customer_id'):
+                lines.append(f"  customer_id   : {payload['customer_id']}")
+            lines += [
+                "",
+                "Keine Domainnamen, IP-Adressen oder Scan-Daten werden übertragen.",
+            ]
+            msg = "\n".join(lines)
+            def _show_offline(m=msg):
+                try:
+                    if self.root.winfo_exists():
+                        messagebox.showinfo("Installationsmeldung — Offline", m)
+                except Exception:
+                    pass
+            self.root.after(0, _show_offline)
+
+    def _base_url_for_api(self):
+        """Return the direct YADS API base URL (bypasses nginx if active)."""
+        proto = "https" if self.data.get('use_ssl') else "http"
+        direct_port = 8000 if self.data.get('use_nginx') else int(self.data.get('api_port', 80))
+        return f"{proto}://localhost:{direct_port}"
 
     def authenticate_registry(self):
         # Read-only credentials for YADS registry

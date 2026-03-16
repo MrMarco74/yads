@@ -288,3 +288,37 @@ async def finish_setup():
         session.commit()
 
     return {"status": "completed", "instance_uuid": instance_uuid}
+
+
+class InstallReportPayload(BaseModel):
+    instance_uuid: str
+    version: str
+    submitted_at: Optional[str] = None
+    install_type: Optional[str] = "installer"
+    customer_id: Optional[str] = None
+
+
+@router.post("/queue-report")
+async def queue_install_report(req: InstallReportPayload):
+    """
+    Store a pending installation report in SystemConfig so the API can
+    send it to the support portal on the next startup (airgapped installs).
+    No-op if a report was already sent or is already queued.
+    """
+    import json as _json
+    from yads.models import SystemConfig
+    from yads.database import engine
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        if session.get(SystemConfig, "INSTALL_REPORT_SENT"):
+            return {"status": "already_sent"}
+        existing = session.get(SystemConfig, "INSTALL_REPORT_PENDING")
+        if not existing:
+            session.add(SystemConfig(
+                key="INSTALL_REPORT_PENDING",
+                value=_json.dumps(req.model_dump()),
+            ))
+            session.commit()
+
+    return {"status": "queued"}
