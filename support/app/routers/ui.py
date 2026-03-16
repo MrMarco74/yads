@@ -458,6 +458,10 @@ async def installations_page(
     for r in rows:
         version_dist[r.version] = version_dist.get(r.version, 0) + 1
 
+    type_dist: dict = {}
+    for r in rows:
+        type_dist[r.install_type] = type_dist.get(r.install_type, 0) + 1
+
     return templates.TemplateResponse("installations.html", {
         "request": request,
         "total": len(rows),
@@ -465,10 +469,12 @@ async def installations_page(
             {"version": k, "count": v}
             for k, v in sorted(version_dist.items(), key=lambda x: -x[1])
         ],
+        "type_distribution": type_dist,
         "installations": [
             {
                 "instance_uuid": r.instance_uuid,
                 "version": r.version,
+                "install_type": r.install_type,
                 "first_seen": r.first_seen.isoformat(),
                 "last_seen": r.last_seen.isoformat(),
                 "report_count": r.report_count,

@@ -41,6 +41,7 @@ class InstallReportPayload(BaseModel):
     instance_uuid: str = Field(..., max_length=64)
     version: str = Field(..., max_length=50)
     submitted_at: Optional[str] = None
+    install_type: Optional[str] = Field(default="unknown", max_length=32)
 
 
 # ---------------------------------------------------------------------------
@@ -57,16 +58,21 @@ async def ingest_installation(
         select(InstallationReport).where(InstallationReport.instance_uuid == payload.instance_uuid)
     ).first()
 
+    install_type = (payload.install_type or "unknown").strip() or "unknown"
     now = datetime.now(timezone.utc)
     if existing:
         existing.version = payload.version
         existing.last_seen = now
         existing.report_count += 1
+        # Upgrade install_type from "unknown" if we now have a real value
+        if existing.install_type == "unknown" and install_type != "unknown":
+            existing.install_type = install_type
         session.add(existing)
     else:
         session.add(InstallationReport(
             instance_uuid=payload.instance_uuid,
             version=payload.version,
+            install_type=install_type,
         ))
     session.commit()
     return {"ok": True}
@@ -97,6 +103,7 @@ async def list_installations(
             {
                 "instance_uuid": r.instance_uuid,
                 "version": r.version,
+                "install_type": r.install_type,
                 "first_seen": r.first_seen.isoformat(),
                 "last_seen": r.last_seen.isoformat(),
                 "report_count": r.report_count,

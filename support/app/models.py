@@ -41,6 +41,7 @@ class InstallationReport(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     instance_uuid: str = Field(unique=True, index=True)
     version: str
+    install_type: str = Field(default="unknown")  # "installer" | "web_wizard" | "unknown"
     first_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     report_count: int = Field(default=1)

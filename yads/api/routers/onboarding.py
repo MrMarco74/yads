@@ -145,7 +145,7 @@ async def send_installation_report(
     import httpx
     from yads.config import settings
 
-    payload = _build_telemetry_payload(session)
+    payload = {**_build_telemetry_payload(session), "install_type": "web_wizard"}
 
     # Mark report as sent to avoid duplicate from /setup/finish
     from yads.models import SystemConfig as _SC

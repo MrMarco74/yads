@@ -17,6 +17,14 @@
     <div class="kpi-card__label">Unique Versions</div>
     <div class="kpi-card__value" style="color:var(--accent);">{{ version_distribution|length }}</div>
   </div>
+  <div class="kpi-card">
+    <div class="kpi-card__label">GUI Installer</div>
+    <div class="kpi-card__value" style="color:#22c55e;">{{ type_distribution.get('installer', 0) }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-card__label">Web Wizard</div>
+    <div class="kpi-card__value" style="color:#3b82f6;">{{ type_distribution.get('web_wizard', 0) }}</div>
+  </div>
 </div>
 
 <!-- Version distribution -->
@@ -44,6 +52,7 @@
         <tr>
           <th>Instance UUID</th>
           <th>Version</th>
+          <th>Type</th>
           <th>First Seen</th>
           <th>Last Seen</th>
           <th>Reports</th>
@@ -54,6 +63,15 @@
         <tr>
           <td style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">{{ inst.instance_uuid }}</td>
           <td><span style="background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">{{ inst.version }}</span></td>
+          <td>
+            {% if inst.install_type == 'installer' %}
+            <span style="background:#15803d;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">GUI Installer</span>
+            {% elif inst.install_type == 'web_wizard' %}
+            <span style="background:#1d4ed8;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">Web Wizard</span>
+            {% else %}
+            <span style="background:var(--surface-2);color:var(--text-muted);font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:999px;">{{ inst.install_type }}</span>
+            {% endif %}
+          </td>
           <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">{{ inst.first_seen[:10] }}</td>
           <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">{{ inst.last_seen[:10] }}</td>
           <td style="color:var(--text-muted);font-size:0.8rem;">{{ inst.report_count }}</td>
