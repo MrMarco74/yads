@@ -583,12 +583,17 @@ class ProdDeployWorker(QThread):
 
     def __init__(self, project_root: Path, wipe_reinstall: bool = False,
                  deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True,
-                 setup_token: str = "", pg_password: str = ""):
+                 setup_token: str = "", pg_password: str = "",
+                 setup_admin_user: str = "", setup_admin_pass: str = "",
+                 setup_license: str = ""):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
         self.setup_token = setup_token
         self.pg_password = pg_password
+        self.setup_admin_user = setup_admin_user
+        self.setup_admin_pass = setup_admin_pass
+        self.setup_license = setup_license
         self.deploy_app = deploy_app
         self.deploy_worker = deploy_worker  # only needed when scanner tools / Python deps change
         self.deploy_backup = deploy_backup
@@ -1148,6 +1153,10 @@ class ProdDeployWorker(QThread):
             except Exception as _se:
                 self._log(f"⚠️  Smoke test failed: {_se}", "warning")
 
+            # 8. Auto-setup after wipe+reinstall
+            if self.wipe_reinstall and self.setup_admin_pass:
+                self._run_post_deploy_setup()
+
             _total = self._elapsed(_deploy_start)
             self.signals.progress_update.emit(100, 100, f"Success! ({_total})")
             self._log(f"✅ Deployment to PROD completed successfully! [total time: {_total}]", "success")
@@ -1164,6 +1173,67 @@ class ProdDeployWorker(QThread):
                         os.remove(p)
                 except:
                     pass
+
+
+    def _run_post_deploy_setup(self):
+        """Call /setup/* endpoints on prod via SSH after a wipe+reinstall."""
+        import json as _json
+        import time as _time
+
+        base = "http://localhost:8000"
+        token_param = f"?token={self.setup_token}" if self.setup_token else ""
+
+        def _curl(path, payload):
+            body = _json.dumps(payload).replace("'", "'\\''")
+            cmd = (
+                f"curl -sf -X POST '{base}{path}{token_param}' "
+                f"-H 'Content-Type: application/json' "
+                f"-d '{body}' 2>&1"
+            )
+            result = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
+                capture_output=True, text=True
+            )
+            return result.returncode, result.stdout.strip()
+
+        # Wait for API to be ready (up to 60s)
+        self._log("Setup: Waiting for API to be ready...", "info")
+        for _ in range(30):
+            rc, out = _curl("/health", {})
+            if rc == 0 and "ok" in out.lower():
+                break
+            _time.sleep(2)
+        else:
+            self._log("⚠️  Setup: API not ready after 60s — skipping auto-setup.", "warning")
+            return
+
+        # 1. License key (optional)
+        if self.setup_license:
+            self._log("Setup: Activating license key...", "info")
+            rc, out = _curl("/setup/check-license", {"license_key": self.setup_license})
+            if rc == 0:
+                self._log("  ✅ License activated.", "success")
+            else:
+                self._log(f"  ⚠️  License error: {out}", "warning")
+
+        # 2. Create admin
+        self._log(f"Setup: Creating admin user '{self.setup_admin_user}'...", "info")
+        rc, out = _curl("/setup/create-admin", {
+            "username": self.setup_admin_user,
+            "password": self.setup_admin_pass,
+        })
+        if rc == 0:
+            self._log("  ✅ Admin created.", "success")
+        else:
+            self._log(f"  ⚠️  Admin error: {out}", "warning")
+
+        # 3. Finish setup
+        self._log("Setup: Finalizing...", "info")
+        rc, out = _curl("/setup/finish", {})
+        if rc == 0:
+            self._log("  ✅ Setup complete — YADS is ready!", "success")
+        else:
+            self._log(f"  ⚠️  Finish error: {out}", "warning")
 
 
 class RebuildToolsWorker(QThread):
@@ -1369,6 +1439,58 @@ class ProdDeployPage(QWidget):
 
         layout.addWidget(tools_card)
 
+        # ── Wipe Setup Card (hidden unless Wipe is checked) ────────────────
+        from qfluentwidgets import PasswordLineEdit
+        self.setup_card = CardWidget(self)
+        self.setup_card.setVisible(False)
+        setup_layout = QVBoxLayout(self.setup_card)
+        setup_layout.setContentsMargins(20, 16, 20, 16)
+        setup_layout.setSpacing(10)
+
+        setup_title = BodyLabel("⚙️  Automatisches Setup nach Wipe", self)
+        setup_title.setStyleSheet("color: #f59e0b; font-weight: bold; font-size: 13px;")
+        setup_layout.addWidget(setup_title)
+
+        setup_sub = BodyLabel("Lizenz + Admin werden direkt nach dem Deploy konfiguriert — kein Web-Wizard nötig.", self)
+        setup_sub.setStyleSheet("color: #888; font-size: 11px;")
+        setup_sub.setWordWrap(True)
+        setup_layout.addWidget(setup_sub)
+
+        lic_row = QHBoxLayout()
+        lic_label = BodyLabel("Lizenzschlüssel", self)
+        lic_label.setFixedWidth(130)
+        lic_label.setStyleSheet("color: #ccc; font-size: 12px;")
+        lic_row.addWidget(lic_label)
+        self.setup_license_input = LineEdit(self)
+        self.setup_license_input.setPlaceholderText("eyJ… (leer = Community Edition)")
+        self.setup_license_input.setFixedHeight(30)
+        lic_row.addWidget(self.setup_license_input)
+        setup_layout.addLayout(lic_row)
+
+        user_row = QHBoxLayout()
+        user_label = BodyLabel("Admin-Benutzer", self)
+        user_label.setFixedWidth(130)
+        user_label.setStyleSheet("color: #ccc; font-size: 12px;")
+        user_row.addWidget(user_label)
+        self.setup_admin_user = LineEdit(self)
+        self.setup_admin_user.setText("admin")
+        self.setup_admin_user.setFixedHeight(30)
+        user_row.addWidget(self.setup_admin_user)
+        setup_layout.addLayout(user_row)
+
+        pass_row = QHBoxLayout()
+        pass_label = BodyLabel("Admin-Passwort", self)
+        pass_label.setFixedWidth(130)
+        pass_label.setStyleSheet("color: #ccc; font-size: 12px;")
+        pass_row.addWidget(pass_label)
+        self.setup_admin_pass = PasswordLineEdit(self)
+        self.setup_admin_pass.setPlaceholderText("Mindestens 8 Zeichen")
+        self.setup_admin_pass.setFixedHeight(30)
+        pass_row.addWidget(self.setup_admin_pass)
+        setup_layout.addLayout(pass_row)
+
+        layout.addWidget(self.setup_card)
+
         # Action Card
         action_card = CardWidget(self)
         action_layout = QHBoxLayout(action_card)
@@ -1471,8 +1593,10 @@ class ProdDeployPage(QWidget):
     def _on_wipe_toggled(self, state):
         if self.wipe_check.isChecked():
             self.status_label.setText("🛑 WIPE & REINSTALL — ALL REMOTE DATA WILL BE DESTROYED!")
+            self.setup_card.setVisible(True)
         else:
             self.status_label.setText("⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com")
+            self.setup_card.setVisible(False)
 
     def _on_deploy(self):
         import secrets as _secrets
@@ -1489,16 +1613,29 @@ class ProdDeployPage(QWidget):
             return
 
         if self.wipe_check.isChecked():
+            # Validate admin password
+            admin_pass = self.setup_admin_pass.text()
+            admin_user = self.setup_admin_user.text().strip() or "admin"
+            if len(admin_pass) < 8:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                InfoBar.error("Passwort zu kurz", "Admin-Passwort muss mindestens 8 Zeichen haben.",
+                              duration=4000, parent=self)
+                return
+
             # Generate safe credentials for the fresh install (no URL-special chars)
             self._setup_token = _secrets.token_hex(16)
             self._fresh_pg_password = _secrets.token_urlsafe(24).replace('-', 'x').replace('_', 'y')
+            self._setup_admin_user = admin_user
+            self._setup_admin_pass = admin_pass
+            self._setup_license = self.setup_license_input.text().strip()
+
             token_box = MessageBox(
                 "Zugangsdaten für Neuinstallation",
-                f"Folgende Werte werden automatisch in die remote .env injiziert:\n\n"
+                f"Folgende Werte werden automatisch konfiguriert:\n\n"
                 f"  SETUP_TOKEN:       {self._setup_token}\n"
-                f"  POSTGRES_PASSWORD: {self._fresh_pg_password}\n\n"
-                f"Der Setup-Token wurde in die Zwischenablage kopiert.\n"
-                f"Das Setup-Wizard auf prod.yads-security.com benötigt den Setup-Token.",
+                f"  POSTGRES_PASSWORD: {self._fresh_pg_password}\n"
+                f"  Admin-User:        {admin_user}\n\n"
+                f"Der Setup-Token wurde in die Zwischenablage kopiert.",
                 self
             )
             QApplication.clipboard().setText(self._setup_token)
@@ -1506,6 +1643,9 @@ class ProdDeployPage(QWidget):
         else:
             self._setup_token = ""
             self._fresh_pg_password = ""
+            self._setup_admin_user = ""
+            self._setup_admin_pass = ""
+            self._setup_license = ""
 
         self._start_worker()
 
@@ -1542,7 +1682,10 @@ class ProdDeployPage(QWidget):
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False,
             setup_token=getattr(self, '_setup_token', '') if operation == "release" else '',
-            pg_password=getattr(self, '_fresh_pg_password', '') if operation == "release" else ''
+            pg_password=getattr(self, '_fresh_pg_password', '') if operation == "release" else '',
+            setup_admin_user=getattr(self, '_setup_admin_user', '') if operation == "release" else '',
+            setup_admin_pass=getattr(self, '_setup_admin_pass', '') if operation == "release" else '',
+            setup_license=getattr(self, '_setup_license', '') if operation == "release" else '',
         )
         self._active_worker.tools_tag = self.tools_tag_input.text().strip() or '1.0'
         self._active_worker.operation = operation
