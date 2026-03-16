@@ -395,6 +395,14 @@ def run_all_scans(
                 if not valid_license:
                     logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
                     return
+                # --- Activation enforcement for business licenses ---
+                lic_data = license_manager.verify(lc.value) if (lc and lc.value) else None
+                if lic_data and lic_data.get("customer_id"):
+                    act_conf = session.exec(select(SystemConfig).where(SystemConfig.key == "ACTIVATION_CODE")).first()
+                    act_data = license_manager.verify(act_conf.value) if (act_conf and act_conf.value) else None
+                    if not act_data:
+                        logger.warning(f"[Worker] Instanz nicht aktiviert — Lesemodus. Scan für {domain} verworfen.")
+                        return
     except Exception as e:
         logger.error(f"[Worker] License check failed: {e}")
         return

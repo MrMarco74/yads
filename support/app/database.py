@@ -93,6 +93,9 @@ def _migrate_columns() -> None:
                 conn.execute(text("ALTER TABLE installationreport ADD COLUMN customer_id TEXT"))
                 conn.commit()
 
+        # ActivationRequest table: created automatically by SQLModel.metadata.create_all
+        # when the table does not yet exist. No manual column migrations needed here.
+
 
 def get_session():
     """FastAPI dependency: yields a DB session."""
