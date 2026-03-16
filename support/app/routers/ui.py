@@ -545,7 +545,9 @@ async def activations_page(
         for r in ar_rows
     ]
 
+    import app.routers.installations as _inst_mod
     return templates.TemplateResponse("activations.html", {
         "request": request,
         "requests": requests_data,
+        "admin_token": _inst_mod.ADMIN_TOKEN or "",
     })

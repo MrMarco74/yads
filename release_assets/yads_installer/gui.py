@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import subprocess
 import os
 import pkgutil
+import secrets
 import socket
 import threading
 import time
@@ -17,7 +18,7 @@ class YADSInstallerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("YADS — Setup Wizard")
-        self.root.geometry("600x500")
+        self.root.geometry("620x700")
         
         self.current_step = 0
         _real_ip = NetworkTools._real_ip() or ""
@@ -66,9 +67,24 @@ class YADSInstallerGUI:
         self.nav_frame = tk.Frame(self.main_container, bg=self.colors['bg_alt'])
         self.nav_frame.pack(fill="x", side="bottom", ipady=10)
         
+        # Progress indicator (segmented dots + thin fill bar beneath)
+        self._progress_bar_frame = tk.Frame(self.main_container, bg=self.colors['bg_alt'], height=64)
+        self._progress_bar_frame.pack(fill="x", side="top")
+        self._progress_bar_frame.pack_propagate(False)
+
+        # Canvas for dots + connector lines
+        self._progress_canvas = tk.Canvas(
+            self._progress_bar_frame,
+            bg=self.colors['bg_alt'],
+            highlightthickness=0,
+            height=64,
+        )
+        self._progress_canvas.pack(fill="x", expand=True)
+        self._progress_canvas.bind("<Configure>", lambda e: self._update_progress_bar())
+
         self.content_frame = tk.Frame(self.main_container, bg=self.colors['bg'], padx=20, pady=20)
         self.content_frame.pack(fill="both", expand=True)
-        
+
         self.btn_prev = ttk.Button(self.nav_frame, text="Back", command=self.prev_step)
         self.btn_prev.pack(side="left", padx=40, pady=10)
         
@@ -85,7 +101,11 @@ class YADSInstallerGUI:
         ]
 
         if self.is_upgrade:
-            self.steps.append(self.step_upgrade_backup)
+            self.steps.extend([
+                self.step_upgrade_mode,
+                self.step_upgrade_backup,
+                self.step_upgrade_maintenance,
+            ])
 
         self.steps.extend([
             self.step_license,
@@ -211,11 +231,94 @@ class YADSInstallerGUI:
             print(f"Logo could not be loaded: {e}")
             self.logo_img = None
 
+    def _update_progress_bar(self):
+        c = self._progress_canvas
+        c.delete("all")
+        c.update_idletasks()
+        w = c.winfo_width()
+        h = c.winfo_height()
+        if w < 10:
+            return
+
+        total = len(self.steps)
+        current = self.current_step  # 0-based index
+
+        accent   = self.colors['accent']
+        bg_alt   = self.colors['bg_alt']
+        fg_sub   = self.colors['fg_sub']
+        fg_done  = "#ffffff" if self.dark_mode else "#ffffff"
+        dot_r    = 10          # dot radius
+        cy       = h // 2 - 4  # vertical center of dots row
+        pad      = 28          # left/right padding
+
+        # Step name abbreviations (one word per step, shown under dot)
+        step_labels = {
+            self.step_welcome:             "Start",
+            self.step_dependencies:        "Check",
+            self.step_upgrade_mode:        "Modus",
+            self.step_upgrade_backup:      "Backup",
+            self.step_upgrade_maintenance: "Pflege",
+            self.step_license:             "Lizenz",
+            self.step_network_ssl:         "Netzwerk",
+            self.step_idp:                 "Auth",
+            self.step_monitoring:          "Monitor",
+            self.step_remote_workers:      "Worker",
+            self.step_admin:               "Admin",
+            self.step_telemetry:           "Info",
+            self.step_summary:             "Fertig",
+        }
+
+        # Compute dot x-positions evenly distributed
+        usable = w - 2 * pad
+        if total > 1:
+            spacing = usable / (total - 1)
+        else:
+            spacing = 0
+        xs = [int(pad + i * spacing) for i in range(total)]
+
+        # Draw connector line (full width, thin)
+        line_y = cy
+        c.create_line(xs[0], line_y, xs[-1], line_y,
+                      fill=fg_sub, width=2)
+        # Filled portion up to current step
+        if current > 0:
+            c.create_line(xs[0], line_y, xs[min(current, total - 1)], line_y,
+                          fill=accent, width=2)
+
+        for i, x in enumerate(xs):
+            if i < current:
+                # Completed — filled dot with checkmark
+                c.create_oval(x - dot_r, cy - dot_r, x + dot_r, cy + dot_r,
+                              fill=accent, outline=accent)
+                c.create_text(x, cy, text="✓", fill=fg_done, font=("sans-serif", 9, "bold"))
+            elif i == current:
+                # Active — accent dot with white ring
+                c.create_oval(x - dot_r - 3, cy - dot_r - 3, x + dot_r + 3, cy + dot_r + 3,
+                              fill=accent, outline=accent)
+                c.create_oval(x - dot_r, cy - dot_r, x + dot_r, cy + dot_r,
+                              fill=accent, outline="white", width=2)
+                num_str = str(i + 1)
+                c.create_text(x, cy, text=num_str, fill=fg_done,
+                              font=("sans-serif", 8, "bold"))
+            else:
+                # Future — hollow dot
+                c.create_oval(x - dot_r, cy - dot_r, x + dot_r, cy + dot_r,
+                              fill=bg_alt, outline=fg_sub, width=1)
+                c.create_text(x, cy, text=str(i + 1), fill=fg_sub,
+                              font=("sans-serif", 8))
+
+        # Step name under active dot  (only show for current)
+        step_fn = self.steps[current] if current < total else None
+        label = step_labels.get(step_fn, f"Schritt {current + 1}")
+        c.create_text(xs[current], cy + dot_r + 10, text=label,
+                      fill=accent, font=("sans-serif", 8, "bold"), anchor="n")
+
     def show_step(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
-        
+
         self.steps[self.current_step]()
+        self._update_progress_bar()
         
         if self.current_step > 0:
             self.btn_prev.pack(side="left", padx=40, pady=10)
@@ -265,23 +368,24 @@ class YADSInstallerGUI:
         elif current_fn == self.step_telemetry:
             if hasattr(self, 'telemetry_var'):
                 self.data['send_telemetry'] = self.telemetry_var.get()
+        elif current_fn == self.step_upgrade_mode:
+            # UPDATE mode: skip backup + maintenance + all config steps → jump to summary
+            if self.install_mode_var.get() == "update":
+                self.current_step = len(self.steps) - 1
+                self.show_step()
+                return
         elif current_fn == self.step_upgrade_backup:
             # Decide db_init_action for REINSTALL
             if hasattr(self, 'db_init_var'):
                 self.data['db_init_action'] = self.db_init_var.get()
 
         if self.current_step < len(self.steps) - 1:
-            # UPDATE mode: after backup step jump straight to summary (skip config steps)
-            if (current_fn == self.step_upgrade_backup
-                    and self.install_mode_var.get() == "update"):
-                self.current_step = len(self.steps) - 1
-            else:
+            self.current_step += 1
+            # Reinstall+Upgrade: skip step_admin (admin stays in DB, no new credentials needed)
+            if (self.steps[self.current_step] == self.step_admin
+                    and self.is_upgrade
+                    and self.data.get('db_init_action', 'upgrade') != 'purge'):
                 self.current_step += 1
-                # Reinstall+Upgrade: skip step_admin (admin stays in DB, no new credentials needed)
-                if (self.steps[self.current_step] == self.step_admin
-                        and self.is_upgrade
-                        and self.data.get('db_init_action', 'upgrade') != 'purge'):
-                    self.current_step += 1
             self.show_step()
         else:
             self.finish_setup()
@@ -629,7 +733,7 @@ class YADSInstallerGUI:
                     for _ in range(15):  # wait up to 30s for DB to be ready
                         sync = subprocess.run(
                             ["docker", "exec", "yads-db", "psql", "-U", "yads", "-d", "yads",
-                             "-c", f"ALTER USER yads WITH PASSWORD '{pg_password}';"],
+                             "-c", f"ALTER USER yads WITH PASSWORD '{pg_password.replace(chr(39), chr(39)*2)}';"],
                             capture_output=True, text=True, timeout=10
                         )
                         if sync.returncode == 0:
@@ -757,30 +861,38 @@ class YADSInstallerGUI:
         # 3b. MFA reset logic:
         #   - Purge reinstall: reset automatically (DB wiped, old secret gone anyway)
         #   - No-wipe reinstall: ask the user (they may or may not still have the authenticator)
-        #   - Upgrade / fresh install: never reset
+        #   - Update / fresh install: never reset
+        is_reinstall = self.is_upgrade and (self.install_mode_var.get() == 'reinstall')
         is_purge = self.data.get('db_init_action') == 'purge'
-        is_no_wipe_reinstall = self.is_upgrade and not is_purge
 
         do_mfa_reset = False
-        if self.is_upgrade and is_purge:
-            do_mfa_reset = True
-        elif is_no_wipe_reinstall:
-            # Ask the user — they may have kept the authenticator app
+        if is_reinstall and is_purge:
+            do_mfa_reset = True  # DB wiped anyway, MFA secret gone
+        elif is_reinstall and not is_purge:
+            # Ask the user — they may have kept the authenticator app.
+            # Dialog is shown topmost so it doesn't get buried by the progress window.
             answer = [False]
             done = threading.Event()
             def _ask():
-                answer[0] = messagebox.askyesno(
-                    "MFA zurücksetzen?",
-                    "Haben Sie noch Zugang zu Ihrer Authenticator-App?\n\n"
-                    "• JA  → MFA bleibt aktiv, kein Reset (sicherer)\n"
-                    "• NEIN → MFA wird zurückgesetzt, Sie müssen sich neu einrichten\n\n"
-                    "Klicken Sie NEIN nur wenn Sie die App nicht mehr haben.",
-                    icon="question"
-                )
-                # answer[0] is True = still has access = no reset needed
-                # answer[0] is False = lost access = reset needed
-                answer[0] = not answer[0]
-                done.set()
+                try:
+                    self.root.lift()
+                    self.root.attributes('-topmost', True)
+                    self.root.after(200, lambda: self.root.attributes('-topmost', False))
+                    answer[0] = messagebox.askyesno(
+                        "MFA zurücksetzen?",
+                        "Haben Sie noch Zugang zu Ihrer Authenticator-App?\n\n"
+                        "• JA  → MFA bleibt aktiv, kein Reset (sicherer)\n"
+                        "• NEIN → MFA wird zurückgesetzt, Sie müssen sich neu einrichten\n\n"
+                        "Klicken Sie NEIN nur wenn Sie die App nicht mehr haben.",
+                        icon="question"
+                    )
+                    # answer[0] is True = still has access = no reset needed
+                    # answer[0] is False = lost access = reset needed
+                    answer[0] = not answer[0]
+                except Exception:
+                    pass
+                finally:
+                    done.set()
             self.root.after(0, _ask)
             done.wait(timeout=120)
             do_mfa_reset = answer[0]
@@ -788,24 +900,9 @@ class YADSInstallerGUI:
         if do_mfa_reset:
             self.root.after(0, lambda: self._set_progress("MFA zurücksetzen..."))
             admin_user = self.data.get('admin_user', 'admin').strip() or 'admin'
-            reset_script = (
-                "from sqlmodel import Session, select; "
-                "from yads.database import engine; "
-                "from yads.models import User; "
-                f"s = Session(engine); "
-                f"u = s.exec(select(User).where(User.username == '{admin_user}')).first(); "
-                "u.mfa_enabled = False; u.mfa_secret = None; u.pending_mfa_secret = None; "
-                "s.add(u); s.commit(); print('MFA reset OK')"
-            )
-            try:
-                result = subprocess.run(
-                    ["docker", "exec", "yads-api", "python3", "-c", reset_script],
-                    capture_output=True, text=True, timeout=15
-                )
-                if result.returncode != 0:
-                    errors.append(f"MFA-Reset fehlgeschlagen: {result.stderr.strip()}")
-            except Exception as e:
-                errors.append(f"MFA-Reset Fehler: {e}")
+            err = self._exec_mfa_reset(admin_user)
+            if err:
+                errors.append(f"MFA-Reset fehlgeschlagen: {err}")
 
         # 4. Mark setup complete
         self.root.after(0, lambda: self._set_progress("Setup abschließen..."))
@@ -1014,10 +1111,59 @@ class YADSInstallerGUI:
                  else "Installationsmeldung — Offline")
         msg = "\n".join(lines)
 
-        def _show(m=msg, t=title):
+        def _show(m=msg, t=title, code=act_code if is_business else None,
+                  err=send_error):
             try:
-                if self.root.winfo_exists():
-                    messagebox.showinfo(t, m)
+                if not self.root.winfo_exists():
+                    return
+                win = tk.Toplevel(self.root)
+                win.title(t)
+                win.geometry("560x600")
+                win.configure(bg=self.colors['bg'])
+                win.lift()
+                win.attributes('-topmost', True)
+                win.after(300, lambda: win.attributes('-topmost', False))
+                win.grab_set()
+
+                # Scrollable text area
+                frame = ttk.Frame(win)
+                frame.pack(fill="both", expand=True, padx=14, pady=(14, 6))
+
+                sb = tk.Scrollbar(frame)
+                sb.pack(side="right", fill="y")
+                txt = tk.Text(frame, wrap="word", yscrollcommand=sb.set,
+                              bg="#1e293b", fg="#e2e8f0", relief="flat",
+                              font=("monospace", 9), padx=10, pady=8,
+                              selectbackground="#334155")
+                txt.pack(fill="both", expand=True)
+                sb.config(command=txt.yview)
+                txt.insert("end", m)
+                if err:
+                    txt.insert("end", f"\n\n— Technische Fehlerdetails —\n{err}")
+                txt.config(state="disabled")  # read-only but still selectable
+
+                # Copy button (only for activation code)
+                if code:
+                    def _copy_code(c=code):
+                        win.clipboard_clear()
+                        win.clipboard_append(c)
+                        copy_btn.config(text="✓ Kopiert!")
+                        win.after(2000, lambda: copy_btn.config(text="📋 Aktivierungscode kopieren"))
+                    copy_btn = tk.Button(
+                        win, text="📋 Aktivierungscode kopieren",
+                        bg="#1e40af", fg="white",
+                        activebackground="#1d4ed8", activeforeground="white",
+                        relief="flat", padx=14, pady=7, font=("sans-serif", 10, "bold"),
+                        cursor="hand2", command=_copy_code
+                    )
+                    copy_btn.pack(pady=(0, 6))
+
+                tk.Button(
+                    win, text="OK", relief="flat", padx=20, pady=6,
+                    bg=self.colors['accent'], fg="white",
+                    activebackground="#1d4ed8", cursor="hand2",
+                    command=win.destroy
+                ).pack(pady=(0, 14))
             except Exception:
                 pass
         self.root.after(0, _show)
@@ -1151,10 +1297,142 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
             self.show_step()
 
     # --- Step 0: Welcome ---
-    def step_upgrade_backup(self):
-        ttk.Label(self.content_frame, text="Vorhandene Installation erkannt", style=STYLE_HEADER).pack(pady=(0, 10))
+    def _exec_mfa_reset(self, username: str) -> str | None:
+        """
+        Reset MFA for the given admin user via docker exec.
+        Returns None on success, or an error string on failure.
+        Username is validated to alphanumeric + underscore to prevent injection.
+        """
+        import re
+        safe_user = re.sub(r"[^\w]", "", username) or "admin"
+        reset_script = (
+            "from sqlmodel import Session, select; "
+            "from yads.database import engine; "
+            "from yads.models import User; "
+            f"s = Session(engine); "
+            f"u = s.exec(select(User).where(User.username == '{safe_user}')).first(); "
+            "u.mfa_enabled = False; u.mfa_secret = None; u.pending_mfa_secret = None; "
+            "s.add(u); s.commit(); print('MFA reset OK')"
+        )
+        try:
+            result = subprocess.run(
+                ["docker", "exec", "yads-api", "python3", "-c", reset_script],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0 and "MFA reset OK" in result.stdout:
+                return None
+            return result.stderr.strip() or result.stdout.strip() or "Unbekannter Fehler"
+        except Exception as e:
+            return str(e)
 
-        # ── Mode selection ────────────────────────────────────────────────────
+    def _detect_broken_state(self):
+        """Returns (containers_exist, api_running) for broken-state detection."""
+        try:
+            ps = subprocess.run(
+                ["docker", "ps", "-a", "--filter", "name=yads", "--format", "{{.Names}}"],
+                capture_output=True, text=True, timeout=10
+            )
+            containers_exist = bool(ps.stdout.strip())
+        except Exception:
+            containers_exist = False
+        try:
+            running = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Running}}", "yads-api"],
+                capture_output=True, text=True, timeout=10
+            ).stdout.strip() == "true"
+        except Exception:
+            running = False
+        return containers_exist, running
+
+    def _do_wipe(self):
+        """Run docker compose down -v --remove-orphans and optionally remove .env."""
+        import threading
+        confirmed = messagebox.askyesno(
+            "WIPE bestätigen",
+            "Dies löscht ALLE YADS-Container, Volumes und Daten unwiderruflich.\n\n"
+            "Fortfahren?"
+        )
+        if not confirmed:
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Bereinigung läuft…")
+        win.geometry("480x200")
+        win.configure(bg=self.colors['bg'])
+        win.grab_set()
+        ttk.Label(win, text="YADS wird bereinigt…", style=STYLE_HEADER).pack(pady=(20, 10))
+        log_var = tk.StringVar(value="Starte docker compose down -v …")
+        ttk.Label(win, textvariable=log_var, foreground=self.colors['fg_sub'],
+                  wraplength=440, justify="left").pack(padx=20)
+
+        def run():
+            try:
+                result = subprocess.run(
+                    ["docker", "compose", "down", "-v", "--remove-orphans"],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode == 0:
+                    log_var.set("Container und Volumes entfernt.")
+                else:
+                    log_var.set(f"Warnung: {result.stderr.strip()[:200]}")
+
+                # Also remove any leftover named containers
+                for name in ["yads-api", "yads-worker", "yads-db", "yads-redis"]:
+                    subprocess.run(["docker", "rm", "-f", name],
+                                   capture_output=True, timeout=15)
+
+                log_var.set("Fertig — Starte als Neuinstallation…")
+                self.root.after(1200, _finish)
+            except Exception as e:
+                log_var.set(f"Fehler: {e}")
+
+        def _finish():
+            win.destroy()
+            # Treat as fresh install
+            self.is_upgrade = False
+            self.data.pop('db_init_action', None)
+            if os.path.exists(".env"):
+                os.remove(".env")
+            self.current_step = 0
+            self.show_step()
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def step_upgrade_mode(self):
+        """Step 1/3: Mode selection + broken-state warning."""
+        ttk.Label(self.content_frame, text="Vorhandene Installation erkannt", style=STYLE_HEADER).pack(pady=(0, 14))
+
+        containers_exist, api_running = self._detect_broken_state()
+
+        if containers_exist and not api_running:
+            warn_frame = tk.LabelFrame(
+                self.content_frame, text="⚠  Fehlerhafte Installation erkannt",
+                bg="#3b1a00", fg="#f59e0b"
+            )
+            warn_frame.pack(fill="x", pady=(0, 18))
+            ttk.Label(
+                warn_frame,
+                text="YADS-Container wurden gefunden, laufen aber nicht.\n"
+                     "Dies kann nach einem unsauberen Neustart oder manuellen 'docker stop' passieren.\n\n"
+                     "Empfehlung: Bereinigen Sie die Installation vollständig, bevor Sie fortfahren.",
+                foreground="#fbbf24", wraplength=540, justify="left"
+            ).pack(anchor="w", padx=12, pady=(8, 6))
+            tk.Button(
+                warn_frame,
+                text="🗑  Alles löschen & Neuinstallation vorbereiten (WIPE)",
+                bg="#7f1d1d", fg="#fef2f2",
+                activebackground="#991b1b", activeforeground="white",
+                font=("sans-serif", 10, "bold"),
+                relief="flat", padx=12, pady=8, cursor="hand2",
+                command=self._do_wipe
+            ).pack(padx=12, pady=(2, 12))
+            ttk.Label(
+                warn_frame,
+                text="Alternativ: Wenn nur ein Neustart nötig ist, wählen Sie unten 'Update'.",
+                foreground=self.colors['fg_sub'], wraplength=540,
+                font=("sans-serif", 9, "italic")
+            ).pack(anchor="w", padx=12, pady=(0, 8))
+
         mode_frame = tk.LabelFrame(self.content_frame, text="Installationsmodus",
                                    bg=self.colors['bg'], fg=self.colors['fg'])
         mode_frame.pack(fill="x", pady=(0, 12))
@@ -1171,34 +1449,29 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
         ttk.Radiobutton(mode_frame, text="Update  — Images aktualisieren, Konfig beibehalten",
                         variable=self.install_mode_var, value="update",
-                        command=_update_desc).pack(anchor="w", padx=10, pady=(8, 2))
+                        command=_update_desc).pack(anchor="w", padx=10, pady=(10, 2))
         ttk.Radiobutton(mode_frame, text="Reinstall  — Neuinstallation (Konfig neu konfigurieren)",
                         variable=self.install_mode_var, value="reinstall",
                         command=_update_desc).pack(anchor="w", padx=10, pady=(2, 8))
-
-        desc_lbl = ttk.Label(mode_frame, textvariable=mode_desc, foreground=self.colors['fg_sub'],
-                             wraplength=480, justify="left")
-        desc_lbl.pack(anchor="w", padx=10, pady=(0, 8))
+        ttk.Label(mode_frame, textvariable=mode_desc, foreground=self.colors['fg_sub'],
+                  wraplength=540, justify="left").pack(anchor="w", padx=10, pady=(0, 10))
         _update_desc()
 
-        # ── Backup (always enforced) ──────────────────────────────────────────
+    def step_upgrade_backup(self):
+        """Step 2/3: Backup options + DB init."""
+        ttk.Label(self.content_frame, text="Backup & Datenbankoptionen", style=STYLE_HEADER).pack(pady=(0, 14))
+
+        _, api_running = self._detect_broken_state()
+
         bk_frame = tk.LabelFrame(self.content_frame, text="Backup (verpflichtend)",
                                  bg=self.colors['bg'], fg=self.colors['fg'])
-        bk_frame.pack(fill="x", pady=(0, 10))
-
+        bk_frame.pack(fill="x", pady=(0, 14))
         ttk.Label(bk_frame,
                   text="Ein Backup wird vor jeder Änderung automatisch erstellt.",
-                  foreground=self.colors['fg_sub'], wraplength=480).pack(anchor="w", padx=10, pady=(8, 4))
-
-        # Check if yads-api is running
-        api_running = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Running}}", "yads-api"],
-            capture_output=True, text=True, timeout=10
-        ).stdout.strip() == "true"
+                  foreground=self.colors['fg_sub'], wraplength=540).pack(anchor="w", padx=10, pady=(10, 4))
 
         ttk.Radiobutton(bk_frame, text="Unverschlüsselt  (SQL Dump via pg_dump)",
                         variable=self.backup_var, value="sql").pack(anchor="w", padx=10, pady=3)
-
         enc_rb = ttk.Radiobutton(bk_frame, text="Verschlüsselt  (YADS interner Mechanismus)",
                                  variable=self.backup_var, value="encrypted")
         enc_rb.pack(anchor="w", padx=10, pady=3)
@@ -1209,10 +1482,9 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
                 self.backup_var.set("sql")
             ttk.Label(bk_frame,
                       text="⚠ YADS-API läuft nicht — verschlüsseltes Backup nicht verfügbar.",
-                      foreground="#f0a500", wraplength=480,
+                      foreground="#f0a500", wraplength=540,
                       font=("sans-serif", 9, "italic")).pack(anchor="w", padx=28, pady=(0, 6))
 
-        # Password entry (shown only for encrypted)
         self.pw_frame = ttk.Frame(bk_frame)
         ttk.Label(self.pw_frame, text="Backup-Passwort:").pack(side="left", padx=(10, 5))
         self.ent_backup_pw = ttk.Entry(self.pw_frame, textvariable=self.backup_password, show="*")
@@ -1226,31 +1498,75 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
                     self.pw_frame.pack_forget()
             except Exception:
                 return
-
         self.backup_var.trace_add("write", toggle_pw)
         toggle_pw()
 
-        # ── DB Init (shown only for REINSTALL mode) ───────────────────────────
+        # DB init — only relevant for reinstall
         self.db_init_var = tk.StringVar(value=self.data.get('db_init_action', 'upgrade'))
-        self.db_init_frame = tk.LabelFrame(self.content_frame, text="Datenbankinitialisierung (nur bei Reinstall)",
-                                           bg=self.colors['bg'], fg=self.colors['fg'])
-        self.db_init_frame.pack(fill="x", pady=(8, 0))
+        db_frame = tk.LabelFrame(self.content_frame, text="Datenbankinitialisierung",
+                                 bg=self.colors['bg'], fg=self.colors['fg'])
+        db_frame.pack(fill="x", pady=(0, 0))
+        ttk.Label(db_frame,
+                  text="Nur relevant bei Reinstall. Bei Update wird diese Einstellung ignoriert.",
+                  foreground=self.colors['fg_sub'], wraplength=540).pack(anchor="w", padx=10, pady=(8, 4))
+        ttk.Radiobutton(db_frame, text="Upgrade  — Daten behalten, Schema migrieren",
+                        variable=self.db_init_var, value="upgrade").pack(anchor="w", padx=10, pady=(2, 2))
+        ttk.Radiobutton(db_frame, text="Factory Reset  — ALLE Daten löschen (Neuanfang)",
+                        variable=self.db_init_var, value="purge").pack(anchor="w", padx=10, pady=(2, 10))
 
-        ttk.Radiobutton(self.db_init_frame,
-                        text="Upgrade  — Daten behalten, Schema migrieren",
-                        variable=self.db_init_var, value="upgrade").pack(anchor="w", padx=10, pady=(8, 2))
-        ttk.Radiobutton(self.db_init_frame,
-                        text="Factory Reset  — ALLE Daten löschen (Neuanfang)",
-                        variable=self.db_init_var, value="purge").pack(anchor="w", padx=10, pady=(2, 8))
+    def step_upgrade_maintenance(self):
+        """Step 3/3: Maintenance & emergency actions."""
+        ttk.Label(self.content_frame, text="Wartung & Notfall", style=STYLE_HEADER).pack(pady=(0, 14))
 
-        def _toggle_db_init(*_):
-            if self.install_mode_var.get() == "reinstall":
-                self.db_init_frame.pack(fill="x", pady=(8, 0))
+        _, api_running = self._detect_broken_state()
+
+        ttk.Label(self.content_frame,
+                  text="Schnellzugriff auf Administrationsfunktionen — direkt, ohne vollständigen Reinstall.",
+                  foreground=self.colors['fg_sub'], wraplength=560).pack(anchor="w", pady=(0, 16))
+
+        # MFA Reset
+        mfa_frame = tk.LabelFrame(self.content_frame, text="MFA zurücksetzen",
+                                  bg=self.colors['bg'], fg=self.colors['fg'])
+        mfa_frame.pack(fill="x", pady=(0, 14))
+        ttk.Label(mfa_frame,
+                  text="Setzt MFA für den Admin-Account zurück. Notwendig wenn der Zugang zur "
+                       "Authenticator-App verloren wurde (z.B. nach Handywechsel oder Neuinstallation).",
+                  foreground=self.colors['fg_sub'], wraplength=540, justify="left"
+                  ).pack(anchor="w", padx=12, pady=(10, 8))
+
+        def _do_mfa_reset_direct():
+            if not messagebox.askyesno(
+                "MFA zurücksetzen?",
+                "MFA für den Admin-Account jetzt zurücksetzen?\n\n"
+                "Der Benutzer muss sich beim nächsten Login neu mit einem Authenticator einrichten."
+            ):
+                return
+            admin_user = self.data.get('admin_user', 'admin').strip() or 'admin'
+            err = self._exec_mfa_reset(admin_user)
+            if err is None:
+                messagebox.showinfo("MFA zurückgesetzt",
+                                    f"MFA für '{admin_user}' wurde zurückgesetzt.\n\n"
+                                    "Beim nächsten Login wird ein neuer Authenticator eingerichtet.")
             else:
-                self.db_init_frame.pack_forget()
+                messagebox.showerror("Fehler", f"MFA-Reset fehlgeschlagen:\n{err}")
 
-        self.install_mode_var.trace_add("write", _toggle_db_init)
-        _toggle_db_init()
+        mfa_btn = tk.Button(
+            mfa_frame,
+            text="🔐  MFA jetzt zurücksetzen",
+            bg="#1e3a5f", fg="#bfdbfe",
+            activebackground="#1e40af", activeforeground="white",
+            relief="flat", padx=14, pady=8, cursor="hand2",
+            font=("sans-serif", 10, "bold"),
+            command=_do_mfa_reset_direct,
+            state="normal" if api_running else "disabled"
+        )
+        mfa_btn.pack(anchor="w", padx=12, pady=(0, 4))
+
+        status_text = ("✓ YADS läuft — Direktzugriff aktiv." if api_running
+                       else "⚠ YADS-API läuft nicht — bitte YADS zuerst starten.")
+        status_color = self.colors['fg_sub'] if api_running else "#f0a500"
+        ttk.Label(mfa_frame, text=status_text, foreground=status_color,
+                  font=("sans-serif", 9, "italic")).pack(anchor="w", padx=12, pady=(2, 10))
 
     def execute_backup(self):
         b_type = self.backup_var.get()
