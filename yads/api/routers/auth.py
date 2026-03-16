@@ -33,6 +33,8 @@ templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UT
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    if not getattr(settings, "SETUP_COMPLETE", True):
+        return RedirectResponse(url="/wizard")
     return templates.TemplateResponse("login.html", {
         "request": request,
         "auth_mode": settings.AUTH_MODE,
