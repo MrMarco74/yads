@@ -66,9 +66,8 @@ class Settings(BaseSettings):
     MODULE_SIGNING_PUBLIC_KEY: Optional[str] = None
     MODULE_SIGNING_DISABLED: bool = False
 
-    # Setup Wizard
+    # Setup
     SETUP_COMPLETE: bool = False
-    SETUP_TOKEN: Optional[str] = None
     CONFIG_PATH: str = os.getenv("CONFIG_PATH", "/app/data/config.env")
 
     # Phase 4 Threat Intelligence API Keys
