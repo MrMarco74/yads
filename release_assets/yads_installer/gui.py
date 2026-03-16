@@ -754,11 +754,39 @@ class YADSInstallerGUI:
             if status is None or status not in (200, 201):
                 errors.append(f"DB-Reset fehlgeschlagen ({status}): {body}")
 
-        # 3b. Reinstall with data preservation: reset MFA for admin so he can re-enroll
-        # (user deleted the authenticator app expecting a fresh install)
-        is_upgrade_reinstall = self.is_upgrade and self.data.get('db_init_action', 'upgrade') == 'upgrade'
-        if is_upgrade_reinstall:
-            self.root.after(0, lambda: self._set_progress("MFA zurücksetzen (Reinstall)..."))
+        # 3b. MFA reset logic:
+        #   - Purge reinstall: reset automatically (DB wiped, old secret gone anyway)
+        #   - No-wipe reinstall: ask the user (they may or may not still have the authenticator)
+        #   - Upgrade / fresh install: never reset
+        is_purge = self.data.get('db_init_action') == 'purge'
+        is_no_wipe_reinstall = self.is_upgrade and not is_purge
+
+        do_mfa_reset = False
+        if self.is_upgrade and is_purge:
+            do_mfa_reset = True
+        elif is_no_wipe_reinstall:
+            # Ask the user — they may have kept the authenticator app
+            answer = [False]
+            done = threading.Event()
+            def _ask():
+                answer[0] = messagebox.askyesno(
+                    "MFA zurücksetzen?",
+                    "Haben Sie noch Zugang zu Ihrer Authenticator-App?\n\n"
+                    "• JA  → MFA bleibt aktiv, kein Reset (sicherer)\n"
+                    "• NEIN → MFA wird zurückgesetzt, Sie müssen sich neu einrichten\n\n"
+                    "Klicken Sie NEIN nur wenn Sie die App nicht mehr haben.",
+                    icon="question"
+                )
+                # answer[0] is True = still has access = no reset needed
+                # answer[0] is False = lost access = reset needed
+                answer[0] = not answer[0]
+                done.set()
+            self.root.after(0, _ask)
+            done.wait(timeout=120)
+            do_mfa_reset = answer[0]
+
+        if do_mfa_reset:
+            self.root.after(0, lambda: self._set_progress("MFA zurücksetzen..."))
             admin_user = self.data.get('admin_user', 'admin').strip() or 'admin'
             reset_script = (
                 "from sqlmodel import Session, select; "
