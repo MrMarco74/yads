@@ -262,8 +262,7 @@ async def finish_setup():
     from yads.models import SystemConfig
     from yads.database import engine
     from sqlmodel import Session
-    import threading, uuid
-    from datetime import datetime, timezone
+    import uuid
 
     with Session(engine) as session:
         # Persist license key for next boot
@@ -286,37 +285,6 @@ async def finish_setup():
         if not uuid_conf:
             session.add(SystemConfig(key="INSTANCE_UUID", value=instance_uuid))
 
-        # Send installation report only once
-        report_sent = session.get(SystemConfig, "INSTALL_REPORT_SENT")
-        if not report_sent:
-            session.add(SystemConfig(key="INSTALL_REPORT_SENT", value="1"))
-
         session.commit()
 
-    # Fire-and-forget installation report to support portal
-    if not report_sent:
-        payload = {
-            "instance_uuid": instance_uuid,
-            "version": settings.VERSION,
-            "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "install_type": "installer",
-        }
-
-        def _send():
-            try:
-                import requests
-                portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
-                verify_ssl = getattr(settings, "SUPPORT_PORTAL_VERIFY_SSL", True)
-                requests.post(
-                    f"{portal_url}/api/installation",
-                    json=payload,
-                    timeout=10,
-                    verify=verify_ssl,
-                )
-                logger.info(f"Installation report sent for instance {instance_uuid}")
-            except Exception as exc:
-                logger.warning(f"Could not send installation report: {exc}")
-
-        threading.Thread(target=_send, daemon=True).start()
-
-    return {"status": "completed"}
+    return {"status": "completed", "instance_uuid": instance_uuid}

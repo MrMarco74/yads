@@ -94,6 +94,7 @@ class YADSInstallerGUI:
             self.step_monitoring,
             self.step_remote_workers,
             self.step_admin,
+            self.step_telemetry,
             self.step_summary
         ])
         
@@ -116,35 +117,31 @@ class YADSInstallerGUI:
             # Try newer color-scheme preference
             out = subprocess.check_output(
                 ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-                stderr=subprocess.DEVNULL, text=True
+                stderr=subprocess.DEVNULL, text=True, timeout=2
             ).strip().lower()
             if "dark" in out:
                 return True
-            
+
             # Fallback to checking the actual theme name (Common on Mint/Cinnamon)
             out = subprocess.check_output(
                 ["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
-                stderr=subprocess.DEVNULL, text=True
+                stderr=subprocess.DEVNULL, text=True, timeout=2
             ).strip().lower()
             if "dark" in out:
                 return True
-        except subprocess.CalledProcessError:
-            pass # gsettings command not found or failed
-        except FileNotFoundError:
-            pass # gsettings command not found
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
         # 3. Check for specific Mint 'Mint-Y-Dark' or similar
         try:
             out = subprocess.check_output(
                 ["xfconf-query", "-c", "xsettings", "-p", "/Net/ThemeName"],
-                stderr=subprocess.DEVNULL, text=True
+                stderr=subprocess.DEVNULL, text=True, timeout=2
             ).strip().lower()
             if "dark" in out:
                 return True
-        except subprocess.CalledProcessError:
-            pass # xfconf-query command not found or failed
-        except FileNotFoundError:
-            pass # xfconf-query command not found
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
         return False
 
@@ -192,18 +189,24 @@ class YADSInstallerGUI:
 
     def load_logo(self):
         try:
-            import base64
+            import base64, io
             logo_data = pkgutil.get_data(__name__, "logo.png")
-            if logo_data:
-                # PhotoImage(data=) requires base64-encoded PNG data
+            if not logo_data:
+                self.logo_img = None
+                return
+            # Use Pillow to resize before handing to Tk — avoids hanging on large PNGs
+            try:
+                from PIL import Image, ImageTk
+                img = Image.open(io.BytesIO(logo_data))
+                img.thumbnail((128, 128), Image.LANCZOS)
+                self.logo_img = ImageTk.PhotoImage(img)
+            except ImportError:
+                # Pillow not available — fall back to tk.PhotoImage with base64
                 b64 = base64.b64encode(logo_data).decode("ascii")
                 full_img = tk.PhotoImage(data=b64)
-                # Scale down to ~128px: pick largest factor that keeps image >= 32px
                 w = full_img.width()
                 factor = max(1, w // 128)
                 self.logo_img = full_img.subsample(factor, factor)
-            else:
-                self.logo_img = None
         except Exception as e:
             print(f"Logo could not be loaded: {e}")
             self.logo_img = None
@@ -259,6 +262,9 @@ class YADSInstallerGUI:
                 if err:
                     messagebox.showerror("Eingabefehler", err)
                     return
+        elif current_fn == self.step_telemetry:
+            if hasattr(self, 'telemetry_var'):
+                self.data['send_telemetry'] = self.telemetry_var.get()
         elif current_fn == self.step_upgrade_backup:
             # Decide db_init_action for REINSTALL
             if hasattr(self, 'db_init_var'):
@@ -271,18 +277,32 @@ class YADSInstallerGUI:
                 self.current_step = len(self.steps) - 1
             else:
                 self.current_step += 1
+                # Reinstall+Upgrade: skip step_admin (admin stays in DB, no new credentials needed)
+                if (self.steps[self.current_step] == self.step_admin
+                        and self.is_upgrade
+                        and self.data.get('db_init_action', 'upgrade') != 'purge'):
+                    self.current_step += 1
             self.show_step()
         else:
             self.finish_setup()
 
     def _validate_admin(self):
+        import re
         user = self.data.get('admin_user', '').strip()
         pw = self.data.get('admin_pass', '')
         pw2 = self.data.get('admin_pass2', '')
         if not user:
             return "Benutzername darf nicht leer sein."
-        if len(pw) < 8:
-            return "Passwort muss mindestens 8 Zeichen lang sein."
+        if len(pw) < 12:
+            return f"Passwort zu kurz ({len(pw)}/12 Zeichen). BSI TR-02102 erfordert mind. 12 Zeichen."
+        cats = sum([
+            bool(re.search(r'[A-Z]', pw)),
+            bool(re.search(r'[a-z]', pw)),
+            bool(re.search(r'[0-9]', pw)),
+            bool(re.search(r'[^A-Za-z0-9]', pw)),
+        ])
+        if cats < 3:
+            return "Passwort muss mind. 3 Zeichenklassen enthalten (Großbuchstaben, Kleinbuchstaben, Ziffern, Sonderzeichen)."
         if pw != pw2:
             return "Passwörter stimmen nicht überein."
         return None
@@ -517,9 +537,27 @@ class YADSInstallerGUI:
             # REINSTALL or fresh install
             if self.is_upgrade:
                 print("Stopping existing containers for reinstall...")
-                subprocess.run(["docker", "compose", "down"], capture_output=True)
+                subprocess.run(["docker", "compose", "down"], capture_output=True, timeout=60)
+
+                db_action = self.data.get('db_init_action', 'upgrade')
+                if db_action == "purge":
+                    # Purge: drop the postgres volume so new password works cleanly
+                    subprocess.run(["docker", "volume", "rm", "-f", "yads_postgres_data"],
+                                   capture_output=True, timeout=30)
 
             self.generate_secrets()
+
+            # For reinstall with data preservation: keep existing POSTGRES_PASSWORD
+            # so the running volume isn't locked out by a new credential
+            if self.is_upgrade and self.data.get('db_init_action', 'upgrade') == "upgrade":
+                if os.path.exists(".env"):
+                    with open(".env") as f:
+                        for line in f:
+                            if line.startswith("POSTGRES_PASSWORD="):
+                                old_pw = line.split("=", 1)[1].strip()
+                                if old_pw:
+                                    self.secrets["POSTGRES_PASSWORD"] = old_pw
+                                break
             self.write_env_file()
             self.write_nginx_config()
             self.authenticate_registry()
@@ -549,24 +587,89 @@ class YADSInstallerGUI:
         self.btn_next.configure(state="disabled")
         self.root.update()
 
+    def _check_port_free(self, port):
+        """Returns the name of the process blocking the port, or None if free."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("0.0.0.0", int(port)))
+            return None
+        except OSError:
+            return f"Port {port} bereits belegt"
+
     def start_yads_and_open_browser(self):
         def _target():
             try:
-                subprocess.run(["docker", "compose", "up", "-d"], check=True, capture_output=True)
+                # Pre-flight: check if the configured port is free
+                port = int(self.data.get('api_port', 80))
+                conflict = self._check_port_free(port)
+                if conflict:
+                    msg = (f"Port {port}/TCP ist bereits belegt.\n\n"
+                           f"Bitte beende den anderen Dienst (z.B. Apache, Nginx) "
+                           f"oder wähle einen anderen Port in der Konfiguration.")
+                    self.root.after(0, lambda m=msg: messagebox.showerror("Port-Konflikt", m))
+                    self.root.after(0, lambda: self.btn_next.configure(state="normal"))
+                    return
+
+                result = subprocess.run(
+                    ["docker", "compose", "up", "-d", "--force-recreate"],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    # Filter out Docker Compose warnings — show only actual errors
+                    lines = (result.stderr + result.stdout).splitlines()
+                    errors = [l for l in lines if "level=warning" not in l and l.strip()]
+                    raise RuntimeError("\n".join(errors) or result.stderr.strip())
+
+                # Sync DB password: set it via Unix socket (no password needed from inside container)
+                # This fixes mismatches between .env and an existing postgres volume
+                self.root.after(0, lambda: self._set_progress("Datenbank-Passwort synchronisieren..."))
+                pg_password = self.secrets.get("POSTGRES_PASSWORD", "")
+                if pg_password:
+                    for _ in range(15):  # wait up to 30s for DB to be ready
+                        sync = subprocess.run(
+                            ["docker", "exec", "yads-db", "psql", "-U", "yads", "-d", "yads",
+                             "-c", f"ALTER USER yads WITH PASSWORD '{pg_password}';"],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        if sync.returncode == 0:
+                            break
+                        time.sleep(2)
 
                 proto = "https" if self.data['use_ssl'] else "http"
-                base_url = f"{proto}://{self.data['host']}:{self.data['api_port']}"
+                port = self.data['api_port']
+                base_url = f"{proto}://{self.data['host']}:{port}"
+                # Health check goes directly to yads-api (bypassing nginx which may still be starting)
+                # With nginx: yads-api is on YADS_DIRECT_PORT=8000
+                # Without nginx: yads-api is on API_PORT (e.g. 8085)
+                direct_port = 8000 if self.data.get('use_nginx') else int(port)
+                health_url = f"{proto}://localhost:{direct_port}/health"
 
-                # Wait until YADS API is reachable (max 60s)
+                # Wait until YADS API is reachable (max 90s)
                 import urllib.request
                 import urllib.error
-                self.root.after(0, lambda: self._set_progress("Warte auf YADS-Start..."))
-                for _ in range(30):
+                api_ready = False
+                for i in range(45):
+                    self.root.after(0, lambda i=i: self._set_progress(
+                        f"Warte auf YADS-Start... ({i*2}s) — {health_url}"))
                     try:
-                        urllib.request.urlopen(f"{base_url}/health", timeout=2)
+                        urllib.request.urlopen(health_url, timeout=2)
+                        api_ready = True
                         break
                     except Exception:
                         time.sleep(2)
+
+                if not api_ready:
+                    # Show docker logs for diagnosis
+                    logs = subprocess.run(
+                        ["docker", "logs", "--tail", "20", "yads-api"],
+                        capture_output=True, text=True
+                    )
+                    raise RuntimeError(
+                        f"YADS-API nicht erreichbar nach 90s.\n\n"
+                        f"Getestete URL: {health_url}\n\n"
+                        f"Letzte Container-Logs:\n{logs.stdout or logs.stderr}"
+                    )
 
                 # Post-start setup via API
                 self._run_post_start_setup(base_url)
@@ -577,8 +680,15 @@ class YADSInstallerGUI:
                 time.sleep(1)
                 self.root.after(100, self.root.destroy)
             except Exception as e:
-                print(f"Error starting YADS: {e}")
-                self.root.after(100, lambda: messagebox.showerror("Startup Error", f"Could not start YADS: {e}"))
+                err_msg = str(e)
+                print(f"Error starting YADS: {err_msg}")
+                def _show_err(m=err_msg):
+                    try:
+                        if self.root.winfo_exists():
+                            messagebox.showerror("Startup Error", f"Could not start YADS:\n\n{m}")
+                    except Exception:
+                        pass
+                self.root.after(100, _show_err)
 
         threading.Thread(target=_target, daemon=False).start()
 
@@ -610,31 +720,104 @@ class YADSInstallerGUI:
             except Exception as ex:
                 return None, str(ex)
 
+        errors = []
+
         # 1. License key
         license_key = self.data.get('license_key', '').strip()
         if license_key:
             self.root.after(0, lambda: self._set_progress("Lizenz aktivieren..."))
             status, body = _post("/setup/check-license", {"license_key": license_key})
-            if status not in (200, 201):
-                print(f"[Setup] License activation failed ({status}): {body}")
+            if status is None:
+                errors.append(f"Lizenz: Verbindungsfehler — {body}")
+            elif status not in (200, 201):
+                errors.append(f"Lizenz ungültig ({status}): {body}")
 
-        # 2. Create admin
-        admin_user = self.data.get('admin_user', '').strip()
-        admin_pass = self.data.get('admin_pass', '')
-        if admin_user and admin_pass:
-            self.root.after(0, lambda: self._set_progress("Admin-Konto anlegen..."))
-            status, body = _post("/setup/create-admin", {"username": admin_user, "password": admin_pass})
-            if status not in (200, 201):
-                print(f"[Setup] Admin creation failed ({status}): {body}")
+        # 2. Create admin — only for fresh install or purge reinstall
+        # For update or upgrade reinstall the admin already exists in the DB
+        is_fresh = not self.is_upgrade
+        is_purge = self.data.get('db_init_action') == 'purge'
+        if is_fresh or is_purge:
+            admin_user = self.data.get('admin_user', '').strip()
+            admin_pass = self.data.get('admin_pass', '')
+            if admin_user and admin_pass:
+                self.root.after(0, lambda: self._set_progress("Admin-Konto anlegen..."))
+                status, body = _post("/setup/create-admin", {"username": admin_user, "password": admin_pass})
+                if status is None:
+                    errors.append(f"Admin: Verbindungsfehler — {body}")
+                elif status not in (200, 201):
+                    errors.append(f"Admin-Erstellung fehlgeschlagen ({status}): {body}")
 
-        # 3. Mark setup complete
-        self.root.after(0, lambda: self._set_progress("Setup abschließen..."))
-        _post("/setup/finish", {})
-
-        # 4. DB init (purge) if REINSTALL + purge chosen
+        # 3. DB init (purge) if REINSTALL + purge chosen — before finish
         if self.data.get('db_init_action') == 'purge':
             self.root.after(0, lambda: self._set_progress("Datenbank zurücksetzen..."))
-            _post("/setup/init-data", {"action": "purge"})
+            status, body = _post("/setup/init-data", {"action": "purge"})
+            if status is None or status not in (200, 201):
+                errors.append(f"DB-Reset fehlgeschlagen ({status}): {body}")
+
+        # 4. Mark setup complete
+        self.root.after(0, lambda: self._set_progress("Setup abschließen..."))
+        status, body = _post("/setup/finish", {})
+        if status is None or status not in (200, 201):
+            errors.append(f"Setup-Abschluss fehlgeschlagen ({status}): {body}")
+        else:
+            # Retrieve the stable instance_uuid from the API response (may override local one)
+            if isinstance(body, dict) and body.get("instance_uuid"):
+                self.data['instance_uuid'] = body["instance_uuid"]
+
+        # 5. Send installation report — only if user opted in
+        if self.data.get('send_telemetry'):
+            self.root.after(0, lambda: self._set_progress("Installationsmeldung senden..."))
+            self._send_installation_report()
+
+        if errors:
+            msg = "Setup mit Warnungen abgeschlossen:\n\n" + "\n\n".join(errors)
+            def _show_warnings(m=msg):
+                try:
+                    if self.root.winfo_exists():
+                        messagebox.showwarning("Setup-Warnungen", m)
+                except Exception:
+                    pass
+            self.root.after(0, _show_warnings)
+
+    def _send_installation_report(self):
+        """Send anonymous installation report directly to the YADS support portal."""
+        import json as _json
+        import urllib.request
+        from datetime import datetime, timezone
+
+        instance_uuid = self.data.get('instance_uuid', '')
+
+        # Try to get the real version from the running YADS API
+        version = self.data.get('yads_version', 'latest')
+        try:
+            direct_port = 8000 if self.data.get('use_nginx') else int(self.data.get('api_port', 80))
+            proto = "https" if self.data.get('use_ssl') else "http"
+            v_req = urllib.request.urlopen(
+                f"{proto}://localhost:{direct_port}/api/updates/version", timeout=5
+            )
+            v_body = _json.loads(v_req.read())
+            version = v_body.get("version", version)
+        except Exception:
+            pass
+        payload = {
+            "instance_uuid": instance_uuid,
+            "version": version,
+            "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "install_type": "installer",
+        }
+        try:
+            data = _json.dumps(payload).encode()
+            req = urllib.request.Request(
+                "https://support.yads-security.com/api/installation",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+        except Exception as exc:
+            # Non-fatal — just log, don't surface to user
+            print(f"[Telemetry] Could not send installation report: {exc}")
 
     def authenticate_registry(self):
         # Read-only credentials for YADS registry
@@ -646,7 +829,7 @@ class YADSInstallerGUI:
             # Note: In a production environment, we might want to mask the token 
             # but for this installer it mirrors the original setup.sh logic.
             cmd = ["docker", "login", reg_url, "-u", reg_user, "--password-stdin"]
-            subprocess.run(cmd, input=reg_token, text=True, check=True, capture_output=True)
+            subprocess.run(cmd, input=reg_token, text=True, check=True, capture_output=True, timeout=30)
             print("Successfully authenticated with YADS registry.")
         except subprocess.CalledProcessError as e:
             print(f"Registry login failed: {e.stderr}")
@@ -713,6 +896,14 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         if profiles:
             env_content += f"COMPOSE_PROFILES={','.join(profiles)}\n"
 
+        # When nginx is active: yads-api uses YADS_DIRECT_PORT (8000) internally,
+        # nginx handles the external API_PORT — prevents port conflict
+        # When no nginx: YADS_DIRECT_PORT = API_PORT so yads-api is directly reachable
+        if use_nginx:
+            env_content += "YADS_DIRECT_PORT=8000\n"
+        else:
+            env_content += f"YADS_DIRECT_PORT={self.data['api_port']}\n"
+
         license_key = self.data.get('license_key', '').strip()
         if license_key:
             env_content += f"LICENSE_KEY={license_key}\n"
@@ -736,7 +927,13 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
                 content = content.replace(f"listen {self.data['api_port']};", f"listen {self.data['api_port']} ssl;")
             
             os.makedirs("nginx", exist_ok=True)
-            with open("nginx/nginx.conf", "w") as f:
+            # Docker may have created nginx/nginx.conf as a directory on a previous
+            # failed start (bind-mount with missing file) — remove it before writing
+            nginx_conf = "nginx/nginx.conf"
+            if os.path.isdir(nginx_conf):
+                import shutil
+                shutil.rmtree(nginx_conf)
+            with open(nginx_conf, "w") as f:
                 f.write(content)
 
     def prev_step(self):
@@ -749,7 +946,8 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         ttk.Label(self.content_frame, text="Vorhandene Installation erkannt", style=STYLE_HEADER).pack(pady=(0, 10))
 
         # ── Mode selection ────────────────────────────────────────────────────
-        mode_frame = ttk.LabelFrame(self.content_frame, text="Installationsmodus")
+        mode_frame = tk.LabelFrame(self.content_frame, text="Installationsmodus",
+                                   bg=self.colors['bg'], fg=self.colors['fg'])
         mode_frame.pack(fill="x", pady=(0, 12))
 
         mode_desc = tk.StringVar()
@@ -775,18 +973,35 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         _update_desc()
 
         # ── Backup (always enforced) ──────────────────────────────────────────
-        bk_frame = ttk.LabelFrame(self.content_frame, text="Backup (verpflichtend)")
+        bk_frame = tk.LabelFrame(self.content_frame, text="Backup (verpflichtend)",
+                                 bg=self.colors['bg'], fg=self.colors['fg'])
         bk_frame.pack(fill="x", pady=(0, 10))
 
         ttk.Label(bk_frame,
                   text="Ein Backup wird vor jeder Änderung automatisch erstellt.",
                   foreground=self.colors['fg_sub'], wraplength=480).pack(anchor="w", padx=10, pady=(8, 4))
 
-        for text, val in [
-            ("Unverschlüsselt  (SQL Dump via pg_dump)", "sql"),
-            ("Verschlüsselt  (YADS interner Mechanismus)", "encrypted"),
-        ]:
-            ttk.Radiobutton(bk_frame, text=text, variable=self.backup_var, value=val).pack(anchor="w", padx=10, pady=3)
+        # Check if yads-api is running
+        api_running = subprocess.run(
+            ["docker", "inspect", "--format", "{{.State.Running}}", "yads-api"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip() == "true"
+
+        ttk.Radiobutton(bk_frame, text="Unverschlüsselt  (SQL Dump via pg_dump)",
+                        variable=self.backup_var, value="sql").pack(anchor="w", padx=10, pady=3)
+
+        enc_rb = ttk.Radiobutton(bk_frame, text="Verschlüsselt  (YADS interner Mechanismus)",
+                                 variable=self.backup_var, value="encrypted")
+        enc_rb.pack(anchor="w", padx=10, pady=3)
+
+        if not api_running:
+            enc_rb.configure(state="disabled")
+            if self.backup_var.get() == "encrypted":
+                self.backup_var.set("sql")
+            ttk.Label(bk_frame,
+                      text="⚠ YADS-API läuft nicht — verschlüsseltes Backup nicht verfügbar.",
+                      foreground="#f0a500", wraplength=480,
+                      font=("sans-serif", 9, "italic")).pack(anchor="w", padx=28, pady=(0, 6))
 
         # Password entry (shown only for encrypted)
         self.pw_frame = ttk.Frame(bk_frame)
@@ -808,7 +1023,8 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
         # ── DB Init (shown only for REINSTALL mode) ───────────────────────────
         self.db_init_var = tk.StringVar(value=self.data.get('db_init_action', 'upgrade'))
-        self.db_init_frame = ttk.LabelFrame(self.content_frame, text="Datenbankinitialisierung (nur bei Reinstall)")
+        self.db_init_frame = tk.LabelFrame(self.content_frame, text="Datenbankinitialisierung (nur bei Reinstall)",
+                                           bg=self.colors['bg'], fg=self.colors['fg'])
         self.db_init_frame.pack(fill="x", pady=(8, 0))
 
         ttk.Radiobutton(self.db_init_frame,
@@ -838,22 +1054,36 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         filename = f"yads_backup_{timestamp}.sql.gz"
         try:
+            # Read password from .env
+            pg_password = ""
             if os.path.exists(".env"):
                 with open(".env", "r") as f:
                     for line in f:
                         if line.startswith("POSTGRES_PASSWORD="):
-                            pw = line.split("=")[1].strip().strip('"').strip("'")
-                            os.environ["PGPASSWORD"] = pw
+                            pg_password = line.split("=", 1)[1].strip().strip('"').strip("'")
                             break
-            
-            cmd = ["docker", "compose", "exec", "-T", "db", "pg_dump", "-U", "yads", "yads"]
-            with open(filename.replace(".gz", ""), "w") as f_out:
-                subprocess.run(cmd, check=True, stdout=f_out)
-            
-            subprocess.run(["gzip", filename.replace(".gz", "")], check=True)
-            messagebox.showinfo("Backup", f"Unverschlüsseltes Backup erstellt: {filename}")
+            env = os.environ.copy()
+            if pg_password:
+                env["PGPASSWORD"] = pg_password
+
+            # Check that yads-db container is running (use container name, not compose service,
+            # to work regardless of which directory/project started the stack)
+            check = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Running}}", "yads-db"],
+                capture_output=True, text=True, timeout=10
+            )
+            if check.stdout.strip() != "true":
+                raise RuntimeError("Container yads-db läuft nicht. Starte YADS zuerst oder backup manuell.")
+
+            sql_file = filename.replace(".gz", "")
+            cmd = ["docker", "exec", "-i", "yads-db", "pg_dump", "-U", "yads", "yads"]
+            with open(sql_file, "w") as f_out:
+                subprocess.run(cmd, check=True, stdout=f_out, env=env)
+
+            subprocess.run(["gzip", sql_file], check=True)
+            messagebox.showinfo("Backup", f"Backup erstellt: {os.path.abspath(filename)}")
         except Exception as e:
-            messagebox.showerror("Backup Error", f"SQL Backup fehlgeschlagen: {e}")
+            messagebox.showerror("Backup Error", f"SQL Backup fehlgeschlagen:\n{e}")
             raise
 
     def run_encrypted_backup(self):
@@ -872,9 +1102,17 @@ with SessionLocal() as session:
     with open('/tmp/backup.enc', 'wb') as f:
         f.write(buf.getbuffer())
 """
-            subprocess.run(["docker", "compose", "exec", "-T", "yads-api", "python3", "-c", script], check=True)
-            subprocess.run(["docker", "compose", "cp", "yads-api:/tmp/backup.enc", filename], check=True)
-            subprocess.run(["docker", "compose", "exec", "-T", "yads-api", "rm", "/tmp/backup.enc"], check=True)
+            # Check container is running before exec
+            check = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Running}}", "yads-api"],
+                capture_output=True, text=True, timeout=10
+            )
+            if check.stdout.strip() != "true":
+                raise RuntimeError("Container yads-api läuft nicht. Encrypted Backup nicht möglich.\n"
+                                   "Wähle 'Unverschlüsselt' oder starte YADS zuerst.")
+            subprocess.run(["docker", "exec", "-i", "yads-api", "python3", "-c", script], check=True)
+            subprocess.run(["docker", "cp", "yads-api:/tmp/backup.enc", filename], check=True)
+            subprocess.run(["docker", "exec", "-i", "yads-api", "rm", "/tmp/backup.enc"], check=True)
             messagebox.showinfo("Backup", f"Verschlüsseltes Backup erstellt: {filename}")
         except Exception as e:
             messagebox.showerror("Backup Error", f"Verschlüsseltes Backup fehlgeschlagen: {e}")
@@ -1017,7 +1255,7 @@ with SessionLocal() as session:
             self.lbl_resolution.configure(text="DNS: Could not resolve")
 
     def run_ping(self):
-        host = self.ent_host.get()
+        host = self.ent_host.get() if hasattr(self, 'ent_host') else self.data.get('host', '')
         ok, output = NetworkTools.ping(host)
         if ok:
             messagebox.showinfo("Ping Success", f"Host {host} is reachable.")
@@ -1070,32 +1308,120 @@ with SessionLocal() as session:
                   font=("sans-serif", 9, "italic")).pack(anchor="w", pady=(8, 0))
 
     def step_admin(self):
-        ttk.Label(self.content_frame, text="Admin-Konto einrichten", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame, text="Admin-Konto einrichten", style=STYLE_HEADER).pack(pady=(0, 6))
         ttk.Label(self.content_frame,
                   text="Dieses Konto wird nach dem Start automatisch über die Setup-API angelegt.",
-                  wraplength=500, foreground=self.colors['fg_sub']).pack(anchor="w", pady=(0, 12))
+                  wraplength=500, foreground=self.colors['fg_sub']).pack(anchor="w", pady=(0, 8))
 
-        content = self.content_frame
-        content.columnconfigure(1, weight=1)
+        # Grid must be in its own frame — cannot mix pack+grid in content_frame
+        grid = tk.Frame(self.content_frame, bg=self.colors['bg'])
+        grid.pack(fill="x")
+        grid.columnconfigure(1, weight=1)
 
-        ttk.Label(content, text="Benutzername:").grid(row=0, column=0, sticky="w", pady=4)
-        self.ent_admin_user = ttk.Entry(content)
+        ttk.Label(grid, text="Benutzername:").grid(row=0, column=0, sticky="w", pady=4)
+        self.ent_admin_user = ttk.Entry(grid)
         self.ent_admin_user.insert(0, self.data.get('admin_user', 'admin'))
         self.ent_admin_user.grid(row=0, column=1, sticky="ew", pady=4, padx=(8, 0))
 
-        ttk.Label(content, text="Passwort:").grid(row=1, column=0, sticky="w", pady=4)
-        self.ent_admin_pass = ttk.Entry(content, show="*")
+        ttk.Label(grid, text="Passwort:").grid(row=1, column=0, sticky="w", pady=4)
+        self.ent_admin_pass = ttk.Entry(grid, show="*")
         self.ent_admin_pass.grid(row=1, column=1, sticky="ew", pady=4, padx=(8, 0))
 
-        ttk.Label(content, text="Passwort bestätigen:").grid(row=2, column=0, sticky="w", pady=4)
-        self.ent_admin_pass2 = ttk.Entry(content, show="*")
+        ttk.Label(grid, text="Passwort bestätigen:").grid(row=2, column=0, sticky="w", pady=4)
+        self.ent_admin_pass2 = ttk.Entry(grid, show="*")
         self.ent_admin_pass2.grid(row=2, column=1, sticky="ew", pady=4, padx=(8, 0))
 
-        ttk.Label(content,
-                  text="Mindestens 8 Zeichen. Wird nicht in der .env gespeichert —\n"
-                       "nur einmalig an die laufende YADS-Instanz übergeben.",
+        # Password strength indicator
+        self.lbl_pw_strength = ttk.Label(self.content_frame, text="", wraplength=500, font=("sans-serif", 9))
+        self.lbl_pw_strength.pack(anchor="w", pady=(6, 0))
+
+        ttk.Label(self.content_frame,
+                  text="BSI TR-02102: mind. 12 Zeichen, Groß-/Kleinbuchstaben, Ziffern und Sonderzeichen.",
                   wraplength=500, foreground=self.colors['fg_sub'],
-                  font=("sans-serif", 9, "italic")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+                  font=("sans-serif", 9, "italic")).pack(anchor="w", pady=(4, 0))
+
+        self.ent_admin_pass.bind("<KeyRelease>", lambda e: self._update_pw_strength())
+        self.ent_admin_pass2.bind("<KeyRelease>", lambda e: self._update_pw_strength())
+
+    def _update_pw_strength(self):
+        import re
+        if not hasattr(self, 'ent_admin_pass'):
+            return
+        pw = self.ent_admin_pass.get()
+        pw2 = self.ent_admin_pass2.get() if hasattr(self, 'ent_admin_pass2') else ""
+        issues = []
+        if len(pw) < 12:
+            issues.append(f"zu kurz ({len(pw)}/12 Zeichen)")
+        cats = sum([
+            bool(re.search(r'[A-Z]', pw)),
+            bool(re.search(r'[a-z]', pw)),
+            bool(re.search(r'[0-9]', pw)),
+            bool(re.search(r'[^A-Za-z0-9]', pw)),
+        ])
+        if cats < 3:
+            issues.append("mind. 3 Zeichenklassen (Groß, Klein, Ziffern, Sonderzeichen)")
+        if pw2 and pw != pw2:
+            issues.append("Passwörter stimmen nicht überein")
+        if not hasattr(self, 'lbl_pw_strength'):
+            return
+        if not pw:
+            self.lbl_pw_strength.configure(text="", foreground=self.colors['fg_sub'])
+        elif issues:
+            self.lbl_pw_strength.configure(
+                text="✗ " + " · ".join(issues),
+                foreground=self.colors['error'])
+        else:
+            self.lbl_pw_strength.configure(
+                text="✓ Passwort erfüllt BSI-Anforderungen" + (" · stimmt überein" if pw2 else ""),
+                foreground=self.colors['success'])
+    def step_telemetry(self):
+        import uuid as _uuid
+        ttk.Label(self.content_frame, text="Installationsmeldung", style=STYLE_HEADER).pack(pady=(0, 10))
+
+        info = (
+            "Möchten Sie eine anonyme Installationsmeldung an das YADS-Team senden?\n\n"
+            "Dies hilft uns, die Anzahl aktiver Installationen und die verwendeten "
+            "Versionen im Überblick zu behalten. Es werden keine persönlichen Daten, "
+            "keine Domainnamen und keine Scan-Ergebnisse übertragen."
+        )
+        ttk.Label(self.content_frame, text=info, wraplength=520, justify="left").pack(anchor="w", pady=(0, 12))
+
+        # Generate/reuse instance UUID so the preview is stable
+        if not self.data.get('instance_uuid'):
+            self.data['instance_uuid'] = str(_uuid.uuid4())
+
+        preview = (
+            "Folgende Daten würden gesendet:\n"
+            f"  • instance_uuid : {self.data['instance_uuid']}\n"
+            f"  • version       : {self.data.get('yads_version', 'latest')}\n"
+            f"  • install_type  : installer\n"
+            f"  • submitted_at  : <Zeitstempel beim Senden>"
+        )
+        preview_frame = tk.Frame(self.content_frame, bg=self.colors['bg_alt'],
+                                  bd=1, relief="solid")
+        preview_frame.pack(fill="x", pady=(0, 14))
+        tk.Label(preview_frame, text=preview, bg=self.colors['bg_alt'], fg=self.colors['fg'],
+                 font=("Monospace", 9), justify="left", anchor="w",
+                 padx=12, pady=10).pack(fill="x")
+
+        if not hasattr(self, 'telemetry_var'):
+            self.telemetry_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self.content_frame,
+            text="Ja, ich sende eine anonyme Installationsmeldung an das YADS-Team.",
+            variable=self.telemetry_var,
+            bg=self.colors['bg'], fg=self.colors['fg'],
+            selectcolor=self.colors['bg_alt'],
+            activebackground=self.colors['bg'],
+            activeforeground=self.colors['fg'],
+        ).pack(anchor="w", pady=(0, 4))
+
+        ttk.Label(
+            self.content_frame,
+            text="Die Meldung ist optional. Sie können diesen Schritt auch überspringen.",
+            foreground=self.colors['fg_muted'],
+        ).pack(anchor="w")
+
     def step_summary(self):
         mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
         if self.is_upgrade and mode == "update":
