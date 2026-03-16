@@ -228,8 +228,9 @@ async def create_admin(req: AdminRequest):
         existing_user = session.exec(select(User).where(User.username == username)).first()
         
         if existing_user:
-            # Update password
+            # Update password and clear force_password_change set by auto-seeding
             existing_user.password_hash = get_password_hash(password)
+            existing_user.force_password_change = False
             session.add(existing_user)
             logger.info(f"Updated password for existing admin: {username}")
         else:
@@ -238,7 +239,8 @@ async def create_admin(req: AdminRequest):
                 username=username,
                 password_hash=get_password_hash(password),
                 role="admin",
-                is_active=True
+                is_active=True,
+                force_password_change=False,
             )
             session.add(user)
             
@@ -256,20 +258,65 @@ async def create_admin(req: AdminRequest):
 async def finish_setup():
     update_persistent_config("SETUP_COMPLETE", "true")
     settings.SETUP_COMPLETE = True
-    
-    # Also ensure license is in SystemConfig table for next boot
+
     from yads.models import SystemConfig
     from yads.database import engine
     from sqlmodel import Session
-    
-    if settings.LICENSE_KEY:
-        with Session(engine) as session:
+    import threading, uuid
+    from datetime import datetime, timezone
+
+    with Session(engine) as session:
+        # Persist license key for next boot
+        if settings.LICENSE_KEY:
             config = session.get(SystemConfig, "license_key")
             if config:
                 config.value = settings.LICENSE_KEY
             else:
                 config = SystemConfig(key="license_key", value=settings.LICENSE_KEY)
             session.add(config)
-            session.commit()
-            
+
+        # Auto-dismiss onboarding wizard for admin — GUI installer already did setup
+        done_key = "ONBOARDING_DONE_admin"
+        if not session.get(SystemConfig, done_key):
+            session.add(SystemConfig(key=done_key, value="1"))
+
+        # Ensure stable instance UUID
+        uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+        instance_uuid = uuid_conf.value if uuid_conf else str(uuid.uuid4())
+        if not uuid_conf:
+            session.add(SystemConfig(key="INSTANCE_UUID", value=instance_uuid))
+
+        # Send installation report only once
+        report_sent = session.get(SystemConfig, "INSTALL_REPORT_SENT")
+        if not report_sent:
+            session.add(SystemConfig(key="INSTALL_REPORT_SENT", value="1"))
+
+        session.commit()
+
+    # Fire-and-forget installation report to support portal
+    if not report_sent:
+        payload = {
+            "instance_uuid": instance_uuid,
+            "version": settings.VERSION,
+            "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "install_type": "installer",
+        }
+
+        def _send():
+            try:
+                import requests
+                portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
+                verify_ssl = getattr(settings, "SUPPORT_PORTAL_VERIFY_SSL", True)
+                requests.post(
+                    f"{portal_url}/api/installation",
+                    json=payload,
+                    timeout=10,
+                    verify=verify_ssl,
+                )
+                logger.info(f"Installation report sent for instance {instance_uuid}")
+            except Exception as exc:
+                logger.warning(f"Could not send installation report: {exc}")
+
+        threading.Thread(target=_send, daemon=True).start()
+
     return {"status": "completed"}
