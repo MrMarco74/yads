@@ -42,6 +42,7 @@ class InstallReportPayload(BaseModel):
     version: str = Field(..., max_length=50)
     submitted_at: Optional[str] = None
     install_type: Optional[str] = Field(default="unknown", max_length=32)
+    customer_id: Optional[str] = Field(default=None, max_length=64)
 
 
 # ---------------------------------------------------------------------------
@@ -59,20 +60,23 @@ async def ingest_installation(
     ).first()
 
     install_type = (payload.install_type or "unknown").strip() or "unknown"
+    customer_id = (payload.customer_id or "").strip() or None
     now = datetime.now(timezone.utc)
     if existing:
         existing.version = payload.version
         existing.last_seen = now
         existing.report_count += 1
-        # Upgrade install_type from "unknown" if we now have a real value
         if existing.install_type == "unknown" and install_type != "unknown":
             existing.install_type = install_type
+        if not existing.customer_id and customer_id:
+            existing.customer_id = customer_id
         session.add(existing)
     else:
         session.add(InstallationReport(
             instance_uuid=payload.instance_uuid,
             version=payload.version,
             install_type=install_type,
+            customer_id=customer_id,
         ))
     session.commit()
     return {"ok": True}
@@ -87,6 +91,15 @@ async def list_installations(
     rows = session.exec(
         select(InstallationReport).order_by(InstallationReport.last_seen.desc())
     ).all()
+
+    # Build customer_id → customer_name lookup
+    from ..models import CustomerKey
+    cust_ids = {r.customer_id for r in rows if r.customer_id}
+    cust_map: dict = {}
+    for cid in cust_ids:
+        ck = session.get(CustomerKey, cid)
+        if ck:
+            cust_map[cid] = ck.customer_name
 
     # Version distribution
     version_dist: dict = {}
@@ -104,6 +117,8 @@ async def list_installations(
                 "instance_uuid": r.instance_uuid,
                 "version": r.version,
                 "install_type": r.install_type,
+                "customer_id": r.customer_id,
+                "customer_name": cust_map.get(r.customer_id) if r.customer_id else None,
                 "first_seen": r.first_seen.isoformat(),
                 "last_seen": r.last_seen.isoformat(),
                 "report_count": r.report_count,
