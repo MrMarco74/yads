@@ -36,6 +36,29 @@ def get_lic_status():
         return None
 
 templates.env.globals['get_license_status'] = get_lic_status
+
+def get_activation_required():
+    """Returns True if this is a business license that has not yet been activated."""
+    from yads.database import engine
+    from yads.core.license import license_manager
+    from yads.models import SystemConfig
+    from sqlmodel import Session
+    try:
+        with Session(engine) as session:
+            lic_conf = session.get(SystemConfig, "license_key")
+            if not lic_conf or not lic_conf.value:
+                return False
+            lic_data = license_manager.verify(lic_conf.value)
+            if not lic_data or not lic_data.get("customer_id"):
+                return False  # CE — no activation required
+            act_conf = session.get(SystemConfig, "ACTIVATION_CODE")
+            if not act_conf or not act_conf.value:
+                return True
+            return not bool(license_manager.verify(act_conf.value))
+    except Exception:
+        return False
+
+templates.env.globals['get_activation_required'] = get_activation_required
 templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 templates.env.globals['_'] = _translate
