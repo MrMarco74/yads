@@ -147,6 +147,13 @@ async def send_installation_report(
 
     payload = _build_telemetry_payload(session)
 
+    # Mark report as sent to avoid duplicate from /setup/finish
+    from yads.models import SystemConfig as _SC
+    existing_flag = session.get(_SC, "INSTALL_REPORT_SENT")
+    if not existing_flag:
+        session.add(_SC(key="INSTALL_REPORT_SENT", value="1"))
+        session.commit()
+
     portal_url = getattr(settings, "SUPPORT_PORTAL_URL", "").rstrip("/")
     if portal_url:
         def _send():
