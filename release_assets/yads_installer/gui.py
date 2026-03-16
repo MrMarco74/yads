@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import subprocess
 import os
 import pkgutil
+import socket
 import threading
 import time
 import webbrowser
@@ -19,17 +20,23 @@ class YADSInstallerGUI:
         self.root.geometry("600x500")
         
         self.current_step = 0
+        _real_ip = NetworkTools._real_ip() or ""
+        try:
+            _real_hostname = socket.gethostname()
+        except Exception:
+            _real_hostname = _real_ip or "localhost"
+        _default_host = _real_hostname or _real_ip or "localhost"
         self.data = {
             "api_port": "80",
-            "host": "localhost",
+            "host": _default_host,
             "use_nginx": True,
             "use_ssl": False,
             "ssl_choice": "1", # 1: self-signed, 2: custom
-            "ssl_cn": "localhost",
+            "ssl_cn": _default_host,
             "auth_mode": "local", # local, oidc
             "kc_choice": "1",    # 1: Local, 2: Bundled, 3: External
             "kc_port": "8080",
-            "yads_host": "localhost",
+            "yads_host": _default_host,
             "mon_choice": "1",   # 1: None, 2: Bundled, 3: External
             "grafana_port": "3000",
             "admin_email": "admin@example.com",
