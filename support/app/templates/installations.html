@@ -42,6 +42,53 @@
 </div>
 {% endif %}
 
+<!-- Offline activation: manual code ingestion -->
+<div class="card mb-3">
+  <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.75rem;">Offline-Aktivierung einpflegen</h2>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;">
+    Aktivierungscode des Kunden hier einfügen (aus <code>yads-activation-request.json</code> oder per E-Mail erhalten).
+  </p>
+  <div style="display:flex;gap:0.5rem;align-items:flex-start;">
+    <textarea id="act-code-input" rows="3"
+      placeholder="Aktivierungscode einfügen…"
+      style="flex:1;font-family:monospace;font-size:0.8rem;padding:0.5rem;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);resize:vertical;"></textarea>
+    <button onclick="submitOfflineActivation()"
+      style="padding:0.5rem 1.2rem;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap;">
+      Aktivieren
+    </button>
+  </div>
+  <div id="act-result" style="margin-top:0.5rem;font-size:0.85rem;display:none;"></div>
+</div>
+<script>
+async function submitOfflineActivation() {
+  const code = document.getElementById('act-code-input').value.trim();
+  const result = document.getElementById('act-result');
+  if (!code) return;
+  result.style.display = 'none';
+  try {
+    const resp = await fetch('/api/admin/activate-offline', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + (document.cookie.match(/admin_token=([^;]+)/)||['',''])[1]},
+      body: JSON.stringify({code})
+    });
+    const data = await resp.json();
+    result.style.display = 'block';
+    if (resp.ok) {
+      result.style.color = '#22c55e';
+      result.textContent = '✓ Aktivierung erfolgreich eingetragen (' + data.instance_uuid + '). Seite neu laden, um sie in der Liste zu sehen.';
+    } else {
+      result.style.color = '#ef4444';
+      result.textContent = '✗ Fehler: ' + (data.detail || JSON.stringify(data));
+    }
+  } catch(e) {
+    result.style.display = 'block';
+    result.style.color = '#ef4444';
+    result.textContent = '✗ Netzwerkfehler: ' + e;
+  }
+}
+</script>
+
 <!-- Per-customer summary -->
 {% if by_customer %}
 <div class="card mb-3">
