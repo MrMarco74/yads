@@ -48,7 +48,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:changeme_in_env@db:5432/yads}
       - REDIS_URL=redis://redis:6379/0
       - LOG_DIR=/app/logs
       - MFA_ENABLED=${MFA_ENABLED:-true}
@@ -100,7 +100,7 @@ services:
     image: registry.yads-security.com/yads/yads-worker:latest
     command: python /app/scripts/start_worker.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:changeme_in_env@db:5432/yads}
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
@@ -139,7 +139,7 @@ services:
     image: registry.yads-security.com/yads/yads-worker:latest
     command: python /app/scripts/start_distributed_worker.py
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:changeme_in_env@db:5432/yads}
       - REDIS_URL=redis://redis:6379/0
       - MANAGER_URL=http://yads-api:8000
       - WORKER_REGISTRATION_TOKEN=${WORKER_REGISTRATION_TOKEN}
@@ -316,7 +316,7 @@ services:
     image: registry.yads-security.com/yads/yads-worker:latest
     command: celery -A yads.worker beat --loglevel=INFO
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:${POSTGRES_PASSWORD:-changeme_in_env}@db:5432/yads}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:changeme_in_env@db:5432/yads}
       - REDIS_URL=redis://redis:6379/0
     networks:
       - yads-internal
