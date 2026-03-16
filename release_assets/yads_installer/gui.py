@@ -214,7 +214,11 @@ class YADSInstallerGUI:
         
         self.steps[self.current_step]()
         
-        self.btn_prev.configure(state="normal" if self.current_step > 0 else "disabled")
+        if self.current_step > 0:
+            self.btn_prev.pack(side="left", padx=40, pady=10)
+            self.btn_prev.configure(state="normal")
+        else:
+            self.btn_prev.pack_forget()
         self.btn_next.configure(text="Finish" if self.current_step == len(self.steps)-1 else "Next")
 
     def next_step(self):
