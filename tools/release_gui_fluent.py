@@ -583,11 +583,12 @@ class ProdDeployWorker(QThread):
 
     def __init__(self, project_root: Path, wipe_reinstall: bool = False,
                  deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True,
-                 setup_token: str = ""):
+                 setup_token: str = "", pg_password: str = ""):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
         self.setup_token = setup_token
+        self.pg_password = pg_password
         self.deploy_app = deploy_app
         self.deploy_worker = deploy_worker  # only needed when scanner tools / Python deps change
         self.deploy_backup = deploy_backup
@@ -1049,16 +1050,24 @@ class ProdDeployWorker(QThread):
             if (self.project_root / ".env").exists():
                 self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
 
-            # Inject SETUP_TOKEN into remote .env for fresh installs
-            if self.wipe_reinstall and self.setup_token:
-                self._log(f"Injecting SETUP_TOKEN into remote .env...", "info")
-                inject_cmd = (
-                    f"cd {self.remote_deploy_dir} && "
-                    f"touch .env && "
-                    f"sed -i '/^SETUP_TOKEN=/d' .env && "
-                    f"echo 'SETUP_TOKEN={self.setup_token}' >> .env"
-                )
-                self._run_cmd(["ssh", self.remote_host, inject_cmd])
+            # Inject fresh credentials into remote .env for wipe+reinstall
+            if self.wipe_reinstall and (self.setup_token or self.pg_password):
+                self._log("Injecting fresh credentials into remote .env...", "info")
+                cmds = [f"cd {self.remote_deploy_dir}", "touch .env"]
+                if self.setup_token:
+                    cmds += [
+                        "sed -i '/^SETUP_TOKEN=/d' .env",
+                        f"echo 'SETUP_TOKEN={self.setup_token}' >> .env",
+                    ]
+                if self.pg_password:
+                    db_url = f"postgresql://yads:{self.pg_password}@db:5432/yads"
+                    cmds += [
+                        "sed -i '/^POSTGRES_PASSWORD=/d' .env",
+                        "sed -i '/^DATABASE_URL=/d' .env",
+                        f"echo 'POSTGRES_PASSWORD={self.pg_password}' >> .env",
+                        f"echo 'DATABASE_URL={db_url}' >> .env",
+                    ]
+                self._run_cmd(["ssh", self.remote_host, " && ".join(cmds)])
 
             self._log("Creating backup directories on remote host...", "info")
             self._run_cmd(["ssh", self.remote_host, "mkdir -p '/mnt/backups/yads/daily' '/mnt/backups/yads/monthly'"])
@@ -1480,21 +1489,23 @@ class ProdDeployPage(QWidget):
             return
 
         if self.wipe_check.isChecked():
-            # Generate a one-time SETUP_TOKEN for the fresh install
+            # Generate safe credentials for the fresh install (no URL-special chars)
             self._setup_token = _secrets.token_hex(16)
+            self._fresh_pg_password = _secrets.token_urlsafe(24).replace('-', 'x').replace('_', 'y')
             token_box = MessageBox(
-                "Setup Token generiert",
-                f"Ein einmaliger Setup-Token wurde generiert:\n\n"
-                f"  {self._setup_token}\n\n"
-                f"Dieser Token wird automatisch in die remote .env injiziert.\n"
-                f"Das Setup-Wizard auf prod.yads-security.com wird diesen Token benötigen.\n\n"
-                f"Der Token wurde in die Zwischenablage kopiert.",
+                "Zugangsdaten für Neuinstallation",
+                f"Folgende Werte werden automatisch in die remote .env injiziert:\n\n"
+                f"  SETUP_TOKEN:       {self._setup_token}\n"
+                f"  POSTGRES_PASSWORD: {self._fresh_pg_password}\n\n"
+                f"Der Setup-Token wurde in die Zwischenablage kopiert.\n"
+                f"Das Setup-Wizard auf prod.yads-security.com benötigt den Setup-Token.",
                 self
             )
             QApplication.clipboard().setText(self._setup_token)
             token_box.exec()
         else:
             self._setup_token = ""
+            self._fresh_pg_password = ""
 
         self._start_worker()
 
@@ -1530,7 +1541,8 @@ class ProdDeployPage(QWidget):
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
             deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False,
-            setup_token=getattr(self, '_setup_token', '') if operation == "release" else ''
+            setup_token=getattr(self, '_setup_token', '') if operation == "release" else '',
+            pg_password=getattr(self, '_fresh_pg_password', '') if operation == "release" else ''
         )
         self._active_worker.tools_tag = self.tools_tag_input.text().strip() or '1.0'
         self._active_worker.operation = operation
