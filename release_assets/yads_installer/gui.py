@@ -1558,7 +1558,10 @@ with SessionLocal() as session:
             except Exception:
                 pass
 
-        # Resolve real version from running YADS API for the preview
+        # Resolve real version for the preview:
+        # 1. Try running YADS API (works for upgrades / if already running)
+        # 2. Try docker image label YADS_GIT_SHA (works after image pull)
+        # 3. Fall back to "latest (wird beim Senden aufgelöst)"
         import json as _json2
         preview_version = self.data.get('yads_version', '')
         try:
@@ -1569,7 +1572,20 @@ with SessionLocal() as session:
         except Exception:
             pass
         if not preview_version:
-            preview_version = "unbekannt"
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "--format",
+                     "{{index .Config.Labels \"YADS_GIT_SHA\"}}",
+                     "registry.yads-security.com/yads/yads-api:latest"],
+                    capture_output=True, text=True, timeout=5
+                )
+                sha = result.stdout.strip()
+                if sha:
+                    preview_version = f"latest (SHA {sha[:8]})"
+            except Exception:
+                pass
+        if not preview_version:
+            preview_version = "latest (wird beim Senden aufgelöst)"
 
         preview = (
             "Folgende Daten würden gesendet:\n"
