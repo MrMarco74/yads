@@ -15,11 +15,10 @@ def _create_desktop_entry():
     try:
         os.makedirs(icon_dir, exist_ok=True)
         icon_path = os.path.join(icon_dir, "yads-setup.png")
-        if not os.path.exists(icon_path):
-            logo_data = pkgutil.get_data("yads_installer", "logo.png")
-            if logo_data:
-                with open(icon_path, "wb") as f:
-                    f.write(logo_data)
+        logo_data = pkgutil.get_data("yads_installer", "logo.png")
+        if logo_data:
+            with open(icon_path, "wb") as f:
+                f.write(logo_data)
     except Exception as e:
         print(f"[Desktop] Could not write icon: {e}")
         icon_path = "yads-setup"
