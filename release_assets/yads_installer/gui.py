@@ -1558,10 +1558,23 @@ with SessionLocal() as session:
             except Exception:
                 pass
 
+        # Resolve real version from running YADS API for the preview
+        import json as _json2
+        preview_version = self.data.get('yads_version', '')
+        try:
+            v_req = urllib.request.urlopen(
+                f"{self._base_url_for_api()}/api/updates/version", timeout=4
+            )
+            preview_version = _json2.loads(v_req.read()).get("version", preview_version) or preview_version
+        except Exception:
+            pass
+        if not preview_version:
+            preview_version = "unbekannt"
+
         preview = (
             "Folgende Daten würden gesendet:\n"
             f"  • instance_uuid : {self.data['instance_uuid']}\n"
-            f"  • version       : {self.data.get('yads_version', 'latest')}\n"
+            f"  • version       : {preview_version}\n"
             f"  • install_type  : installer\n"
         )
         if preview_customer_id:
@@ -1589,7 +1602,7 @@ with SessionLocal() as session:
         ttk.Label(
             self.content_frame,
             text="Die Meldung ist optional. Sie können diesen Schritt auch überspringen.",
-            foreground=self.colors['fg_muted'],
+            foreground=self.colors['fg_sub'],
         ).pack(anchor="w")
 
     def step_summary(self):
