@@ -52,6 +52,12 @@ class YADSInstallerGUI:
         self.dark_mode = self.detect_dark_mode()
         self.setup_styles()
         self.load_logo()
+        # Set window icon (taskbar + title bar)
+        if self.logo_img:
+            try:
+                root.iconphoto(True, self.logo_img)
+            except Exception:
+                pass
         
         self.main_container = tk.Frame(root, bg=self.colors['bg'])
         self.main_container.pack(fill="both", expand=True)
