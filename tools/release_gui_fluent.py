@@ -601,7 +601,7 @@ class ProdDeployWorker(QThread):
         self.current_process = None
 
         # Deployment target
-        self.remote_host = "root@prod.example.com"
+        self.remote_host = "root@demo.example.com"
         self.stack_name = "yads"
         self.remote_deploy_dir = "~/deploy/yads"
 
@@ -1376,7 +1376,7 @@ class ProdDeployPage(QWidget):
 
         # Info Banner
         self.status_label = BodyLabel(
-            "⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com", self
+            "⚠️  Production Update — existing stack only, no data wiped. Target: root@demo.example.com", self
         )
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
@@ -1600,13 +1600,13 @@ class ProdDeployPage(QWidget):
             self.status_label.setText("🛑 WIPE & REINSTALL — ALL REMOTE DATA WILL BE DESTROYED!")
             self.setup_card.setVisible(True)
         else:
-            self.status_label.setText("⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com")
+            self.status_label.setText("⚠️  Production Update — existing stack only, no data wiped. Target: root@demo.example.com")
             self.setup_card.setVisible(False)
 
     def _on_deploy(self):
         import secrets as _secrets
         msg = (
-            "You are about to start a LIVE deployment to prod.example.com.\n\n"
+            "You are about to start a LIVE deployment to demo.yads-security.com.\n\n"
             "This will build, transfer, and update the application services.\n"
         )
         if self.wipe_check.isChecked():
@@ -1643,7 +1643,7 @@ class ProdDeployPage(QWidget):
     def _on_cleanup_request(self):
         box = MessageBox(
             "Confirm Remote Cleanup",
-            "This will run 'docker system prune -af' on root@prod.example.com.\n\n"
+            "This will run 'docker system prune -af' on root@demo.example.com.\n\n"
             "This removes ALL unused containers, networks, and images (including non-dangling ones).\n"
             "Volumes are NOT deleted.\n\n"
             "Proceed?",
@@ -1820,7 +1820,7 @@ class ProdDeployPage(QWidget):
         if not services:
             # Fallback: use known service list
             services = ["yads_yads-api", "yads_yads-worker-primary", "yads_yads-backup"]
-        remote_host = getattr(worker, 'remote_host', "root@prod.example.com") if worker else "root@prod.example.com"
+        remote_host = getattr(worker, 'remote_host', "root@demo.example.com") if worker else "root@demo.example.com"
 
         import threading, subprocess as _sp
         def run_rollback():
@@ -1858,7 +1858,7 @@ class ProdDeployPage(QWidget):
                 result = subprocess.run(
                     ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
                      "-o", "StrictHostKeyChecking=accept-new",
-                     "root@prod.example.com", "echo", "ok"],
+                     "root@demo.example.com", "echo", "ok"],
                     capture_output=True, text=True, timeout=10
                 )
                 ok = result.returncode == 0
