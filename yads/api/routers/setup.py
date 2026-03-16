@@ -16,9 +16,6 @@ logger = logging.getLogger("yads-setup")
 
 # -- Models --
 
-class SetupTokenRequest(BaseModel):
-    token: str
-
 class LicenseRequest(BaseModel):
     license_key: str
 
@@ -64,21 +61,6 @@ def update_persistent_config(key: str, value: str):
         f.writelines(new_lines)
 
 # -- Endpoints --
-
-@router.post("/verify-token")
-async def verify_setup_token(req: SetupTokenRequest):
-    expected = settings.SETUP_TOKEN
-    if not expected:
-        # No token configured — skip token verification
-        return {"status": "ok"}
-    if not req.token or req.token.strip() != expected:
-        raise HTTPException(status_code=403, detail="Invalid setup token")
-    return {"status": "ok"}
-
-@router.get("/token-required")
-async def token_required():
-    """Check whether a setup token is configured."""
-    return {"required": bool(settings.SETUP_TOKEN)}
 
 @router.post("/check-license")
 async def check_license(req: LicenseRequest):

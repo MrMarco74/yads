@@ -261,21 +261,33 @@ async def lifespan(app: FastAPI):
             
             
             # Create Default Admin if None Exist
+            # Priority: YADS_ADMIN_USER/YADS_ADMIN_PASS env vars (set by installer or manual deploy)
+            # Fallback: admin/admin with force_password_change=True
             with Session(engine) as session:
                 from yads.models import User
                 from yads.auth.security import get_password_hash
                 existing_users = session.exec(select(User)).first()
                 if not existing_users:
-                    logger.warning("No users found. Creating default 'admin' user.")
-                    default_admin = User(
-                        username="admin",
-                        password_hash=get_password_hash("admin"),
-                        role="admin",
-                        force_password_change=True,
-                    )
-                    session.add(default_admin)
-                    session.commit()
-
+                    env_user = os.getenv("YADS_ADMIN_USER", "").strip()
+                    env_pass = os.getenv("YADS_ADMIN_PASS", "").strip()
+                    if env_user and env_pass:
+                        logger.info(f"Seeding admin from env: {env_user}")
+                        admin = User(
+                            username=env_user,
+                            password_hash=get_password_hash(env_pass),
+                            role="admin",
+                            is_active=True,
+                            force_password_change=False,
+                        )
+                    else:
+                        logger.warning("No users found. Creating default 'admin' user (force_password_change=True).")
+                        admin = User(
+                            username="admin",
+                            password_hash=get_password_hash("admin"),
+                            role="admin",
+                            force_password_change=True,
+                        )
+                    session.add(admin)
                     session.commit()
             
             # --- Seed Changelog ---
@@ -304,6 +316,7 @@ async def lifespan(app: FastAPI):
                     logger.warning(f"[Startup] Reset {stuck} stuck target(s) from queued/running → idle.")
 
             # --- Load License Key to Settings ---
+            # Priority: DB (persisted by setup API) → LICENSE_KEY env var → nothing
             with Session(engine) as session:
                 from yads.models import SystemConfig
                 lic = session.get(SystemConfig, "license_key")
@@ -311,7 +324,15 @@ async def lifespan(app: FastAPI):
                     settings.LICENSE_KEY = lic.value
                     logger.info("License key loaded from database into runtime settings.")
                 else:
-                    logger.warning("No license key found in database.")
+                    env_lic = os.getenv("LICENSE_KEY", "").strip()
+                    if env_lic:
+                        settings.LICENSE_KEY = env_lic
+                        # Persist so it survives .env removal
+                        session.add(SystemConfig(key="license_key", value=env_lic))
+                        session.commit()
+                        logger.info("License key loaded from env var and persisted to database.")
+                    else:
+                        logger.warning("No license key found in database or environment.")
 
             # --- Register Default Worker ---
             try:
@@ -511,19 +532,6 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-@app.middleware("http")
-async def setup_middleware(request: Request, call_next):
-    # Skip if setup is complete
-    if settings.SETUP_COMPLETE:
-        return await call_next(request)
-        
-    path = request.url.path
-    # Allow static resources and setup endpoints
-    if path.startswith("/static") or path.startswith("/setup") or path == "/favicon.ico":
-         return await call_next(request)
-         
-    # Redirect to setup wizard
-    return RedirectResponse(url="/setup")
 
 # -- Routers --
 from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery
@@ -595,11 +603,6 @@ app.include_router(tags.router)
 app.include_router(ai_assistant.router)
 app.include_router(waf_analysis.router)
 
-@app.get("/setup", response_class=HTMLResponse)
-async def setup_page(request: Request):
-    if settings.SETUP_COMPLETE:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("setup.html", {"request": request})
 
 
 @app.exception_handler(LoginRequiredException)
