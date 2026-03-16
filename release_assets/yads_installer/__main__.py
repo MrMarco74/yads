@@ -1,7 +1,6 @@
 import sys
 import os
 import pkgutil
-from gui import YADSInstallerGUI
 import tkinter as tk
 
 
@@ -11,7 +10,7 @@ def _create_desktop_entry():
     icon_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "icons")
     pyz_path = os.path.abspath(sys.argv[0])
 
-    # Write icon PNG from bundled data
+    icon_path = "yads-setup"
     try:
         os.makedirs(icon_dir, exist_ok=True)
         icon_path = os.path.join(icon_dir, "yads-setup.png")
@@ -20,10 +19,8 @@ def _create_desktop_entry():
             with open(icon_path, "wb") as f:
                 f.write(logo_data)
     except Exception as e:
-        print(f"[Desktop] Could not write icon: {e}")
-        icon_path = "yads-setup"
+        print(f"[Desktop] Could not write icon: {e}", file=sys.stderr)
 
-    # Write .desktop file
     try:
         os.makedirs(desktop_dir, exist_ok=True)
         desktop_path = os.path.join(desktop_dir, "yads-setup.desktop")
@@ -43,13 +40,31 @@ def _create_desktop_entry():
         os.chmod(desktop_path, 0o755)
         print(f"[Desktop] Entry created: {desktop_path}")
     except Exception as e:
-        print(f"[Desktop] Could not create .desktop entry: {e}")
+        print(f"[Desktop] Could not create .desktop entry: {e}", file=sys.stderr)
 
 
 def main():
     _create_desktop_entry()
-    root = tk.Tk()
-    app = YADSInstallerGUI(root)
+
+    try:
+        root = tk.Tk()
+    except Exception as e:
+        print(f"[Fatal] Cannot open display: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        from gui import YADSInstallerGUI
+        app = YADSInstallerGUI(root)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        tk.messagebox.showerror("Startup Error", str(e))
+        sys.exit(1)
+
+    # Bring window to front
+    root.lift()
+    root.attributes("-topmost", True)
+    root.after(200, lambda: root.attributes("-topmost", False))
     root.mainloop()
 
 

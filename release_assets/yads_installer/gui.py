@@ -192,13 +192,16 @@ class YADSInstallerGUI:
 
     def load_logo(self):
         try:
-            # Load logo from the package (works in zipapp or regular folder)
+            import base64
             logo_data = pkgutil.get_data(__name__, "logo.png")
             if logo_data:
-                # Use standard PhotoImage (supports PNG in Tk 8.6+)
-                full_img = tk.PhotoImage(data=logo_data)
-                # Scale down 1024x1024 to 128x128
-                self.logo_img = full_img.subsample(8, 8)
+                # PhotoImage(data=) requires base64-encoded PNG data
+                b64 = base64.b64encode(logo_data).decode("ascii")
+                full_img = tk.PhotoImage(data=b64)
+                # Scale down to ~128px: pick largest factor that keeps image >= 32px
+                w = full_img.width()
+                factor = max(1, w // 128)
+                self.logo_img = full_img.subsample(factor, factor)
             else:
                 self.logo_img = None
         except Exception as e:
