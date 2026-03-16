@@ -1201,15 +1201,29 @@ class ProdDeployWorker(QThread):
             )
             return result.returncode, result.stdout.strip()
 
-        # Wait for API to be ready (up to 120s)
-        self._log("Setup: Waiting for API to be ready...", "info")
-        for _ in range(60):
+        # Wait for API to be ready (up to 180s)
+        self._log("Setup: Waiting for API to be ready (fresh DB init may take ~60-90s)...", "info")
+        for i in range(60):
             rc, out = _curl_get("/api/updates/version")
             if rc == 0 and "running" in out.lower():
+                self._log(f"  ✅ API is up after ~{i * 3}s", "success")
                 break
-            _time.sleep(2)
+            # Progress update every 10 iterations (~30s)
+            if i > 0 and i % 10 == 0:
+                elapsed = i * 3
+                # Also show current service replica count so user knows if API is crashing
+                _svc_result = subprocess.run(
+                    self._inject_ssh_opts([
+                        "ssh", self.remote_host,
+                        "docker service ls --filter name=yads_yads-api --format '{{.Replicas}}'"
+                    ]),
+                    capture_output=True, text=True, timeout=15
+                )
+                replicas = _svc_result.stdout.strip() or "?"
+                self._log(f"  Still waiting... {elapsed}s elapsed, yads-api replicas: {replicas}", "info")
+            _time.sleep(3)
         else:
-            self._log("⚠️  Setup: API not ready after 120s — skipping auto-setup.", "warning")
+            self._log("⚠️  Setup: API not ready after 180s — skipping auto-setup.", "warning")
             return
 
         # 1. License key (optional)
