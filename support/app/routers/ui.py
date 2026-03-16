@@ -462,6 +462,31 @@ async def installations_page(
     for r in rows:
         type_dist[r.install_type] = type_dist.get(r.install_type, 0) + 1
 
+    # customer_id → customer_name lookup
+    from app.models import CustomerKey
+    cust_ids = {r.customer_id for r in rows if r.customer_id}
+    cust_map: dict = {}
+    for cid in cust_ids:
+        ck = session.get(CustomerKey, cid)
+        if ck:
+            cust_map[cid] = ck.customer_name
+
+    # Group by customer_id for the per-customer summary table
+    cust_groups: dict = {}
+    for r in rows:
+        if not r.customer_id:
+            continue
+        entry = cust_groups.setdefault(r.customer_id, {
+            "customer_id": r.customer_id,
+            "name": cust_map.get(r.customer_id) or r.customer_id,
+            "count": 0,
+            "versions": [],
+        })
+        entry["count"] += 1
+        if r.version not in entry["versions"]:
+            entry["versions"].append(r.version)
+    by_customer = sorted(cust_groups.values(), key=lambda x: -x["count"])
+
     return templates.TemplateResponse("installations.html", {
         "request": request,
         "total": len(rows),
@@ -470,11 +495,14 @@ async def installations_page(
             for k, v in sorted(version_dist.items(), key=lambda x: -x[1])
         ],
         "type_distribution": type_dist,
+        "by_customer": by_customer,
         "installations": [
             {
                 "instance_uuid": r.instance_uuid,
                 "version": r.version,
                 "install_type": r.install_type,
+                "customer_id": r.customer_id,
+                "customer_name": cust_map.get(r.customer_id) if r.customer_id else None,
                 "first_seen": r.first_seen.isoformat(),
                 "last_seen": r.last_seen.isoformat(),
                 "report_count": r.report_count,

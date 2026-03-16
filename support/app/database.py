@@ -83,13 +83,15 @@ def _migrate_columns() -> None:
             conn.execute(text("ALTER TABLE bugreport ADD COLUMN category_id INTEGER REFERENCES reportcategory(id)"))
             conn.commit()
 
-        # InstallationReport: add install_type column if missing (existing installs → "unknown")
+        # InstallationReport: add missing columns (idempotent)
         ir_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(installationreport)"))}
-        if "install_type" in ir_cols:
-            pass  # already present
-        elif ir_cols:  # table exists but column missing
-            conn.execute(text("ALTER TABLE installationreport ADD COLUMN install_type TEXT NOT NULL DEFAULT 'unknown'"))
-            conn.commit()
+        if ir_cols:  # table exists
+            if "install_type" not in ir_cols:
+                conn.execute(text("ALTER TABLE installationreport ADD COLUMN install_type TEXT NOT NULL DEFAULT 'unknown'"))
+                conn.commit()
+            if "customer_id" not in ir_cols:
+                conn.execute(text("ALTER TABLE installationreport ADD COLUMN customer_id TEXT"))
+                conn.commit()
 
 
 def get_session():

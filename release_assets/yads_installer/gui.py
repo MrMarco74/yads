@@ -787,6 +787,20 @@ class YADSInstallerGUI:
 
         instance_uuid = self.data.get('instance_uuid', '')
 
+        # Extract customer_id from license key payload (base64 JSON, no crypto needed)
+        customer_id = ""
+        license_key = self.data.get('license_key', '').strip()
+        if license_key and '.' in license_key:
+            try:
+                import base64 as _b64
+                payload_b64 = license_key.split('.')[0]
+                padding = (4 - len(payload_b64) % 4) % 4
+                decoded = _b64.urlsafe_b64decode(payload_b64 + '=' * padding)
+                lic_payload = _json.loads(decoded)
+                customer_id = lic_payload.get('customer_id', '')
+            except Exception:
+                pass
+
         # Try to get the real version from the running YADS API
         version = self.data.get('yads_version', 'latest')
         try:
@@ -804,6 +818,7 @@ class YADSInstallerGUI:
             "version": version,
             "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "install_type": "installer",
+            "customer_id": customer_id,
         }
         try:
             data = _json.dumps(payload).encode()
@@ -1390,13 +1405,27 @@ with SessionLocal() as session:
         if not self.data.get('instance_uuid'):
             self.data['instance_uuid'] = str(_uuid.uuid4())
 
+        # Try to extract customer_id from license for preview
+        preview_customer_id = ""
+        lic_key = self.data.get('license_key', '').strip()
+        if lic_key and '.' in lic_key:
+            try:
+                import base64 as _b64, json as _json
+                p_b64 = lic_key.split('.')[0]
+                p_b64 += '=' * ((4 - len(p_b64) % 4) % 4)
+                preview_customer_id = _json.loads(_b64.urlsafe_b64decode(p_b64)).get('customer_id', '')
+            except Exception:
+                pass
+
         preview = (
             "Folgende Daten würden gesendet:\n"
             f"  • instance_uuid : {self.data['instance_uuid']}\n"
             f"  • version       : {self.data.get('yads_version', 'latest')}\n"
             f"  • install_type  : installer\n"
-            f"  • submitted_at  : <Zeitstempel beim Senden>"
         )
+        if preview_customer_id:
+            preview += f"  • customer_id   : {preview_customer_id}\n"
+        preview += "  • submitted_at  : <Zeitstempel beim Senden>"
         preview_frame = tk.Frame(self.content_frame, bg=self.colors['bg_alt'],
                                   bd=1, relief="solid")
         preview_frame.pack(fill="x", pady=(0, 14))
