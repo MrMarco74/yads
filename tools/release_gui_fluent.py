@@ -1130,21 +1130,26 @@ class ProdDeployWorker(QThread):
                 self._log("✅ All expected services are running!", "success")
 
             # 7. Post-deploy smoke test (via SSH to avoid nginx auth)
-            self._log("Running smoke test (HTTP health check via SSH)...", "info")
-            import time as _t2
-            _t2.sleep(5)  # brief settle time
-            try:
-                _smoke_cmd = "curl -sf http://localhost:8000/api/updates/version 2>&1"
-                _smoke_result = subprocess.run(
-                    self._inject_ssh_opts(["ssh", self.remote_host, _smoke_cmd]),
-                    capture_output=True, text=True, timeout=20
-                )
-                if _smoke_result.returncode == 0 and "running" in _smoke_result.stdout.lower():
-                    self._log("✅ Smoke test passed — API is responding", "success")
-                else:
-                    self._log(f"⚠️  Smoke test: unexpected response: {_smoke_result.stdout.strip()[:120]}", "warning")
-            except Exception as _se:
-                self._log(f"⚠️  Smoke test failed: {_se}", "warning")
+            # Note: on wipe+reinstall the API takes ~60-90s for fresh DB init,
+            # so we skip the smoke test and let _run_post_deploy_setup do the wait.
+            if not self.wipe_reinstall:
+                self._log("Running smoke test (HTTP health check via SSH)...", "info")
+                import time as _t2
+                _t2.sleep(5)  # brief settle time
+                try:
+                    _smoke_cmd = "curl -sf --max-time 10 --connect-timeout 5 http://localhost:8000/api/updates/version 2>&1"
+                    _smoke_result = subprocess.run(
+                        self._inject_ssh_opts(["ssh", self.remote_host, _smoke_cmd]),
+                        capture_output=True, text=True, timeout=30
+                    )
+                    if _smoke_result.returncode == 0 and "running" in _smoke_result.stdout.lower():
+                        self._log("✅ Smoke test passed — API is responding", "success")
+                    else:
+                        self._log(f"⚠️  Smoke test: unexpected response: {_smoke_result.stdout.strip()[:120]}", "warning")
+                except Exception as _se:
+                    self._log(f"⚠️  Smoke test failed: {_se}", "warning")
+            else:
+                self._log("Skipping smoke test (wipe+reinstall — API still initializing DB)...", "info")
 
             # 8. Auto-setup after wipe+reinstall
             if self.wipe_reinstall and self.setup_admin_pass:
@@ -1189,10 +1194,10 @@ class ProdDeployWorker(QThread):
             return result.returncode, result.stdout.strip()
 
         def _curl_get(path):
-            cmd = f"curl -sf '{base}{path}' 2>&1"
+            cmd = f"curl -sf --max-time 5 --connect-timeout 3 '{base}{path}' 2>&1"
             result = subprocess.run(
                 self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=15
             )
             return result.returncode, result.stdout.strip()
 
@@ -1204,7 +1209,7 @@ class ProdDeployWorker(QThread):
                 break
             _time.sleep(2)
         else:
-            self._log("⚠️  Setup: API not ready after 60s — skipping auto-setup.", "warning")
+            self._log("⚠️  Setup: API not ready after 120s — skipping auto-setup.", "warning")
             return
 
         # 1. License key (optional)
