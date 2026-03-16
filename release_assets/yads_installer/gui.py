@@ -203,20 +203,29 @@ class YADSInstallerGUI:
         self.btn_next.configure(text="Finish" if self.current_step == len(self.steps)-1 else "Next")
 
     def next_step(self):
-        # Save current step data
+        # Save current step data — guard with hasattr so UPDATE-mode skipped
+        # steps don't raise AttributeError for widgets that were never rendered.
         if self.current_step == 2: # Network & SSL
-            self.data['api_port'] = self.ent_port.get()
-            self.data['use_ssl'] = self.ssl_var.get()
-            self.data['ssl_choice'] = self.ssl_choice_var.get()
-            self.data['host'] = self.ent_host.get()
+            if hasattr(self, 'ent_port'):
+                self.data['api_port'] = self.ent_port.get()
+            if hasattr(self, 'ssl_var'):
+                self.data['use_ssl'] = self.ssl_var.get()
+            if hasattr(self, 'ssl_choice_var'):
+                self.data['ssl_choice'] = self.ssl_choice_var.get()
+            if hasattr(self, 'ent_host'):
+                self.data['host'] = self.ent_host.get()
         elif self.current_step == 3: # IDP
-            self.data['kc_choice'] = self.idp_var.get()
-            self.data['auth_mode'] = "oidc" if self.idp_var.get() in ["2", "3"] else "local"
+            if hasattr(self, 'idp_var'):
+                self.data['kc_choice'] = self.idp_var.get()
+                self.data['auth_mode'] = "oidc" if self.idp_var.get() in ["2", "3"] else "local"
         elif self.current_step == 4: # Monitoring
-            self.data['mon_choice'] = self.mon_var.get()
-            self.data['grafana_port'] = self.ent_grafana_port.get()
+            if hasattr(self, 'mon_var'):
+                self.data['mon_choice'] = self.mon_var.get()
+            if hasattr(self, 'ent_grafana_port'):
+                self.data['grafana_port'] = self.ent_grafana_port.get()
         elif self.current_step == 5: # Admin
-            self.data['admin_email'] = self.ent_email.get()
+            if hasattr(self, 'ent_email'):
+                self.data['admin_email'] = self.ent_email.get()
 
         if self.current_step < len(self.steps) - 1:
             # UPDATE mode: after backup step jump straight to summary (skip config steps)
