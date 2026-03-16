@@ -582,10 +582,12 @@ class ProdDeployWorker(QThread):
     """Worker thread for PROD deployment"""
 
     def __init__(self, project_root: Path, wipe_reinstall: bool = False,
-                 deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True):
+                 deploy_app: bool = True, deploy_worker: bool = True, deploy_backup: bool = True,
+                 setup_token: str = ""):
         super().__init__()
         self.project_root = project_root
         self.wipe_reinstall = wipe_reinstall
+        self.setup_token = setup_token
         self.deploy_app = deploy_app
         self.deploy_worker = deploy_worker  # only needed when scanner tools / Python deps change
         self.deploy_backup = deploy_backup
@@ -1047,6 +1049,17 @@ class ProdDeployWorker(QThread):
             if (self.project_root / ".env").exists():
                 self._run_cmd(["scp", ".env", f"{self.remote_host}:{self.remote_deploy_dir}/"])
 
+            # Inject SETUP_TOKEN into remote .env for fresh installs
+            if self.wipe_reinstall and self.setup_token:
+                self._log(f"Injecting SETUP_TOKEN into remote .env...", "info")
+                inject_cmd = (
+                    f"cd {self.remote_deploy_dir} && "
+                    f"touch .env && "
+                    f"sed -i '/^SETUP_TOKEN=/d' .env && "
+                    f"echo 'SETUP_TOKEN={self.setup_token}' >> .env"
+                )
+                self._run_cmd(["ssh", self.remote_host, inject_cmd])
+
             self._log("Creating backup directories on remote host...", "info")
             self._run_cmd(["ssh", self.remote_host, "mkdir -p '/mnt/backups/yads/daily' '/mnt/backups/yads/monthly'"])
 
@@ -1453,6 +1466,7 @@ class ProdDeployPage(QWidget):
             self.status_label.setText("⚠️  Production Update — existing stack only, no data wiped. Target: root@prod.example.com")
 
     def _on_deploy(self):
+        import secrets as _secrets
         msg = (
             "You are about to start a LIVE deployment to prod.example.com.\n\n"
             "This will build, transfer, and update the application services.\n"
@@ -1462,8 +1476,27 @@ class ProdDeployPage(QWidget):
         msg += "Proceed?"
 
         box = MessageBox("Confirm Production Deployment", msg, self)
-        if box.exec():
-            self._start_worker()
+        if not box.exec():
+            return
+
+        if self.wipe_check.isChecked():
+            # Generate a one-time SETUP_TOKEN for the fresh install
+            self._setup_token = _secrets.token_hex(16)
+            token_box = MessageBox(
+                "Setup Token generiert",
+                f"Ein einmaliger Setup-Token wurde generiert:\n\n"
+                f"  {self._setup_token}\n\n"
+                f"Dieser Token wird automatisch in die remote .env injiziert.\n"
+                f"Das Setup-Wizard auf prod.yads-security.com wird diesen Token benötigen.\n\n"
+                f"Der Token wurde in die Zwischenablage kopiert.",
+                self
+            )
+            QApplication.clipboard().setText(self._setup_token)
+            token_box.exec()
+        else:
+            self._setup_token = ""
+
+        self._start_worker()
 
     def _on_cleanup_request(self):
         box = MessageBox(
@@ -1496,7 +1529,8 @@ class ProdDeployPage(QWidget):
             wipe_reinstall=self.wipe_check.isChecked() if operation == "release" else False,
             deploy_app=self.deploy_app_check.isChecked() if operation == "release" else False,
             deploy_worker=self.deploy_worker_check.isChecked() if operation == "release" else False,
-            deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False
+            deploy_backup=self.deploy_backup_check.isChecked() if operation == "release" else False,
+            setup_token=getattr(self, '_setup_token', '') if operation == "release" else ''
         )
         self._active_worker.tools_tag = self.tools_tag_input.text().strip() or '1.0'
         self._active_worker.operation = operation
