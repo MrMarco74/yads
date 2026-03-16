@@ -779,11 +779,11 @@ class YADSInstallerGUI:
                     pass
             self.root.after(0, _show_warnings)
 
-    def _send_installation_report(self):
-        """Send anonymous installation report directly to the YADS support portal."""
-        import json as _json
-        import urllib.request
+    def _build_report_payload(self):
+        """Build the installation report payload dict."""
+        import json as _json, base64 as _b64
         from datetime import datetime, timezone
+        import urllib.request
 
         instance_uuid = self.data.get('instance_uuid', '')
 
@@ -792,34 +792,57 @@ class YADSInstallerGUI:
         license_key = self.data.get('license_key', '').strip()
         if license_key and '.' in license_key:
             try:
-                import base64 as _b64
-                payload_b64 = license_key.split('.')[0]
-                padding = (4 - len(payload_b64) % 4) % 4
-                decoded = _b64.urlsafe_b64decode(payload_b64 + '=' * padding)
-                lic_payload = _json.loads(decoded)
-                customer_id = lic_payload.get('customer_id', '')
+                p_b64 = license_key.split('.')[0]
+                p_b64 += '=' * ((4 - len(p_b64) % 4) % 4)
+                lic_data = _json.loads(_b64.urlsafe_b64decode(p_b64))
+                customer_id = lic_data.get('customer_id', '')
             except Exception:
                 pass
 
         # Try to get the real version from the running YADS API
         version = self.data.get('yads_version', 'latest')
         try:
-            direct_port = 8000 if self.data.get('use_nginx') else int(self.data.get('api_port', 80))
-            proto = "https" if self.data.get('use_ssl') else "http"
             v_req = urllib.request.urlopen(
-                f"{proto}://localhost:{direct_port}/api/updates/version", timeout=5
+                f"{self._base_url_for_api()}/api/updates/version", timeout=5
             )
-            v_body = _json.loads(v_req.read())
-            version = v_body.get("version", version)
+            version = _json.loads(v_req.read()).get("version", version)
         except Exception:
             pass
-        payload = {
+
+        return {
             "instance_uuid": instance_uuid,
             "version": version,
             "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "install_type": "installer",
             "customer_id": customer_id,
         }
+
+    def _is_business_license(self):
+        """Return True if the license contains a customer_id (= commercial/business)."""
+        payload = self._build_report_payload()
+        return bool(payload.get('customer_id'))
+
+    def _send_installation_report(self):
+        """
+        Send installation report. Behaviour depends on license tier:
+
+        Community Edition (no customer_id):
+            Try online → if offline: save JSON + queue in YADS for auto-retry.
+            Transparent info dialog on failure.
+
+        Business (customer_id present):
+            Try online → if offline: show Activation Request Code (Option B)
+            so the customer can contact YADS team directly.
+            Additionally queue in YADS for auto-retry once internet is available.
+            The YADS team retains full control — no silent self-activation.
+        """
+        import json as _json, urllib.request, os as _os, base64 as _b64
+
+        payload = self._build_report_payload()
+        customer_id = payload.get('customer_id', '')
+        is_business = bool(customer_id)
+
+        # --- Try online send ---
         sent = False
         send_error = None
         try:
@@ -835,9 +858,76 @@ class YADSInstallerGUI:
         except Exception as exc:
             send_error = str(exc)
 
-        if not sent:
-            # --- Offline fallback (A): save JSON file ---
-            import os as _os
+        if sent:
+            return  # Done — nothing more to do
+
+        # --- Offline: queue in YADS API for auto-retry (both tiers) ---
+        try:
+            q_data = _json.dumps(payload).encode()
+            q_req = urllib.request.Request(
+                f"{self._base_url_for_api()}/setup/queue-report",
+                data=q_data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(q_req, timeout=5)
+        except Exception:
+            pass
+
+        if is_business:
+            # === Option B — Business: Activation Request Code ===
+            # Encode payload as compact base64 string for manual handoff
+            act_code = _b64.urlsafe_b64encode(
+                _json.dumps(payload, separators=(',', ':')).encode()
+            ).decode().rstrip('=')
+
+            # Save JSON file for email attachment
+            report_path = _os.path.expanduser("~/yads-activation-request.json")
+            try:
+                with open(report_path, "w") as f:
+                    _json.dump(payload, f, indent=2)
+            except Exception:
+                report_path = None
+
+            lines = [
+                "┌─────────────────────────────────────────────────────┐",
+                "│         AKTIVIERUNGSANFRAGE ERFORDERLICH            │",
+                "└─────────────────────────────────────────────────────┘",
+                "",
+                "Diese Installation konnte nicht automatisch registriert",
+                "werden (kein Internetzugang zum YADS-Aktivierungsserver).",
+                "",
+                "Was Sie jetzt tun müssen:",
+                "  1. Senden Sie den folgenden Aktivierungscode per E-Mail",
+                "     an: aktivierung@yads-security.com",
+                "  2. Das YADS-Team bestätigt Ihre Installation.",
+                "  3. YADS versucht außerdem beim nächsten Start mit",
+                "     Internetzugang die Registrierung automatisch.",
+                "",
+                "─── Ihr Aktivierungscode (bitte vollständig kopieren) ───",
+                "",
+                act_code,
+                "",
+                "─────────────────────────────────────────────────────────",
+            ]
+            if report_path:
+                lines += [
+                    f"Eine Kopie wurde gespeichert unter: {report_path}",
+                ]
+            lines += [
+                "",
+                "Enthaltene Daten (nur diese werden übertragen):",
+                f"  instance_uuid : {payload['instance_uuid']}",
+                f"  customer_id   : {customer_id}",
+                f"  version       : {payload['version']}",
+                f"  install_type  : installer",
+                "",
+                "Keine Domainnamen, IPs oder Scan-Daten werden übertragen.",
+                "YADS läuft normal weiter — die Registrierung ist separat.",
+            ]
+
+        else:
+            # === Community Edition: einfaches Offline-Reporting ===
             report_path = _os.path.expanduser("~/yads-installation-report.json")
             try:
                 with open(report_path, "w") as f:
@@ -845,55 +935,39 @@ class YADSInstallerGUI:
             except Exception:
                 report_path = None
 
-            # --- Offline fallback (C): queue in YADS API for auto-retry ---
-            try:
-                q_data = _json.dumps(payload).encode()
-                q_req = urllib.request.Request(
-                    f"{self._base_url_for_api()}/setup/queue-report",
-                    data=q_data,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                urllib.request.urlopen(q_req, timeout=5)
-            except Exception:
-                pass  # Best-effort
-
-            # --- Transparent user notification ---
             lines = [
-                "Die Installationsmeldung konnte jetzt nicht gesendet werden",
-                f"(kein Internetzugang oder Server nicht erreichbar: {send_error}).",
+                "Installationsmeldung konnte nicht gesendet werden.",
+                f"(Ursache: {send_error})",
                 "",
-                "Was passiert als Nächstes:",
-                "  • YADS sendet die Meldung automatisch beim nächsten Start,",
-                "    sobald eine Internetverbindung verfügbar ist.",
+                "YADS sendet die Meldung automatisch beim nächsten Start,",
+                "sobald eine Internetverbindung verfügbar ist.",
             ]
             if report_path:
                 lines += [
-                    f"  • Eine Kopie wurde gespeichert unter: {report_path}",
-                    "    Sie können die Datei auch manuell an",
-                    "    support@yads-security.com schicken.",
+                    f"Lokale Kopie gespeichert: {report_path}",
                 ]
             lines += [
                 "",
-                "Inhalt der Meldung (nur diese Daten werden gesendet):",
+                "Gesendete Daten:",
                 f"  instance_uuid : {payload['instance_uuid']}",
                 f"  version       : {payload['version']}",
-                f"  install_type  : {payload['install_type']}",
-            ]
-            if payload.get('customer_id'):
-                lines.append(f"  customer_id   : {payload['customer_id']}")
-            lines += [
+                f"  install_type  : installer",
                 "",
-                "Keine Domainnamen, IP-Adressen oder Scan-Daten werden übertragen.",
+                "Dies ist ein anonymes Community-Edition-Reporting.",
+                "Keine Domainnamen oder Scan-Daten werden übertragen.",
             ]
-            msg = "\n".join(lines)
-            def _show_offline(m=msg):
-                try:
-                    if self.root.winfo_exists():
-                        messagebox.showinfo("Installationsmeldung — Offline", m)
-                except Exception:
-                    pass
-            self.root.after(0, _show_offline)
+
+        title = ("Aktivierungsanfrage" if is_business
+                 else "Installationsmeldung — Offline")
+        msg = "\n".join(lines)
+
+        def _show(m=msg, t=title):
+            try:
+                if self.root.winfo_exists():
+                    messagebox.showinfo(t, m)
+            except Exception:
+                pass
+        self.root.after(0, _show)
 
     def _base_url_for_api(self):
         """Return the direct YADS API base URL (bypasses nginx if active)."""

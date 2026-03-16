@@ -1,9 +1,10 @@
 """
-Installation Reporting
-======================
-POST /api/installation        — anonymous opt-in telemetry from YADS instances
-GET  /api/admin/installations — admin summary (total, per-version, timeline)
-GET  /installations           — admin HTML dashboard page
+Installation Reporting & Activation
+=====================================
+POST /api/installation              — opt-in telemetry (CE) / activation (business)
+POST /api/admin/activate-offline    — manually ingest an offline activation request code
+GET  /api/admin/installations       — admin summary (total, per-version, timeline)
+GET  /installations                 — admin HTML dashboard page
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -80,6 +81,65 @@ async def ingest_installation(
         ))
     session.commit()
     return {"ok": True}
+
+
+class OfflineActivationRequest(BaseModel):
+    code: str  # base64url-encoded JSON payload from the installer
+
+
+@router.post("/api/admin/activate-offline")
+async def activate_offline(
+    req: OfflineActivationRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Manually ingest an offline activation request code sent by the customer.
+    Decodes the base64url payload and upserts an InstallationReport.
+    Requires admin token.
+    """
+    import base64, json
+    _require_admin(request)
+
+    # Decode the activation code (base64url, no padding needed)
+    try:
+        padded = req.code + '=' * ((4 - len(req.code) % 4) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid activation code: {exc}")
+
+    required = {"instance_uuid", "version"}
+    if not required.issubset(payload.keys()):
+        raise HTTPException(status_code=400, detail="Activation code missing required fields.")
+
+    install_type = (payload.get("install_type") or "installer").strip()
+    customer_id = (payload.get("customer_id") or "").strip() or None
+    now = datetime.now(timezone.utc)
+
+    existing = session.exec(
+        select(InstallationReport).where(
+            InstallationReport.instance_uuid == payload["instance_uuid"]
+        )
+    ).first()
+
+    if existing:
+        existing.version = payload["version"]
+        existing.last_seen = now
+        existing.report_count += 1
+        if existing.install_type == "unknown" and install_type != "unknown":
+            existing.install_type = install_type
+        if not existing.customer_id and customer_id:
+            existing.customer_id = customer_id
+        session.add(existing)
+    else:
+        session.add(InstallationReport(
+            instance_uuid=payload["instance_uuid"],
+            version=payload["version"],
+            install_type=install_type,
+            customer_id=customer_id,
+        ))
+    session.commit()
+    return {"ok": True, "instance_uuid": payload["instance_uuid"]}
 
 
 @router.get("/api/admin/installations")
