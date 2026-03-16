@@ -1129,21 +1129,20 @@ class ProdDeployWorker(QThread):
             else:
                 self._log("✅ All expected services are running!", "success")
 
-            # 7. Post-deploy smoke test
-            self._log("Running smoke test (HTTP health check)...", "info")
+            # 7. Post-deploy smoke test (via SSH to avoid nginx auth)
+            self._log("Running smoke test (HTTP health check via SSH)...", "info")
             import time as _t2
             _t2.sleep(5)  # brief settle time
             try:
-                import urllib.request, urllib.error
-                _smoke_url = "https://prod.example.com/health"
-                req = urllib.request.Request(_smoke_url, headers={"User-Agent": "YADS-Deploy-SmokeTest/1.0"})
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    if resp.status == 200:
-                        self._log(f"✅ Smoke test passed — HTTP 200 from {_smoke_url}", "success")
-                    else:
-                        self._log(f"⚠️  Smoke test: unexpected status {resp.status} from {_smoke_url}", "warning")
-            except urllib.error.URLError as _se:
-                self._log(f"⚠️  Smoke test failed (URL error): {_se.reason} — check nginx/proxy config", "warning")
+                _smoke_cmd = "curl -sf http://localhost:8000/api/updates/version 2>&1"
+                _smoke_result = subprocess.run(
+                    self._inject_ssh_opts(["ssh", self.remote_host, _smoke_cmd]),
+                    capture_output=True, text=True, timeout=20
+                )
+                if _smoke_result.returncode == 0 and "running" in _smoke_result.stdout.lower():
+                    self._log("✅ Smoke test passed — API is responding", "success")
+                else:
+                    self._log(f"⚠️  Smoke test: unexpected response: {_smoke_result.stdout.strip()[:120]}", "warning")
             except Exception as _se:
                 self._log(f"⚠️  Smoke test failed: {_se}", "warning")
 
@@ -1189,11 +1188,19 @@ class ProdDeployWorker(QThread):
             )
             return result.returncode, result.stdout.strip()
 
-        # Wait for API to be ready (up to 60s)
+        def _curl_get(path):
+            cmd = f"curl -sf '{base}{path}' 2>&1"
+            result = subprocess.run(
+                self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
+                capture_output=True, text=True
+            )
+            return result.returncode, result.stdout.strip()
+
+        # Wait for API to be ready (up to 120s)
         self._log("Setup: Waiting for API to be ready...", "info")
-        for _ in range(30):
-            rc, out = _curl("/health", {})
-            if rc == 0 and "ok" in out.lower():
+        for _ in range(60):
+            rc, out = _curl_get("/api/updates/version")
+            if rc == 0 and "running" in out.lower():
                 break
             _time.sleep(2)
         else:
