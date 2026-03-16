@@ -42,6 +42,41 @@
 </div>
 {% endif %}
 
+<!-- Per-customer summary -->
+{% if by_customer %}
+<div class="card mb-3">
+  <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:1rem;">Installations per Customer</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Customer ID</th>
+          <th>Installations</th>
+          <th>Versions in Use</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in by_customer %}
+        <tr>
+          <td style="font-weight:600;">{{ entry.name }}</td>
+          <td style="font-family:monospace;font-size:0.75rem;color:var(--text-muted);">{{ entry.customer_id }}</td>
+          <td>
+            <span style="background:var(--accent);color:#fff;font-size:0.75rem;font-weight:700;padding:2px 10px;border-radius:999px;">{{ entry.count }}</span>
+          </td>
+          <td>
+            {% for v in entry.versions %}
+            <span style="background:var(--surface-2);border:1px solid var(--border);padding:1px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;margin-right:4px;">{{ v }}</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- Instance list -->
 <div class="card">
   <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:1rem;">All Instances</h2>
@@ -51,6 +86,7 @@
       <thead>
         <tr>
           <th>Instance UUID</th>
+          <th>Customer</th>
           <th>Version</th>
           <th>Type</th>
           <th>First Seen</th>
@@ -62,6 +98,16 @@
         {% for inst in installations %}
         <tr>
           <td style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">{{ inst.instance_uuid }}</td>
+          <td>
+            {% if inst.customer_name %}
+            <span style="font-weight:600;font-size:0.85rem;">{{ inst.customer_name }}</span>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-family:monospace;">{{ inst.customer_id }}</div>
+            {% elif inst.customer_id %}
+            <span style="font-family:monospace;font-size:0.75rem;color:var(--text-muted);">{{ inst.customer_id }}</span>
+            {% else %}
+            <span style="color:var(--text-muted);font-size:0.8rem;">—</span>
+            {% endif %}
+          </td>
           <td><span style="background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">{{ inst.version }}</span></td>
           <td>
             {% if inst.install_type == 'installer' %}
