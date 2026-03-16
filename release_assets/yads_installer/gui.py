@@ -37,6 +37,11 @@ class YADSInstallerGUI:
             "kc_choice": "1",    # 1: Local, 2: Bundled, 3: External
             "kc_port": "8080",
             "yads_host": _default_host,
+            "license_key": "",
+            "admin_user": "admin",
+            "admin_pass": "",
+            "admin_pass2": "",
+            "db_init_action": "upgrade",
             "mon_choice": "1",   # 1: None, 2: Bundled, 3: External
             "grafana_port": "3000",
             "admin_email": "admin@example.com",
@@ -72,11 +77,12 @@ class YADSInstallerGUI:
             self.step_welcome,
             self.step_dependencies,
         ]
-        
+
         if self.is_upgrade:
             self.steps.append(self.step_upgrade_backup)
-            
+
         self.steps.extend([
+            self.step_license,
             self.step_network_ssl,
             self.step_idp,
             self.step_monitoring,
@@ -203,9 +209,13 @@ class YADSInstallerGUI:
         self.btn_next.configure(text="Finish" if self.current_step == len(self.steps)-1 else "Next")
 
     def next_step(self):
-        # Save current step data — guard with hasattr so UPDATE-mode skipped
-        # steps don't raise AttributeError for widgets that were never rendered.
-        if self.current_step == 2: # Network & SSL
+        # Save current step data — use step function identity, not index,
+        # so new steps don't break existing logic.
+        current_fn = self.steps[self.current_step]
+        if current_fn == self.step_license:
+            if hasattr(self, 'ent_license'):
+                self.data['license_key'] = self.ent_license.get("1.0", "end").strip()
+        elif current_fn == self.step_network_ssl:
             if hasattr(self, 'ent_port'):
                 self.data['api_port'] = self.ent_port.get()
             if hasattr(self, 'ssl_var'):
@@ -214,24 +224,36 @@ class YADSInstallerGUI:
                 self.data['ssl_choice'] = self.ssl_choice_var.get()
             if hasattr(self, 'ent_host'):
                 self.data['host'] = self.ent_host.get()
-        elif self.current_step == 3: # IDP
+        elif current_fn == self.step_idp:
             if hasattr(self, 'idp_var'):
                 self.data['kc_choice'] = self.idp_var.get()
                 self.data['auth_mode'] = "oidc" if self.idp_var.get() in ["2", "3"] else "local"
-        elif self.current_step == 4: # Monitoring
+        elif current_fn == self.step_monitoring:
             if hasattr(self, 'mon_var'):
                 self.data['mon_choice'] = self.mon_var.get()
             if hasattr(self, 'ent_grafana_port'):
                 self.data['grafana_port'] = self.ent_grafana_port.get()
-        elif self.current_step == 5: # Admin
-            if hasattr(self, 'ent_email'):
-                self.data['admin_email'] = self.ent_email.get()
+        elif current_fn == self.step_admin:
+            if hasattr(self, 'ent_admin_user'):
+                self.data['admin_user'] = self.ent_admin_user.get().strip()
+            if hasattr(self, 'ent_admin_pass'):
+                self.data['admin_pass'] = self.ent_admin_pass.get()
+            if hasattr(self, 'ent_admin_pass2'):
+                self.data['admin_pass2'] = self.ent_admin_pass2.get()
+            # Validate before proceeding
+            if current_fn == self.step_admin and self.current_step < len(self.steps) - 1:
+                err = self._validate_admin()
+                if err:
+                    messagebox.showerror("Eingabefehler", err)
+                    return
+        elif current_fn == self.step_upgrade_backup:
+            # Decide db_init_action for REINSTALL
+            if hasattr(self, 'db_init_var'):
+                self.data['db_init_action'] = self.db_init_var.get()
 
         if self.current_step < len(self.steps) - 1:
             # UPDATE mode: after backup step jump straight to summary (skip config steps)
-            upgrade_backup_idx = 2 if self.is_upgrade else None
-            if (upgrade_backup_idx is not None
-                    and self.current_step == upgrade_backup_idx
+            if (current_fn == self.step_upgrade_backup
                     and self.install_mode_var.get() == "update"):
                 self.current_step = len(self.steps) - 1
             else:
@@ -239,6 +261,18 @@ class YADSInstallerGUI:
             self.show_step()
         else:
             self.finish_setup()
+
+    def _validate_admin(self):
+        user = self.data.get('admin_user', '').strip()
+        pw = self.data.get('admin_pass', '')
+        pw2 = self.data.get('admin_pass2', '')
+        if not user:
+            return "Benutzername darf nicht leer sein."
+        if len(pw) < 8:
+            return "Passwort muss mindestens 8 Zeichen lang sein."
+        if pw != pw2:
+            return "Passwörter stimmen nicht überein."
+        return None
 
     def step_remote_workers(self):
         ttk.Label(self.content_frame, text="Remote Worker konfigurieren", style=STYLE_HEADER).pack(pady=(0, 10))
@@ -489,15 +523,15 @@ class YADSInstallerGUI:
             messagebox.showerror("Error", f"Failed to complete setup: {e}")
 
     def show_startup_progress(self):
-        # Clear content and show starting message
         for widget in self.content_frame.winfo_children():
             widget.destroy()
-        
-        ttk.Label(self.content_frame, text="Starting YADS...", style=STYLE_HEADER).pack(pady=40)
-        ttk.Label(self.content_frame, text="Docker containers are being initialized.\nPlease wait, the browser will open automatically.", 
-                  wraplength=500, justify="center").pack(pady=10)
-        
-        # Disable buttons
+
+        ttk.Label(self.content_frame, text="YADS wird gestartet...", style=STYLE_HEADER).pack(pady=40)
+        self.lbl_progress = ttk.Label(self.content_frame,
+                                       text="Docker-Container werden initialisiert...",
+                                       wraplength=500, justify="center")
+        self.lbl_progress.pack(pady=10)
+
         self.btn_prev.configure(state="disabled")
         self.btn_next.configure(state="disabled")
         self.root.update()
@@ -505,25 +539,89 @@ class YADSInstallerGUI:
     def start_yads_and_open_browser(self):
         def _target():
             try:
-                # Start Docker Compose (non-blocking or capture output)
                 subprocess.run(["docker", "compose", "up", "-d"], check=True, capture_output=True)
-                # Wait for services to be ready
-                time.sleep(5)
-                # Open browser
+
                 proto = "https" if self.data['use_ssl'] else "http"
-                url = f"{proto}://{self.data['host']}:{self.data['api_port']}"
-                webbrowser.open(url)
-                
-                # Signal GUI to close after a small delay
+                base_url = f"{proto}://{self.data['host']}:{self.data['api_port']}"
+
+                # Wait until YADS API is reachable (max 60s)
+                import urllib.request
+                import urllib.error
+                self.root.after(0, lambda: self._set_progress("Warte auf YADS-Start..."))
+                for _ in range(30):
+                    try:
+                        urllib.request.urlopen(f"{base_url}/health", timeout=2)
+                        break
+                    except Exception:
+                        time.sleep(2)
+
+                # Post-start setup via API
+                self._run_post_start_setup(base_url)
+
+                self.root.after(0, lambda: self._set_progress("Fertig! Browser wird geöffnet..."))
+                time.sleep(1)
+                webbrowser.open(base_url)
                 time.sleep(1)
                 self.root.after(100, self.root.destroy)
             except Exception as e:
                 print(f"Error starting YADS: {e}")
                 self.root.after(100, lambda: messagebox.showerror("Startup Error", f"Could not start YADS: {e}"))
 
-        # Use NON-DAEMON thread so it keeps the process alive even if main loop exits
-        # But we actually keep the main loop alive via root.destroy callback
         threading.Thread(target=_target, daemon=False).start()
+
+    def _set_progress(self, msg):
+        """Update the startup progress label if it exists."""
+        if hasattr(self, 'lbl_progress'):
+            self.lbl_progress.configure(text=msg)
+
+    def _run_post_start_setup(self, base_url):
+        """Call /setup/* API endpoints after YADS is up to configure license + admin."""
+        import urllib.request
+        import urllib.error
+        import json
+
+        def _post(path, payload):
+            data = json.dumps(payload).encode()
+            req = urllib.request.Request(
+                f"{base_url}{path}",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    return resp.status, json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors="replace")
+                return e.code, body
+            except Exception as ex:
+                return None, str(ex)
+
+        # 1. License key
+        license_key = self.data.get('license_key', '').strip()
+        if license_key:
+            self.root.after(0, lambda: self._set_progress("Lizenz aktivieren..."))
+            status, body = _post("/setup/check-license", {"license_key": license_key})
+            if status not in (200, 201):
+                print(f"[Setup] License activation failed ({status}): {body}")
+
+        # 2. Create admin
+        admin_user = self.data.get('admin_user', '').strip()
+        admin_pass = self.data.get('admin_pass', '')
+        if admin_user and admin_pass:
+            self.root.after(0, lambda: self._set_progress("Admin-Konto anlegen..."))
+            status, body = _post("/setup/create-admin", {"username": admin_user, "password": admin_pass})
+            if status not in (200, 201):
+                print(f"[Setup] Admin creation failed ({status}): {body}")
+
+        # 3. Mark setup complete
+        self.root.after(0, lambda: self._set_progress("Setup abschließen..."))
+        _post("/setup/finish", {})
+
+        # 4. DB init (purge) if REINSTALL + purge chosen
+        if self.data.get('db_init_action') == 'purge':
+            self.root.after(0, lambda: self._set_progress("Datenbank zurücksetzen..."))
+            _post("/setup/init-data", {"action": "purge"})
 
     def authenticate_registry(self):
         # Read-only credentials for YADS registry
@@ -601,6 +699,10 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
         if profiles:
             env_content += f"COMPOSE_PROFILES={','.join(profiles)}\n"
+
+        license_key = self.data.get('license_key', '').strip()
+        if license_key:
+            env_content += f"LICENSE_KEY={license_key}\n"
 
         with open(".env", "w") as f:
             f.write(env_content)
@@ -690,6 +792,27 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
         self.backup_var.trace_add("write", toggle_pw)
         toggle_pw()
+
+        # ── DB Init (shown only for REINSTALL mode) ───────────────────────────
+        self.db_init_var = tk.StringVar(value=self.data.get('db_init_action', 'upgrade'))
+        self.db_init_frame = ttk.LabelFrame(self.content_frame, text="Datenbankinitialisierung (nur bei Reinstall)")
+        self.db_init_frame.pack(fill="x", pady=(8, 0))
+
+        ttk.Radiobutton(self.db_init_frame,
+                        text="Upgrade  — Daten behalten, Schema migrieren",
+                        variable=self.db_init_var, value="upgrade").pack(anchor="w", padx=10, pady=(8, 2))
+        ttk.Radiobutton(self.db_init_frame,
+                        text="Factory Reset  — ALLE Daten löschen (Neuanfang)",
+                        variable=self.db_init_var, value="purge").pack(anchor="w", padx=10, pady=(2, 8))
+
+        def _toggle_db_init(*_):
+            if self.install_mode_var.get() == "reinstall":
+                self.db_init_frame.pack(fill="x", pady=(8, 0))
+            else:
+                self.db_init_frame.pack_forget()
+
+        self.install_mode_var.trace_add("write", _toggle_db_init)
+        _toggle_db_init()
 
     def execute_backup(self):
         b_type = self.backup_var.get()
@@ -913,19 +1036,53 @@ with SessionLocal() as session:
         self.ent_grafana_port.pack(side="left", padx=10)
 
     # --- Step 5: Admin Account ---
+    def step_license(self):
+        ttk.Label(self.content_frame, text="Lizenzschlüssel", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame,
+                  text="Gib deinen YADS-Lizenzschlüssel ein. Er wird in die .env-Datei geschrieben\n"
+                       "und beim ersten Start automatisch aktiviert.",
+                  wraplength=500, foreground=self.colors['fg_sub']).pack(anchor="w", pady=(0, 10))
+
+        self.ent_license = tk.Text(self.content_frame, height=5,
+                                   bg=self.colors['bg_alt'], fg=self.colors['fg'],
+                                   insertbackground=self.colors['fg'], font=("monospace", 9))
+        self.ent_license.pack(fill="x", pady=5)
+        if self.data.get('license_key'):
+            self.ent_license.insert("1.0", self.data['license_key'])
+
+        ttk.Label(self.content_frame,
+                  text="Ohne gültigen Schlüssel können keine Scans ausgeführt werden.\n"
+                       "Der Schritt kann übersprungen werden — Schlüssel später in den Einstellungen eintragen.",
+                  wraplength=500, foreground=self.colors['fg_sub'],
+                  font=("sans-serif", 9, "italic")).pack(anchor="w", pady=(8, 0))
+
     def step_admin(self):
-        ttk.Label(self.content_frame, text="Initial Admin Account", style=STYLE_HEADER).pack(pady=(0, 20))
-        
-        ttk.Label(self.content_frame, text="YADS will seed an admin account on first start.").pack(anchor="w", pady=(0, 10))
-        
-        ttk.Label(self.content_frame, text="Admin Email:").pack(anchor="w")
-        self.ent_email = ttk.Entry(self.content_frame)
-        self.ent_email.insert(0, self.data['admin_email'])
-        self.ent_email.pack(fill="x", pady=5)
-        
-        notice = "A secure random password will be generated for you in the next step."
-        ttk.Label(self.content_frame, text=notice, font=("sans-serif", 9, "italic"), 
-                  foreground=self.colors['fg_sub'], wraplength=500).pack(pady=20)
+        ttk.Label(self.content_frame, text="Admin-Konto einrichten", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame,
+                  text="Dieses Konto wird nach dem Start automatisch über die Setup-API angelegt.",
+                  wraplength=500, foreground=self.colors['fg_sub']).pack(anchor="w", pady=(0, 12))
+
+        content = self.content_frame
+        content.columnconfigure(1, weight=1)
+
+        ttk.Label(content, text="Benutzername:").grid(row=0, column=0, sticky="w", pady=4)
+        self.ent_admin_user = ttk.Entry(content)
+        self.ent_admin_user.insert(0, self.data.get('admin_user', 'admin'))
+        self.ent_admin_user.grid(row=0, column=1, sticky="ew", pady=4, padx=(8, 0))
+
+        ttk.Label(content, text="Passwort:").grid(row=1, column=0, sticky="w", pady=4)
+        self.ent_admin_pass = ttk.Entry(content, show="*")
+        self.ent_admin_pass.grid(row=1, column=1, sticky="ew", pady=4, padx=(8, 0))
+
+        ttk.Label(content, text="Passwort bestätigen:").grid(row=2, column=0, sticky="w", pady=4)
+        self.ent_admin_pass2 = ttk.Entry(content, show="*")
+        self.ent_admin_pass2.grid(row=2, column=1, sticky="ew", pady=4, padx=(8, 0))
+
+        ttk.Label(content,
+                  text="Mindestens 8 Zeichen. Wird nicht in der .env gespeichert —\n"
+                       "nur einmalig an die laufende YADS-Instanz übergeben.",
+                  wraplength=500, foreground=self.colors['fg_sub'],
+                  font=("sans-serif", 9, "italic")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
     def step_summary(self):
         mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
         if self.is_upgrade and mode == "update":
