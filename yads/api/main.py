@@ -262,7 +262,8 @@ async def lifespan(app: FastAPI):
             
             # Create Default Admin if None Exist
             # Priority: YADS_ADMIN_USER/YADS_ADMIN_PASS env vars (set by installer or manual deploy)
-            # Fallback: admin/admin with force_password_change=True
+            # Fallback: only seed admin/admin if SETUP_COMPLETE=True (existing install upgrading),
+            #           never on a fresh install — the Release Manager calls /setup/create-admin.
             with Session(engine) as session:
                 from yads.models import User
                 from yads.auth.security import get_password_hash
@@ -279,16 +280,21 @@ async def lifespan(app: FastAPI):
                             is_active=True,
                             force_password_change=False,
                         )
-                    else:
-                        logger.warning("No users found. Creating default 'admin' user (force_password_change=True).")
+                        session.add(admin)
+                        session.commit()
+                    elif settings.SETUP_COMPLETE:
+                        # Existing install with no users (edge case) — seed with forced PW change
+                        logger.warning("No users found on completed install. Creating default 'admin' user (force_password_change=True).")
                         admin = User(
                             username="admin",
                             password_hash=get_password_hash("admin"),
                             role="admin",
                             force_password_change=True,
                         )
-                    session.add(admin)
-                    session.commit()
+                        session.add(admin)
+                        session.commit()
+                    else:
+                        logger.info("Fresh install — skipping default admin seed. Use /setup/create-admin.")
             
             # --- Seed Changelog ---
             seed_changelog()
