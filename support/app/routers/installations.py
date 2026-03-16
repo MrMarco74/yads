@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select, func
 
 from ..database import get_session
-from ..models import InstallationReport
+from ..models import ActivationRequest, InstallationReport
 
 router = APIRouter()
 
@@ -80,6 +80,20 @@ async def ingest_installation(
             customer_id=customer_id,
         ))
     session.commit()
+
+    # Create ActivationRequest record with status="pending" if none exists
+    existing_ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == payload.instance_uuid)
+    ).first()
+    if not existing_ar:
+        session.add(ActivationRequest(
+            instance_uuid=payload.instance_uuid,
+            customer_id=customer_id,
+            request_code="",  # no request code for direct telemetry reports
+            status="pending",
+        ))
+        session.commit()
+
     return {"ok": True}
 
 
@@ -139,6 +153,23 @@ async def activate_offline(
             customer_id=customer_id,
         ))
     session.commit()
+
+    # Also create an ActivationRequest with status="approved" (admin manually ingested it)
+    existing_ar = session.exec(
+        select(ActivationRequest).where(
+            ActivationRequest.instance_uuid == payload["instance_uuid"]
+        )
+    ).first()
+    if not existing_ar:
+        session.add(ActivationRequest(
+            instance_uuid=payload["instance_uuid"],
+            customer_id=customer_id,
+            request_code=req.code,
+            status="approved",
+            resolved_at=now,
+        ))
+        session.commit()
+
     return {"ok": True, "instance_uuid": payload["instance_uuid"]}
 
 
@@ -186,3 +217,79 @@ async def list_installations(
             for r in rows
         ],
     })
+
+
+# ---------------------------------------------------------------------------
+# Activation Request endpoints
+# ---------------------------------------------------------------------------
+
+class ActivationRespondPayload(BaseModel):
+    response_code: str
+
+
+@router.post("/api/admin/activation-requests/{instance_uuid}/respond")
+async def respond_to_activation_request(
+    instance_uuid: str,
+    body: ActivationRespondPayload,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Store a signed activation response code for a pending ActivationRequest.
+    Requires admin token.
+    """
+    _require_admin(request)
+
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        raise HTTPException(status_code=404, detail="Activation request not found.")
+
+    ar.response_code = body.response_code
+    ar.status = "approved"
+    ar.resolved_at = datetime.now(timezone.utc)
+    session.add(ar)
+    session.commit()
+    return {"ok": True}
+
+
+@router.get("/api/admin/activation-requests")
+async def list_activation_requests(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Return all ActivationRequests ordered by received_at descending.
+    Includes customer_name via CustomerKey join.
+    Requires admin token.
+    """
+    _require_admin(request)
+
+    from ..models import CustomerKey
+
+    rows = session.exec(
+        select(ActivationRequest).order_by(ActivationRequest.received_at.desc())
+    ).all()
+
+    # Build customer_id → customer_name lookup
+    cust_ids = {r.customer_id for r in rows if r.customer_id}
+    cust_map: dict = {}
+    for cid in cust_ids:
+        ck = session.get(CustomerKey, cid)
+        if ck:
+            cust_map[cid] = ck.customer_name
+
+    return JSONResponse([
+        {
+            "id": r.id,
+            "instance_uuid": r.instance_uuid,
+            "customer_id": r.customer_id,
+            "customer_name": cust_map.get(r.customer_id) if r.customer_id else None,
+            "status": r.status,
+            "has_response_code": bool(r.response_code),
+            "received_at": r.received_at.isoformat(),
+            "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+        }
+        for r in rows
+    ])

@@ -399,6 +399,15 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         else:
             license_status = "Invalid / Expired"
 
+    # --- Activation Status ---
+    activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
+    activation_data = None
+    is_business_license = bool(license_data and license_data.get("customer_id"))
+    if activation_code_conf and activation_code_conf.value:
+        activation_data = license_manager.verify(activation_code_conf.value)
+    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
+
     # --- TLS/SSL Certificate Settings ---
     https_only = False
     custom_ca_cert_path = ""
@@ -515,6 +524,9 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "license_status": license_status,
         "license_data": license_data,
         "license_limit": license_limit,
+        "is_business_license": is_business_license,
+        "activation_data": activation_data,
+        "instance_uuid": instance_uuid,
         "ce_state": __import__('yads.core.community_edition', fromlist=['get_ce_state']).get_ce_state(session),
         "global_max_concurrent_scans": global_max_concurrent_scans,
         "global_max_network_mbps": global_max_network_mbps,

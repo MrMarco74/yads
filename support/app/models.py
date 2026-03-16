@@ -48,6 +48,17 @@ class InstallationReport(SQLModel, table=True):
     report_count: int = Field(default=1)
 
 
+class ActivationRequest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    instance_uuid: str = Field(index=True)
+    customer_id: Optional[str] = Field(default=None, index=True)
+    request_code: str                          # original base64url activation request
+    status: str = Field(default="pending")     # "pending" | "approved" | "rejected"
+    response_code: Optional[str] = None        # signed activation response from developer
+    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    resolved_at: Optional[datetime] = None
+
+
 class ContactRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     contact_id: str = Field(unique=True, index=True)   # "CON-2026-00001"

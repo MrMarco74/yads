@@ -265,7 +265,8 @@
       <a href="/" {% if request.url.path == "/" %}class="active"{% endif %}>Dashboard</a>
       <a href="/reports" {% if request.url.path.startswith("/reports") %}class="active"{% endif %}>Reports</a>
       <a href="/contacts" {% if request.url.path.startswith("/contacts") %}class="active"{% endif %}>Contacts</a>
-      <a href="/installations" {% if request.url.path.startswith("/installations") %}class="active"{% endif %}>Installations</a>
+      <a href="/installations" {% if request.url.path.startswith("/installations") and not request.url.path.startswith("/activations") %}class="active"{% endif %}>Installations</a>
+      <a href="/activations" {% if request.url.path.startswith("/activations") %}class="active"{% endif %}>Aktivierungen</a>
       <a href="/registry/" {% if request.url.path.startswith("/registry") %}class="active"{% endif %}>Registry</a>
     </div>
   </nav>

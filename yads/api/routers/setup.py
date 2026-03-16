@@ -322,3 +322,90 @@ async def queue_install_report(req: InstallReportPayload):
             session.commit()
 
     return {"status": "queued"}
+
+
+class ActivationCodeRequest(BaseModel):
+    activation_code: str
+
+
+@router.post("/activate")
+async def activate_instance(req: ActivationCodeRequest):
+    """
+    Validate and store a signed activation response code.
+    The code is in the same format as a license key: base64url(payload).base64url(signature).
+    Verified with the same LICENSE_PUBLIC_KEY.
+    Stores the code in SystemConfig under ACTIVATION_CODE.
+    """
+    import base64 as _b64
+    import json as _json
+    from yads.models import SystemConfig
+    from yads.database import engine
+    from sqlmodel import Session
+
+    # Verify signature using license public key
+    activation_data = license_manager.verify(req.activation_code)
+    if not activation_data:
+        raise HTTPException(status_code=400, detail="Ungültiger oder abgelaufener Aktivierungscode.")
+
+    # Check instance_uuid matches this instance
+    with Session(engine) as session:
+        uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+        our_uuid = uuid_conf.value if uuid_conf else None
+
+    code_uuid = activation_data.get("instance_uuid")
+    if code_uuid and our_uuid and code_uuid != our_uuid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Aktivierungscode gehört zu einer anderen Instanz ({code_uuid})."
+        )
+
+    # Persist activation code
+    with Session(engine) as session:
+        existing = session.get(SystemConfig, "ACTIVATION_CODE")
+        if existing:
+            existing.value = req.activation_code
+        else:
+            session.add(SystemConfig(key="ACTIVATION_CODE", value=req.activation_code))
+        session.commit()
+
+    return {"status": "activated", "data": activation_data}
+
+
+@router.get("/activation-status")
+async def get_activation_status():
+    """Return current activation status for this instance."""
+    import json as _json
+    from yads.models import SystemConfig
+    from yads.database import engine
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
+        uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+        license_conf = session.get(SystemConfig, "license_key")
+
+    instance_uuid = uuid_conf.value if uuid_conf else None
+    activation_code = code_conf.value if code_conf else None
+
+    # Determine if business license
+    lic_data = None
+    if license_conf and license_conf.value:
+        lic_data = license_manager.verify(license_conf.value)
+    customer_id = lic_data.get("customer_id") if lic_data else None
+    is_business = bool(customer_id)
+
+    # Validate stored activation code
+    activation_data = None
+    if activation_code:
+        activation_data = license_manager.verify(activation_code)
+
+    activated = bool(activation_data)
+
+    return {
+        "instance_uuid": instance_uuid,
+        "is_business": is_business,
+        "customer_id": customer_id,
+        "activated": activated,
+        "requires_activation": is_business and not activated,
+        "activation_data": activation_data,
+    }
