@@ -59,6 +59,7 @@ class YADSInstallerGUI:
         
         # Detection of existing installation
         self.is_upgrade = os.path.exists(".env")
+        self.install_mode_var = tk.StringVar(value="update")  # "update" or "reinstall"
         
         self.steps = [
             self.step_welcome,
@@ -79,7 +80,7 @@ class YADSInstallerGUI:
         
         # Performance/Secret data
         self.secrets = {}
-        self.backup_var = tk.StringVar(value="none")
+        self.backup_var = tk.StringVar(value="sql")  # Backup always enforced
         self.backup_password = tk.StringVar()
         self.data['remote_workers'] = []
         
@@ -211,7 +212,14 @@ class YADSInstallerGUI:
             self.data['admin_email'] = self.ent_email.get()
 
         if self.current_step < len(self.steps) - 1:
-            self.current_step += 1
+            # UPDATE mode: after backup step jump straight to summary (skip config steps)
+            upgrade_backup_idx = 2 if self.is_upgrade else None
+            if (upgrade_backup_idx is not None
+                    and self.current_step == upgrade_backup_idx
+                    and self.install_mode_var.get() == "update"):
+                self.current_step = len(self.steps) - 1
+            else:
+                self.current_step += 1
             self.show_step()
         else:
             self.finish_setup()
@@ -422,21 +430,36 @@ class YADSInstallerGUI:
             return "? SSH Port Fehler"
 
     def finish_setup(self):
-        # Final confirmation and installation
-        if messagebox.askyesno("Finish", "Ready to apply configuration and finish setup?"):
-            try:
-                if self.is_upgrade and self.backup_var.get() != "none":
-                    self.execute_backup()
-                
-                # Stop existing containers if upgrading
-                if self.is_upgrade:
-                    print("Stopping existing containers for upgrade...")
-                    subprocess.run(["docker", "compose", "down"], capture_output=True)
+        mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
+        mode_label = "Update" if mode == "update" else "Neuinstallation"
+        if not messagebox.askyesno("Bestätigen", f"{mode_label} jetzt durchführen?"):
+            return
+        try:
+            # Backup always enforced for existing installations
+            if self.is_upgrade:
+                self.execute_backup()
 
-                self.generate_secrets()
-                self.write_env_file()
-                self.write_nginx_config()
-                self.authenticate_registry()
+            if self.is_upgrade and mode == "update":
+                # UPDATE: pull new images, restart — preserve all config
+                print("Pulling latest images...")
+                subprocess.run(["docker", "compose", "pull"], check=True)
+                print("Restarting services...")
+                subprocess.run(["docker", "compose", "up", "-d", "--remove-orphans"], check=True)
+                messagebox.showinfo("Update abgeschlossen",
+                                    "YADS wurde erfolgreich aktualisiert.\n\n"
+                                    "Die neuen Images sind aktiv.")
+                self.root.quit()
+                return
+
+            # REINSTALL or fresh install
+            if self.is_upgrade:
+                print("Stopping existing containers for reinstall...")
+                subprocess.run(["docker", "compose", "down"], capture_output=True)
+
+            self.generate_secrets()
+            self.write_env_file()
+            self.write_nginx_config()
+            self.authenticate_registry()
                 
                 msg = "Configuration applied successfully!\n\nSoll YADS jetzt gestartet und der Browser (in 5s) geöffnet werden?"
                 if messagebox.askyesno("Start YADS?", msg):
@@ -581,44 +604,71 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
     # --- Step 0: Welcome ---
     def step_upgrade_backup(self):
         ttk.Label(self.content_frame, text="Vorhandene Installation erkannt", style=STYLE_HEADER).pack(pady=(0, 10))
-        ttk.Label(self.content_frame, text="Es wurde eine bestehende YADS-Installation gefunden. Möchten Sie vor dem Upgrade ein Backup der Datenbank erstellen?", 
-                  wraplength=500).pack(pady=10)
-        
-        container = ttk.Frame(self.content_frame)
-        container.pack(fill="x", pady=20)
-        
-        choices = [
-            ("Kein Backup (Überspringen)", "none"),
-            ("Unverschlüsselt (SQL Dump via pg_dump)", "sql"),
-            ("Verschlüsselt (YADS Interner Mechanismus)", "encrypted")
-        ]
-        for text, val in choices:
-            ttk.Radiobutton(container, text=text, variable=self.backup_var, value=val).pack(anchor="w", pady=5)
-        
-        # Password entry for encrypted backup (hidden by default)
-        self.pw_frame = ttk.Frame(self.content_frame)
-        ttk.Label(self.pw_frame, text="Backup Passwort:").pack(side="left", padx=5)
+
+        # ── Mode selection ────────────────────────────────────────────────────
+        mode_frame = ttk.LabelFrame(self.content_frame, text="Installationsmodus")
+        mode_frame.pack(fill="x", pady=(0, 12))
+
+        mode_desc = tk.StringVar()
+
+        def _update_desc(*_):
+            if self.install_mode_var.get() == "update":
+                mode_desc.set("Zieht die neuesten Docker-Images und startet die Dienste neu.\n"
+                              "Konfiguration und Daten bleiben vollständig erhalten.")
+            else:
+                mode_desc.set("Führt eine vollständige Neuinstallation durch.\n"
+                              "Alle Konfigurationsschritte werden erneut durchlaufen.")
+
+        ttk.Radiobutton(mode_frame, text="Update  — Images aktualisieren, Konfig beibehalten",
+                        variable=self.install_mode_var, value="update",
+                        command=_update_desc).pack(anchor="w", padx=10, pady=(8, 2))
+        ttk.Radiobutton(mode_frame, text="Reinstall  — Neuinstallation (Konfig neu konfigurieren)",
+                        variable=self.install_mode_var, value="reinstall",
+                        command=_update_desc).pack(anchor="w", padx=10, pady=(2, 8))
+
+        desc_lbl = ttk.Label(mode_frame, textvariable=mode_desc, foreground=self.colors['fg_sub'],
+                             wraplength=480, justify="left")
+        desc_lbl.pack(anchor="w", padx=10, pady=(0, 8))
+        _update_desc()
+
+        # ── Backup (always enforced) ──────────────────────────────────────────
+        bk_frame = ttk.LabelFrame(self.content_frame, text="Backup (verpflichtend)")
+        bk_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(bk_frame,
+                  text="Ein Backup wird vor jeder Änderung automatisch erstellt.",
+                  foreground=self.colors['fg_sub'], wraplength=480).pack(anchor="w", padx=10, pady=(8, 4))
+
+        for text, val in [
+            ("Unverschlüsselt  (SQL Dump via pg_dump)", "sql"),
+            ("Verschlüsselt  (YADS interner Mechanismus)", "encrypted"),
+        ]:
+            ttk.Radiobutton(bk_frame, text=text, variable=self.backup_var, value=val).pack(anchor="w", padx=10, pady=3)
+
+        # Password entry (shown only for encrypted)
+        self.pw_frame = ttk.Frame(bk_frame)
+        ttk.Label(self.pw_frame, text="Backup-Passwort:").pack(side="left", padx=(10, 5))
         self.ent_backup_pw = ttk.Entry(self.pw_frame, textvariable=self.backup_password, show="*")
         self.ent_backup_pw.pack(side="left", fill="x", expand=True, padx=5)
-        
-        def toggle_pw(*args):
+
+        def toggle_pw(*_):
             try:
                 if self.backup_var.get() == "encrypted":
-                    self.pw_frame.pack(fill="x", pady=10)
+                    self.pw_frame.pack(fill="x", pady=(4, 8))
                 else:
                     self.pw_frame.pack_forget()
             except Exception:
                 return
-        
+
         self.backup_var.trace_add("write", toggle_pw)
-        toggle_pw() # Initial state
+        toggle_pw()
 
     def execute_backup(self):
         b_type = self.backup_var.get()
-        if b_type == "sql":
-            self.run_sql_backup()
-        elif b_type == "encrypted":
+        if b_type == "encrypted":
             self.run_encrypted_backup()
+        else:
+            self.run_sql_backup()  # Default: sql (backup always enforced)
 
     def run_sql_backup(self):
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -849,16 +899,31 @@ with SessionLocal() as session:
         ttk.Label(self.content_frame, text=notice, font=("sans-serif", 9, "italic"), 
                   foreground=self.colors['fg_sub'], wraplength=500).pack(pady=20)
     def step_summary(self):
-        ttk.Label(self.content_frame, text="Ready to Install", style=STYLE_HEADER).pack(pady=(0, 20))
-        ttk.Label(self.content_frame, text="Summary of your configuration:").pack(anchor="w")
-        
-        # Simple dynamic summary
-        summary_txt = f"Host: {self.data['host']}\n"
-        summary_txt += f"Port: {self.data['api_port']}\n"
-        summary_txt += f"SSL: {'Enabled' if self.data['use_ssl'] else 'Disabled'}\n"
-        summary_txt += f"Auth: {self.data['auth_mode']}\n"
-        summary_txt += f"Monitoring: {'Enabled' if self.data['mon_choice'] != '1' else 'Disabled'}\n"
-        summary_txt += "\nSecrets (Passwords, Tokens) will be generated and saved to .env upon clicking Finish."
+        mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
+        if self.is_upgrade and mode == "update":
+            ttk.Label(self.content_frame, text="Bereit zum Update", style=STYLE_HEADER).pack(pady=(0, 10))
+            ttk.Label(self.content_frame,
+                      text="YADS wird auf die neueste Version aktualisiert.\n"
+                           "Konfiguration und Daten bleiben unverändert.",
+                      wraplength=500, justify="center").pack(pady=10)
+            summary_txt = f"Modus: Update (Images aktualisieren)\n"
+            summary_txt += f"Backup: {self.backup_var.get()}\n\n"
+            summary_txt += "Ablauf:\n"
+            summary_txt += "  1. Backup erstellen\n"
+            summary_txt += "  2. docker compose pull\n"
+            summary_txt += "  3. docker compose up -d --remove-orphans\n"
+        else:
+            ttk.Label(self.content_frame, text="Bereit zur Installation", style=STYLE_HEADER).pack(pady=(0, 10))
+            ttk.Label(self.content_frame, text="Zusammenfassung der Konfiguration:").pack(anchor="w")
+            summary_txt = f"Modus: {'Reinstall' if self.is_upgrade else 'Neuinstallation'}\n"
+            summary_txt += f"Host: {self.data['host']}\n"
+            summary_txt += f"Port: {self.data['api_port']}\n"
+            summary_txt += f"SSL: {'Aktiviert' if self.data['use_ssl'] else 'Deaktiviert'}\n"
+            summary_txt += f"Auth: {self.data['auth_mode']}\n"
+            summary_txt += f"Monitoring: {'Aktiviert' if self.data['mon_choice'] != '1' else 'Deaktiviert'}\n"
+            if self.is_upgrade:
+                summary_txt += f"Backup: {self.backup_var.get()}\n"
+            summary_txt += "\nPasswörter und Tokens werden beim Klick auf Finish generiert und in .env gespeichert."
         
         self.text_area = tk.Text(self.content_frame, height=10, bg=self.colors['bg_alt'], fg=self.colors['fg'])
         self.text_area.insert("1.0", summary_txt)
