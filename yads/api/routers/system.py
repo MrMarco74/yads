@@ -45,8 +45,47 @@ def _register_license_key_with_portal(license_token: str) -> None:
 
         report_signing_key_b64 = payload.get("report_signing_key")
         customer_id = payload.get("customer_id")
+
+        # Always send/update installation report when a license key is entered,
+        # even for CE keys without customer_id — creates or updates the record.
+        try:
+            from yads.database import engine as _eng
+            from yads.models import SystemConfig as _SC
+            from sqlmodel import Session as _Sess
+            from yads.api.routers.updates import get_update_manager
+
+            with _Sess(_eng) as _s:
+                uuid_conf = _s.get(_SC, "INSTANCE_UUID")
+                instance_uuid = uuid_conf.value if uuid_conf else None
+
+            version = "unknown"
+            try:
+                version = get_update_manager().state.current_version or version
+            except Exception:
+                pass
+
+            if instance_uuid:
+                portal_url_early = settings.SUPPORT_PORTAL_URL.rstrip("/")
+                ir = requests.post(
+                    f"{portal_url_early}/api/installation",
+                    json={
+                        "instance_uuid": instance_uuid,
+                        "version": version,
+                        "install_type": "installer",
+                        "customer_id": customer_id or None,
+                    },
+                    timeout=10,
+                    verify=settings.SUPPORT_PORTAL_VERIFY_SSL,
+                )
+                if ir.status_code == 200:
+                    logger.info(f"[LicenseSync] Installation report sent for instance {instance_uuid[:8]}…")
+                else:
+                    logger.warning(f"[LicenseSync] Installation report failed: {ir.status_code}")
+        except Exception as _ie:
+            logger.warning(f"[LicenseSync] Could not send installation report: {_ie}")
+
         if not report_signing_key_b64 or not customer_id:
-            logger.warning("[LicenseSync] License has no report_signing_key or customer_id — skipping portal sync.")
+            logger.info("[LicenseSync] CE license — no report_signing_key/customer_id, skipping key registration.")
             return
 
         # Derive public key from private key seed
@@ -70,6 +109,7 @@ def _register_license_key_with_portal(license_token: str) -> None:
             logger.warning("[LicenseSync] Support portal self-registration not configured (LICENSE_AUTHORITY_PUBLIC_KEY missing).")
         else:
             logger.warning(f"[LicenseSync] Support portal returned {resp.status_code}: {resp.text[:200]}")
+
     except Exception as e:
         logger.warning(f"[LicenseSync] Failed to sync license key with support portal: {e}")
 
