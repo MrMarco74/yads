@@ -461,6 +461,39 @@
     {% include 'components/modals.html' %}
     {% block scripts %}{% endblock %}
 
+    <!-- CSRF: inject hidden _csrf field into POST forms + set HTMX header -->
+    <script>
+    (function () {
+        'use strict';
+        function getCsrfToken() {
+            var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        function injectCsrfFields() {
+            var token = getCsrfToken();
+            if (!token) return;
+            document.querySelectorAll('form').forEach(function (form) {
+                if (form.method.toLowerCase() === 'post' && !form.querySelector('[name="_csrf"]')) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = '_csrf';
+                    input.value = token;
+                    form.appendChild(input);
+                }
+            });
+        }
+        // Run on initial load and after every HTMX swap (new forms may appear)
+        document.addEventListener('DOMContentLoaded', injectCsrfFields);
+        document.addEventListener('htmx:afterSwap', injectCsrfFields);
+        document.addEventListener('htmx:afterSettle', injectCsrfFields);
+        // HTMX: send token as header on every request
+        document.addEventListener('htmx:configRequest', function (evt) {
+            var token = getCsrfToken();
+            if (token) evt.detail.headers['X-CSRF-Token'] = token;
+        });
+    })();
+    </script>
+
     <!-- Global PDF/Export loading overlay -->
     <div id="export-loading-overlay" class="hidden fixed inset-0 z-[200] flex flex-col items-center justify-center bg-gray-950/80 backdrop-blur-sm">
         <div class="bg-gray-900 border border-gray-700 rounded-2xl px-10 py-8 flex flex-col items-center gap-5 shadow-2xl">
