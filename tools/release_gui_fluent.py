@@ -915,19 +915,36 @@ class ProdDeployWorker(QThread):
 
                 self._log("Waiting for services to stop (max 60s)...", "info")
                 for i in range(30):
-                    result = subprocess.run(["ssh", self.remote_host, f"docker ps -q --filter label=com.docker.stack.namespace={self.stack_name}"], capture_output=True, text=True)
+                    # -qa: all containers incl. stopped — volume rm fails if stopped containers hold volume
+                    result = subprocess.run(
+                        self._inject_ssh_opts(["ssh", self.remote_host,
+                            f"docker ps -qa --filter label=com.docker.stack.namespace={self.stack_name}"]),
+                        capture_output=True, text=True)
                     if not result.stdout.strip():
-                        self._log("All containers stopped.", "info")
+                        self._log("All containers gone.", "info")
                         break
                     time.sleep(2)
-                
-                self._log("Pruning containers...", "info")
-                self._run_cmd(["ssh", self.remote_host, f"docker container prune -f --filter label=com.docker.stack.namespace={self.stack_name}"])
+                else:
+                    self._log("⚠️  Some containers still present after 60s, forcing prune...", "warning")
+
+                self._log("Pruning all stopped containers...", "info")
+                # Prune without label filter to catch any stragglers holding volumes
+                self._run_cmd(["ssh", self.remote_host, "docker container prune -f"])
 
                 self._log("Removing data volumes...", "info")
                 for vol in self.data_volumes:
-                    self._run_cmd(["ssh", self.remote_host, f"docker volume rm {vol}"])
-                
+                    result = subprocess.run(
+                        self._inject_ssh_opts(["ssh", self.remote_host, f"docker volume rm {vol} 2>&1"]),
+                        capture_output=True, text=True)
+                    if result.returncode == 0:
+                        self._log(f"  ✅ Removed volume {vol}", "info")
+                    else:
+                        self._log(f"  ⚠️  Could not remove {vol}: {result.stdout.strip()}", "warning")
+
+                self._log("Clearing config.env from data volume (removes SETUP_COMPLETE)...", "info")
+                self._run_cmd(["ssh", self.remote_host,
+                    f"docker run --rm -v {self.stack_name}_data:/data alpine sh -c 'rm -f /data/config.env' 2>/dev/null || true"])
+
                 self._log("Removing stack networks...", "info")
                 self._run_cmd(["ssh", self.remote_host, f"docker network rm {self.stack_name}_yads-internal {self.stack_name}_yads-frontend"])
 
@@ -935,9 +952,6 @@ class ProdDeployWorker(QThread):
                 self._run_cmd(["ssh", self.remote_host,
                                f"docker rmi {self.registry_image} {self.worker_registry_image} {self.backup_registry_image}"])
 
-                self._log("Resetting data/config.env (clear SETUP_COMPLETE)...", "info")
-                self._run_cmd(["ssh", self.remote_host,
-                               f"rm -f {self.remote_deploy_dir}/data/config.env"])
                 self._log("Wipe complete.", "success")
 
             # ── Step 1: Build API image ────────────────────────────────────────
@@ -1286,9 +1300,11 @@ class ProdDeployWorker(QThread):
         if rc == 0:
             self._log("  ✅ Admin created.", "success")
         else:
-            self._log(f"  ⚠️  Admin error: {out}", "warning")
+            self._log(f"  ❌ Admin creation failed: {out}", "error")
+            self._log("  Setup aborted — SETUP_COMPLETE will NOT be set. Fix manually.", "error")
+            return
 
-        # 3. Finish setup
+        # 3. Finish setup (only if admin was created successfully)
         self._log("Setup: Finalizing...", "info")
         rc, out = _docker_post(container_id, "/setup/finish", {})
         if rc == 0:
