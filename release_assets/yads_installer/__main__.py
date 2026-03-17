@@ -5,8 +5,8 @@ import threading
 import tkinter as tk
 
 
-def _create_desktop_entry():
-    """Create a .desktop file so the installer appears in the app menu / taskbar."""
+def _create_desktop_entry(logo_data: bytes):
+    """Create .desktop file and icon — called once in a background thread."""
     desktop_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
     icon_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "icons")
     pyz_path = os.path.abspath(sys.argv[0])
@@ -15,7 +15,6 @@ def _create_desktop_entry():
     try:
         os.makedirs(icon_dir, exist_ok=True)
         icon_path = os.path.join(icon_dir, "yads-setup.png")
-        logo_data = pkgutil.get_data("yads_installer", "logo.png")
         if logo_data:
             with open(icon_path, "wb") as f:
                 f.write(logo_data)
@@ -45,8 +44,20 @@ def _create_desktop_entry():
 
 
 def main():
-    # Run desktop entry creation in background so it doesn't block Tkinter startup
-    threading.Thread(target=_create_desktop_entry, daemon=True).start()
+    # Skip desktop-entry creation if the .desktop file already exists —
+    # no need to rewrite it on every launch.
+    # When it does need creating: read logo bytes here in the main thread
+    # (avoids Python import-lock contention with the background thread that
+    # would otherwise call pkgutil.get_data while gui.py is being imported).
+    desktop_path = os.path.join(
+        os.path.expanduser("~"), ".local", "share", "applications", "yads-setup.desktop"
+    )
+    if not os.path.exists(desktop_path):
+        try:
+            logo_data = pkgutil.get_data("yads_installer", "logo.png") or b""
+        except Exception:
+            logo_data = b""
+        threading.Thread(target=_create_desktop_entry, args=(logo_data,), daemon=True).start()
 
     try:
         root = tk.Tk()
