@@ -464,7 +464,7 @@ class FileUpdater:
         """
         file_path = self.project_root / "yads-homepage" / language / "changes.html"
         if not file_path.exists():
-            return {'file': str(file_path), 'changed': False, 'error': 'file not found'}
+            return {'file': str(file_path), 'changed': False, 'matches': 0, 'error': 'file not found'}
 
         content = file_path.read_text(encoding='utf-8')
 
@@ -475,7 +475,7 @@ class FileUpdater:
         idx_footer = content.find(FOOTER_ANCHOR)
 
         if idx_open == -1 or idx_footer == -1:
-            return {'file': str(file_path), 'changed': False, 'error': 'timeline/footer marker not found'}
+            return {'file': str(file_path), 'changed': False, 'matches': 0, 'error': 'timeline/footer marker not found'}
 
         head = content[:idx_open + len(TIMELINE_OPEN)]
         tail = content[idx_footer:]  # starts with \n    <footer...
@@ -487,7 +487,7 @@ class FileUpdater:
         # 2. Split into individual entry dicts
         entries = _split_into_entries(flat)
         if not entries:
-            return {'file': str(file_path), 'changed': False, 'error': 'no entries found'}
+            return {'file': str(file_path), 'changed': False, 'matches': 0, 'error': 'no entries found'}
 
         # 3. Determine which minor series to keep visible
         all_minors = sorted(
@@ -514,6 +514,7 @@ class FileUpdater:
         result = {
             'file': str(file_path),
             'changed': content != new_content,
+            'matches': len(visible) + len(archive),
             'visible_entries': len(visible),
             'archived_entries': len(archive),
         }
