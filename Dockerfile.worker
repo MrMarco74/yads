@@ -19,7 +19,7 @@
 #   volumes: - nuclei_templates:/root/nuclei-templates
 
 # Global ARG — must be declared before first FROM to be usable in FROM instructions
-ARG TOOLS_IMAGE=registry.yads-security.com/yads/yads-tools:1.0
+ARG TOOLS_IMAGE=registry.yads-security.com/yads/yads-tools:1.1
 
 # ── CSS Build (lightweight) ───────────────────────────────────────────────────
 FROM node:18-alpine AS css-builder
