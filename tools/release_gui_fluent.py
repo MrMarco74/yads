@@ -934,6 +934,10 @@ class ProdDeployWorker(QThread):
                 self._log("Removing old images...", "info")
                 self._run_cmd(["ssh", self.remote_host,
                                f"docker rmi {self.registry_image} {self.worker_registry_image} {self.backup_registry_image}"])
+
+                self._log("Resetting data/config.env (clear SETUP_COMPLETE)...", "info")
+                self._run_cmd(["ssh", self.remote_host,
+                               f"rm -f {self.remote_deploy_dir}/data/config.env"])
                 self._log("Wipe complete.", "success")
 
             # ── Step 1: Build API image ────────────────────────────────────────
@@ -1182,16 +1186,31 @@ class ProdDeployWorker(QThread):
 
         def _curl(path, payload):
             body = _json.dumps(payload).replace("'", "'\\''")
+            # -s: silent, -S: show errors, -w: append HTTP status at end
+            # -f omitted so we always get the response body (incl. 403/500 detail)
             cmd = (
-                f"curl -sf -X POST '{base}{path}' "
+                f"curl -sS --max-time 15 --connect-timeout 5 -X POST '{base}{path}' "
                 f"-H 'Content-Type: application/json' "
-                f"-d '{body}' 2>&1"
+                f"-d '{body}' -w '\\nHTTP_STATUS:%{{http_code}}' 2>&1"
             )
             result = subprocess.run(
                 self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=30
             )
-            return result.returncode, result.stdout.strip()
+            out = result.stdout.strip()
+            # Extract HTTP status from output
+            http_status = 0
+            if "HTTP_STATUS:" in out:
+                parts = out.rsplit("HTTP_STATUS:", 1)
+                out = parts[0].strip()
+                try:
+                    http_status = int(parts[1].strip())
+                except ValueError:
+                    pass
+            ok = (result.returncode == 0 and 200 <= http_status < 300)
+            if not ok and http_status:
+                out = f"HTTP {http_status}: {out}"
+            return (0 if ok else 1), out
 
         def _curl_get(path):
             cmd = f"curl -sf --max-time 5 --connect-timeout 3 '{base}{path}' 2>&1"
