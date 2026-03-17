@@ -8,11 +8,21 @@
 </div>
 
 <!-- KPI summary -->
+<style>
+  .kpi-split { display:flex; gap:0.75rem; margin-top:0.5rem; }
+  .kpi-split span { font-size:0.72rem; font-weight:600; color:var(--text-muted); }
+  .kpi-split .pill-ce  { background:#1e293b; border:1px solid #334155; color:#94a3b8; border-radius:999px; padding:1px 8px; }
+  .kpi-split .pill-ent { background:#1e3a5f; border:1px solid #1d4ed8; color:#93c5fd; border-radius:999px; padding:1px 8px; }
+</style>
 <div class="kpi-grid">
   <a href="/installations" style="text-decoration:none;">
     <div class="kpi-card kpi-card--total" style="cursor:pointer;{% if not selected_version and not selected_install_type %}outline:2px solid var(--accent);{% endif %}">
       <div class="kpi-card__label">Total Instances</div>
       <div class="kpi-card__value">{{ total }}</div>
+      <div class="kpi-split">
+        <span class="pill-ce">CE {{ splits.total.ce }}</span>
+        <span class="pill-ent">ENT {{ splits.total.ent }}</span>
+      </div>
     </div>
   </a>
   <div class="kpi-card">
@@ -23,12 +33,20 @@
     <div class="kpi-card" style="cursor:pointer;{% if selected_install_type == 'installer' %}outline:2px solid #22c55e;{% endif %}">
       <div class="kpi-card__label">GUI Installer</div>
       <div class="kpi-card__value" style="color:#22c55e;">{{ type_distribution.get('installer', 0) }}</div>
+      <div class="kpi-split">
+        <span class="pill-ce">CE {{ splits.installer.ce }}</span>
+        <span class="pill-ent">ENT {{ splits.installer.ent }}</span>
+      </div>
     </div>
   </a>
   <a href="/installations?install_type=web_wizard" style="text-decoration:none;">
     <div class="kpi-card" style="cursor:pointer;{% if selected_install_type == 'web_wizard' %}outline:2px solid #3b82f6;{% endif %}">
       <div class="kpi-card__label">Web Wizard</div>
       <div class="kpi-card__value" style="color:#3b82f6;">{{ type_distribution.get('web_wizard', 0) }}</div>
+      <div class="kpi-split">
+        <span class="pill-ce">CE {{ splits.web_wizard.ce }}</span>
+        <span class="pill-ent">ENT {{ splits.web_wizard.ent }}</span>
+      </div>
     </div>
   </a>
 </div>
