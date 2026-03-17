@@ -77,6 +77,14 @@ def _migrate_columns() -> None:
         ))
         conn.commit()
 
+        # ContactRequest: add is_archived column
+        cr_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(contactrequest)"))}
+        if "is_archived" not in cr_cols:
+            conn.execute(text("ALTER TABLE contactrequest ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"))
+            # Auto-archive existing spam entries
+            conn.execute(text("UPDATE contactrequest SET is_archived = 1 WHERE status = 'spam'"))
+            conn.commit()
+
         # category_id on bugreport (ReportCategory table created by SQLModel.metadata.create_all)
         br_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bugreport)"))}
         if "category_id" not in br_cols:

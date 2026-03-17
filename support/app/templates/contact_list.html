@@ -25,15 +25,28 @@
 
 <div class="section-header mb-2">
   <h2>&#128233; Contact Requests</h2>
+  <div style="display:flex;gap:0.5rem;align-items:center;">
+    {% if show_archived %}
+    <a href="/contacts{% if selected_status or selected_topic %}?status={{ selected_status }}&topic={{ selected_topic }}{% endif %}" class="btn btn--secondary" style="font-size:0.8rem;">
+      &#128065; Aktive anzeigen
+    </a>
+    {% else %}
+    <a href="/contacts?show_archived=1{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_topic %}&topic={{ selected_topic }}{% endif %}" class="btn btn--secondary" style="font-size:0.8rem;">
+      &#128190; Archiv anzeigen{% if archived_count %} <span style="background:#334155;border-radius:999px;padding:1px 7px;font-size:0.7rem;">{{ archived_count }}</span>{% endif %}
+    </a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Filter -->
 <form class="filter-form" method="get" action="/contacts">
+  {% if show_archived %}<input type="hidden" name="show_archived" value="1" />{% endif %}
   <select name="status" onchange="this.form.submit()">
     <option value="">All statuses</option>
     {% for s in valid_statuses %}
     <option value="{{ s }}" {% if selected_status == s %}selected{% endif %}>{{ s|replace("_"," ")|title }}</option>
     {% endfor %}
+    <option value="spam" {% if selected_status == "spam" %}selected{% endif %}>Spam</option>
   </select>
   <select name="topic" onchange="this.form.submit()">
     <option value="">All topics</option>
@@ -42,7 +55,7 @@
     {% endfor %}
   </select>
   {% if selected_status or selected_topic %}
-  <a href="/contacts" class="btn btn--secondary">Clear</a>
+  <a href="/contacts{% if show_archived %}?show_archived=1{% endif %}" class="btn btn--secondary">Clear</a>
   {% endif %}
 </form>
 
@@ -66,7 +79,7 @@
       <tbody>
         {% for c in contacts %}
         <!-- Main row -->
-        <tr>
+        <tr {% if c.is_archived %}style="opacity:0.55;"{% endif %}>
           <td style="font-family:monospace;font-size:0.8rem;white-space:nowrap;">
             {{ c.contact_id }}
             {% if c.notes %}
@@ -112,6 +125,14 @@
             <form method="post" action="/contacts/{{ c.contact_id }}/convert" style="display:inline;margin-left:0.3rem;"
                   onsubmit="return confirm('Als Bug-Report anlegen?');">
               <button class="btn btn--secondary" style="font-size:0.7rem;padding:0.2rem 0.5rem;" title="Als Bug-Report anlegen">&#128030;</button>
+            </form>
+            <!-- Archive toggle -->
+            <form method="post" action="/contacts/{{ c.contact_id }}/archive" style="display:inline;margin-left:0.3rem;"
+                  onsubmit="return confirm('{{ 'Archivierung aufheben?' if c.is_archived else 'Kontakt archivieren?' }}');">
+              <button class="btn btn--secondary" style="font-size:0.7rem;padding:0.2rem 0.5rem;"
+                      title="{{ 'Archivierung aufheben' if c.is_archived else 'Archivieren' }}">
+                {% if c.is_archived %}&#128257;{% else %}&#128190;{% endif %}
+              </button>
             </form>
             <!-- Notes toggle -->
             <button class="notes-toggle" title="Notizen" onclick="toggleNotes('{{ c.contact_id }}')">&#128221;</button>
