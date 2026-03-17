@@ -27,6 +27,10 @@ logs/backups/
 *.bak
 *.backup
 
+# Private keys — never commit
+*.pem
+*.key
+
 # LLM GUI
 .llmgui.context
 .llmgui_db/

@@ -1,0 +1,215 @@
+YADS — Third-Party Software Notices
+=====================================
+
+This product includes software developed by third parties.
+The following components are distributed under the listed licenses.
+Full license texts are available at the URLs provided.
+
+-------------------------------------------------------------------------------
+CATEGORY: MIT License
+-------------------------------------------------------------------------------
+
+FastAPI
+  Copyright (c) 2018 Sebastián Ramírez
+  https://github.com/tiangolo/fastapi/blob/master/LICENSE
+
+SQLModel
+  Copyright (c) 2021 Sebastián Ramírez
+  https://github.com/tiangolo/sqlmodel/blob/main/LICENSE
+
+Jinja2
+  Copyright (c) 2007 Pallets
+  https://github.com/pallets/jinja/blob/main/LICENSE.txt
+
+MarkupSafe
+  Copyright (c) 2010 Pallets
+  https://github.com/pallets/markupsafe/blob/main/LICENSE.txt
+
+python-multipart
+  Copyright (c) 2012 Andrew Dunham
+  https://github.com/andrew-d/python-multipart/blob/master/LICENSE.txt
+
+aiofiles
+  Copyright (c) 2016 Tin Tvrtković
+  https://github.com/Tinche/aiofiles/blob/main/LICENSE
+
+tldextract
+  Copyright (c) 2013 John Kurkowski
+  https://github.com/john-kurkowski/tldextract/blob/master/LICENSE
+
+fpdf2
+  Copyright (c) 2020 David Ankin
+  https://github.com/py-pdf/fpdf2/blob/master/LICENSE
+
+pyotp
+  Copyright (c) 2011-2020 PyOTP contributors
+  https://github.com/pyauth/pyotp/blob/master/LICENSE
+
+ipwhois
+  Copyright (c) 2013-2020 Philip Hane
+  https://github.com/secynic/ipwhois/blob/master/LICENSE.rst
+
+openpyxl
+  Copyright (c) 2010 openpyxl
+  https://github.com/theorchard/openpyxl/blob/master/LICENCE.rst
+
+python-whois
+  Copyright (c) 2014 Sven Haardiek
+  https://github.com/DannyCork/python-whois/blob/master/LICENSE.txt
+
+croniter
+  Copyright (c) 2011 Matsumoto Taichi
+  https://github.com/kiorky/croniter/blob/master/LICENSE
+
+defusedxml
+  Copyright (c) 2013 Christian Heimes
+  https://github.com/tiran/defusedxml/blob/master/LICENSE
+
+prometheus-client
+  Copyright (c) 2015 Brian Brazil
+  https://github.com/prometheus/client_python/blob/master/LICENSE
+
+Nuclei (ProjectDiscovery)
+  Copyright (c) 2021 ProjectDiscovery, Inc.
+  https://github.com/projectdiscovery/nuclei/blob/main/LICENSE.md
+
+Tailwind CSS
+  Copyright (c) 2019 Tailwind Labs, Inc.
+  https://github.com/tailwindlabs/tailwindcss/blob/master/LICENSE
+
+-------------------------------------------------------------------------------
+CATEGORY: BSD License (2-Clause or 3-Clause)
+-------------------------------------------------------------------------------
+
+Celery
+  Copyright (c) 2009-2023 Ask Solem & contributors
+  https://github.com/celery/celery/blob/main/LICENSE
+
+uvicorn
+  Copyright (c) 2017-present Encode OSS Ltd.
+  https://github.com/encode/uvicorn/blob/master/LICENSE.md
+
+httpx
+  Copyright (c) 2019 Encode OSS Ltd.
+  https://github.com/encode/httpx/blob/master/LICENSE.md
+
+requests
+  Copyright (c) 2019 Kenneth Reitz
+  https://github.com/psf/requests/blob/main/LICENSE
+
+dnspython
+  Copyright (c) 2001-2023 Bob Halley
+  https://github.com/rthalley/dnspython/blob/master/LICENSE
+
+passlib
+  Copyright (c) 2008-2020 Eli Collins
+  https://github.com/ircmaxell/passlib/blob/master/LICENSE
+
+Pillow
+  Copyright (c) 2010-2023 Jeffrey A. Clark and contributors
+  https://github.com/python-pillow/Pillow/blob/main/LICENSE
+
+imagehash
+  Copyright (c) 2013 Johannes Buchner
+  https://github.com/JohannesBuchner/imagehash/blob/master/LICENSE
+
+networkx
+  Copyright (c) 2004-2023 NetworkX Developers
+  https://github.com/networkx/networkx/blob/main/LICENSE.txt
+
+matplotlib
+  Copyright (c) 2012-2023 Matplotlib Development Team
+  https://github.com/matplotlib/matplotlib/blob/main/LICENSE/LICENSE
+
+psutil
+  Copyright (c) 2009 Giampaolo Rodola
+  https://github.com/giampaolo/psutil/blob/master/LICENSE
+
+mmh3
+  Copyright (c) 2011 Hajime Senuma
+  https://github.com/hajimes/mmh3/blob/master/LICENSE
+
+pandas
+  Copyright (c) 2008-2023 AQR Capital Management, LLC, Lambda Foundry, Inc.
+  https://github.com/pandas-dev/pandas/blob/main/LICENSE
+
+redis-py
+  Copyright (c) 2012 Andy McCurdy
+  https://github.com/redis/redis-py/blob/master/LICENSE
+
+-------------------------------------------------------------------------------
+CATEGORY: Apache License 2.0
+-------------------------------------------------------------------------------
+
+Playwright (Microsoft)
+  Copyright (c) Microsoft Corporation
+  https://github.com/microsoft/playwright-python/blob/main/LICENSE
+
+Chromium (used by Playwright)
+  Copyright (c) The Chromium Authors
+  https://chromium.googlesource.com/chromium/src/+/main/LICENSE
+
+cryptography
+  Copyright (c) Individual contributors
+  https://github.com/pyca/cryptography/blob/main/LICENSE.APACHE
+
+pydantic / pydantic-settings
+  Copyright (c) 2017 Samuel Colvin
+  https://github.com/pydantic/pydantic/blob/main/LICENSE
+
+-------------------------------------------------------------------------------
+CATEGORY: PostgreSQL License (permissive, similar to BSD)
+-------------------------------------------------------------------------------
+
+PostgreSQL
+  Portions Copyright (c) 1996-2023, The PostgreSQL Global Development Group
+  Portions Copyright (c) 1994, The Regents of the University of California
+  https://www.postgresql.org/about/licence/
+
+psycopg2
+  Copyright (c) 2001-2021 Federico Di Gregorio, Daniele Varrazzo
+  https://github.com/psycopg/psycopg2/blob/master/LICENSE
+
+SQLAlchemy
+  Copyright (c) 2005-2023 SQLAlchemy authors and contributors
+  https://github.com/sqlalchemy/sqlalchemy/blob/main/LICENSE
+
+-------------------------------------------------------------------------------
+CATEGORY: Mozilla Public License 2.0
+-------------------------------------------------------------------------------
+
+python-jose
+  Copyright (c) 2015 Michael Davis
+  https://github.com/mpdavis/python-jose/blob/master/LICENSE
+
+ecdsa
+  Copyright (c) 2010 Brian Warner
+  https://github.com/tlsfuzzer/python-ecdsa/blob/master/LICENSE
+
+-------------------------------------------------------------------------------
+CATEGORY: GNU General Public License v2 (with special linking exception)
+-------------------------------------------------------------------------------
+
+Nmap
+  Copyright (c) 1996-2023 Insecure.Com LLC
+  https://nmap.org/book/man-legal.html
+
+  NOTE: Nmap is installed from OS package repositories at runtime and is
+  NOT bundled with YADS. YADS invokes Nmap as an external process via
+  subprocess. The Nmap source code is available at https://nmap.org/
+
+-------------------------------------------------------------------------------
+CATEGORY: Server Side Public License v1 (SSPL)
+-------------------------------------------------------------------------------
+
+Redis
+  Copyright (c) 2009-2023 Redis Ltd.
+  https://redis.io/docs/about/license/
+
+  NOTE: Redis is used as an independent service (message broker / cache).
+  YADS does not incorporate Redis source code. Self-hosted deployments
+  are not affected by SSPL's service-provider clause.
+
+-------------------------------------------------------------------------------
+END OF THIRD-PARTY NOTICES
+-------------------------------------------------------------------------------

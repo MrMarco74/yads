@@ -440,6 +440,44 @@
                     </button>
                 </div>
 
+                <!-- Nmap -->
+                <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
+                    <div>
+                        <span class="text-sm font-medium text-gray-200 block">Nmap Port Scanner</span>
+                        <span class="text-[10px] text-gray-500 block">Optional: enables stealth port scanning (GPL-2.0, not bundled).</span>
+                        <span id="nmap-status-text" class="text-[10px] text-gray-600 block mt-0.5"
+                              hx-get="/api/system/binary-status" hx-trigger="load" hx-swap="innerHTML"
+                              hx-select-oob="#nmap-status-text,#nmap-install-btn">Checking...</span>
+                    </div>
+                    <div id="nmap-install-btn">
+                        <button type="button"
+                                hx-post="/admin/tools/nmap-install"
+                                hx-swap="outerHTML"
+                                class="bg-amber-700 hover:bg-amber-600 text-white text-[10px] font-bold py-1.5 px-3 rounded transition-colors">
+                            Install nmap
+                        </button>
+                    </div>
+                </div>
+                <script>
+                document.body.addEventListener('htmx:afterRequest', function(e) {
+                    if (e.detail.pathInfo && e.detail.pathInfo.requestPath === '/api/system/binary-status') {
+                        try {
+                            var data = JSON.parse(e.detail.xhr.responseText);
+                            var nmap = data.find(function(b) { return b.name === 'nmap'; });
+                            if (!nmap) return;
+                            var txt = document.getElementById('nmap-status-text');
+                            var btn = document.getElementById('nmap-install-btn');
+                            if (nmap.available) {
+                                if (txt) { txt.textContent = 'Installed ✓'; txt.className = txt.className.replace('text-gray-600','text-green-500'); }
+                                if (btn) btn.innerHTML = '<span class="text-[10px] text-green-500 font-semibold">✓ Available</span>';
+                            } else {
+                                if (txt) { txt.textContent = 'Not installed — click to install'; txt.className = txt.className.replace('text-gray-600','text-amber-400'); }
+                            }
+                        } catch(ex) {}
+                    }
+                });
+                </script>
+
                 <!-- One-Click Updates -->
                 <div id="update-panel" class="flex flex-col gap-3 p-4 bg-gradient-to-br from-indigo-900/20 to-purple-900/10 rounded-lg border border-indigo-500/30">
                     <div class="flex items-center justify-between gap-4">

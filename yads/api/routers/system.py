@@ -181,6 +181,46 @@ async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleC
     except Exception as e:
         logger.error(f"Failed to read logs: {e}")
         return {"logs": [f"Error reading log file: {str(e)}"]}
+@router.get("/api/system/binary-status")
+async def binary_status(request: Request, user: User = Depends(RoleChecker(["admin"]))):
+    """Return availability of optional external binaries (nmap, nuclei, …)."""
+    import shutil
+    BINARIES = [
+        {"name": "nmap",   "label": "Nmap",   "install_hint": "apt-get install -y nmap",   "has_fallback": True,  "fallback_note": "socket-based scan (limited, no stealth)"},
+        {"name": "nuclei", "label": "Nuclei", "install_hint": "See /admin/tools for update", "has_fallback": False, "fallback_note": ""},
+    ]
+    result = []
+    for b in BINARIES:
+        available = bool(shutil.which(b["name"]))
+        result.append({**b, "available": available, "mode": "full" if available else ("fallback" if b["has_fallback"] else "unavailable")})
+    return result
+
+
+@router.post("/admin/tools/nmap-install")
+async def admin_nmap_install(request: Request, user: User = Depends(RoleChecker(["admin"]))):
+    """
+    Attempt to install nmap via apt-get.
+    Only works in Docker/Debian/Ubuntu containers where apt-get is available.
+    """
+    import subprocess
+    import shutil
+    if shutil.which("nmap"):
+        return HTMLResponse(content='<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2">Nmap is already installed.</div>')
+    logger.info(f"Admin {user.username} triggered nmap installation.")
+    try:
+        proc = subprocess.run(  # nosec B603 B607 - hardcoded apt-get nmap, no user input
+            ["apt-get", "install", "-y", "--no-install-recommends", "nmap"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120
+        )
+        if proc.returncode == 0:
+            return HTMLResponse(content='<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Nmap installed successfully. Restart the worker to activate.</div>')
+        else:
+            out = proc.stdout[-300:] if proc.stdout else ""
+            return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2">Installation failed: {out}</div>')
+    except Exception as e:
+        return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2">Error: {str(e)}</div>')
+
+
 @router.post("/admin/tools/nuclei-update")
 async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker(["admin"]))):
     """

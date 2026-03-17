@@ -208,14 +208,14 @@
     <li><strong>Admin Erstellen</strong>: Erstellen Sie das erste Systemadministrator-Konto.</li>
 </ol>
 
-<h3 id="2-2-interactive-setup-script">2.2 Interaktives Setup Script</h3>
-<p>Für eine vereinfachte Bereitstellung verwenden Sie das mitgelieferte <code>setup.sh</code> Script. Es automatisiert Registry-Login, Port-Konfiguration, SSL und Umgebungsvariablen.</p>
+<h3 id="2-2-interactive-setup-script">2.2 Grafisches Setup-Tool (GUI)</h3>
+<p>Für eine moderne und intuitive Bereitstellung verwenden Sie das neue Python-basierte GUI-Setup-Tool <code>yads-setup.pyz</code>. Es bietet eine benutzerfreundliche Oberfläche mit System-Dark-Mode-Unterstützung, Netzwerk-Tests (Ping) und automatischer IP-Auflösung.</p>
 <ol>
-    <li>Entpacken Sie das Release-Paket und navigieren Sie in das Verzeichnis.</li>
-    <li>Führen Sie <code>chmod +x setup.sh && ./setup.sh</code> aus.</li>
-    <li>Wenn Sie nach dem <strong>Registry-Token</strong> gefragt werden (in Ihrer Lizenz-E-Mail enthalten), geben Sie dieses ein. Das Script meldet Docker an <code>registry.yads-security.com</code> an und lädt die Images automatisch herunter.</li>
-    <li>Folgen Sie den weiteren Anweisungen zur Konfiguration von Ports, SSL und Umgebung.</li>
-    <li>Das Script generiert eine <code>.env</code>-Datei und eine optimierte <code>docker-compose.yml</code>.</li>
+    <li>Entpacken Sie das Release-Paket (<code>unzip yads-test-release.zip && cd yads-test-release</code>).</li>
+    <li>Führen Sie <code>chmod +x yads-setup.pyz && ./yads-setup.pyz</code> aus.</li>
+    <li>Der Installer prüft automatisch alle Abhängigkeiten (Docker, Compose) und bietet eine Ein-Klick-Installation für fehlende Komponenten an.</li>
+    <li>Geben Sie Ihr <strong>Registry-Token</strong> in der GUI ein, um die Docker-Images automatisch von <code>registry.yads-security.com</code> zu laden.</li>
+    <li>Nach der Konfiguration von Ports und SSL generiert das Tool automatisch die benötigte <code>.env</code>-Datei und die <code>docker-compose.yml</code>.</li>
 </ol>
 
 <blockquote>
@@ -362,7 +362,25 @@ YADS integriert jetzt <strong>Nuclei</strong> für aktive Schwachstellenerkennun
 <h3>Stealth Port-Scanning</h3>
 <p><strong>(Neu in v1.51.5)</strong>
 *   <strong>Stealth-Modus</strong>: Verwendet Nmap mit Evasion-Flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>), um Ports zu prüfen, ohne IDS/IPS auszulösen.
-*   <strong>Langsam &amp; Sicher</strong>: Für Stealth konzipiert, dauert dieser Scan länger, reduziert aber das Erkennungsrisiko.</p>
+*   <strong>Langsam &amp; Sicher</strong>: Für Stealth konzipiert, dauert dieser Scan länger, reduziert aber das Erkennungsrisiko.
+*   <strong>Optionale Abhängigkeit</strong>: Nmap wird <em>nicht mit YADS mitgeliefert</em>. Ist Nmap nicht installiert, wird das <code>nmap_scanner</code>-Modul in der Scan-Typ-Auswahl automatisch ausgegraut. Siehe <a href="#nmap-install">Nmap installieren</a> weiter unten.</p>
+
+<h4 id="nmap-install">Nmap installieren</h4>
+<p>Nmap ist eine optionale externe Abhängigkeit und unter <strong>GPL-2.0</strong> lizenziert. Da YADS es als Subprocess aufruft (keine Bibliothekseinbindung), gilt die GPL nicht für YADS selbst. Die Installation erfolgt separat auf dem Docker-Host oder im Container:</p>
+<pre><code># Option A — auf dem Docker-Host (empfohlen, bleibt nach Container-Neustart erhalten)
+apt-get install -y nmap        # Debian / Ubuntu
+yum install -y nmap            # RHEL / CentOS / Rocky
+
+# Option B — in einem laufenden YADS-Container (geht bei Neustart verloren)
+docker exec -it yads-api apt-get install -y nmap
+
+# Option C — über die YADS-Admin-Oberfläche
+# Einstellungen → Scanner-Ressourcen → Schaltfläche „Nmap installieren"
+# (führt apt-get install automatisch im API-Container aus)</code></pre>
+<blockquote>
+  <p><strong>Hinweis:</strong> Nach der Installation muss der YADS-API-Container neu gestartet werden, damit die Verfügbarkeitsprüfung aktualisiert wird. Der Worker-Container erkennt das Binary sofort beim nächsten Scan-Aufruf.</p>
+</blockquote>
+<p>Um zu prüfen, ob Nmap von YADS erkannt wird: <strong>Einstellungen → Scanner-Ressourcen</strong>. Die Statusanzeige zeigt <em>Installiert ✓</em>, sobald das Binary gefunden wird.</p>
 <h3>JavaScript SAST</h3>
 <p><strong>(Neu in v1.51.5)</strong>
 *   <strong>Statische Analyse</strong>: Lädt automatisch clientseitige JavaScript-Dateien herunter und analysiert sie.

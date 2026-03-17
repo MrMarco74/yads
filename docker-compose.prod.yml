@@ -12,7 +12,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-yads_secret_password}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - API_KEY=${API_KEY}
     volumes:
@@ -33,7 +32,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://yads:${POSTGRES_PASSWORD:-yads_secret_password}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       # Worker needs to know config too if it shares DB details? 
       # Yes, if DB password changes, worker needs to know.

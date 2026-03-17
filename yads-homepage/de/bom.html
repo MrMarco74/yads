@@ -4,90 +4,42 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://yads-security.com; style-src 'self' 'unsafe-inline' https://yads-security.com; font-src 'self' https://yads-security.com; img-src 'self' https://yads-security.com data:; script-src 'self' 'unsafe-inline' https://yads-security.com;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stücklisten - YADS</title>
+    <title>Open-Source-Lizenzen &amp; Stücklisten - YADS</title>
     <link rel="stylesheet" href="https://yads-security.com/css/style.css">
     <link rel="icon" type="image/png" href="https://yads-security.com/images/favicon.png">
     <style>
-        .bom-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-        .bom-card h3 {
-            color: #fff;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        .bom-card p {
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
-        }
-        .download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .download-btn-primary {
-            background: var(--accent-primary);
-            color: white;
-        }
-        .download-btn-primary:hover {
-            background: #4f46e5;
-            transform: translateY(-2px);
-        }
-        .download-btn-secondary {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--accent-primary);
-            border: 1px solid rgba(99, 102, 241, 0.3);
-        }
-        .download-btn-secondary:hover {
-            background: rgba(99, 102, 241, 0.2);
-        }
-        .icon-box {
-            width: 48px;
-            height: 48px;
-            border-radius: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .icon-sbom { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-        .icon-cbom { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
-        .info-box {
-            background: rgba(99, 102, 241, 0.1);
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            border-radius: 0.5rem;
-            padding: 1rem 1.25rem;
-            margin-top: 1.5rem;
-        }
-        .info-box p {
-            margin: 0;
-            font-size: 0.9rem;
-        }
-        .format-badge {
-            display: inline-block;
-            background: rgba(0,0,0,0.3);
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #94a3b8;
-            margin-left: 0.5rem;
-        }
-        .version-info {
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-top: 0.5rem;
-        }
+        .bom-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; }
+        .bom-card h3 { color: #fff; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
+        .icon-box { width: 44px; height: 44px; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .icon-sbom  { background: rgba(16,185,129,0.15); color: #10b981; }
+        .icon-cbom  { background: rgba(99,102,241,0.15); color: #6366f1; }
+        .icon-oss   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .icon-gpl   { background: rgba(239,68,68,0.12);  color: #f87171; }
+        .download-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; border-radius: 0.5rem; font-weight: 600; text-decoration: none; transition: all 0.2s; font-size: 0.875rem; }
+        .download-btn-primary { background: var(--accent-primary); color: white; }
+        .download-btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+        .download-btn-secondary { background: rgba(99,102,241,0.1); color: var(--accent-primary); border: 1px solid rgba(99,102,241,0.3); }
+        .download-btn-secondary:hover { background: rgba(99,102,241,0.2); }
+        .format-badge { display: inline-block; background: rgba(0,0,0,0.3); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; color: #94a3b8; margin-left: 0.5rem; }
+        .license-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .license-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .license-table td { padding: 0.45rem 0.75rem; font-size: 0.82rem; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .license-table tr:last-child td { border-bottom: none; }
+        .license-table td:first-child { color: #e2e8f0; font-weight: 500; }
+        .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+        .badge-mit    { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .badge-bsd    { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+        .badge-apache { background: rgba(251,191,36,0.12); color: #fcd34d; border: 1px solid rgba(251,191,36,0.25); }
+        .badge-mpl    { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+        .badge-gpl    { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
+        .badge-sspl   { background: rgba(251,146,60,0.12); color: #fdba74; border: 1px solid rgba(251,146,60,0.25); }
+        .badge-psql   { background: rgba(56,189,248,0.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.25); }
+        .note-box { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 0.5rem; padding: 0.875rem 1.1rem; margin-top: 1rem; font-size: 0.82rem; color: #d1b87a; }
+        .info-box { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 0.5rem; padding: 0.875rem 1.1rem; margin-top: 1rem; font-size: 0.82rem; color: var(--text-secondary); }
+        pre.cli { background: #1e293b; padding: 0.875rem 1rem; border-radius: 0.5rem; font-family: monospace; color: #e2e8f0; font-size: 0.8rem; overflow-x: auto; margin: 0.75rem 0 0; }
+        .section-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 2.5rem 0; }
+        .toc-link { color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; }
+        .toc-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -98,146 +50,300 @@
                 <span class="text-gradient">YADS</span> Security
             </a>
             <div class="nav-links">
-                <a href="index.html">Startseite</a>
+                <a href="index.html">Start</a>
                 <a href="product.html">Funktionen</a>
                 <a href="editions.html">Editionen</a>
-                <a href="support.html">Installation</a>
+                <a href="support.html">Setup</a>
                 <a href="docs.html">Dokumentation</a>
                 <a href="changes.html">Änderungen</a>
-                <a href="bom.html" class="active">BOM</a>
+                <a href="bom.html" class="active">BOM &amp; Lizenzen</a>
                 <a href="roadmap.html">Roadmap</a>
                 <a href="story.html">Entstehung</a>
                 <a href="contact.html">Kontakt</a>
-                <a href="https://yads-security.com/bom.html" class="lang-switch" style="opacity: 0.7;">🇺🇸 EN</a>
+                <a href="https://yads-security.com/bom.html" class="lang-switch" style="opacity:0.7;">🇬🇧 EN</a>
             </div>
-            <a href="contact.html" class="btn-primary">Demo anfordern</a>
+            <a href="contact.html" class="btn-primary">Demo anfragen</a>
         </div>
     </nav>
 
     <header class="hero hero-small">
         <div class="container hero-content">
-            <h1>Software-<span class="text-gradient">Stücklisten</span></h1>
-            <p>Transparenz durch Software- und Kryptografie-Stücklisten im CycloneDX-Format.</p>
+            <h1>Open-Source-Lizenzen &amp; <span class="text-gradient">Stücklisten</span></h1>
+            <p>Vollständige Transparenz: jede Komponente, Bibliothek und jedes Tool in YADS – mit Lizenz, Version und Urheberrechtshinweis.</p>
         </div>
     </header>
 
-    <div class="container" style="margin-top: 4rem; margin-bottom: 4rem;">
+    <div class="container" style="margin-top: 3rem; margin-bottom: 4rem;">
 
-        <!-- Einführung -->
-        <div class="glass-card" style="padding: 2rem; margin-bottom: 3rem; border-left: 4px solid var(--accent-primary);">
-            <h2 style="margin-top: 0; color: #fff;">Lieferketten-Transparenz</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                YADS bietet umfassende Stücklisten-Dokumentation (Bill of Materials) zur Unterstützung Ihrer Software-Lieferketten-Sicherheitsanforderungen.
-                Alle BOMs werden im <strong>CycloneDX</strong>-Format generiert, einem OWASP-Standard für Software-Kompositionsanalyse.
-            </p>
-            <p style="color: var(--text-secondary); margin: 0;">
-                Diese Dokumente sind essentiell für die Einhaltung von Vorschriften wie <strong>NIS2</strong>, <strong>DORA</strong> und <strong>Executive Order 14028</strong>.
-            </p>
+        <!-- TOC -->
+        <div class="glass-card" style="padding: 1.5rem 2rem; margin-bottom: 2.5rem;">
+            <h2 style="margin-top: 0; font-size: 1rem; color: #fff; margin-bottom: 0.75rem;">Inhalt</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 2rem;">
+                <a href="#oss-components" class="toc-link">1. Open-Source-Komponenten</a>
+                <a href="#external-tools" class="toc-link">2. Externe Tools (Binaries)</a>
+                <a href="#sbom" class="toc-link">3. SBOM / CBOM Download</a>
+                <a href="#compliance" class="toc-link">4. Lizenz-Compliance</a>
+            </div>
         </div>
 
-        <!-- SBOM Karte -->
-        <div class="bom-card">
-            <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
-                <div class="icon-box icon-sbom">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                </div>
-                <div style="flex: 1;">
-                    <h3>
-                        Software Bill of Materials (SBOM)
-                        <span class="format-badge">CycloneDX JSON</span>
-                    </h3>
-                    <p>
-                        Vollständiges Inventar aller Softwarekomponenten, Bibliotheken und Abhängigkeiten in YADS.
-                        Enthält Versionsinformationen, Lizenzdaten und Package URLs (purl) für Schwachstellen-Tracking.
-                    </p>
+        <!-- Section 1 -->
+        <h2 id="oss-components" style="color: #fff; margin-bottom: 1.5rem;">1. Open-Source-Komponenten</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+            YADS basiert auf den folgenden Open-Source-Bibliotheken. Alle werden unverändert eingesetzt.
+            Die Urheberrechtshinweise sind in der <code>NOTICE</code>-Datei jedes YADS-Release enthalten.
+        </p>
 
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+        <!-- MIT -->
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-oss"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg></div>
+                <div style="flex:1;">
+                    <h3>MIT-Lizenz <span class="badge badge-mit">MIT</span></h3>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">Permissiv. Kommerzielle Nutzung, Modifikation und Weitergabe erlaubt. Urheberrechtshinweis erforderlich.</p>
+                    <table class="license-table">
+                        <thead><tr><th>Komponente</th><th>Zweck</th><th>Urheberrecht</th></tr></thead>
+                        <tbody>
+                            <tr><td>FastAPI</td><td>Web-Framework</td><td>Sebastián Ramírez</td></tr>
+                            <tr><td>SQLModel</td><td>ORM / Datenmodelle</td><td>Sebastián Ramírez</td></tr>
+                            <tr><td>Jinja2</td><td>Template-Engine</td><td>Pallets</td></tr>
+                            <tr><td>MarkupSafe</td><td>HTML-Escaping</td><td>Pallets</td></tr>
+                            <tr><td>aiofiles</td><td>Asynchrones Datei-I/O</td><td>Tin Tvrtković</td></tr>
+                            <tr><td>python-multipart</td><td>Formular-Parsing</td><td>Andrew Dunham</td></tr>
+                            <tr><td>tldextract</td><td>Domain-Parsing</td><td>John Kurkowski</td></tr>
+                            <tr><td>fpdf2</td><td>PDF-Generierung</td><td>py-pdf contributors</td></tr>
+                            <tr><td>pyotp</td><td>TOTP / MFA</td><td>PyOTP contributors</td></tr>
+                            <tr><td>ipwhois</td><td>IP/ASN-Abfragen</td><td>Philip Hane</td></tr>
+                            <tr><td>openpyxl</td><td>Excel-Export</td><td>openpyxl contributors</td></tr>
+                            <tr><td>python-whois</td><td>WHOIS-Abfragen</td><td>DannyCork</td></tr>
+                            <tr><td>croniter</td><td>Cron-Zeitplanung</td><td>Matsumoto Taichi</td></tr>
+                            <tr><td>defusedxml</td><td>Sicheres XML-Parsing</td><td>Christian Heimes</td></tr>
+                            <tr><td>prometheus-client</td><td>Metriken-Export</td><td>Brian Brazil</td></tr>
+                            <tr><td>Nuclei</td><td>Schwachstellen-Scanning</td><td>ProjectDiscovery, Inc.</td></tr>
+                            <tr><td>Tailwind CSS</td><td>UI-Framework</td><td>Tailwind Labs, Inc.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- BSD -->
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-sbom"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+                <div style="flex:1;">
+                    <h3>BSD-2/3-Klausel-Lizenz <span class="badge badge-bsd">BSD</span></h3>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">Permissiv. Kommerzielle Nutzung erlaubt. Urheberrechts- und Haftungsausschlusshinweis erforderlich.</p>
+                    <table class="license-table">
+                        <thead><tr><th>Komponente</th><th>Zweck</th><th>Urheberrecht</th></tr></thead>
+                        <tbody>
+                            <tr><td>Celery</td><td>Task-Queue</td><td>Ask Solem &amp; contributors</td></tr>
+                            <tr><td>uvicorn</td><td>ASGI-Server</td><td>Encode OSS Ltd.</td></tr>
+                            <tr><td>httpx</td><td>HTTP-Client</td><td>Encode OSS Ltd.</td></tr>
+                            <tr><td>requests</td><td>HTTP-Client</td><td>Kenneth Reitz</td></tr>
+                            <tr><td>dnspython</td><td>DNS-Resolver</td><td>Bob Halley</td></tr>
+                            <tr><td>passlib</td><td>Passwort-Hashing</td><td>Eli Collins</td></tr>
+                            <tr><td>Pillow</td><td>Bildverarbeitung</td><td>Jeffrey A. Clark et al.</td></tr>
+                            <tr><td>imagehash</td><td>Perceptual Hashing</td><td>Johannes Buchner</td></tr>
+                            <tr><td>networkx</td><td>Graph-Analyse</td><td>NetworkX Developers</td></tr>
+                            <tr><td>matplotlib</td><td>Diagramme</td><td>Matplotlib Dev Team</td></tr>
+                            <tr><td>psutil</td><td>System-Metriken</td><td>Giampaolo Rodola</td></tr>
+                            <tr><td>mmh3</td><td>Murmur-Hash</td><td>Hajime Senuma</td></tr>
+                            <tr><td>pandas</td><td>Datenverarbeitung</td><td>AQR Capital / Lambda Foundry</td></tr>
+                            <tr><td>redis-py</td><td>Redis-Client</td><td>Andy McCurdy</td></tr>
+                            <tr><td>Chromium (via Playwright)</td><td>Headless Browser</td><td>The Chromium Authors</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Apache 2.0 -->
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-cbom"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Apache Lizenz 2.0 <span class="badge badge-apache">Apache 2.0</span></h3>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">Permissiv. Patentlizenz enthalten. NOTICE-Datei bei Weitergabe erforderlich.</p>
+                    <table class="license-table">
+                        <thead><tr><th>Komponente</th><th>Zweck</th><th>Urheberrecht</th></tr></thead>
+                        <tbody>
+                            <tr><td>Playwright</td><td>Browser-Automatisierung</td><td>Microsoft Corporation</td></tr>
+                            <tr><td>cryptography</td><td>Ed25519, TLS, AES</td><td>Individual contributors</td></tr>
+                            <tr><td>pydantic / pydantic-settings</td><td>Datenvalidierung</td><td>Samuel Colvin</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sonstige -->
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-oss"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Weitere Permissive Lizenzen</h3>
+                    <table class="license-table">
+                        <thead><tr><th>Komponente</th><th>Lizenz</th><th>Zweck</th></tr></thead>
+                        <tbody>
+                            <tr><td>PostgreSQL</td><td><span class="badge badge-psql">PostgreSQL</span></td><td>Primäre Datenbank</td></tr>
+                            <tr><td>psycopg2</td><td><span class="badge" style="background:rgba(56,189,248,0.12);color:#7dd3fc;border:1px solid rgba(56,189,248,0.25);">LGPL-3</span></td><td>PostgreSQL-Adapter</td></tr>
+                            <tr><td>SQLAlchemy</td><td><span class="badge badge-mit">MIT</span></td><td>ORM-Engine</td></tr>
+                            <tr><td>python-jose</td><td><span class="badge badge-mpl">MPL-2.0</span></td><td>JWT-Tokens</td></tr>
+                            <tr><td>ecdsa</td><td><span class="badge badge-mit">MIT</span></td><td>ECDSA-Signaturen</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- Section 2: Externe Tools -->
+        <h2 id="external-tools" style="color: #fff; margin-bottom: 1.5rem;">2. Externe Tools &amp; Binaries</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+            Diese Tools werden von YADS als externe Prozesse aufgerufen (keine Bibliothekseinbindung) und müssen separat installiert werden.
+            Copyleft-Lizenzen <strong>übertragen sich nicht</strong> auf YADS, da kein Quellcode eingebunden wird.
+        </p>
+
+        <!-- Nmap -->
+        <div class="bom-card" style="border-left: 3px solid #f87171;">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-gpl"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Nmap Netzwerkscanner <span class="badge badge-gpl">GPL-2.0</span> <span class="badge" style="background:rgba(251,146,60,0.12);color:#fdba74;border:1px solid rgba(251,146,60,0.25);">Nicht mitgeliefert</span></h3>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">
+                        Copyright &copy; 1996–2024 Insecure.Com LLC. Wird für Stealth-Port-Scanning verwendet (<code>nmap_scanner</code>-Modul).
+                    </p>
+                    <div class="note-box">
+                        <strong>Lizenzhinweis:</strong> Nmap ist unter der GNU General Public License v2.0 mit einer Sonderausnahme lizenziert.
+                        YADS <em>liefert Nmap nicht mit</em> — es muss separat vom Systemadministrator installiert werden.
+                        Der Aufruf von Nmap als externer Subprocess begründet keine GPL-Verpflichtungen für YADS selbst.
+                        Wird Nmap zusammen mit YADS weiterverteilt (z.&nbsp;B. in einem eigenen Docker-Image),
+                        muss der Quellcode von Nmap oder ein schriftliches Angebot dazu beigefügt werden.
+                    </div>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:1rem;margin-bottom:0.25rem;"><strong style="color:#e2e8f0;">Nmap installieren:</strong></p>
+                    <pre class="cli"># Debian / Ubuntu
+apt-get install -y nmap
+
+# RHEL / CentOS / Rocky
+yum install -y nmap
+
+# Oder über die YADS-Admin-Oberfläche: Einstellungen → Scanner-Ressourcen → Nmap installieren</pre>
+                    <p style="color:var(--text-secondary);font-size:0.82rem;margin-top:0.75rem;">
+                        Ist Nmap nicht installiert, wird das <code>nmap_scanner</code>-Modul in der Scan-Typ-Auswahl automatisch deaktiviert.
+                        Alle anderen Scanner-Module funktionieren weiterhin ohne Nmap.
+                    </p>
+                    <p style="color:#7dd3fc;font-size:0.8rem;margin-top:0.5rem;">
+                        Quelle: <a href="https://nmap.org/book/man-legal.html" style="color:#7dd3fc;">nmap.org/book/man-legal.html</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Redis -->
+        <div class="bom-card" style="border-left: 3px solid #fdba74;">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box" style="background:rgba(251,146,60,0.12);color:#fdba74;"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Redis <span class="badge badge-sspl">SSPL v1</span></h3>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">
+                        Copyright &copy; Redis Ltd. Wird als Message Broker und Result-Backend für die Celery-Task-Queue genutzt.
+                    </p>
+                    <div class="note-box">
+                        <strong>Lizenzhinweis:</strong> Redis 7.x verwendet die Server Side Public License (SSPL v1).
+                        Bei <strong>Self-Hosted-Deployments</strong>, bei denen Redis als privater interner Dienst betrieben wird,
+                        greift die SaaS-Klausel der SSPL nicht — das gilt für den typischen YADS-Einsatz.
+                        Wer YADS als verwalteten Cloud-Dienst mit öffentlichem Redis-Zugang anbietet,
+                        sollte rechtliche Beratung zur SSPL-Konformität einholen oder auf
+                        <a href="https://valkey.io" style="color:#fdba74;">Valkey</a> (BSD-lizenzierter Redis-Fork) wechseln.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="section-divider">
+
+        <!-- Section 3: SBOM / CBOM -->
+        <h2 id="sbom" style="color: #fff; margin-bottom: 1.5rem;">3. SBOM &amp; CBOM Download</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">
+            Maschinenlesbare Stücklisten im <strong>CycloneDX</strong>-Format für NIS2-, DORA- und EO-14028-Compliance.
+        </p>
+
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-sbom"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Software Bill of Materials (SBOM) <span class="format-badge">CycloneDX JSON</span></h3>
+                    <p style="color:var(--text-secondary);">Vollständige Inventarliste aller Software-Komponenten, Bibliotheken und Abhängigkeiten mit Versionen und Lizenzdaten.</p>
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
                         <a href="https://yads-security.com/releases/sbom.json" class="download-btn download-btn-primary">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            SBOM herunterladen (JSON)
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>SBOM herunterladen (JSON)
                         </a>
                         <a href="https://yads-security.com/releases/sbom.xml" class="download-btn download-btn-secondary">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            SBOM herunterladen (XML)
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>SBOM herunterladen (XML)
                         </a>
                     </div>
-                    <p class="version-info">Aktualisiert mit jedem Release | Generiert mit Syft</p>
-
-                    <div class="info-box">
-                        <p><strong>Inhalt:</strong> Python-Pakete, Systembibliotheken, Container-Basis-Image-Komponenten und transitive Abhängigkeiten.</p>
-                    </div>
+                    <p style="color:#64748b;font-size:0.8rem;margin:0;">Mit jedem Release aktualisiert · Generiert mit Syft</p>
+                    <div class="info-box">Verwendung: <code>grype sbom:sbom.json</code> · <code>trivy sbom sbom.json</code> · OWASP Dependency-Track</div>
                 </div>
             </div>
         </div>
 
-        <!-- CBOM Karte -->
-        <div id="cbom" class="bom-card">
-            <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
-                <div class="icon-box icon-cbom">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                </div>
-                <div style="flex: 1;">
-                    <h3>
-                        Cryptography Bill of Materials (CBOM)
-                        <span class="format-badge">CycloneDX JSON</span>
-                    </h3>
-                    <p>
-                        Umfassendes Inventar aller kryptografischen Algorithmen, Protokolle und Implementierungen in YADS.
-                        Essentiell für Post-Quantum-Kryptografie-Migrationsplanung und kryptografische Agilität-Bewertungen.
-                    </p>
-
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+        <div class="bom-card">
+            <div style="display:flex;gap:1.25rem;align-items:flex-start;">
+                <div class="icon-box icon-cbom"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg></div>
+                <div style="flex:1;">
+                    <h3>Cryptography Bill of Materials (CBOM) <span class="format-badge">CycloneDX JSON</span></h3>
+                    <p style="color:var(--text-secondary);">Inventar aller kryptografischen Algorithmen, TLS-Konfigurationen, Key-Exchange-Protokolle und Signaturverfahren.</p>
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
                         <a href="https://yads-security.com/releases/cbom.json" class="download-btn download-btn-primary">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            CBOM herunterladen (JSON)
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>CBOM herunterladen (JSON)
                         </a>
                         <a href="https://yads-security.com/releases/cbom.xml" class="download-btn download-btn-secondary">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            CBOM herunterladen (XML)
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>CBOM herunterladen (XML)
                         </a>
                     </div>
-                    <p class="version-info">Aktualisiert mit jedem Release | Custom CBOM Generator</p>
-
-                    <div class="info-box">
-                        <p><strong>Inhalt:</strong> TLS-Konfigurationen, Hash-Algorithmen, Verschlüsselungs-Chiffren, Schlüsselaustausch-Protokolle, digitale Signaturen und Zertifikatsverarbeitung.</p>
-                    </div>
+                    <p style="color:#64748b;font-size:0.8rem;margin:0;">Mit jedem Release aktualisiert · Generiert mit YADS CBOM-Generator</p>
+                    <div class="info-box">Für Post-Quantum-Migrations-Planung und DORA Art.&nbsp;8 Kryptografie-Inventar-Anforderungen.</div>
                 </div>
             </div>
         </div>
 
-        <!-- Nutzungs-Sektion -->
+        <hr class="section-divider">
+
+        <!-- Section 4: Compliance -->
+        <h2 id="compliance" style="color: #fff; margin-bottom: 1.5rem;">4. Lizenz-Compliance</h2>
         <div class="glass-card" style="padding: 2rem;">
-            <h2 style="margin-top: 0; color: #fff;">Verwendung der BOMs</h2>
-
-            <h4 style="color: #fff; margin-top: 1.5rem;">Schwachstellen-Scanning</h4>
-            <p style="color: var(--text-secondary);">
-                Importieren Sie die SBOM in Schwachstellen-Scanner wie <strong>Grype</strong>, <strong>Trivy</strong> oder <strong>OWASP Dependency-Track</strong>:
-            </p>
-            <div style="background: #1e293b; padding: 1rem; border-radius: 0.5rem; font-family: monospace; color: #e2e8f0; margin: 1rem 0;">
-grype sbom:sbom.json
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;">
+                <div>
+                    <h4 style="color:#fff;margin:0 0 0.5rem;">Kommerzielle Weitergabe</h4>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
+                        Alle MIT-, BSD-, Apache-2.0- und PostgreSQL-lizenzierten Komponenten dürfen ohne Einschränkungen kommerziell genutzt werden,
+                        sofern Urheberrechtshinweise erhalten bleiben. YADS liefert mit jedem Release eine <code>NOTICE</code>-Datei, die alle Anforderungen erfüllt.
+                    </p>
+                </div>
+                <div>
+                    <h4 style="color:#fff;margin:0 0 0.5rem;">Nmap &amp; GPL</h4>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
+                        Nmap wird nicht mit YADS mitgeliefert, sondern optional aus OS-Paketquellen nachinstalliert.
+                        Der Subprocess-Aufruf begründet kein „abgeleitetes Werk" im Sinne der GPL-2.0 und wahrt die Lizenzunabhängigkeit von YADS.
+                    </p>
+                </div>
+                <div>
+                    <h4 style="color:#fff;margin:0 0 0.5rem;">Redis &amp; SSPL</h4>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
+                        Self-Hosted-Betrieb ist von der SSPL-Cloud-Klausel nicht betroffen.
+                        SaaS-Betreiber mit öffentlich exponiertem Redis sollten Valkey (BSD) als Drop-in-Ersatz in Betracht ziehen.
+                    </p>
+                </div>
+                <div>
+                    <h4 style="color:#fff;margin:0 0 0.5rem;">Keine AGPL/GPL-Kontamination</h4>
+                    <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
+                        Keine AGPL- oder GPL-lizenzierte Bibliothek wird in die YADS-Python-Codebasis importiert.
+                        Das Copyleft-Risiko beschränkt sich auf die oben beschriebene Nmap-Subprocess-Abhängigkeit.
+                    </p>
+                </div>
             </div>
-
-            <h4 style="color: #fff; margin-top: 1.5rem;">Lizenz-Compliance</h4>
-            <p style="color: var(--text-secondary);">
-                Die SBOM enthält Lizenzinformationen für alle Komponenten und ermöglicht automatisierte Lizenz-Compliance-Prüfungen.
-            </p>
-
-            <h4 style="color: #fff; margin-top: 1.5rem;">Kryptografie-Inventar</h4>
-            <p style="color: var(--text-secondary);">
-                Nutzen Sie die CBOM, um Ihre kryptografische Position zu bewerten und die Migration zu Post-Quantum-Kryptografie zu planen.
-            </p>
         </div>
 
     </div>

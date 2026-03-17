@@ -974,10 +974,42 @@ class KeyManagementPage(QWidget):
         export_card.vBoxLayout.addWidget(btn_update, alignment=Qt.AlignmentFlag.AlignLeft)
 
         layout.addWidget(export_card)
+
+        # ---- Activation Key Pair ----
+        act_title = SubtitleLabel("Activation Keys", self)
+        act_title.setContentsMargins(0, 8, 0, 0)
+        layout.addWidget(act_title)
+        act_sub = BodyLabel(
+            "Separates Schlüsselpaar für sign_activation.py. "
+            "Der Private Key signiert Aktivierungscodes, der Public Key wird in YADS als ACTIVATION_PUBLIC_KEY eingetragen.",
+            self,
+        )
+        act_sub.setWordWrap(True)
+        layout.addWidget(act_sub)
+
+        act_status_card = SettingsCard("Activation Key Status", FIF.CERTIFICATE, self)
+        self.lbl_act_status = BodyLabel("Checking for activation keys...", self)
+        act_status_card.vBoxLayout.addWidget(self.lbl_act_status)
+        btn_gen_act = PrimaryPushButton(FIF.ADD, "Generate Activation Key Pair", self)
+        btn_gen_act.clicked.connect(self._generate_activation_keys)
+        act_status_card.vBoxLayout.addWidget(btn_gen_act, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(act_status_card)
+
+        act_export_card = SettingsCard("Activation Public Key (ACTIVATION_PUBLIC_KEY)", FIF.SHARE, self)
+        self.txt_act_pub_export = TextEdit(self)
+        self.txt_act_pub_export.setReadOnly(True)
+        self.txt_act_pub_export.setMinimumHeight(80)
+        self.txt_act_pub_export.setStyleSheet(get_code_stylesheet())
+        act_export_card.vBoxLayout.addWidget(self.txt_act_pub_export)
+        btn_act_update = PushButton(FIF.SYNC, "Update YADS Config (ACTIVATION_PUBLIC_KEY)", self)
+        btn_act_update.clicked.connect(self._update_yads_config_activation)
+        act_export_card.vBoxLayout.addWidget(btn_act_update, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(act_export_card)
+
         layout.addStretch()
 
     def _load_keys(self):
-        """Load existing keys"""
+        """Load existing license keys"""
         if self.private_key_path.exists():
             try:
                 with open(self.private_key_path, "rb") as f:
@@ -992,13 +1024,32 @@ class KeyManagementPage(QWidget):
             try:
                 with open(self.public_key_path, "rb") as f:
                     self.public_key = serialization.load_pem_public_key(f.read())
-
                 pem = self.public_key.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 )
-                b64 = base64.b64encode(pem).decode('utf-8')
-                self.txt_pub_export.setPlainText(b64)
+                self.txt_pub_export.setPlainText(base64.b64encode(pem).decode('utf-8'))
+            except Exception:
+                pass
+
+        # Load activation keys
+        act_priv_path = script_dir / "activation_private.pem"
+        act_pub_path = script_dir / "activation_public.pem"
+        if act_priv_path.exists():
+            self.lbl_act_status.setText(f"Loaded: {act_priv_path.name}")
+            self.lbl_act_status.setStyleSheet("color: #4ec9b0;")
+        else:
+            self.lbl_act_status.setText("No activation key found — generate one below.")
+            self.lbl_act_status.setStyleSheet("color: #f59e0b;")
+        if act_pub_path.exists():
+            try:
+                with open(act_pub_path, "rb") as f:
+                    act_pub = serialization.load_pem_public_key(f.read())
+                pem = act_pub.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                self.txt_act_pub_export.setPlainText(base64.b64encode(pem).decode('utf-8'))
             except Exception:
                 pass
 
@@ -1099,6 +1150,104 @@ class KeyManagementPage(QWidget):
             InfoBar.success(
                 "Updated",
                 "Config updated! Restart YADS API to apply.",
+                parent=self,
+                position=InfoBarPosition.TOP,
+                duration=5000
+            )
+
+        except Exception as e:
+            InfoBar.error("Error", str(e), parent=self, position=InfoBarPosition.TOP)
+
+    def _generate_activation_keys(self):
+        """Generate new Ed25519 keypair for activation code signing."""
+        act_priv_path = script_dir / "activation_private.pem"
+        if act_priv_path.exists():
+            box = MessageBox("Confirm", "Activation private key exists. Overwrite?", self)
+            if not box.exec():
+                return
+
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519
+            from cryptography.hazmat.primitives import serialization as _ser
+
+            priv = ed25519.Ed25519PrivateKey.generate()
+            pub = priv.public_key()
+
+            act_pub_path = script_dir / "activation_public.pem"
+
+            with open(act_priv_path, "wb") as f:
+                f.write(priv.private_bytes(
+                    encoding=_ser.Encoding.PEM,
+                    format=_ser.PrivateFormat.PKCS8,
+                    encryption_algorithm=_ser.NoEncryption()
+                ))
+
+            with open(act_pub_path, "wb") as f:
+                f.write(pub.public_bytes(
+                    encoding=_ser.Encoding.PEM,
+                    format=_ser.PublicFormat.SubjectPublicKeyInfo
+                ))
+
+            self.lbl_act_status.setText(f"Loaded: {act_priv_path.name}")
+            self.lbl_act_status.setStyleSheet("color: #4ec9b0;")
+
+            pem = pub.public_bytes(
+                encoding=_ser.Encoding.PEM,
+                format=_ser.PublicFormat.SubjectPublicKeyInfo
+            )
+            self.txt_act_pub_export.setPlainText(base64.b64encode(pem).decode('utf-8'))
+
+            InfoBar.success("Success", "Activation keys generated and saved!", parent=self, position=InfoBarPosition.TOP)
+
+        except Exception as e:
+            InfoBar.error("Error", str(e), parent=self, position=InfoBarPosition.TOP)
+
+    def _update_yads_config_activation(self):
+        """Write ACTIVATION_PUBLIC_KEY into yads/config.py."""
+        pub_b64 = self.txt_act_pub_export.toPlainText().strip()
+        if not pub_b64:
+            InfoBar.error("Error", "No activation public key to update", parent=self, position=InfoBarPosition.TOP)
+            return
+
+        config_path = script_dir.parent / "yads" / "config.py"
+
+        if not config_path.exists():
+            config_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select yads/config.py",
+                str(script_dir.parent),
+                "Python Files (*.py)"
+            )
+            if not config_path:
+                return
+            config_path = Path(config_path)
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Try typed annotation form first
+            pattern = r'ACTIVATION_PUBLIC_KEY:\s*Optional\[str\]\s*=\s*(?:None|".*?")'
+            replacement = f'ACTIVATION_PUBLIC_KEY: Optional[str] = "{pub_b64}"'
+            new_content, count = re.subn(pattern, replacement, content)
+
+            if count == 0:
+                pattern = r'ACTIVATION_PUBLIC_KEY\s*=\s*(?:None|".*?")'
+                replacement = f'ACTIVATION_PUBLIC_KEY = "{pub_b64}"'
+                new_content, count = re.subn(pattern, replacement, content)
+
+            if count == 0:
+                InfoBar.error("Error", "Could not find ACTIVATION_PUBLIC_KEY in config.py", parent=self, position=InfoBarPosition.TOP)
+                return
+
+            shutil.copy(config_path, str(config_path) + ".bak")
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+
+            InfoBar.success(
+                "Updated",
+                "ACTIVATION_PUBLIC_KEY written to config.py. Restart YADS API to apply.",
                 parent=self,
                 position=InfoBarPosition.TOP,
                 duration=5000
@@ -1731,14 +1880,16 @@ class ActivationRequestsPage(SmoothScrollArea):
 
     # ------------------------------------------------------------------
     def _load_private_key(self):
-        """Load the license Ed25519 private key. Returns (private_key_b64, error_str)."""
+        """Load the activation Ed25519 private key. Returns (private_key_b64, error_str)."""
         # 1. Try key_path from portal settings
         cfg = self._cfg()
         candidates = []
         if cfg.get("key_path"):
             candidates.append(Path(cfg["key_path"]).expanduser())
-        # 2. Fallback: license_private.pem next to this script
+        # 2. Prefer activation_private.pem (separate activation keypair), fall back to license_private.pem
+        candidates.append(script_dir / "activation_private.pem")
         candidates.append(script_dir / "license_private.pem")
+        candidates.append(Path.home() / ".yads" / "activation_private.pem")
         candidates.append(Path.home() / ".yads" / "license_private.pem")
 
         for p in candidates:
@@ -1750,7 +1901,7 @@ class ActivationRequestsPage(SmoothScrollArea):
                     return raw, None
                 except Exception as e:
                     return None, f"Schlüsselfehler ({p}): {e}"
-        return None, "Kein Private Key gefunden. Bitte in 'Bug Report Keys' → Admin Signing Key konfigurieren."
+        return None, "Kein Activation Private Key gefunden. Bitte unter 'Key Management' → 'Generate Activation Key Pair' einen Schlüssel erstellen."
 
     def _build_response_code(self, request: dict) -> tuple[str, str | None]:
         """Sign one activation request. Returns (response_code, error)."""

@@ -17,7 +17,7 @@ from yads.api.templating import templates
 from yads.core.scoring import calculate_target_score, get_grade_color
 from yads.core.compliance import calculate_security_grade, generate_compliance_report
 from yads.api.routers.tags import get_unique_tags
-from yads.core.module_registry import get_scan_categories, REGISTRY
+from yads.core.module_registry import get_scan_categories, REGISTRY, get_unavailable_modules, get_degraded_modules
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 from yads.models import SecurityAuditLog
 
@@ -1213,6 +1213,8 @@ async def view_target_table(
             "end_item": min(offset + limit, total_count)
         },
         "scan_categories": _get_scan_categories_for_user(session, user, "t"),
+        "unavailable_modules": get_unavailable_modules(),
+        "degraded_modules": get_degraded_modules(),
     })
 
 
@@ -1534,6 +1536,8 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
         "approved_ciphers": approved_ciphers_set,
         "schedule": schedule,
         "scan_categories": _get_scan_categories_for_user(session, user, "sc"),
+        "unavailable_modules": get_unavailable_modules(),
+        "degraded_modules": get_degraded_modules(),
         "recent_changes": recent_changes,
         "changed_modules": changed_modules,
     })

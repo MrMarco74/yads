@@ -20,7 +20,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     
     # Scanner Configs
-    CHROME_BIN: str = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
     AUTO_QUEUE_SUBDOMAINS: bool = False
     SCAN_QUEUE_RATE_LIMIT: Optional[str] = None
     WEB_REQUEST_TIMEOUT: int = int(os.getenv("YADS_WEB_TIMEOUT", 7))
@@ -52,7 +51,7 @@ class Settings(BaseSettings):
     LICENSE_KEY: Optional[str] = None
     # Separate Ed25519 public key for verifying activation codes (sign_activation.py output).
     # If not set, falls back to LICENSE_PUBLIC_KEY (backwards-compatible but less secure).
-    ACTIVATION_PUBLIC_KEY: Optional[str] = None
+    ACTIVATION_PUBLIC_KEY: Optional[str] = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQXcweVQ5cDFiTkVmWmR1RGtQbk5RczBseUFxMkFLdXF6enFRWEZCc0oxTW89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
 
     # Bug Report / Support Portal
     SUPPORT_PORTAL_URL: str = os.getenv("SUPPORT_PORTAL_URL", "https://support.yads-security.com")

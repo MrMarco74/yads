@@ -39,9 +39,13 @@ FROM base-api AS base-scanner
 RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
-    nmap \
     unzip \
     && rm -rf /var/lib/apt/lists/*
+# NOTE: Nmap is NOT bundled — it is licensed under GPL-2.0.
+# Install it separately on the host or via the admin UI:
+#   apt-get install -y nmap        (Debian/Ubuntu)
+#   yum install -y nmap            (RHEL/CentOS)
+# If nmap is absent, the nmap_scanner module is automatically disabled in the UI.
 
 # Nuclei binary only — templates come from the nuclei_templates Docker volume
 RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \

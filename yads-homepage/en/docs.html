@@ -215,14 +215,14 @@
     <li><strong>Admin Creation</strong>: Create the first System Administrator account.</li>
 </ol>
 
-<h3 id="2-2-interactive-setup-script">2.2 Interactive Setup Script</h3>
-<p>For simplified deployment, use the provided <code>setup.sh</code> script. It automates registry login, port configuration, SSL, and environment variables.</p>
+<h3 id="2-2-interactive-setup-script">2.2 Graphical Setup Tool (GUI)</h3>
+<p>For a modern and intuitive deployment, use the new Python-based GUI setup tool <code>yads-setup.pyz</code>. It features a user-friendly interface with system dark mode support, network connectivity tests (Ping), and automatic IP resolution.</p>
 <ol>
-    <li>Unzip the release package and navigate to the directory.</li>
-    <li>Run <code>chmod +x setup.sh && ./setup.sh</code></li>
-    <li>When prompted, enter your <strong>registry token</strong> (included in your license email). The script logs Docker in to <code>registry.yads-security.com</code> and pulls the images automatically.</li>
-    <li>Follow the remaining interactive prompts to configure ports, SSL, and environment.</li>
-    <li>The script generates a <code>.env</code> file and an optimized <code>docker-compose.yml</code>.</li>
+    <li>Unzip the release package (<code>unzip yads-test-release.zip && cd yads-test-release</code>).</li>
+    <li>Run <code>chmod +x yads-setup.pyz && ./yads-setup.pyz</code>.</li>
+    <li>The installer automatically checks for dependencies (Docker, Compose) and offers one-click installation for missing components.</li>
+    <li>Enter your <strong>registry token</strong> in the GUI to automatically pull Docker images from <code>registry.yads-security.com</code>.</li>
+    <li>After configuring ports and SSL, the tool generates your <code>.env</code> file and an optimized <code>docker-compose.yml</code>.</li>
 </ol>
 
 <blockquote>
@@ -369,7 +369,25 @@ YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
 <h3>Stealth Port Scanning</h3>
 <p><strong>(New in v1.51.5)</strong>
 *   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
-*   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.</p>
+*   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.
+*   <strong>Optional dependency</strong>: Nmap is <em>not bundled</em> with YADS. If Nmap is not installed the <code>nmap_scanner</code> module is automatically greyed out in the scan type selector. See <a href="#nmap-install">Installing Nmap</a> below.</p>
+
+<h4 id="nmap-install">Installing Nmap</h4>
+<p>Nmap is an optional external dependency licensed under <strong>GPL-2.0</strong>. Because YADS calls it as a subprocess (not linked as a library), the GPL does not affect the YADS license. You install it separately on the Docker host or inside the container:</p>
+<pre><code># Option A — on the Docker host (recommended, persists across container restarts)
+apt-get install -y nmap        # Debian / Ubuntu
+yum install -y nmap            # RHEL / CentOS / Rocky
+
+# Option B — inside a running YADS container (lost on container restart)
+docker exec -it yads-api apt-get install -y nmap
+
+# Option C — via YADS Admin UI
+# Settings → Scanner Resources → "Install nmap" button
+# (runs apt-get install inside the API container automatically)</code></pre>
+<blockquote>
+  <p><strong>Note:</strong> After installing Nmap, the YADS API container must be restarted for the availability check to re-evaluate. The worker container picks up the binary immediately on next scan execution.</p>
+</blockquote>
+<p>To verify Nmap is detected by YADS, go to <strong>Settings → Scanner Resources</strong>. The Nmap status indicator will show <em>Installed ✓</em> when the binary is found.</p>
 <h3>JavaScript SAST</h3>
 <p><strong>(New in v1.51.5)</strong>
 *   <strong>Static Analysis</strong>: Automatically downloads and analyzes client-side JavaScript files.
