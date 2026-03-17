@@ -21,7 +21,8 @@ from sqlmodel import Session, select
 from yads.api.templating import templates
 from yads.auth.deps import RoleChecker, get_current_user_html
 from yads.database import get_session
-from yads.models import ScanResult, SystemConfig, Target, Tenant, User
+from yads.models import ScanResult, SecurityTrend, SystemConfig, Target, Tenant, User
+from yads.utils.license_deps import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,20 @@ class RemediateRequest(BaseModel):
     finding_description: str
     severity: str
     domain: str
+    lang: str = "en"
+
+
+class ExplainFindingRequest(BaseModel):
+    """Datensparsamkeit: only generic finding type + severity sent to AI, never hostname/IP."""
+    finding_type: str   # e.g. "CORS wildcard misconfiguration"
+    severity: str       # critical / high / medium / low / info
+    module: str         # e.g. "cors_scanner"
+    lang: str = "en"
+
+
+class ExecutiveSummaryRequest(BaseModel):
+    """Datensparsamkeit: only aggregated counts + score sent to AI, never raw hostnames/IPs."""
+    target_id: int
     lang: str = "en"
 
 
@@ -572,6 +587,247 @@ def _rule_based_remediate(title: str, description: str, severity: str, lang: str
 
 
 # ---------------------------------------------------------------------------
+# Rule-based fallback: Finding Explanation (Enterprise)
+# ---------------------------------------------------------------------------
+
+_EXPLAIN_MAP: Dict[str, Dict] = {
+    "cors": {
+        "explanation": (
+            "A CORS misconfiguration allows untrusted origins to make authenticated cross-origin "
+            "requests to your API. This typically occurs when Access-Control-Allow-Origin is set "
+            "to a wildcard (*) or reflects the requesting origin without validation."
+        ),
+        "attacker_scenario": (
+            "An attacker hosts a malicious page that calls your API on behalf of a logged-in victim, "
+            "reading or modifying their data by exploiting the permissive CORS policy."
+        ),
+        "remediation_hint": (
+            "Set Access-Control-Allow-Origin to a strict allowlist of trusted domains, "
+            "and never combine a wildcard with Access-Control-Allow-Credentials: true."
+        ),
+        "references": [
+            "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS",
+            "https://portswigger.net/web-security/cors",
+        ],
+    },
+    "xss": {
+        "explanation": (
+            "Cross-Site Scripting (XSS) allows attackers to inject malicious scripts into web pages "
+            "viewed by other users. It arises from insufficient output encoding of user-controlled data."
+        ),
+        "attacker_scenario": (
+            "An attacker injects a script that steals session cookies or performs actions on behalf "
+            "of the victim, such as changing passwords or exfiltrating data."
+        ),
+        "remediation_hint": (
+            "HTML-encode all user-supplied output, implement a strict Content-Security-Policy, "
+            "and use framework-native templating that auto-escapes."
+        ),
+        "references": [
+            "https://owasp.org/www-community/attacks/xss/",
+            "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html",
+        ],
+    },
+    "ssl": {
+        "explanation": (
+            "A TLS/SSL misconfiguration exposes the connection to downgrade attacks or interception. "
+            "Common causes are weak cipher suites, outdated protocol versions (TLS 1.0/1.1), or "
+            "certificates that are expired, self-signed, or mismatched."
+        ),
+        "attacker_scenario": (
+            "A network-level attacker performs a downgrade or MITM attack, decrypting traffic "
+            "between the client and server to read or modify sensitive data in transit."
+        ),
+        "remediation_hint": (
+            "Enforce TLS 1.2+ (prefer 1.3), disable legacy cipher suites, enable HSTS, "
+            "and ensure certificates are valid and renewed automatically."
+        ),
+        "references": [
+            "https://ssl-config.mozilla.org/",
+            "https://www.ssllabs.com/ssltest/",
+        ],
+    },
+    "axfr": {
+        "explanation": (
+            "A DNS zone transfer (AXFR) is accessible to unauthenticated clients. "
+            "This exposes the entire DNS zone including internal hostnames, mail servers, "
+            "and infrastructure details that should remain private."
+        ),
+        "attacker_scenario": (
+            "An attacker retrieves the full DNS zone to map internal infrastructure, "
+            "identifying high-value targets for further attacks."
+        ),
+        "remediation_hint": (
+            "Restrict AXFR to trusted secondary nameserver IPs only using allow-transfer "
+            "directives, and verify with: dig axfr @nameserver domain."
+        ),
+        "references": ["https://www.isc.org/blogs/axfr-zone-transfers/"],
+    },
+    "header": {
+        "explanation": (
+            "Missing or misconfigured HTTP security headers leave the browser without important "
+            "security instructions, enabling attacks like clickjacking, MIME-sniffing, or "
+            "information disclosure via the Server header."
+        ),
+        "attacker_scenario": (
+            "Without X-Frame-Options, an attacker embeds the site in an iframe for clickjacking. "
+            "A missing CSP enables XSS execution. Version headers help enumerate vulnerable software."
+        ),
+        "remediation_hint": (
+            "Add Strict-Transport-Security, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, "
+            "Referrer-Policy, and a Content-Security-Policy appropriate to the application."
+        ),
+        "references": [
+            "https://securityheaders.com/",
+            "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html",
+        ],
+    },
+    "cookie": {
+        "explanation": (
+            "Session or authentication cookies are missing security flags (Secure, HttpOnly, SameSite). "
+            "This exposes them to theft via network sniffing or JavaScript injection."
+        ),
+        "attacker_scenario": (
+            "Without HttpOnly, an XSS payload reads the session cookie. "
+            "Without Secure, the cookie is transmitted over HTTP and can be captured in transit."
+        ),
+        "remediation_hint": (
+            "Set Secure, HttpOnly, and SameSite=Lax (or Strict) on all session cookies. "
+            "Avoid storing sensitive data in cookies that lack these flags."
+        ),
+        "references": [
+            "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html",
+        ],
+    },
+    "sql": {
+        "explanation": (
+            "SQL Injection allows attackers to manipulate database queries by injecting malicious SQL "
+            "through user-controlled input. It results from building queries via string concatenation."
+        ),
+        "attacker_scenario": (
+            "An attacker extracts all data from the database, bypasses authentication, "
+            "or — with sufficient privileges — executes OS commands."
+        ),
+        "remediation_hint": (
+            "Always use parameterised queries or prepared statements. "
+            "Apply least-privilege database accounts and audit all dynamic query construction."
+        ),
+        "references": [
+            "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
+        ],
+    },
+    "default": {
+        "explanation": (
+            "This security finding indicates a configuration weakness or vulnerability that could "
+            "be exploited by an attacker to gain unauthorised access, leak data, or disrupt service."
+        ),
+        "attacker_scenario": (
+            "The specific attack scenario depends on the finding. Consult the module documentation "
+            "and relevant CVEs or security advisories for the affected component."
+        ),
+        "remediation_hint": (
+            "Apply the latest vendor patches, review the affected configuration against security "
+            "baselines, and re-scan after remediation to confirm resolution."
+        ),
+        "references": [
+            "https://owasp.org/www-project-top-ten/",
+            "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+        ],
+    },
+}
+
+_EXPLAIN_DE = {
+    "explanation": "Erklärung",
+    "attacker_scenario": "Angriffsszenario",
+    "remediation_hint": "Behebungshinweis",
+}
+
+
+def _rule_based_explain(finding_type: str, severity: str, module: str, lang: str = "en") -> Dict:
+    text = (finding_type + " " + module).lower()
+    for keyword in ("cors", "xss", "ssl", "tls", "certificate", "axfr", "zone transfer",
+                    "header", "cookie", "sql"):
+        if keyword in text:
+            key = {"tls": "ssl", "certificate": "ssl", "zone transfer": "axfr"}.get(keyword, keyword)
+            entry = _EXPLAIN_MAP.get(key, _EXPLAIN_MAP["default"])
+            return {**entry, "ai_generated": False}
+    return {**_EXPLAIN_MAP["default"], "ai_generated": False}
+
+
+# ---------------------------------------------------------------------------
+# Rule-based fallback: Executive Summary (Enterprise)
+# ---------------------------------------------------------------------------
+
+def _rule_based_executive_summary(
+    score: int,
+    total: int,
+    by_severity: Dict[str, int],
+    top_modules: List[str],
+    lang: str = "en",
+) -> Dict:
+    de = lang.lower().startswith("de")
+    critical = by_severity.get("critical", 0)
+    high = by_severity.get("high", 0)
+    medium = by_severity.get("medium", 0)
+
+    if score >= 80:
+        risk_rating = "Low" if not de else "Niedrig"
+    elif score >= 60:
+        risk_rating = "Medium" if not de else "Mittel"
+    elif score >= 40:
+        risk_rating = "High" if not de else "Hoch"
+    else:
+        risk_rating = "Critical" if not de else "Kritisch"
+
+    if de:
+        summary = (
+            f"Die Sicherheitsbewertung ergibt einen Score von {score}/100 ({risk_rating}). "
+            f"Es wurden insgesamt {total} Findings identifiziert"
+            + (f", davon {critical} kritische und {high} hohe" if critical + high > 0 else "")
+            + ". "
+            f"Die Hauptrisikobereiche sind: {', '.join(top_modules[:3]) if top_modules else 'allgemeine Sicherheitskonfiguration'}. "
+            "Eine detaillierte Prüfung und Behebung der kritischen und hohen Findings wird empfohlen."
+        )
+        key_points = [
+            f"Gesamtscore: {score}/100 — Risikoeinstufung: {risk_rating}",
+            f"{total} Findings insgesamt ({critical} kritisch, {high} hoch, {medium} mittel)",
+            f"Hauptbetroffene Module: {', '.join(top_modules[:3]) if top_modules else '—'}",
+        ]
+        recommended_actions = [
+            f"Sofort: {critical} kritische Finding(s) priorisieren und innerhalb von 24 Stunden beheben." if critical else "Hohe Findings im aktuellen Sprint adressieren.",
+            "Mittelfristig: Mittlere und niedrige Findings in regelmäßigen Wartungsfenstern beheben.",
+            "Continuous: Regelmäßige Neuscans einplanen, um Regressionen zu erkennen.",
+        ]
+    else:
+        summary = (
+            f"The security assessment yielded a score of {score}/100 ({risk_rating} risk). "
+            f"A total of {total} findings were identified"
+            + (f", including {critical} critical and {high} high severity" if critical + high > 0 else "")
+            + ". "
+            f"Primary risk areas: {', '.join(top_modules[:3]) if top_modules else 'general security configuration'}. "
+            "Immediate remediation of critical and high findings is recommended."
+        )
+        key_points = [
+            f"Overall score: {score}/100 — Risk rating: {risk_rating}",
+            f"{total} findings total ({critical} critical, {high} high, {medium} medium)",
+            f"Top affected areas: {', '.join(top_modules[:3]) if top_modules else '—'}",
+        ]
+        recommended_actions = [
+            f"Immediate: Prioritise {critical} critical finding(s) for remediation within 24 hours." if critical else "Address high findings within the current sprint.",
+            "Medium-term: Remediate medium and low findings within scheduled maintenance windows.",
+            "Ongoing: Schedule regular re-scans to detect regressions.",
+        ]
+
+    return {
+        "summary": summary,
+        "risk_rating": risk_rating,
+        "key_points": key_points,
+        "recommended_actions": recommended_actions,
+        "ai_generated": False,
+    }
+
+
+# ---------------------------------------------------------------------------
 # NL Search helpers
 # ---------------------------------------------------------------------------
 
@@ -721,6 +977,7 @@ async def ai_assistant_page(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user_html),
     _roles: None = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+    has_ai_insights: bool = Depends(require_feature("ai_insights")),
 ):
     # Check whether AI is configured so the template can show the right badge
     provider, _, _ = _get_ai_config(session, user)
@@ -738,6 +995,7 @@ async def ai_assistant_page(
             "user": user,
             "targets": targets,
             "ai_provider": provider or "rule-based",
+            "has_ai_insights": has_ai_insights,
         },
     )
 
@@ -891,3 +1149,151 @@ async def nl_search(
         "filters_applied": filters,
         "total": len(results),
     })
+
+
+# ---------------------------------------------------------------------------
+# API: Finding Explanation (Enterprise)
+# Datensparsamkeit: only {finding_type, severity, module} sent to AI.
+# No hostnames, IPs, or raw scan data ever leave the server.
+# ---------------------------------------------------------------------------
+
+@router.post("/api/ai/explain-finding")
+async def explain_finding(
+    body: ExplainFindingRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+    _licensed: bool = Depends(require_feature("ai_insights")),
+):
+    provider, api_key, model = _get_ai_config(session, user)
+    lang = body.lang
+    result: Dict = {}
+    ai_generated = False
+
+    if provider:
+        system = (
+            "You are a senior application security expert. "
+            "Explain the given security finding in clear, non-technical language suitable "
+            "for developers and technical managers. "
+            "Return ONLY a JSON object with keys: "
+            "explanation (2-3 sentences describing what the finding is), "
+            "attacker_scenario (1-2 sentences on what an attacker can do), "
+            "remediation_hint (1-2 actionable sentences), "
+            "references (array of 1-3 relevant URL strings). No extra text outside JSON."
+            + _lang_instruction(lang)
+        )
+        # Datensparsamkeit: never include target domain or raw scan data in the prompt
+        prompt = (
+            f"Finding type: {body.finding_type}\n"
+            f"Severity: {body.severity}\n"
+            f"Scanner module: {body.module}\n\n"
+            "Explain this security finding."
+        )
+        raw = _call_ai(provider, api_key, model, prompt, system)
+        if raw:
+            parsed = _extract_json(raw)
+            if isinstance(parsed, dict) and "explanation" in parsed:
+                result = parsed
+                result["ai_generated"] = True
+                ai_generated = True
+
+    if not result:
+        result = _rule_based_explain(body.finding_type, body.severity, body.module, lang)
+
+    result.setdefault("explanation", "No explanation available.")
+    result.setdefault("attacker_scenario", "")
+    result.setdefault("remediation_hint", "")
+    result.setdefault("references", [])
+    result.setdefault("ai_generated", ai_generated)
+
+    return JSONResponse(result)
+
+
+# ---------------------------------------------------------------------------
+# API: Executive Summary (Enterprise)
+# Datensparsamkeit: only aggregated score + finding counts sent to AI.
+# Target domain, IPs, and specific scan data are never included.
+# ---------------------------------------------------------------------------
+
+@router.post("/api/ai/executive-summary/{target_id}")
+async def executive_summary(
+    target_id: int,
+    body: ExecutiveSummaryRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"])),
+    _licensed: bool = Depends(require_feature("ai_insights")),
+):
+    # Scope check — no domain or hostname returned to AI
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    if user.tenant_id and target.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Aggregate findings — only counts, no raw data to AI
+    all_findings = _extract_all_findings_for_target(session, target_id, user)
+    by_severity: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    module_counts: Dict[str, int] = {}
+    for f in all_findings:
+        sev = f.get("severity", "info")
+        by_severity[sev] = by_severity.get(sev, 0) + 1
+        mod = f.get("module", "unknown")
+        module_counts[mod] = module_counts.get(mod, 0) + 1
+
+    top_modules = sorted(module_counts, key=lambda m: module_counts[m], reverse=True)[:5]
+    total = len(all_findings)
+
+    # Get latest security score from SecurityTrend
+    score_row = session.exec(
+        select(SecurityTrend)
+        .where(SecurityTrend.target_id == target_id)
+        .order_by(SecurityTrend.recorded_at.desc())
+    ).first()
+    score = int(score_row.score) if score_row and score_row.score is not None else 0
+
+    lang = body.lang
+    result: Dict = {}
+    ai_generated = False
+
+    provider, api_key, model = _get_ai_config(session, user)
+    if provider:
+        system = (
+            "You are a senior information security consultant. "
+            "Write an executive summary for a security assessment, suitable for management presentation. "
+            "Return ONLY a JSON object with keys: "
+            "summary (3-4 sentence paragraph), "
+            "risk_rating (one of: Critical / High / Medium / Low), "
+            "key_points (array of 3-4 short bullet strings), "
+            "recommended_actions (array of 2-3 short action strings). "
+            "No extra text outside JSON."
+            + _lang_instruction(lang)
+        )
+        # Datensparsamkeit: never include target domain or individual finding details
+        prompt = (
+            f"Security assessment data:\n"
+            f"Security Score: {score}/100\n"
+            f"Total findings: {total}\n"
+            f"By severity: {json.dumps(by_severity)}\n"
+            f"Top affected scan modules: {json.dumps(top_modules)}\n\n"
+            "Write an executive summary."
+        )
+        raw = _call_ai(provider, api_key, model, prompt, system)
+        if raw:
+            parsed = _extract_json(raw)
+            if isinstance(parsed, dict) and "summary" in parsed:
+                result = parsed
+                result["ai_generated"] = True
+                ai_generated = True
+
+    if not result:
+        result = _rule_based_executive_summary(score, total, by_severity, top_modules, lang)
+
+    result.setdefault("summary", "No summary available.")
+    result.setdefault("risk_rating", "Unknown")
+    result.setdefault("key_points", [])
+    result.setdefault("recommended_actions", [])
+    result.setdefault("ai_generated", ai_generated)
+    result["score"] = score
+    result["total_findings"] = total
+    result["by_severity"] = by_severity
+
+    return JSONResponse(result)
