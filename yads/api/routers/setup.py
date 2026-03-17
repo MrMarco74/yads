@@ -10,6 +10,7 @@ from yads.database import engine as current_engine, get_session
 from sqlmodel import Session, select
 from yads.models import User, SystemConfig
 from yads.auth.security import get_password_hash
+from yads.core.password_policy import validate_password as _validate_pw
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 logger = logging.getLogger("yads-setup")
@@ -101,7 +102,7 @@ async def configure_db(req: DBConfigRequest):
     _require_setup_open()
     new_password = req.password
     if not new_password or len(new_password) < 8:
-         raise HTTPException(status_code=400, detail="Password too short (8 chars min)")
+        raise HTTPException(status_code=400, detail="Password too short (8 chars min)")
 
     # 1. Connect with current credentials to change password
     # We use the current global 'engine' which should be valid with startup default
@@ -240,9 +241,10 @@ async def create_admin(req: AdminRequest):
     try:
         username = req.username
         password = req.password
-        
-        if len(password) < 8:
-            raise HTTPException(status_code=400, detail="Password too short")
+
+        pw_error = _validate_pw(password)
+        if pw_error:
+            raise HTTPException(status_code=400, detail=pw_error)
             
         # Check if admin exists
         existing_user = session.exec(select(User).where(User.username == username)).first()

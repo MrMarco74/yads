@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from yads.auth.security import verify_password, create_access_token, get_password_hash
+from yads.core.password_policy import validate_password as _validate_pw
 from yads.models import User, SystemConfig
 from yads.auth.deps import get_db_session, get_current_user
 from yads.config import settings
@@ -299,8 +300,15 @@ async def change_password_action(
 ):
     if new_password != confirm_password:
         return templates.TemplateResponse("change_password.html", {
-            "request": request, 
+            "request": request,
             "error": "Passwords do not match."
+        })
+
+    pw_error = _validate_pw(new_password)
+    if pw_error:
+        return templates.TemplateResponse("change_password.html", {
+            "request": request,
+            "error": pw_error,
         })
         
     db_user = session.get(User, user.id)

@@ -5,6 +5,7 @@ from sqlmodel import Session, select, func
 from typing import Optional, List
 
 from yads.auth.security import get_password_hash
+from yads.core.password_policy import validate_password as _validate_pw
 from yads.models import User, SystemConfig, Tenant, UserTenantLink
 from yads.auth.deps import get_db_session, get_current_user, RoleChecker
 from yads.config import settings
@@ -170,10 +171,14 @@ async def create_user(
         if not _ok:
             return RedirectResponse(url=f"/users/?error={_reason}", status_code=303)
 
+    pw_error = _validate_pw(password)
+    if pw_error:
+        return RedirectResponse(url=f"/users/?error={pw_error}", status_code=303)
+
     hash_pw = get_password_hash(password)
     new_user = User(
-        username=username, 
-        password_hash=hash_pw, 
+        username=username,
+        password_hash=hash_pw,
         role=role,
         force_password_change=force_change,
         tenant_id=final_tenant_id
@@ -250,6 +255,10 @@ async def reset_password(
                 log_permission_denied(request, current_user, "reset_password", f"admin_user:{user_id}", session)
                 session.commit()
                 return RedirectResponse(url="/users/?error=Permission+denied", status_code=303)
+
+        pw_error = _validate_pw(new_password)
+        if pw_error:
+            return RedirectResponse(url=f"/users/?error={pw_error}", status_code=303)
 
         user.password_hash = get_password_hash(new_password)
         session.add(user)

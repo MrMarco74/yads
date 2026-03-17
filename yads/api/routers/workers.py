@@ -629,10 +629,12 @@ async def get_registration_token(
                 <span class="text-yellow-500">No token set. Click "Regenerate" to create one.</span>
             ''')
 
+        import html as _html
         return HTMLResponse(f'''
             <span class="text-gray-300">{masked}</span>
             <button type="button"
-                    onclick="navigator.clipboard.writeText('{token}').then(() => this.textContent = 'Copied!')"
+                    data-token="{_html.escape(token)}"
+                    onclick="navigator.clipboard.writeText(this.dataset.token).then(()=>this.textContent='Copied!')"
                     class="ml-2 text-[10px] text-emerald-400 hover:text-emerald-300">
                 Copy
             </button>
@@ -651,11 +653,13 @@ async def regenerate_registration_token(
 
     # Check if HTMX request
     if request.headers.get("HX-Request"):
+        import html as _html
         masked = "*" * 24 + token[-8:] if len(token) > 8 else token
         return HTMLResponse(f'''
             <span class="text-emerald-400">{masked}</span>
             <button type="button"
-                    onclick="navigator.clipboard.writeText('{token}').then(() => this.textContent = 'Copied!')"
+                    data-token="{_html.escape(token)}"
+                    onclick="navigator.clipboard.writeText(this.dataset.token).then(()=>this.textContent='Copied!')"
                     class="ml-2 text-[10px] text-emerald-400 hover:text-emerald-300">
                 Copy
             </button>
