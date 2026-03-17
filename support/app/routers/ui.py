@@ -1,20 +1,22 @@
 """
 Web UI routes for the YADS Support Portal.
 
-Protected by nginx auth_basic externally; no app-level auth required.
+Protected by SessionAuthMiddleware in main.py (session cookie = ADMIN_TOKEN).
 """
 
 import json
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, col, select
 
+from app.auth import COOKIE_NAME, make_session_token, verify_session_token
 from app.database import get_session
 from app.models import ActivationRequest, BugReport, BugReportMessage, ContactRequest, CustomerKey, InstallationReport, ReportCategory
+import app.routers.installations as _inst_mod
 
 router = APIRouter()
 
@@ -545,9 +547,181 @@ async def activations_page(
         for r in ar_rows
     ]
 
-    import app.routers.installations as _inst_mod
     return templates.TemplateResponse("activations.html", {
         "request": request,
         "requests": requests_data,
-        "admin_token": _inst_mod.ADMIN_TOKEN or "",
     })
+
+
+# ---------------------------------------------------------------------------
+# Login / Logout
+# ---------------------------------------------------------------------------
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "", next: str = "/"):
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "error": error,
+        "next": next,
+    })
+
+
+@router.post("/login")
+async def do_login(
+    request: Request,
+    password: str = Form(...),
+    next: str = Form("/"),
+):
+    import app.auth as _auth
+    if password and password == _inst_mod.ADMIN_TOKEN:
+        token = make_session_token()
+        response = RedirectResponse(next or "/", status_code=303)
+        response.set_cookie(
+            COOKIE_NAME, token,
+            httponly=True, secure=True, samesite="lax",
+            max_age=8 * 3600,
+        )
+        return response
+    return RedirectResponse(f"/login?error=1&next={next}", status_code=303)
+
+
+@router.get("/logout")
+async def logout():
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie(COOKIE_NAME)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Server-side proxy for activation admin actions
+# (replaces client-side JS calls that required the ADMIN_TOKEN in the HTML)
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timezone as _tz
+
+
+@router.post("/ui/activate-offline")
+async def ui_activate_offline(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    import base64 as _b64, json as _json
+    body = await request.json()
+    code = (body.get("code") or "").strip()
+    if not code:
+        return JSONResponse({"detail": "code required"}, status_code=400)
+
+    try:
+        padded = code + "=" * ((4 - len(code) % 4) % 4)
+        payload = _json.loads(_b64.urlsafe_b64decode(padded))
+    except Exception as exc:
+        return JSONResponse({"detail": f"Invalid activation code: {exc}"}, status_code=400)
+
+    required = {"instance_uuid", "version"}
+    if not required.issubset(payload.keys()):
+        return JSONResponse({"detail": "Missing required fields."}, status_code=400)
+
+    install_type = (payload.get("install_type") or "installer").strip()
+    customer_id = (payload.get("customer_id") or "").strip() or None
+    now = datetime.now(_tz.utc)
+
+    from app.models import InstallationReport
+    existing = session.exec(
+        select(InstallationReport).where(
+            InstallationReport.instance_uuid == payload["instance_uuid"]
+        )
+    ).first()
+    if existing:
+        existing.version = payload["version"]
+        existing.last_seen = now
+        existing.report_count += 1
+        if existing.install_type == "unknown" and install_type != "unknown":
+            existing.install_type = install_type
+        if not existing.customer_id and customer_id:
+            existing.customer_id = customer_id
+        session.add(existing)
+    else:
+        session.add(InstallationReport(
+            instance_uuid=payload["instance_uuid"],
+            version=payload["version"],
+            install_type=install_type,
+            customer_id=customer_id,
+        ))
+    session.commit()
+
+    existing_ar = session.exec(
+        select(ActivationRequest).where(
+            ActivationRequest.instance_uuid == payload["instance_uuid"]
+        )
+    ).first()
+    if not existing_ar:
+        session.add(ActivationRequest(
+            instance_uuid=payload["instance_uuid"],
+            customer_id=customer_id,
+            request_code=code,
+            status="approved",
+            resolved_at=now,
+        ))
+        session.commit()
+
+    return JSONResponse({"ok": True, "instance_uuid": payload["instance_uuid"]})
+
+
+@router.post("/ui/activations/{instance_uuid}/respond")
+async def ui_respond_activation(
+    instance_uuid: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    body = await request.json()
+    response_code = (body.get("response_code") or "").strip()
+    if not response_code:
+        return JSONResponse({"detail": "response_code required"}, status_code=400)
+
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        return JSONResponse({"detail": "Not found."}, status_code=404)
+
+    ar.response_code = response_code
+    ar.status = "approved"
+    ar.resolved_at = datetime.now(_tz.utc)
+    session.add(ar)
+    session.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/ui/activations/{instance_uuid}/revoke")
+async def ui_revoke_activation(
+    instance_uuid: str,
+    session: Session = Depends(get_session),
+):
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        return JSONResponse({"detail": "Not found."}, status_code=404)
+
+    ar.status = "rejected"
+    ar.response_code = None
+    ar.resolved_at = datetime.now(_tz.utc)
+    session.add(ar)
+    session.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/ui/activations/{instance_uuid}")
+async def ui_delete_activation(
+    instance_uuid: str,
+    session: Session = Depends(get_session),
+):
+    ar = session.exec(
+        select(ActivationRequest).where(ActivationRequest.instance_uuid == instance_uuid)
+    ).first()
+    if not ar:
+        return JSONResponse({"detail": "Not found."}, status_code=404)
+
+    session.delete(ar)
+    session.commit()
+    return JSONResponse({"ok": True})

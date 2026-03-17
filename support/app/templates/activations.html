@@ -186,8 +186,6 @@
 </div>
 
 <script>
-const ADMIN_TOKEN = "{{ admin_token }}";
-
 function copyText(text) {
   navigator.clipboard.writeText(text).then(() => {
     alert('In Zwischenablage kopiert.');
@@ -199,9 +197,9 @@ async function submitOfflineRequest() {
   const result = document.getElementById('req-result');
   if (!code) return;
   result.style.display = 'none';
-  const resp = await fetch('/api/admin/activate-offline', {
+  const resp = await fetch('/ui/activate-offline', {
     method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+ADMIN_TOKEN},
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({code})
   });
   const data = await resp.json();
@@ -219,9 +217,9 @@ async function submitResponse(instanceUuid) {
   const code = document.getElementById('resp-' + instanceUuid).value.trim();
   const result = document.getElementById('resp-result-' + instanceUuid);
   if (!code) return;
-  const resp = await fetch('/api/admin/activation-requests/' + instanceUuid + '/respond', {
+  const resp = await fetch('/ui/activations/' + instanceUuid + '/respond', {
     method: 'POST',
-    headers: {'Content-Type':'application/json','Authorization':'Bearer '+ADMIN_TOKEN},
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({response_code: code})
   });
   const data = await resp.json();
@@ -237,10 +235,7 @@ async function submitResponse(instanceUuid) {
 
 async function revokeRequest(instanceUuid) {
   if (!confirm('Aktivierung für ' + instanceUuid + ' widerrufen?\nDer Aktivierungscode wird ungültig.')) return;
-  const resp = await fetch('/api/admin/activation-requests/' + instanceUuid + '/revoke', {
-    method: 'POST',
-    headers: {'Authorization':'Bearer '+ADMIN_TOKEN}
-  });
+  const resp = await fetch('/ui/activations/' + instanceUuid + '/revoke', {method: 'POST'});
   if (resp.ok) {
     location.reload();
   } else {
@@ -251,10 +246,7 @@ async function revokeRequest(instanceUuid) {
 
 async function deleteRequest(instanceUuid) {
   if (!confirm('Eintrag für ' + instanceUuid + ' dauerhaft löschen?')) return;
-  const resp = await fetch('/api/admin/activation-requests/' + instanceUuid, {
-    method: 'DELETE',
-    headers: {'Authorization':'Bearer '+ADMIN_TOKEN}
-  });
+  const resp = await fetch('/ui/activations/' + instanceUuid, {method: 'DELETE'});
   if (resp.ok) {
     location.reload();
   } else {
