@@ -66,10 +66,9 @@ async function submitOfflineActivation() {
   if (!code) return;
   result.style.display = 'none';
   try {
-    const resp = await fetch('/api/admin/activate-offline', {
+    const resp = await fetch('/ui/activate-offline', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + (document.cookie.match(/admin_token=([^;]+)/)||['',''])[1]},
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({code})
     });
     const data = await resp.json();
