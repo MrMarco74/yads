@@ -897,12 +897,40 @@ Tenants can configure real-time webhooks to integrate with external systems (Sla
 <p>The search uses 500ms debouncing. Parsed filters are shown as chips below the search box (severity, module, domain fragment). Results are sorted by severity and capped at 200 entries. Click any result to navigate directly to the target detail page.</p>
 
 <h3>13.5 Multilanguage AI Output</h3>
-<p>All three AI endpoints accept a <code>lang</code> parameter (<code>en</code> or <code>de</code>). When <code>lang=de</code> is passed:</p>
+<p>All five AI endpoints accept a <code>lang</code> parameter (<code>en</code> or <code>de</code>). When <code>lang=de</code> is passed:</p>
 <ul>
     <li>AI system prompts append "Antworte auf Deutsch." — the model responds in German.</li>
     <li>Rule-based rationale strings, effort labels ("Geringer/Mittlerer/Hoher Aufwand"), and search interpretation text are all returned in German.</li>
     <li>The UI passes this parameter automatically based on the browser's preferred language settings.</li>
 </ul>
+
+<h3>13.6 Finding Explanation <span style="font-size:0.7em;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:2px 6px;vertical-align:middle;">Enterprise</span></h3>
+<p>Explains what a specific security finding means in plain language — including what an attacker can do with it and how to remediate it. Available in <strong>Intelligence → AI Assistant → Finding Explanation</strong>.</p>
+<ol>
+    <li>Select a target from the dropdown to load its findings, or type a finding title manually.</li>
+    <li>Choose a finding from the list — the form auto-fills with the finding type, severity, and scanner module.</li>
+    <li>Review the <strong>Sent to AI (preview)</strong> box to see exactly what will be transmitted.</li>
+    <li>Click <strong>Explain Finding</strong>.</li>
+    <li>The result card shows three sections: <em>What is this finding?</em>, <em>What can an attacker do?</em>, and <em>How to fix it</em> — plus reference links.</li>
+</ol>
+<blockquote>
+    <p><strong>🔒 Privacy (Datensparsamkeit)</strong>: Only the generic finding type, severity, and scanner module name are sent to the AI provider. Target hostnames, IP addresses, and raw scan data are never transmitted.</p>
+</blockquote>
+<p>The rule-based fallback (active when no AI key is configured) provides built-in explanations for: CORS, XSS, SSL/TLS, DNS zone transfer (AXFR), HTTP security headers, cookie security, and SQL injection.</p>
+
+<h3>13.7 Executive Summary <span style="font-size:0.7em;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:2px 6px;vertical-align:middle;">Enterprise</span></h3>
+<p>Generates a management-ready security assessment paragraph for a selected target, suitable for inclusion in board reports or customer presentations. Available in <strong>Intelligence → AI Assistant → Executive Summary</strong>.</p>
+<ol>
+    <li>Select a target from the dropdown.</li>
+    <li>Review the <strong>Sent to AI (preview)</strong> box — it shows only the aggregated security score and finding counts by severity.</li>
+    <li>Click <strong>Generate Summary</strong>.</li>
+    <li>The result card shows: the security score with severity distribution chips, a summary paragraph, key bullet points, and recommended prioritised actions with a risk rating (Critical / High / Medium / Low).</li>
+    <li>Use the <strong>Copy summary</strong> button to paste the full text into a report or email.</li>
+</ol>
+<blockquote>
+    <p><strong>🔒 Privacy (Datensparsamkeit)</strong>: Only the security score and aggregated finding counts (e.g. <code>{"critical": 2, "high": 5, "medium": 6}</code>) are sent to the AI provider. The target domain, hostnames, IPs, and individual finding details are never transmitted.</p>
+</blockquote>
+<p>The rule-based fallback builds the summary from the score and counts without any external API call. Results are clearly labelled "Rule-based" or "AI-powered" in the UI.</p>
 
 <hr />
 <h2>14. Finding Management &amp; Vulnerability Tracking</h2>
