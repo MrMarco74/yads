@@ -91,28 +91,56 @@ def exchange_code_for_token(code: str, realm: str = None) -> Optional[Dict[str, 
         return None
 
 
-def decode_token_claims(token_response: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _fetch_jwks(realm: str = None) -> Optional[Dict[str, Any]]:
+    """Fetch public keys from Keycloak JWKS endpoint (server-side URL)."""
+    cfg = get_oidc_config()
+    r = realm or cfg["realm"]
+    jwks_url = f"{cfg['server_url']}/realms/{r}/protocol/openid-connect/certs"
+    try:
+        response = httpx.get(jwks_url, timeout=5.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"OIDC: Failed to fetch JWKS from {jwks_url}: {e}")
+        return None
+
+
+def decode_token_claims(token_response: Dict[str, Any], realm: str = None) -> Optional[Dict[str, Any]]:
     """
-    Dekodiert JWT-Claims aus dem Access-Token (ohne Signatur-Verifikation im Dev-Modus).
-    In Produktion: Public Key von Keycloak JWKS-Endpoint holen.
+    Decode and cryptographically verify JWT claims from the OIDC token response.
+    Fetches the JWKS from Keycloak to verify the RS256 signature.
+    Prefers the id_token (audience = client_id); falls back to access_token.
     """
     try:
-        id_token = token_response.get("access_token") or token_response.get("id_token")
-        if not id_token:
+        # Prefer id_token (audience = client_id); fall back to access_token
+        token = token_response.get("id_token") or token_response.get("access_token")
+        if not token:
             return None
-        # Dev: decode ohne Signatur-Verifikation (Keycloak ist lokal vertrauenswürdig)
+
+        jwks = _fetch_jwks(realm)
+        if not jwks:
+            logger.error("OIDC: Cannot verify token — JWKS unavailable")
+            return None
+
+        cfg = get_oidc_config()
+        r = realm or cfg["realm"]
+        issuer = f"{settings.OIDC_SERVER_URL}/realms/{r}"
+
+        # Verify signature + expiry + issuer. Skip audience check for access_token
+        # compatibility (Keycloak access tokens may use "account" as aud, not client_id).
         claims = jose_jwt.decode(
-            id_token,
-            key="",
-            algorithms=["RS256", "HS256"],
-            options={"verify_signature": False, "verify_exp": False},
+            token,
+            jwks,
+            algorithms=["RS256", "RS384", "RS512"],
+            issuer=issuer,
+            options={"verify_aud": False},
         )
         return claims
     except JWTError as e:
-        logger.error(f"JWT decode failed: {e}")
+        logger.error(f"OIDC JWT verification failed: {e}")
         return None
     except Exception as e:
-        logger.error(f"JWT decode unexpected error: {e}")
+        logger.error(f"OIDC JWT decode unexpected error: {e}")
         return None
 
 
