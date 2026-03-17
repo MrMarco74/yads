@@ -379,7 +379,7 @@ def run_all_scans(
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
     # --- License / CE Enforcement ---
-    from yads.core.license import license_manager
+    from yads.core.license import license_manager, activation_verifier
     from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
     try:
         with Session(engine) as session:
@@ -391,17 +391,18 @@ def run_all_scans(
                     return
             else:
                 lc = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
-                valid_license = bool(lc and lc.value and license_manager.verify(lc.value))
-                if not valid_license:
+                lic_data = license_manager.verify(lc.value) if (lc and lc.value) else None
+                if not lic_data:
                     logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
                     return
                 # --- Activation enforcement for business licenses ---
-                lic_data = license_manager.verify(lc.value) if (lc and lc.value) else None
-                if lic_data and lic_data.get("customer_id"):
+                if lic_data.get("customer_id"):
+                    uuid_conf = session.exec(select(SystemConfig).where(SystemConfig.key == "INSTANCE_UUID")).first()
+                    instance_uuid = uuid_conf.value if uuid_conf else None
                     act_conf = session.exec(select(SystemConfig).where(SystemConfig.key == "ACTIVATION_CODE")).first()
-                    act_data = license_manager.verify(act_conf.value) if (act_conf and act_conf.value) else None
+                    act_data = activation_verifier.verify(act_conf.value, instance_uuid) if (act_conf and act_conf.value) else None
                     if not act_data:
-                        logger.warning(f"[Worker] Instanz nicht aktiviert — Lesemodus. Scan für {domain} verworfen.")
+                        logger.warning(f"[Worker] Instanz nicht aktiviert — Scan für {domain} verworfen.")
                         return
     except Exception as e:
         logger.error(f"[Worker] License check failed: {e}")

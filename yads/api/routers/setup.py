@@ -351,8 +351,9 @@ async def activate_instance(req: ActivationCodeRequest):
     from yads.database import engine
     from sqlmodel import Session
 
-    # Verify signature using license public key
-    activation_data = license_manager.verify(req.activation_code)
+    # Verify signature using activation public key
+    from yads.core.license import activation_verifier
+    activation_data = activation_verifier.verify(req.activation_code)
     if not activation_data:
         raise HTTPException(status_code=400, detail="Ungültiger oder abgelaufener Aktivierungscode.")
 
@@ -404,9 +405,10 @@ async def get_activation_status():
     is_business = bool(customer_id)
 
     # Validate stored activation code
+    from yads.core.license import activation_verifier
     activation_data = None
     if activation_code:
-        activation_data = license_manager.verify(activation_code)
+        activation_data = activation_verifier.verify(activation_code, instance_uuid)
 
     activated = bool(activation_data)
 
