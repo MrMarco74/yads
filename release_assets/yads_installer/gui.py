@@ -750,6 +750,13 @@ class YADSInstallerGUI:
                     self.root.after(0, lambda: self.btn_next.configure(state="normal"))
                     return
 
+                # Remove any stale containers from a previous (failed) install
+                # before starting — avoids "container name already in use" conflicts.
+                subprocess.run(
+                    ["docker", "compose", "down", "--remove-orphans"],
+                    capture_output=True, timeout=60
+                )
+
                 result = subprocess.run(
                     ["docker", "compose", "up", "-d", "--force-recreate"],
                     capture_output=True, text=True
