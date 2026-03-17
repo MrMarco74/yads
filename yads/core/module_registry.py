@@ -25,6 +25,9 @@ Fields per entry:
                         The module is still registered for UI/label/finding purposes.
   passive         bool  True = passive/safe (read-only, no probing, no port scanning).
                         False = active/intrusive (fuzzing, port scans, exploit probes, etc.).
+  degraded_without_binary str  Optional binary name. Module works but in limited/fallback mode
+                        when the binary is absent. UI shows "limited mode" badge instead of
+                        disabling the checkbox.
 """
 
 from collections import OrderedDict
@@ -37,6 +40,7 @@ class ModuleDef:
         "name", "label", "label_de", "category", "module_path",
         "worker_note", "requires_http", "requires_https", "default_on",
         "finding_module", "extractor", "custom_dispatch", "report_view", "passive",
+        "requires_binary", "degraded_without_binary",
     )
 
     def __init__(
@@ -55,6 +59,8 @@ class ModuleDef:
         custom_dispatch: bool = False,
         report_view: Optional[str] = None,
         passive: bool = True,
+        requires_binary: Optional[str] = None,
+        degraded_without_binary: Optional[str] = None,
     ):
         self.name = name
         self.label = label
@@ -71,6 +77,10 @@ class ModuleDef:
         # Explicit report page URL. None → auto-resolves to /reports/module/{name}
         self.report_view = report_view
         self.passive = passive
+        # Hard dependency: module cannot run without this binary; UI disables the checkbox.
+        self.requires_binary = requires_binary
+        # Soft dependency: module works but degrades to fallback mode without this binary.
+        self.degraded_without_binary = degraded_without_binary
 
     def get_report_url(self) -> str:
         """Return the report URL — explicit override or auto-generated generic."""
@@ -440,6 +450,7 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         finding_module=False,
         report_view="/ports",
         passive=False,
+        degraded_without_binary="nmap",
     )),
     ("crawler", ModuleDef(
         name="crawler",
@@ -849,3 +860,29 @@ def get_scan_categories(prefix: str = "sc", enabled_modules: Optional[set] = Non
 def get_module_labels() -> Dict[str, str]:
     """Return {module_name: English label} for all registered modules."""
     return {name: defn.label for name, defn in REGISTRY.items()}
+
+
+def get_unavailable_modules() -> set:
+    """
+    Return set of module names whose required binary is not present on this system.
+    These modules are fully disabled in the UI (checkbox greyed/disabled).
+    """
+    import shutil
+    unavailable = set()
+    for name, defn in REGISTRY.items():
+        if defn.requires_binary and not shutil.which(defn.requires_binary):
+            unavailable.add(name)
+    return unavailable
+
+
+def get_degraded_modules() -> set:
+    """
+    Return set of module names that are present but running in fallback/limited mode
+    because their preferred binary is missing. UI shows a "limited mode" badge.
+    """
+    import shutil
+    degraded = set()
+    for name, defn in REGISTRY.items():
+        if defn.degraded_without_binary and not shutil.which(defn.degraded_without_binary):
+            degraded.add(name)
+    return degraded

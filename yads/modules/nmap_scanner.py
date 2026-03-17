@@ -2,16 +2,49 @@
 import logging
 import subprocess
 import shutil
+import socket
+import requests
 import defusedxml.ElementTree as ET
 from typing import Any, Dict, List, Optional
 import os
 import tempfile
+import urllib3
 from yads.core.base import BaseScannerModule
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Curated fallback port list (used when nmap is not installed)
+_FALLBACK_PORTS = {
+    21: "ftp",
+    22: "ssh",
+    23: "telnet",
+    25: "smtp",
+    53: "domain",
+    80: "http",
+    110: "pop3",
+    143: "imap",
+    443: "https",
+    445: "microsoft-ds",
+    993: "imaps",
+    995: "pop3s",
+    3306: "mysql",
+    3389: "ms-wbt-server",
+    5432: "postgresql",
+    6379: "redis",
+    8080: "http-proxy",
+    8443: "https-alt",
+    9200: "elasticsearch",
+    27017: "mongodb",
+}
+_FALLBACK_WEB_PORTS = {80, 443, 8080, 8443, 9200}
+_FALLBACK_BANNER_PORTS = {21, 22, 25}
+
 
 class NmapScanner(BaseScannerModule):
     """
     Stealth Nmap Scanner.
     Executes Nmap with evasion flags (-sS, -T2, -D, etc.) to scan ports without triggering alarms.
+    Falls back to socket-based scanning when the nmap binary is not installed.
     """
     @property
     def module_name(self) -> str:
@@ -29,11 +62,13 @@ class NmapScanner(BaseScannerModule):
             "raw_output": "",
             "error": None
         }
-        
+
         if not shutil.which("nmap"):
-            self.logger.error("Nmap binary not found. Please install 'nmap'.")
-            results["error"] = "Nmap binary not found"
-            return results
+            self.logger.warning(
+                "Nmap binary not found — falling back to socket-based scanning. "
+                "Install nmap for stealth/evasion capabilities."
+            )
+            return self._socket_fallback_scan(target)
 
         self.logger.info(f"Starting stealth Nmap scan for {target}...")
         
@@ -192,3 +227,84 @@ class NmapScanner(BaseScannerModule):
             # Cleanup
             if os.path.exists(temp_xml):
                 os.remove(temp_xml)
+
+    # ------------------------------------------------------------------
+    # Socket fallback — used when nmap binary is not installed
+    # ------------------------------------------------------------------
+
+    def _socket_fallback_scan(self, target: str) -> Dict[str, Any]:
+        """
+        Lightweight socket-based port scan used when nmap is not available.
+        Scans a curated list of common ports. No stealth/evasion — plain TCP connect.
+        """
+        results: Dict[str, Any] = {
+            "open_ports": [],
+            "method": "socket_fallback",
+            "is_active": False,
+            "raw_output": "[YADS] nmap not installed — using socket fallback (limited, no stealth)",
+            "error": None,
+        }
+
+        try:
+            target_ip = socket.gethostbyname(target)
+        except socket.gaierror as e:
+            results["error"] = f"DNS resolution failed: {e}"
+            return results
+
+        timeout = 1.5
+        open_lines: List[str] = []
+
+        for port, service_name in _FALLBACK_PORTS.items():
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(timeout)
+                    if sock.connect_ex((target_ip, port)) != 0:
+                        continue
+            except Exception:
+                continue
+
+            results["is_active"] = True
+            port_info: Dict[str, Any] = {
+                "port": port,
+                "protocol": "tcp",
+                "service": service_name,
+                "product": "",
+            }
+
+            # Web probe
+            if port in _FALLBACK_WEB_PORTS:
+                proto = "https" if port in {443, 8443} else "http"
+                try:
+                    resp = requests.get(
+                        f"{proto}://{target}:{port}",
+                        timeout=3,
+                        allow_redirects=False,
+                        headers={"User-Agent": "YADS-Security-Scanner (+https://yads-security.com)"},
+                        verify=False,  # nosec B501 — intentional: scanner probes unknown certs
+                    )
+                    server = resp.headers.get("Server", "")
+                    if server:
+                        port_info["product"] = server
+                except Exception:
+                    pass
+
+            # Banner grab for protocol ports
+            elif port in _FALLBACK_BANNER_PORTS:
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(timeout)
+                        s.connect((target_ip, port))
+                        banner = s.recv(256).decode("utf-8", errors="ignore").strip()
+                        if banner:
+                            port_info["product"] = banner[:120]
+                except Exception:
+                    pass
+
+            results["open_ports"].append(port_info)
+            open_lines.append(f"{port}/tcp  open  {service_name}")
+            self.logger.info(f"[socket-fallback] open port: {port} ({service_name})")
+
+        if open_lines:
+            results["raw_output"] += "\n" + "\n".join(open_lines)
+
+        return results

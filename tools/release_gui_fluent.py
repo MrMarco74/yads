@@ -11,6 +11,7 @@ import queue
 import subprocess
 import traceback
 from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 # Add the tools directory to path
@@ -4020,8 +4021,50 @@ class ReleasePage(QWidget):
 
         layout.addWidget(log_card, 1)
 
-        # Load versions
+        # BOM Card
+        bom_card = CardWidget(self)
+        bom_layout = QVBoxLayout(bom_card)
+        bom_layout.setContentsMargins(20, 16, 20, 16)
+        bom_layout.setSpacing(12)
+
+        bom_header = QHBoxLayout()
+        bom_title = SubtitleLabel("Bill of Materials (SBOM / CBOM)", self)
+        bom_header.addWidget(bom_title)
+        bom_header.addStretch()
+        self.bom_refresh_btn = ToolButton(FIF.SYNC, self)
+        self.bom_refresh_btn.clicked.connect(self._refresh_bom_status)
+        bom_header.addWidget(self.bom_refresh_btn)
+        bom_layout.addLayout(bom_header)
+
+        # Status row
+        self.bom_status_label = BodyLabel("", self)
+        self.bom_status_label.setWordWrap(True)
+        bom_layout.addWidget(self.bom_status_label)
+
+        # Button row
+        bom_btn_row = QHBoxLayout()
+        bom_btn_row.setSpacing(12)
+
+        self.bom_gen_both_btn = PrimaryPushButton(FIF.DOCUMENT, "Generate SBOM + CBOM", self)
+        self.bom_gen_both_btn.clicked.connect(lambda: self._run_bom("both"))
+        bom_btn_row.addWidget(self.bom_gen_both_btn)
+
+        self.bom_gen_sbom_btn = PushButton(FIF.DOCUMENT, "SBOM only", self)
+        self.bom_gen_sbom_btn.clicked.connect(lambda: self._run_bom("sbom"))
+        bom_btn_row.addWidget(self.bom_gen_sbom_btn)
+
+        self.bom_gen_cbom_btn = PushButton(FIF.DOCUMENT, "CBOM only", self)
+        self.bom_gen_cbom_btn.clicked.connect(lambda: self._run_bom("cbom"))
+        bom_btn_row.addWidget(self.bom_gen_cbom_btn)
+
+        bom_btn_row.addStretch()
+        bom_layout.addLayout(bom_btn_row)
+
+        layout.addWidget(bom_card)
+
+        # Load versions + initial BOM status
         self._refresh_versions()
+        self._refresh_bom_status()
 
     def _on_channel_changed(self, channel: str):
         """Handle channel selection change"""
@@ -4244,6 +4287,112 @@ class ReleasePage(QWidget):
         self.retry_btn.setEnabled(enabled)
         self.download_btn.setEnabled(enabled)
         self.cancel_btn.setEnabled(not enabled)
+        for btn in (self.bom_gen_both_btn, self.bom_gen_sbom_btn, self.bom_gen_cbom_btn):
+            btn.setEnabled(enabled)
+
+    # ── BOM helpers ─────────────────────────────────────────────────────────
+
+    def _refresh_bom_status(self):
+        """Show age and component count of existing BOM files."""
+        releases_dir = script_dir.parent / "releases"
+        files = {
+            "sbom.json": releases_dir / "sbom.json",
+            "sbom.xml":  releases_dir / "sbom.xml",
+            "cbom.json": releases_dir / "cbom.json",
+            "cbom.xml":  releases_dir / "cbom.xml",
+        }
+        lines = []
+        for name, path in files.items():
+            if path.exists():
+                mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                size_kb = path.stat().st_size // 1024
+                count = ""
+                if name.endswith(".json"):
+                    try:
+                        import json as _j
+                        data = _j.loads(path.read_text())
+                        n = len(data.get("components", []))
+                        count = f"  ({n} components)"
+                    except Exception:
+                        pass
+                lines.append(f"✅ {name}  —  {mtime}  —  {size_kb} KB{count}")
+            else:
+                lines.append(f"⬜ {name}  —  not generated yet")
+        self.bom_status_label.setText("\n".join(lines))
+
+    def _run_bom(self, mode: str):
+        """Start BOM generation worker."""
+        self._set_buttons_enabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.start()
+        self._log(f"Starting BOM generation (mode: {mode})...", "info")
+
+        self._bom_worker = BomWorker(script_dir.parent, mode)
+        self._bom_worker.log_message.connect(self._on_log)
+        self._bom_worker.finished.connect(self._on_bom_finished)
+        self._bom_worker.start()
+
+    def _on_bom_finished(self, success: bool, message: str):
+        self._set_buttons_enabled(True)
+        self.progress_bar.stop()
+        self.progress_bar.setVisible(False)
+        self._refresh_bom_status()
+        if success:
+            InfoBar.success("BOM", message, parent=self, position=InfoBarPosition.TOP, duration=4000)
+            self._log(message, "success")
+        else:
+            InfoBar.error("BOM Failed", message, parent=self, position=InfoBarPosition.TOP, duration=8000)
+            self._log(message, "error")
+        if hasattr(self, '_bom_worker') and self._bom_worker:
+            self._bom_worker.deleteLater()
+            self._bom_worker = None
+
+
+class BomWorker(QThread):
+    """Worker thread: runs generate_bom.py and streams output."""
+
+    log_message = Signal(str, str)   # (message, level)
+    finished = Signal(bool, str)     # (success, summary)
+
+    def __init__(self, project_root: Path, mode: str = "both"):
+        super().__init__()
+        # mode: "both" | "sbom" | "cbom"
+        self.project_root = project_root
+        self.mode = mode
+
+    def run(self):
+        script = self.project_root / "scripts" / "generate_bom.py"
+        if not script.exists():
+            self.finished.emit(False, f"generate_bom.py not found at {script}")
+            return
+
+        cmd = [sys.executable, str(script), "--output-dir", "releases/"]
+        if self.mode == "sbom":
+            cmd.append("--sbom-only")
+        elif self.mode == "cbom":
+            cmd.append("--cbom-only")
+
+        self.log_message.emit(f"Running: {' '.join(cmd)}", "info")
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(self.project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    level = "success" if "✅" in line else "error" if "Error" in line else "info"
+                    self.log_message.emit(line, level)
+            proc.wait()
+            if proc.returncode == 0:
+                self.finished.emit(True, "BOM generation complete.")
+            else:
+                self.finished.emit(False, f"generate_bom.py exited with code {proc.returncode}")
+        except Exception as e:
+            self.finished.emit(False, str(e))
 
 
 class SettingsPage(SmoothScrollArea):
