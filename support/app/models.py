@@ -71,6 +71,7 @@ class ContactRequest(SQLModel, table=True):
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = Field(default="new")                 # offen | in_arbeit | potenzial | kunde | spam
     notes: str = Field(default="")                     # internal support notes
+    is_archived: bool = Field(default=False)           # hidden by default; spam is always hidden
 
 
 class CustomerKey(SQLModel, table=True):

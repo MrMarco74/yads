@@ -333,19 +333,40 @@ async def contact_list(
     request: Request,
     status: Optional[str] = None,
     topic: Optional[str] = None,
+    show_archived: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
-    """List all contact form submissions."""
+    """List contact form submissions. Archived and spam are hidden by default."""
     contacts = session.exec(
         select(ContactRequest).order_by(col(ContactRequest.submitted_at).desc())
     ).all()
 
     all_topics = sorted({c.topic for c in contacts if c.topic})
 
+    # Default: hide archived entries and spam
+    # show_archived=1 reveals archived entries but still hides spam (unless status=spam filter)
+    viewing_archived = show_archived == "1"
+    if not viewing_archived:
+        contacts = [c for c in contacts if not c.is_archived and c.status != "spam"]
+    else:
+        contacts = [c for c in contacts if c.status != "spam"]
+
     if status and status in VALID_CONTACT_STATUSES:
-        contacts = [c for c in contacts if c.status == status]
+        if status == "spam":
+            # Explicitly filtering for spam: show all spam regardless of archive flag
+            contacts = session.exec(
+                select(ContactRequest)
+                .where(ContactRequest.status == "spam")
+                .order_by(col(ContactRequest.submitted_at).desc())
+            ).all()
+        else:
+            contacts = [c for c in contacts if c.status == status]
     if topic:
         contacts = [c for c in contacts if c.topic == topic]
+
+    archived_count = session.exec(
+        select(ContactRequest).where(ContactRequest.is_archived == True, ContactRequest.status != "spam")
+    ).all()
 
     return templates.TemplateResponse("contact_list.html", {
         "request":          request,
@@ -354,6 +375,8 @@ async def contact_list(
         "selected_status":  status or "",
         "selected_topic":   topic or "",
         "valid_statuses":   VALID_CONTACT_STATUSES,
+        "show_archived":    viewing_archived,
+        "archived_count":   len(archived_count),
     })
 
 
@@ -384,6 +407,21 @@ async def update_contact_notes(
     ).first()
     if contact:
         contact.notes = notes[:4000].strip()
+        session.add(contact)
+        session.commit()
+    return RedirectResponse(url="/contacts", status_code=303)
+
+
+@router.post("/contacts/{contact_id}/archive")
+async def archive_contact(
+    contact_id: str,
+    session: Session = Depends(get_session),
+):
+    contact = session.exec(
+        select(ContactRequest).where(ContactRequest.contact_id == contact_id)
+    ).first()
+    if contact:
+        contact.is_archived = not contact.is_archived
         session.add(contact)
         session.commit()
     return RedirectResponse(url="/contacts", status_code=303)
