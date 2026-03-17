@@ -370,9 +370,28 @@ YADS now integrates <strong>Nuclei</strong> for active vulnerability detection.
 <p><strong>(New in v1.51.5)</strong>
 *   <strong>Stealth Mode</strong>: Uses Nmap with evasion flags (<code>-sS</code>, <code>-T2</code>, <code>-D RND:5</code>) to probe ports without triggering IDS/IPS.
 *   <strong>Slow &amp; Safe</strong>: Designed for stealth, this scan takes longer but reduces detection risk.
-*   <strong>Optional dependency</strong>: Nmap is <em>not bundled</em> with YADS. If Nmap is not installed the <code>nmap_scanner</code> module is automatically greyed out in the scan type selector. See <a href="#nmap-install">Installing Nmap</a> below.</p>
+*   <strong>Optional dependency with socket fallback</strong>: Nmap is <em>not bundled</em> with YADS. If Nmap is not installed, the scanner does <strong>not</strong> get disabled — it automatically falls back to a lightweight TCP socket scan. See <a href="#nmap-install">Installing Nmap</a> below for full functionality.</p>
 
-<h4 id="nmap-install">Installing Nmap</h4>
+<h4 id="nmap-fallback">Nmap not installed — Socket Fallback Mode</h4>
+<p>When Nmap is unavailable, <code>nmap_scanner</code> switches to a built-in <strong>TCP socket fallback</strong>. The module remains selectable in the scan type selector but shows an amber <em>limited</em> badge to indicate reduced capability.</p>
+<p><strong>What still works (socket fallback):</strong></p>
+<ul>
+  <li>TCP connect scan on 20 common ports (21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3306, 3389, 5432, 6379, 8080, 8443, 8888, 27017)</li>
+  <li>HTTP/HTTPS service detection on web ports</li>
+  <li>Basic banner grab on FTP, SSH, and SMTP ports</li>
+  <li>Port open/closed status and service name</li>
+</ul>
+<p><strong>What requires Nmap (not available in fallback):</strong></p>
+<ul>
+  <li>Stealth scanning (<code>-sS</code> SYN scan, <code>-T2</code> timing, decoy IPs)</li>
+  <li>OS detection and version fingerprinting</li>
+  <li>Full port range scanning (beyond the 20 predefined ports)</li>
+  <li>UDP port scanning</li>
+  <li>NSE script execution</li>
+</ul>
+<p>The scan result will contain <code>"method": "socket_fallback"</code> to indicate which mode was used.</p>
+
+<h4 id="nmap-install">Installing Nmap (recommended)</h4>
 <p>Nmap is an optional external dependency licensed under <strong>GPL-2.0</strong>. Because YADS calls it as a subprocess (not linked as a library), the GPL does not affect the YADS license. You install it separately on the Docker host or inside the container:</p>
 <pre><code># Option A — on the Docker host (recommended, persists across container restarts)
 apt-get install -y nmap        # Debian / Ubuntu
