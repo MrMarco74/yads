@@ -1901,21 +1901,12 @@ with SessionLocal() as session:
                 foreground=self.colors['success'])
     def step_telemetry(self):
         import uuid as _uuid
-        ttk.Label(self.content_frame, text="Installationsmeldung", style=STYLE_HEADER).pack(pady=(0, 10))
 
-        info = (
-            "Möchten Sie eine anonyme Installationsmeldung an das YADS-Team senden?\n\n"
-            "Dies hilft uns, die Anzahl aktiver Installationen und die verwendeten "
-            "Versionen im Überblick zu behalten. Es werden keine persönlichen Daten, "
-            "keine Domainnamen und keine Scan-Ergebnisse übertragen."
-        )
-        ttk.Label(self.content_frame, text=info, wraplength=520, justify="left").pack(anchor="w", pady=(0, 12))
-
-        # Generate/reuse instance UUID so the preview is stable
+        # Generate/reuse instance UUID
         if not self.data.get('instance_uuid'):
             self.data['instance_uuid'] = str(_uuid.uuid4())
 
-        # Try to extract customer_id from license for preview
+        # Try to extract customer_id from license
         preview_customer_id = ""
         lic_key = self.data.get('license_key', '').strip()
         if lic_key and '.' in lic_key:
@@ -1927,10 +1918,7 @@ with SessionLocal() as session:
             except Exception:
                 pass
 
-        # Resolve real version for the preview:
-        # 1. Try running YADS API (works for upgrades / if already running)
-        # 2. Try docker image label YADS_GIT_SHA (works after image pull)
-        # 3. Fall back to "latest (wird beim Senden aufgelöst)"
+        # Resolve version for preview
         import json as _json2
         preview_version = self.data.get('yads_version', '')
         try:
@@ -1954,40 +1942,86 @@ with SessionLocal() as session:
             except Exception:
                 pass
         if not preview_version:
-            preview_version = "latest (wird beim Senden aufgelöst)"
+            preview_version = "wird beim Senden aufgelöst"
 
-        preview = (
-            "Folgende Daten würden gesendet:\n"
-            f"  • instance_uuid : {self.data['instance_uuid']}\n"
-            f"  • version       : {preview_version}\n"
-            f"  • install_type  : installer\n"
-        )
-        if preview_customer_id:
-            preview += f"  • customer_id   : {preview_customer_id}\n"
-        preview += "  • submitted_at  : <Zeitstempel beim Senden>"
-        preview_frame = tk.Frame(self.content_frame, bg=self.colors['bg_alt'],
-                                  bd=1, relief="solid")
-        preview_frame.pack(fill="x", pady=(0, 14))
-        tk.Label(preview_frame, text=preview, bg=self.colors['bg_alt'], fg=self.colors['fg'],
-                 font=("Monospace", 9), justify="left", anchor="w",
-                 padx=12, pady=10).pack(fill="x")
+        # ── Header ──────────────────────────────────────────────────────────
+        ttk.Label(self.content_frame, text="YADS-Community unterstützen",
+                  style=STYLE_HEADER).pack(pady=(0, 6))
+        ttk.Label(
+            self.content_frame,
+            text="Helfen Sie uns, YADS kontinuierlich zu verbessern — mit einer einmaligen, "
+                 "anonymen Installationsmeldung.",
+            wraplength=520, justify="left",
+        ).pack(anchor="w", pady=(0, 14))
+
+        # ── Consent card (prominent, accent border) ──────────────────────
+        card = tk.Frame(self.content_frame, bg=self.colors['bg_alt'],
+                        bd=2, relief="solid",
+                        highlightbackground=self.colors['accent'],
+                        highlightthickness=2)
+        card.pack(fill="x", pady=(0, 14))
+
+        inner = tk.Frame(card, bg=self.colors['bg_alt'])
+        inner.pack(fill="x", padx=14, pady=12)
 
         if not hasattr(self, 'telemetry_var'):
             self.telemetry_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
-            self.content_frame,
+
+        cb = tk.Checkbutton(
+            inner,
             text="Ja, ich sende eine anonyme Installationsmeldung an das YADS-Team.",
             variable=self.telemetry_var,
-            bg=self.colors['bg'], fg=self.colors['fg'],
-            selectcolor=self.colors['bg_alt'],
-            activebackground=self.colors['bg'],
+            bg=self.colors['bg_alt'], fg=self.colors['fg'],
+            selectcolor=self.colors['bg'],
+            activebackground=self.colors['bg_alt'],
             activeforeground=self.colors['fg'],
-        ).pack(anchor="w", pady=(0, 4))
+            font=("sans-serif", 10, "bold"),
+            cursor="hand2",
+        )
+        cb.pack(anchor="w")
+
+        ttk.Label(
+            inner,
+            text="Freiwillig · Jederzeit widerrufbar · Keine persönlichen Daten",
+            foreground=self.colors['success'],
+        ).pack(anchor="w", pady=(4, 0))
+
+        # ── What is / isn't sent ─────────────────────────────────────────
+        cols = tk.Frame(self.content_frame, bg=self.colors['bg'])
+        cols.pack(fill="x", pady=(0, 12))
+
+        def _info_col(parent, title, color, items):
+            f = tk.Frame(parent, bg=self.colors['bg_alt'], bd=1, relief="solid")
+            f.pack(side="left", fill="both", expand=True, padx=(0, 6))
+            tk.Label(f, text=title, bg=self.colors['bg_alt'], fg=color,
+                     font=("sans-serif", 9, "bold")).pack(anchor="w", padx=10, pady=(8, 2))
+            for item in items:
+                tk.Label(f, text=item, bg=self.colors['bg_alt'],
+                         fg=self.colors['fg'], font=("sans-serif", 9),
+                         justify="left").pack(anchor="w", padx=10, pady=1)
+            tk.Label(f, text="", bg=self.colors['bg_alt']).pack(pady=2)
+
+        _info_col(cols, "✓  Wird gesendet", self.colors['success'], [
+            f"  Instanz-ID (zufällig): {self.data['instance_uuid'][:18]}…",
+            f"  Version: {preview_version}",
+            "  Installationstyp: installer",
+            *([ f"  Kunden-ID: {preview_customer_id}" ] if preview_customer_id else []),
+            "  Zeitstempel",
+        ])
+        _info_col(cols, "✗  Wird NICHT gesendet", self.colors['error'], [
+            "  Domainnamen oder IPs",
+            "  Scan-Ergebnisse",
+            "  Nutzerdaten oder Passwörter",
+            "  Konfiguration",
+            "  Standortdaten",
+        ])
 
         ttk.Label(
             self.content_frame,
-            text="Die Meldung ist optional. Sie können diesen Schritt auch überspringen.",
+            text="Die Meldung ist freiwillig (DSGVO Art. 6 Abs. 1a). "
+                 "Sie können diesen Schritt überspringen.",
             foreground=self.colors['fg_sub'],
+            wraplength=520,
         ).pack(anchor="w")
 
     def step_summary(self):
