@@ -154,7 +154,7 @@ docker build \
   .
 
 echo -e "${BLUE}>> Building Worker image (Dockerfile.worker, pre-baked tools base)...${NC}"
-TOOLS_IMAGE="${REGISTRY}/yads-tools:1.0"
+TOOLS_IMAGE="${REGISTRY}/yads-tools:1.1"
 if [ -f "Dockerfile.worker" ]; then
   docker build \
     -f Dockerfile.worker \
