@@ -127,11 +127,20 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+import warnings as _warnings
+
 _DEFAULT_SECRET = "changeme_in_production_please_super_secret"
 if settings.SECRET_KEY == _DEFAULT_SECRET:
-    import warnings
-    warnings.warn(
+    _warnings.warn(
         "SECURITY: SECRET_KEY is set to the default value. "
         "All JWT tokens can be forged. Set SECRET_KEY to a random value in production!",
+        stacklevel=2,
+    )
+
+_DEFAULT_OIDC_SECRET = "frischkorn-yads-secret"
+if settings.AUTH_MODE == "oidc" and settings.OIDC_CLIENT_SECRET == _DEFAULT_OIDC_SECRET:
+    _warnings.warn(
+        "SECURITY: OIDC_CLIENT_SECRET is set to the default value. "
+        "Set OIDC_CLIENT_SECRET to the actual client secret from your IdP in production!",
         stacklevel=2,
     )

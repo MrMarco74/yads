@@ -94,15 +94,15 @@ def calculate_security_trends():
                 count = 0
 
                 for t in targets:
-                    query = f"""
+                    query = text("""
                         SELECT DISTINCT ON (module_name)
                             module_name, data
                         FROM scanresult
-                        WHERE target_id = {t.id}
+                        WHERE target_id = :target_id
                           AND module_name IN ('ssl_scanner', 'web_analyzer', 'port_scanner')
                         ORDER BY module_name, scanned_at DESC
-                    """
-                    latest_rows = session.exec(text(query)).all()
+                    """)
+                    latest_rows = session.execute(query, {"target_id": t.id}).all()
 
                     class MockRes:
                         def __init__(self, data): self.data = data
@@ -149,16 +149,18 @@ def calculate_compliance_trends():
                     continue
 
                 target_ids = [t.id for t in targets]
-                target_ids_str = ",".join(str(tid) for tid in target_ids)
+                if not target_ids:
+                    continue
 
-                query = f"""
+                from sqlalchemy import bindparam
+                query = text("""
                     SELECT DISTINCT ON (target_id, module_name)
                         target_id, module_name, data
                     FROM scanresult
-                    WHERE target_id IN ({target_ids_str})
+                    WHERE target_id = ANY(:target_ids)
                     ORDER BY target_id, module_name, scanned_at DESC
-                """
-                results = session.exec(text(query)).all()
+                """)
+                results = session.execute(query, {"target_ids": target_ids}).all()
 
                 target_data = {t.id: {} for t in targets}
                 target_map = {t.id: t.domain for t in targets}
