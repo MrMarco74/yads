@@ -33,11 +33,17 @@
   <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:1rem;">Version Distribution</h2>
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
     {% for entry in version_distribution %}
-    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.75rem;">
-      <span style="font-weight:600;color:var(--text);">{{ entry.version }}</span>
-      <span style="background:var(--accent);color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">{{ entry.count }}</span>
-    </div>
+    {% set color = version_color_map.get(entry.version, '#6366f1') %}
+    <a href="/installations?version={{ entry.version }}"
+       style="background:var(--surface-2);border:2px solid {{ color }}33;border-radius:8px;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.75rem;text-decoration:none;transition:border-color 0.15s;"
+       {% if selected_version == entry.version %}style="border-color:{{ color }};"{% endif %}>
+      <span style="font-weight:600;color:{{ color }};">{{ entry.version }}</span>
+      <span style="background:{{ color }};color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">{{ entry.count }}</span>
+    </a>
     {% endfor %}
+    {% if selected_version %}
+    <a href="/installations" style="display:flex;align-items:center;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:0.8rem;text-decoration:none;">✕ Alle</a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -137,7 +143,20 @@ async function submitOfflineActivation() {
 
 <!-- Instance list -->
 <div class="card">
-  <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:1rem;">All Instances</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <h2 style="font-size:0.9rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.07em;">
+      {% if selected_version %}
+        {% set vc = version_color_map.get(selected_version, '#6366f1') %}
+        Instances — <span style="color:{{ vc }};">{{ selected_version }}</span>
+        <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;">({{ installations|length }})</span>
+      {% else %}
+        All Instances <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400;">({{ installations|length }})</span>
+      {% endif %}
+    </h2>
+    {% if selected_version %}
+    <a href="/installations" style="font-size:0.8rem;color:var(--text-muted);">✕ Filter aufheben</a>
+    {% endif %}
+  </div>
   {% if installations %}
   <div class="table-wrap">
     <table>
@@ -167,7 +186,10 @@ async function submitOfflineActivation() {
             <span style="color:var(--text-muted);font-size:0.8rem;">—</span>
             {% endif %}
           </td>
-          <td><span style="background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">{{ inst.version }}</span></td>
+          <td>
+            {% set vc = version_color_map.get(inst.version, '#6366f1') %}
+            <span style="background:{{ vc }}22;border:1px solid {{ vc }}66;color:{{ vc }};padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">{{ inst.version }}</span>
+          </td>
           <td>
             {% if inst.install_type == 'installer' %}
             <span style="background:#15803d;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">GUI Installer</span>
