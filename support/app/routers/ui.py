@@ -749,6 +749,22 @@ async def ui_revoke_activation(
     return JSONResponse({"ok": True})
 
 
+@router.delete("/ui/installations/{instance_uuid}")
+async def ui_delete_installation(
+    instance_uuid: str,
+    session: Session = Depends(get_session),
+):
+    from app.models import InstallationReport
+    inst = session.exec(
+        select(InstallationReport).where(InstallationReport.instance_uuid == instance_uuid)
+    ).first()
+    if not inst:
+        return JSONResponse({"detail": "Not found."}, status_code=404)
+    session.delete(inst)
+    session.commit()
+    return JSONResponse({"ok": True})
+
+
 @router.delete("/ui/activations/{instance_uuid}")
 async def ui_delete_activation(
     instance_uuid: str,

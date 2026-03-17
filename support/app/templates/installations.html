@@ -60,6 +60,18 @@
   <div id="act-result" style="margin-top:0.5rem;font-size:0.85rem;display:none;"></div>
 </div>
 <script>
+async function deleteInstallation(uuid) {
+  if (!confirm('Installation ' + uuid + ' dauerhaft löschen?')) return;
+  const resp = await fetch('/ui/installations/' + uuid, {method: 'DELETE'});
+  if (resp.ok) {
+    const row = document.getElementById('inst-row-' + uuid);
+    if (row) row.remove();
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    alert('Fehler: ' + (data.detail || resp.status));
+  }
+}
+
 async function submitOfflineActivation() {
   const code = document.getElementById('act-code-input').value.trim();
   const result = document.getElementById('act-result');
@@ -138,11 +150,12 @@ async function submitOfflineActivation() {
           <th>First Seen</th>
           <th>Last Seen</th>
           <th>Reports</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for inst in installations %}
-        <tr>
+        <tr id="inst-row-{{ inst.instance_uuid }}">
           <td style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">{{ inst.instance_uuid }}</td>
           <td>
             {% if inst.customer_name %}
@@ -167,6 +180,11 @@ async function submitOfflineActivation() {
           <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">{{ inst.first_seen[:10] }}</td>
           <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">{{ inst.last_seen[:10] }}</td>
           <td style="color:var(--text-muted);font-size:0.8rem;">{{ inst.report_count }}</td>
+          <td>
+            <button onclick="deleteInstallation('{{ inst.instance_uuid }}')"
+              style="background:none;border:1px solid #7f1d1d;color:#ef4444;border-radius:5px;padding:2px 8px;font-size:0.75rem;cursor:pointer;"
+              title="Löschen">✕</button>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
