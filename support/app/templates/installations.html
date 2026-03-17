@@ -9,22 +9,28 @@
 
 <!-- KPI summary -->
 <div class="kpi-grid">
-  <div class="kpi-card kpi-card--total">
-    <div class="kpi-card__label">Total Instances</div>
-    <div class="kpi-card__value">{{ total }}</div>
-  </div>
+  <a href="/installations" style="text-decoration:none;">
+    <div class="kpi-card kpi-card--total" style="cursor:pointer;{% if not selected_version and not selected_install_type %}outline:2px solid var(--accent);{% endif %}">
+      <div class="kpi-card__label">Total Instances</div>
+      <div class="kpi-card__value">{{ total }}</div>
+    </div>
+  </a>
   <div class="kpi-card">
     <div class="kpi-card__label">Unique Versions</div>
     <div class="kpi-card__value" style="color:var(--accent);">{{ version_distribution|length }}</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-card__label">GUI Installer</div>
-    <div class="kpi-card__value" style="color:#22c55e;">{{ type_distribution.get('installer', 0) }}</div>
-  </div>
-  <div class="kpi-card">
-    <div class="kpi-card__label">Web Wizard</div>
-    <div class="kpi-card__value" style="color:#3b82f6;">{{ type_distribution.get('web_wizard', 0) }}</div>
-  </div>
+  <a href="/installations?install_type=installer" style="text-decoration:none;">
+    <div class="kpi-card" style="cursor:pointer;{% if selected_install_type == 'installer' %}outline:2px solid #22c55e;{% endif %}">
+      <div class="kpi-card__label">GUI Installer</div>
+      <div class="kpi-card__value" style="color:#22c55e;">{{ type_distribution.get('installer', 0) }}</div>
+    </div>
+  </a>
+  <a href="/installations?install_type=web_wizard" style="text-decoration:none;">
+    <div class="kpi-card" style="cursor:pointer;{% if selected_install_type == 'web_wizard' %}outline:2px solid #3b82f6;{% endif %}">
+      <div class="kpi-card__label">Web Wizard</div>
+      <div class="kpi-card__value" style="color:#3b82f6;">{{ type_distribution.get('web_wizard', 0) }}</div>
+    </div>
+  </a>
 </div>
 
 <!-- Version distribution -->
