@@ -112,6 +112,62 @@ def shodan_host(ip: str):
     return {"ip_str": ip, "ports": [], "data": []}
 
 
+# ── ASN / IP Range Mocking (ipinfo, RIPE, BGPView) ────────────────────────────
+
+@app.get("/ipinfo/{ip}/json")
+def mock_ipinfo(ip: str):
+    if _is_testlab(ip):
+        return {
+            "ip": ip,
+            "hostname": "target.testlab.local",
+            "city": "Berlin",
+            "region": "Berlin",
+            "country": "DE",
+            "loc": "52.5200,13.4050",
+            "org": "AS65001 TestLab Autonomous System",
+            "postal": "10115",
+            "timezone": "Europe/Berlin",
+        }
+    return {"ip": ip, "bogon": True}
+
+@app.get("/data/network-info/data.json")
+def mock_ripe_net(resource: str):
+    if _is_testlab(resource):
+        return {"data": {"asns": ["65001"], "prefix": "172.30.0.0/24"}}
+    return {"data": {"asns": []}}
+
+@app.get("/data/as-overview/data.json")
+def mock_ripe_asn(resource: str):
+    if resource == "65001" or resource == "AS65001":
+        return {"data": {
+            "holder": "TestLab Internal Network",
+            "block": {
+                "name": "TESTLAB-ASN",
+                "country": "DE",
+                "description": "YADS Test Environment ASN",
+            }
+        }}
+    return {"data": {}}
+
+@app.get("/data/announced-prefixes/data.json")
+def mock_ripe_prefixes(resource: str):
+    if resource == "65001" or resource == "AS65001":
+        return {"data": {"prefixes": [
+            {"prefix": "172.30.0.0/24"},
+            {"prefix": "10.0.0.0/8"},
+        ]}}
+    return {"data": {"prefixes": []}}
+
+@app.get("/api/v1/asn/{asn}/prefixes")
+def mock_bgpview_prefixes(asn: str):
+    if asn == "65001":
+        return {"data": {"ipv4_prefixes": [
+            {"prefix": "172.30.0.0/24", "name": "testlab-subnet", "description": "Core Testlab Network", "country_code": "DE"},
+            {"prefix": "10.0.0.0/8", "name": "internal-mock-range", "description": "Internal Mocked Range", "country_code": "DE"},
+        ]}}
+    return {"data": {"ipv4_prefixes": []}}
+
+
 # ── PhishTank ─────────────────────────────────────────────────────────────────
 @app.post("/checkurl/")
 async def phishtank_check(request_type: str = "json", url: str = ""):
