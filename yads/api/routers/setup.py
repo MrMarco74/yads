@@ -62,8 +62,18 @@ def update_persistent_config(key: str, value: str):
 
 # -- Endpoints --
 
+def _require_setup_open():
+    """Raise 403 if setup is already complete (blocks unauthenticated setup endpoints post-setup)."""
+    if getattr(settings, "SETUP_COMPLETE", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Setup already complete. Use the admin panel to manage this setting."
+        )
+
+
 @router.post("/check-license")
 async def check_license(req: LicenseRequest):
+    _require_setup_open()
     data = license_manager.verify(req.license_key)
     if not data:
         raise HTTPException(status_code=400, detail="Invalid or expired license key")
@@ -88,6 +98,7 @@ async def check_license(req: LicenseRequest):
 
 @router.post("/configure-db")
 async def configure_db(req: DBConfigRequest):
+    _require_setup_open()
     new_password = req.password
     if not new_password or len(new_password) < 8:
          raise HTTPException(status_code=400, detail="Password too short (8 chars min)")
@@ -161,6 +172,7 @@ async def configure_db(req: DBConfigRequest):
 
 @router.post("/init-data")
 async def init_data(req: DataActionRequest):
+    _require_setup_open()
     action = req.action.lower()
     
     if action == "purge":
@@ -173,8 +185,7 @@ async def init_data(req: DataActionRequest):
              # Create a fresh engine to ensure we use the LATEST credentials
              # bypassing any stale global state
              temp_engine = create_engine(settings.DATABASE_URL)
-             print(f"DEBUG: init_data PURGE using fresh engine URL: {temp_engine.url}")
-             
+
              SQLModel.metadata.drop_all(temp_engine)
              create_db_and_tables(engine_override=temp_engine)
              
@@ -182,7 +193,7 @@ async def init_data(req: DataActionRequest):
              logger.info("Database purged and re-initialized.")
         except Exception as e:
              logger.error(f"Purge failed: {e}")
-             raise HTTPException(status_code=500, detail=str(e))
+             raise HTTPException(status_code=500, detail="Database purge failed. See server logs.")
              
     elif action == "upgrade":
         # Just run create_db_and_tables (it's idempotent-ish for existing tables? No, it doesn't migrate columns)
@@ -265,6 +276,8 @@ async def create_admin(req: AdminRequest):
 
 @router.post("/finish")
 async def finish_setup():
+    if getattr(settings, "SETUP_COMPLETE", False):
+        return {"status": "completed", "message": "Setup was already complete."}
     update_persistent_config("SETUP_COMPLETE", "true")
     settings.SETUP_COMPLETE = True
 
