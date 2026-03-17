@@ -16,6 +16,7 @@ Isolated vulnerable target stack for validating all YADS scanner modules.
    - `ws.testlab.local`
    - `gitexpose.testlab.local`
    - `loginpage.testlab.local`
+   - `dsgvo.testlab.local`
 
 ## Manual Operation
 
@@ -100,6 +101,8 @@ The mock APIs return deterministic "bad" results for any IP in `172.30.x.x`.
 | `threat_intel_scanner` | 172.30.0.20 | Mock: AbuseIPDB score 87, OTX 5 pulses |
 | `leaked_credentials` | testlab.local | Mock HIBP: 2 breaches |
 | `phishing_scanner` | testlab.local | Mock PhishTank: listed |
+| `dsgvo_scanner` | dsgvo.testlab.local | No Privacy Policy, tracking cookies found |
+| `asn_scanner` | 172.30.0.20 | AS65001 TestLab, 2 prefixes, detail via BGPView |
 
 ## Network Architecture
 
@@ -118,6 +121,7 @@ The mock APIs return deterministic "bad" results for any IP in `172.30.x.x`.
 │  172.30.0.26  Git/File Exposure (Nginx)               │
 │  172.30.0.27  Login Surface (FastAPI)                 │
 │  172.30.0.30  Mock External APIs (FastAPI)            │
+│  172.30.0.40  DSGVO / GDPR Test (Nginx)               │
 └─────────────────────────────────────────────────────┘
 ```
 

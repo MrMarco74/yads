@@ -1,0 +1,22 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: YADS-Alerts
+    receivers:
+      - uid: teams-receiver
+        type: teams
+        settings:
+          url: https://YOUR_TEAMS_WEBHOOK_URL
+          title: "YADS Alert: {{ .CommonLabels.alertname }}"
+          sectiontitle: ""
+          message: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+      - uid: email-receiver
+        type: email
+        settings:
+          addresses: yads-alerts@example.com
+          subject: "[YADS] {{ .CommonLabels.alertname }}"
+
+policies:
+  - orgId: 1
+    receiver: YADS-Alerts

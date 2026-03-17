@@ -421,15 +421,73 @@ class ReleaseWorker(QThread):
 class GuiTestWorker(QThread):
     """Worker thread for running Playwright GUI tests"""
 
-    def __init__(self, target_url: str, dana_host: str):
+    def __init__(self, target_url: str, dana_host: str, local_mode: bool = False):
         super().__init__()
         self.target_url = target_url
         self.dana_host = dana_host
+        self.local_mode = local_mode
         self.signals = LogSignals()
         self.current_process = None
         self.cancelled = False
 
     def run(self):
+        if self.local_mode:
+            self._run_local()
+        else:
+            self._run_remote()
+
+    def _run_local(self):
+        """Run GUI tests against the local testlab (docker-compose.testlab.yml)."""
+        try:
+            project_root = script_dir.parent
+            self._log(f"💻 Local mode — running GUI tests against {self.target_url}", "info")
+            cmd = [
+                "docker", "compose",
+                "-f", str(project_root / "docker-compose.testlab.yml"),
+                "exec", "-T", "yads-api",
+                "python3", "-u", "/app/tools/gui_test_runner.py",
+                "--url", self.target_url,
+                "--local",
+            ]
+            self._log("▶ Launching GUI test suite on local testlab...", "info")
+            self.current_process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, universal_newlines=True,
+                cwd=str(project_root),
+            )
+            for line in self.current_process.stdout:
+                if self.cancelled:
+                    self.current_process.terminate()
+                    break
+                line = _ANSI_RE.sub('', line).strip()
+                if line:
+                    lo = line.lower()
+                    level = ("error" if ("❌" in line or "FAILURE" in line or "CRITICAL" in line or lo.startswith("error"))
+                             else "warning" if ("⚠" in line or "warning" in lo)
+                             else "success" if ("✅" in line or "passed" in lo or "report generated" in lo)
+                             else "info")
+                    self._log(line, level)
+            self.current_process.wait()
+            success = self.current_process.returncode == 0
+            # Copy results out of container
+            self._log("Copying test results from container...", "info")
+            local_results = project_root / "tests" / "results" / "GUI-Tests"
+            local_results.mkdir(parents=True, exist_ok=True)
+            subprocess.run([
+                "docker", "compose", "-f", str(project_root / "docker-compose.testlab.yml"),
+                "cp", "yads-api:/app/tests/results/.", str(local_results) + "/",
+            ], cwd=str(project_root), check=False)
+            if self.cancelled:
+                self._log("Tests stopped by user.", "warning")
+            elif success:
+                self.signals.operation_finished.emit(True, "GUI Tests (local) passed.")
+            else:
+                self.signals.operation_finished.emit(False, f"GUI Tests (local) failed (code {self.current_process.returncode}).")
+        except Exception as e:
+            self._log(f"Critical error: {e}", "error")
+            self.signals.operation_finished.emit(False, str(e))
+
+    def _run_remote(self):
         try:
             self._log(f"🚀 Preparing Remote environment on {self.dana_host}...", "info")
             # 1. Sync files to Dana
@@ -5529,20 +5587,39 @@ class GuiTestsPage(QWidget):
         # Controls Card
         ctrl_card = CardWidget(self)
         ctrl_layout = QVBoxLayout(ctrl_card)
-        
+
+        # ── Target mode toggle ───────────────────────────────
+        from PySide6.QtWidgets import QRadioButton, QButtonGroup
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(StrongBodyLabel("Ziel:", ctrl_card))
+        self._mode_local  = QRadioButton("Local Testlab (localhost:8085)", ctrl_card)
+        self._mode_remote = QRadioButton("Remote Dana", ctrl_card)
+        self._mode_local.setChecked(True)
+        self._mode_group = QButtonGroup(ctrl_card)
+        self._mode_group.addButton(self._mode_local)
+        self._mode_group.addButton(self._mode_remote)
+        self._mode_local.toggled.connect(self._on_mode_changed)
+        mode_row.addWidget(self._mode_local)
+        mode_row.addWidget(self._mode_remote)
+        mode_row.addStretch()
+        ctrl_layout.addLayout(mode_row)
+
         row1 = QHBoxLayout()
         row1.addWidget(StrongBodyLabel("Target URL:", ctrl_card))
         self.target_url = LineEdit(ctrl_card)
-        self.target_url.setText("http://dana:8085")
+        self.target_url.setText("http://localhost:8085")
         row1.addWidget(self.target_url)
-        
+
         row1.addSpacing(20)
-        row1.addWidget(StrongBodyLabel("Dana Host:", ctrl_card))
+        self._dana_host_lbl = StrongBodyLabel("Dana Host:", ctrl_card)
+        self._dana_host_lbl.setEnabled(False)
+        row1.addWidget(self._dana_host_lbl)
         self.dana_host = LineEdit(ctrl_card)
         self.dana_host.setPlaceholderText("e.g. root@dana")
         self.dana_host.setText("root@dana")
+        self.dana_host.setEnabled(False)
         row1.addWidget(self.dana_host)
-        
+
         ctrl_layout.addLayout(row1)
 
         btn_row = QHBoxLayout()
@@ -5660,13 +5737,21 @@ class GuiTestsPage(QWidget):
     def _log(self, msg: str, level: str = "info"):
         _insert_log_line(self.log_view, msg, level)
 
+    def _on_mode_changed(self, local_checked: bool):
+        if local_checked:
+            self.target_url.setText("http://localhost:8085")
+        else:
+            self.target_url.setText("http://dana:8085")
+        self.dana_host.setEnabled(not local_checked)
+        self._dana_host_lbl.setEnabled(not local_checked)
+
     def _on_start(self):
         self.log_view.clear()
         self._log("Initialisiere GUI-Tests...", "info")
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        
-        self._worker = GuiTestWorker(self.target_url.text(), self.dana_host.text())
+        local_mode = self._mode_local.isChecked()
+        self._worker = GuiTestWorker(self.target_url.text(), self.dana_host.text(), local_mode=local_mode)
         self._worker.signals.log_message.connect(self._log)
         self._worker.signals.operation_finished.connect(self._on_finished)
         self._worker.finished.connect(self._worker.deleteLater)

@@ -21,6 +21,7 @@ ws        IN  A    172.30.0.25
 gitexpose IN  A    172.30.0.26
 loginpage IN  A    172.30.0.27
 mockapis  IN  A    172.30.0.30
+dsgvo     IN  A    172.30.0.40
 
 ; Mail (no SPF/DKIM/DMARC records intentionally)
 mail      IN  A    172.30.0.28

@@ -22,10 +22,11 @@ def _p(msg: str, level: str = ""):
     print(f"{prefix}{msg}", flush=True)
 
 class GuiTestRunner:
-    def __init__(self, target_url, dana_host="dana", dana_user="root"):
+    def __init__(self, target_url, dana_host="dana", dana_user="root", local_mode=False):
         self.target_url = target_url
         self.dana_host = dana_host
         self.dana_user = dana_user
+        self.local_mode = local_mode
         self.results_dir = Path("tests/results/GUI-Tests")
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.logs = []
@@ -72,7 +73,10 @@ class GuiTestRunner:
             return None
 
     async def ensure_dana_running(self):
-        """Ensure the Dana test environment is up and running. Skip if in container."""
+        """Ensure the Dana test environment is up and running. Skip if local mode or in container."""
+        if self.local_mode:
+            _p("Local mode — skipping Dana startup.", "ok")
+            return True
         if os.path.exists("/.dockerenv"):
             return True
         # Path from run-tests.sh
@@ -162,9 +166,25 @@ class GuiTestRunner:
                 return True
 
             # Try credentials in order: default first, then changed password
-            CREDENTIALS = [("admin", "admin"), ("admin", "adminAdmin123!")]
+            CREDENTIALS = [("admin", "admin"), ("admin", "Admin1234!Extra"), ("admin", "adminAdmin123!")]
             logged_in = False
             for username, password in CREDENTIALS:
+                await page.goto(self.target_url + "/login", wait_until="networkidle")
+                # Wait for potential CSRF cookie to be set
+                token_found = False
+                for _ in range(10):
+                    cookies = await page.context.cookies()
+                    if any(c['name'] == 'csrf_token' for c in cookies):
+                         token_found = True
+                         break
+                    await asyncio.sleep(0.5)
+                
+                # Wait for JS to inject the _csrf hidden field
+                try:
+                    await page.wait_for_selector('input[name="_csrf"]', timeout=3000)
+                except:
+                    _p("  ⚠️ CSRF field not injected by JS (yet).", "warning")
+
                 _p(f"  Trying login with {username}/{password[:4]}***...")
                 await self.capture_screenshot(page, "login_page_empty")
                 await page.fill('input[name="username"]', username)
@@ -181,6 +201,24 @@ class GuiTestRunner:
                     await page.click("button[type='submit']")
                     await page.wait_for_load_state("networkidle")
                     _p("  Password changed.", "ok")
+                
+                # Check if we are still on login page
+                if "/login" in page.url:
+                    content = await page.content()
+                    if "Invalid username or password" in content:
+                        _p("  ❌ Invalid credentials.", "error")
+                    elif "CSRF" in content:
+                        _p("  ❌ CSRF error detected in page content.", "error")
+                    else:
+                        _p(f"  ❌ Still on login page. URL: {page.url}", "error")
+                else:
+                    logged_in = True
+                    _p("  ✅ Login successful!", "success")
+                    # Activate Dark Mode as requested by user
+                    await page.evaluate("localStorage.setItem('yads-theme', 'dark')")
+                    await page.reload(wait_until="networkidle")
+                    _p("  🌙 Dark mode activated via localStorage.", "ok")
+                    break
 
                 if "login" not in page.url.lower():
                     logged_in = True
@@ -455,7 +493,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://dana:8085")
     parser.add_argument("--dana-host", default="dana")
+    parser.add_argument("--local", action="store_true", help="Skip Dana startup, run against localhost directly")
     args = parser.parse_args()
     
-    runner = GuiTestRunner(args.url, dana_host=args.dana_host)
+    runner = GuiTestRunner(args.url, dana_host=args.dana_host, local_mode=args.local)
     asyncio.run(runner.run_tests())
