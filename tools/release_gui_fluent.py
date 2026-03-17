@@ -1213,16 +1213,18 @@ class ProdDeployWorker(QThread):
             return result.stdout.strip().split("\n")[0].strip()
 
         def _docker_post(container_id, path, payload):
-            """Run HTTP POST inside the container via python3."""
-            # Escape payload for embedding in a python string literal
-            payload_json = _json.dumps(payload).replace("\\", "\\\\").replace("'", "\\'")
+            """Run HTTP POST inside the container via python3.
+            Payload is base64-encoded to avoid all shell/quote escaping issues.
+            """
+            import base64 as _b64
+            payload_b64 = _b64.b64encode(_json.dumps(payload).encode()).decode()
             py = (
-                "import http.client, urllib.parse, json; "
-                f"body = '{payload_json}'; "
+                "import http.client, base64; "
+                f"body = base64.b64decode('{payload_b64}'); "
                 "conn = http.client.HTTPConnection('localhost', 8000, timeout=15); "
-                f"conn.request('POST', '{path}', body.encode(), {{'Content-Type': 'application/json'}}); "
+                f"conn.request('POST', '{path}', body, {{'Content-Type': 'application/json'}}); "
                 "r = conn.getresponse(); data = r.read().decode(); "
-                "print(f'HTTP_STATUS:{r.status}'); print(data)"
+                "print(f'HTTP_STATUS:{{r.status}}'); print(data)"
             )
             cmd = f"docker exec {container_id} python3 -c \"{py}\""
             result = subprocess.run(
