@@ -85,7 +85,7 @@ services:
       - yads-net
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     container_name: yads-redis
     restart: always
     volumes:

@@ -239,22 +239,20 @@ yum install -y nmap
             </div>
         </div>
 
-        <!-- Redis -->
-        <div class="bom-card" style="border-left: 3px solid #fdba74;">
+        <!-- Valkey -->
+        <div class="bom-card" style="border-left: 3px solid #34d399;">
             <div style="display:flex;gap:1.25rem;align-items:flex-start;">
-                <div class="icon-box" style="background:rgba(251,146,60,0.12);color:#fdba74;"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
+                <div class="icon-box" style="background:rgba(52,211,153,0.12);color:#34d399;"><svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg></div>
                 <div style="flex:1;">
-                    <h3>Redis <span class="badge badge-sspl">SSPL v1</span></h3>
+                    <h3>Valkey <span class="badge badge-bsd">BSD 3-Clause</span></h3>
                     <p style="color:var(--text-secondary);font-size:0.85rem;margin:0.25rem 0 0.5rem;">
-                        Copyright &copy; Redis Ltd. Used as message broker and result backend for the Celery task queue.
+                        Copyright &copy; The Valkey Contributors. Used as message broker and result backend for the Celery task queue.
+                        Valkey is a BSD-licensed fork of Redis 7.2 maintained by the Linux Foundation.
                     </p>
                     <div class="note-box">
-                        <strong>License note:</strong> Redis 7.x uses the Server Side Public License (SSPL v1).
-                        For <strong>self-hosted deployments</strong> where Redis runs as a private internal service,
-                        the SSPL's service-provider clause does not apply — this covers the typical YADS use case.
-                        If you offer YADS as a managed cloud service where Redis is part of the public offering,
-                        consult legal counsel regarding SSPL compliance or consider switching to
-                        <a href="https://valkey.io" style="color:#fdba74;">Valkey</a> (BSD-licensed Redis fork).
+                        <strong>License note:</strong> Valkey is licensed under BSD 3-Clause — fully permissive, no copyleft, no SSPL restrictions.
+                        The <code>redis-py</code> client library (MIT) is wire-compatible with Valkey and requires no changes.
+                        YADS migrated from Redis 7 (SSPL) to Valkey 8 to eliminate any licensing concerns for commercial deployments.
                     </div>
                 </div>
             </div>
@@ -330,10 +328,10 @@ yum install -y nmap
                     </p>
                 </div>
                 <div>
-                    <h4 style="color:#fff;margin:0 0 0.5rem;">Redis &amp; SSPL</h4>
+                    <h4 style="color:#fff;margin:0 0 0.5rem;">Valkey (BSD) instead of Redis (SSPL)</h4>
                     <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">
-                        Self-hosted deployments are unaffected by SSPL's cloud-service clause.
-                        For SaaS operators who expose Redis publicly, consider Valkey (BSD) as a drop-in replacement.
+                        YADS uses Valkey 8 (BSD 3-Clause) as a fully permissive drop-in replacement for Redis.
+                        No SSPL obligations apply to any deployment scenario.
                     </p>
                 </div>
                 <div>

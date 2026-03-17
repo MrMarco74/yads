@@ -55,7 +55,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     container_name: testlab-redis
     networks:
       yads-testlab:

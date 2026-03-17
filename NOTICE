@@ -199,16 +199,17 @@ Nmap
   subprocess. The Nmap source code is available at https://nmap.org/
 
 -------------------------------------------------------------------------------
-CATEGORY: Server Side Public License v1 (SSPL)
+CATEGORY: BSD 3-Clause License
+(additional entry — Valkey)
 -------------------------------------------------------------------------------
 
-Redis
-  Copyright (c) 2009-2023 Redis Ltd.
-  https://redis.io/docs/about/license/
+Valkey
+  Copyright (c) 2024 The Valkey Contributors
+  https://github.com/valkey-io/valkey/blob/unstable/COPYING
 
-  NOTE: Redis is used as an independent service (message broker / cache).
-  YADS does not incorporate Redis source code. Self-hosted deployments
-  are not affected by SSPL's service-provider clause.
+  Valkey is a BSD-licensed fork of Redis 7.2 (before the SSPL relicense).
+  YADS uses Valkey as an independent message broker / cache service.
+  The redis-py client library (MIT) is fully compatible with Valkey.
 
 -------------------------------------------------------------------------------
 END OF THIRD-PARTY NOTICES
