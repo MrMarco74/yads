@@ -263,6 +263,8 @@ async def export_traffic_excel(
     query = select(HTTPTraffic).join(Target)
     if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        query = query.where(Target.tenant_id == -1)  # no results for non-admin without tenant
 
     # Apply date filtering
     if from_dt:
@@ -289,6 +291,8 @@ async def export_traffic_pdf(
     query = select(HTTPTraffic).join(Target)
     if user.tenant_id:
         query = query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        query = query.where(Target.tenant_id == -1)  # no results for non-admin without tenant
 
     # Apply date filtering
     if from_dt:

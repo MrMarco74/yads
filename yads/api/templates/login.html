@@ -15,7 +15,7 @@
         <form method="post" action="/login" class="space-y-6">
             {% if mfa_required %}
                 <input type="hidden" name="username" value="{{ username }}">
-                <input type="hidden" name="password" value="{{ password }}">
+                <input type="hidden" name="mfa_token" value="{{ mfa_token }}">
                 <div>
                     <label for="otp_code" class="block text-sm font-medium text-gray-300">MFA Code</label>
                     <input type="text" id="otp_code" name="otp_code" required autofocus autocomplete="off"

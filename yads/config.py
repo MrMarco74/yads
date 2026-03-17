@@ -126,3 +126,12 @@ class Settings(BaseSettings):
         return init_settings, dotenv_settings, env_settings, file_secret_settings
 
 settings = Settings()
+
+_DEFAULT_SECRET = "changeme_in_production_please_super_secret"
+if settings.SECRET_KEY == _DEFAULT_SECRET:
+    import warnings
+    warnings.warn(
+        "SECURITY: SECRET_KEY is set to the default value. "
+        "All JWT tokens can be forged. Set SECRET_KEY to a random value in production!",
+        stacklevel=2,
+    )
