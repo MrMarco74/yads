@@ -891,12 +891,40 @@ Mandanten können Echtzeit-Webhooks konfigurieren, um externe Systeme zu integri
 <p>Die Suche verwendet 500ms-Entprellen. Geparste Filter werden als Chips unter dem Suchfeld angezeigt (Schweregrad, Modul, Domain-Fragment). Ergebnisse sind nach Schweregrad sortiert und auf 200 Einträge begrenzt. Klicken Sie auf ein Ergebnis, um direkt zur Zieldetailseite zu navigieren.</p>
 
 <h3>13.5 Mehrsprachige KI-Ausgabe</h3>
-<p>Alle drei KI-Endpunkte akzeptieren einen <code>lang</code>-Parameter (<code>en</code> oder <code>de</code>). Bei <code>lang=de</code>:</p>
+<p>Alle fünf KI-Endpunkte akzeptieren einen <code>lang</code>-Parameter (<code>en</code> oder <code>de</code>). Bei <code>lang=de</code>:</p>
 <ul>
     <li>KI-Systemprompts erhalten den Zusatz "Antworte auf Deutsch." — das Modell antwortet auf Deutsch.</li>
     <li>Regelbasierte Begründungsstrings, Aufwandsbezeichnungen und Suchinterpretationstexte werden ebenfalls auf Deutsch zurückgegeben.</li>
     <li>Die Benutzeroberfläche übergibt diesen Parameter automatisch basierend auf den Spracheinstellungen des Browsers.</li>
 </ul>
+
+<h3>13.6 Befunderklärung <span style="font-size:0.7em;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:2px 6px;vertical-align:middle;">Enterprise</span></h3>
+<p>Erklärt in verständlicher Sprache, was ein bestimmter Sicherheitsbefund bedeutet — was ein Angreifer damit tun kann und wie man ihn behebt. Verfügbar unter <strong>Intelligence → KI-Assistent → Befunderklärung</strong>.</p>
+<ol>
+    <li>Wählen Sie ein Ziel aus der Dropdown-Liste, um dessen Befunde zu laden, oder geben Sie einen Befundtitel manuell ein.</li>
+    <li>Wählen Sie einen Befund aus der Liste — das Formular füllt sich automatisch mit Befundtyp, Schweregrad und Scanner-Modul.</li>
+    <li>Prüfen Sie das Feld <strong>An KI gesendet (Vorschau)</strong>, um zu sehen, was genau übertragen wird.</li>
+    <li>Klicken Sie auf <strong>Befund erklären</strong>.</li>
+    <li>Die Ergebniskarte zeigt drei Abschnitte: <em>Was ist dieser Befund?</em>, <em>Was kann ein Angreifer tun?</em> und <em>Wie behebt man ihn?</em> — sowie Referenzlinks.</li>
+</ol>
+<blockquote>
+    <p><strong>🔒 Datensparsamkeit</strong>: An den KI-Anbieter werden ausschließlich der generische Befundtyp, der Schweregrad und der Name des Scanner-Moduls übermittelt. Ziel-Hostnamen, IP-Adressen und Roh-Scan-Daten werden niemals übertragen.</p>
+</blockquote>
+<p>Der regelbasierte Fallback (aktiv, wenn kein API-Schlüssel konfiguriert ist) liefert eingebaute Erklärungen für: CORS, XSS, SSL/TLS, DNS-Zonentransfer (AXFR), HTTP-Sicherheitsheader, Cookie-Sicherheit und SQL-Injection.</p>
+
+<h3>13.7 Executive Summary <span style="font-size:0.7em;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:2px 6px;vertical-align:middle;">Enterprise</span></h3>
+<p>Erstellt einen managementtauglichen Sicherheitsbewertungstext für ein ausgewähltes Ziel — geeignet für Berichte oder Kundenpräsentationen. Verfügbar unter <strong>Intelligence → KI-Assistent → Executive Summary</strong>.</p>
+<ol>
+    <li>Wählen Sie ein Ziel aus der Dropdown-Liste.</li>
+    <li>Prüfen Sie das Feld <strong>An KI gesendet (Vorschau)</strong> — es zeigt nur den aggregierten Sicherheitsscore und die Befundanzahlen nach Schweregrad.</li>
+    <li>Klicken Sie auf <strong>Zusammenfassung erstellen</strong>.</li>
+    <li>Die Ergebniskarte zeigt: Sicherheitsscore mit Schweregrads-Chips, einen Zusammenfassungstext, wichtige Stichpunkte und priorisierte Handlungsempfehlungen mit Risikobewertung (Kritisch / Hoch / Mittel / Niedrig).</li>
+    <li>Nutzen Sie die Schaltfläche <strong>Zusammenfassung kopieren</strong>, um den vollständigen Text in einen Bericht oder eine E-Mail einzufügen.</li>
+</ol>
+<blockquote>
+    <p><strong>🔒 Datensparsamkeit</strong>: An den KI-Anbieter werden ausschließlich der Sicherheitsscore und aggregierte Befundanzahlen (z. B. <code>{"critical": 2, "high": 5, "medium": 6}</code>) übermittelt. Zieldomain, Hostnamen, IPs und einzelne Befunddetails werden niemals übertragen.</p>
+</blockquote>
+<p>Der regelbasierte Fallback erstellt die Zusammenfassung aus Score und Zählungen ohne externen API-Aufruf. Ergebnisse werden im UI klar als "Regelbasiert" oder "KI-generiert" gekennzeichnet.</p>
 
 <hr />
 <h2>14. Befundmanagement &amp; Schwachstellenverfolgung</h2>
