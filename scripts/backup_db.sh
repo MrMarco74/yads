@@ -18,6 +18,16 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
+# Skip backup on fresh install — if no YADS tables exist yet, there is nothing
+# meaningful to back up and the dump would be too small to pass validation.
+TABLE_COUNT=$(psql "$DATABASE_URL" -t -c \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" \
+    2>/dev/null | tr -d ' \n' || echo "0")
+if [ "${TABLE_COUNT:-0}" = "0" ]; then
+    echo "[INFO] Fresh install detected (no tables yet) — skipping pre-deploy backup."
+    exit 0
+fi
+
 # Perform Backup
 # Dump to temp file first so pg_dump failures are caught properly
 # (piping to gzip masks pg_dump exit code in sh)
