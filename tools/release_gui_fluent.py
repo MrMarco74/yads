@@ -1214,19 +1214,24 @@ class ProdDeployWorker(QThread):
 
         def _docker_post(container_id, path, payload):
             """Run HTTP POST inside the container via python3.
-            Payload is base64-encoded to avoid all shell/quote escaping issues.
+            Both payload AND the python code itself are base64-encoded so that
+            no shell quoting or special-character escaping is needed at all.
             """
             import base64 as _b64
             payload_b64 = _b64.b64encode(_json.dumps(payload).encode()).decode()
-            py = (
-                "import http.client, base64; "
-                f"body = base64.b64decode('{payload_b64}'); "
-                "conn = http.client.HTTPConnection('localhost', 8000, timeout=15); "
-                f"conn.request('POST', '{path}', body, {{'Content-Type': 'application/json'}}); "
-                "r = conn.getresponse(); data = r.read().decode(); "
-                "print(f'HTTP_STATUS:{{r.status}}'); print(data)"
+            py_code = (
+                "import http.client, base64\n"
+                f"body = base64.b64decode('{payload_b64}')\n"
+                "conn = http.client.HTTPConnection('localhost', 8000, timeout=15)\n"
+                f"conn.request('POST', '{path}', body, {{'Content-Type': 'application/json'}})\n"
+                "r = conn.getresponse()\n"
+                "data = r.read().decode()\n"
+                "print('HTTP_STATUS:' + str(r.status))\n"
+                "print(data)\n"
             )
-            cmd = f"docker exec {container_id} python3 -c \"{py}\""
+            code_b64 = _b64.b64encode(py_code.encode()).decode()
+            # Pass the entire python script as base64 — zero shell-escaping issues
+            cmd = f"docker exec {container_id} python3 -c \"import base64,sys;exec(base64.b64decode('{code_b64}'))\""
             result = subprocess.run(
                 self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
                 capture_output=True, text=True, timeout=30
@@ -1253,16 +1258,20 @@ class ProdDeployWorker(QThread):
         for i in range(60):
             container_id = _get_container_id()
             if container_id:
-                # Also verify the API process is responding inside the container
-                py_health = (
-                    "import http.client; conn = http.client.HTTPConnection('localhost', 8000, timeout=5); "
-                    "conn.request('GET', '/api/updates/version'); r = conn.getresponse(); "
-                    "print('ok' if r.status == 200 else 'not_ready')"
+                # Verify the API process is responding — use base64 to avoid any quoting issues
+                import base64 as _b64h
+                _health_code = (
+                    "import http.client\n"
+                    "conn = http.client.HTTPConnection('localhost', 8000, timeout=5)\n"
+                    "conn.request('GET', '/api/updates/version')\n"
+                    "r = conn.getresponse()\n"
+                    "print('ok' if r.status == 200 else 'not_ready')\n"
                 )
+                _hb64 = _b64h.b64encode(_health_code.encode()).decode()
                 chk = subprocess.run(
                     self._inject_ssh_opts([
                         "ssh", self.remote_host,
-                        f"docker exec {container_id} python3 -c \"{py_health}\" 2>/dev/null"
+                        f"docker exec {container_id} python3 -c \"import base64;exec(base64.b64decode('{_hb64}'))\" 2>/dev/null"
                     ]),
                     capture_output=True, text=True, timeout=15
                 )
