@@ -519,7 +519,7 @@ async def ui_add_target(request: Request, domain: str = Form(...), session: Sess
     # celery_app.send_task("yads.worker.run_all_scans", args=[target.id, target.domain])
     
     # Return standard target list row fragment or redirect
-    return await dashboard(request, session, user) 
+    return RedirectResponse(url="/", status_code=303) 
     # In a real HTMX app, we'd return just the new row or the updated list fragment.
     # For simplicity, refreshing the page or returning full page is easiest for now.
 

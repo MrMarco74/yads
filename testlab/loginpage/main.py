@@ -42,6 +42,14 @@ async def admin_login_post(username: str = Form(...), password: str = Form(...))
 async def wp_login(request: Request):
     return templates.TemplateResponse("wp.html", {"request": request})
 
+@app.get("/wp-admin/", response_class=HTMLResponse)
+async def wp_admin(request: Request):
+    return templates.TemplateResponse("wp.html", {"request": request})
+
+@app.get("/admin.php", response_class=HTMLResponse)
+async def admin_php(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
 @app.post("/wp-login.php")
 async def wp_login_post(log: str = Form(...), pwd: str = Form(...)):
     return JSONResponse({"loggedIn": _check(log, pwd)})

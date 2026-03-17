@@ -1,0 +1,45 @@
+# Prometheus configuration for YADS monitoring
+#
+# Documentation: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+
+global:
+  scrape_interval: 15s      # Scrape targets every 15 seconds
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  scrape_timeout: 10s       # Timeout for scrapes
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files for alerting (optional)
+# rule_files:
+#   - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # YADS API metrics
+  - job_name: 'yads-api'
+    static_configs:
+      - targets: ['yads-api:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    # For token authentication, uncomment:
+    # authorization:
+    #   type: Bearer
+    #   credentials: your-metrics-token-here
+
+  # YADS Worker metrics (if exposed)
+  # Workers don't typically expose HTTP endpoints, but if you add one:
+  # - job_name: 'yads-worker'
+  #   static_configs:
+  #     - targets: ['yads-worker:8001']
+  #   metrics_path: /metrics

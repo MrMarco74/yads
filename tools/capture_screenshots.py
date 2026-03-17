@@ -1,79 +1,51 @@
-
-from playwright.sync_api import sync_playwright
-import time
+import asyncio
 import os
+from playwright.async_api import async_playwright
 
-BASE_URL = "http://localhost:8000"
-USERNAME = "admin"
-PASSWORD = "admin"
-OUTPUT_DIR = "product_screenshots"
+async def capture():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        context = await browser.new_context(viewport={'width': 1280, 'height': 720})
+        page = await context.new_page()
 
-def capture():
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        # Grant permissions or set viewport if needed
-        context = browser.new_context(viewport={"width": 1920, "height": 1080})
-        page = context.new_page()
-
+        print("[*] Navigating to YADS login...")
+        await page.goto("http://localhost:8085/login", wait_until="networkidle")
+        
         # Login
-        print("Logging in...")
-        page.goto(f"{BASE_URL}/login")
-        if "login" in page.url:
-            page.fill('input[name="username"]', USERNAME)
-            page.fill('input[name="password"]', PASSWORD)
+        print("[*] Filling login form...")
+        await page.fill('input[name="username"]', "admin")
+        await page.fill('input[name="password"]', "admin")
+        
+        print("[*] Submitting login...")
+        await asyncio.gather(
+            page.wait_for_load_state("networkidle"),
             page.click('button[type="submit"]')
-            page.wait_for_url(f"{BASE_URL}/")
-        print("Logged in.")
+        )
+        print(f"[*] Current URL: {page.url}")
 
-        # 1. Dashboard Dark (Default)
-        print("Capturing Dashboard Dark...")
-        page.goto(f"{BASE_URL}/")
-        time.sleep(2) # Wait for charts/widgets
-        page.screenshot(path=f"{OUTPUT_DIR}/dashboard_dark.png")
+        # Ensure Dark Mode
+        print("[*] Setting Dark Mode...")
+        await page.evaluate("document.documentElement.classList.add('dark')")
+        await asyncio.sleep(2)
 
-        # 2. Dashboard Light
-        print("Capturing Dashboard Light...")
-        page.evaluate("document.documentElement.classList.remove('dark')")
-        time.sleep(0.5)
-        page.screenshot(path=f"{OUTPUT_DIR}/dashboard_light.png")
-        # Reset to dark
-        page.evaluate("document.documentElement.classList.add('dark')")
+        # 1. Dashboard screenshot
+        print("[*] Capturing Dashboard...")
+        await page.goto("http://localhost:8085/", wait_until="networkidle")
+        await page.screenshot(path="/app/screenshots/dashboard.png", full_page=True)
+        
+        # 2. Targets Table
+        print("[*] Capturing Targets Table...")
+        await page.goto("http://localhost:8085/targets/table", wait_until="networkidle")
+        await page.screenshot(path="/app/screenshots/targets.png", full_page=True)
+        
+        # 3. Findings for DVWA
+        print("[*] Capturing Findings for DVWA...")
+        await page.goto("http://localhost:8085/targets/1", wait_until="networkidle")
+        await page.screenshot(path="/app/screenshots/findings.png", full_page=True)
 
-        # 3. Network Graph
-        print("Capturing Network Graph...")
-        page.goto(f"{BASE_URL}/visualizations/network")
-        page.wait_for_selector("#cy")
-        time.sleep(3) # Wait for graph to settle
-        page.screenshot(path=f"{OUTPUT_DIR}/network_graph.png")
-
-        # 4. Attack Path
-        print("Capturing Attack Path...")
-        # Check the toggle
-        toggle = page.query_selector("#attackPathToggle")
-        if toggle:
-            toggle.check()
-            time.sleep(2) # Wait for styling change
-            page.screenshot(path=f"{OUTPUT_DIR}/network_attack_path.png")
-        else:
-            print("Warning: Attack Path toggle not found!")
-
-        # 5. Tech Radar
-        print("Capturing Tech Radar...")
-        page.goto(f"{BASE_URL}/analytics/tech-radar")
-        time.sleep(2)
-        page.screenshot(path=f"{OUTPUT_DIR}/tech_radar.png")
-
-        # 6. Hijacking
-        print("Capturing Hijacking...")
-        page.goto(f"{BASE_URL}/analytics/hijacking")
-        time.sleep(2)
-        page.screenshot(path=f"{OUTPUT_DIR}/hijacking.png")
-
-        browser.close()
-        print("Done.")
+        await browser.close()
+        print("[+] Screenshots captured in /app/screenshots/")
 
 if __name__ == "__main__":
-    capture()
+    os.makedirs("/app/screenshots", exist_ok=True)
+    asyncio.run(capture())
