@@ -487,6 +487,7 @@ async def convert_contact_to_report(
 @router.get("/installations", response_class=HTMLResponse)
 async def installations_page(
     request: Request,
+    version: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
     """Admin installations overview page."""
@@ -497,6 +498,14 @@ async def installations_page(
     version_dist: dict = {}
     for r in rows:
         version_dist[r.version] = version_dist.get(r.version, 0) + 1
+
+    # Sorted list of all known versions for the filter dropdown + color map
+    all_versions = sorted(version_dist.keys(), reverse=True)
+    version_colors = [
+        "#6366f1", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899",
+        "#14b8a6", "#f97316", "#a855f7", "#ef4444", "#84cc16",
+    ]
+    version_color_map = {v: version_colors[i % len(version_colors)] for i, v in enumerate(all_versions)}
 
     type_dist: dict = {}
     for r in rows:
@@ -527,6 +536,9 @@ async def installations_page(
             entry["versions"].append(r.version)
     by_customer = sorted(cust_groups.values(), key=lambda x: -x["count"])
 
+    # Apply version filter to instance list
+    filtered = [r for r in rows if not version or r.version == version]
+
     return templates.TemplateResponse("installations.html", {
         "request": request,
         "total": len(rows),
@@ -534,6 +546,9 @@ async def installations_page(
             {"version": k, "count": v}
             for k, v in sorted(version_dist.items(), key=lambda x: -x[1])
         ],
+        "version_color_map": version_color_map,
+        "all_versions": all_versions,
+        "selected_version": version or "",
         "type_distribution": type_dist,
         "by_customer": by_customer,
         "installations": [
@@ -547,7 +562,7 @@ async def installations_page(
                 "last_seen": r.last_seen.isoformat(),
                 "report_count": r.report_count,
             }
-            for r in rows
+            for r in filtered
         ],
     })
 
