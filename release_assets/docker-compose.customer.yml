@@ -1,10 +1,11 @@
 version: '3.8'
 
 services:
-  # --- Reverse Proxy (Optional) ---
+  # --- Reverse Proxy (Optional, profile: nginx) ---
   nginx:
     image: nginx:alpine
     container_name: yads-proxy
+    profiles: [nginx]
     restart: always
     ports:
       - "${API_PORT:-80}:${API_PORT:-80}"
@@ -23,9 +24,9 @@ services:
     command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
     ports:
-      # This is only used if HAS_NGINX=false. 
-      # If HAS_NGINX=true, nginx maps to 80/443 and talks to 8000 internally.
-      - "${API_PORT:-8000}:8000"
+      # YADS_DIRECT_PORT=8000 when nginx is active (nginx handles external port).
+      # YADS_DIRECT_PORT=API_PORT when no nginx (yads-api is directly reachable).
+      - "${YADS_DIRECT_PORT:-8000}:8000"
     expose:
       - "8000"
     environment:
