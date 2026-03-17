@@ -225,6 +225,77 @@
     <div class="container">
 
         <div class="timeline">
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Konfigurierbarer Nginx-Proxy</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Einen Nginx-Proxy eingeführt, der über den Setup-Assistenten konfigurierbar und über Profile aktivierbar ist. Der Nginx-Proxy kann während des Setups aktiviert/deaktiviert werden.</li>
+                    <li>Optionen zur Konfiguration des Nginx-Proxys hinzugefügt, einschliesslich Servername, Read-Timeout und maximale Upload-Grösse, die im Setup-Assistenten zugänglich sind.</li>
+                    <li>Der Setup-Assistent kann jetzt die Nginx-Konfiguration mit anpassbaren Einstellungen schreiben, einschliesslich SSL-Listen-Direktive, Servername, Proxy-Read-Timeout und Client-Max-Body-Size. Die Konfigurationsvorlage ist im YADS-Installationspaket enthalten.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Yads-tools-Basis-Image auf Version 1.1 aktualisiert.</li>
+                    <li>Der YADS-API-Port wird jetzt über die Umgebungsvariable `YADS_DIRECT_PORT` konfiguriert, um potenzielle Portkonflikte zu vermeiden.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Yads-tools-Version auf 1.1 erhöht.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Nginx-Konfiguration</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Ein Setup-Assistent wurde hinzugefügt, um Nginx als Reverse-Proxy zu konfigurieren.</li>
+                    <li>Der Nginx-Proxy kann über Profile in der Docker-Compose-Konfiguration aktiviert/deaktiviert werden.</li>
+                    <li>Benutzer können nun Nginx-Parameter wie Servernamen, Lese-Timeout und maximale Upload-Größe über den Setup-Assistenten konfigurieren.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Die API-Portkonfiguration verwendet nun YADS_DIRECT_PORT, wodurch potenzielle Portkonflikte vermieden werden.</li>
+                    <li>Die Nginx-Konfigurationsvorlage ist jetzt im yads_installer enthalten, was die Bereitstellung und das Fallback vereinfacht.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Das yads-tools Basis-Image wurde im Worker-Dockerfile auf Version 1.1 aktualisiert.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Nginx-Konfiguration</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Ein Setup-Assistent wurde hinzugefügt, um YADS mit einem Nginx-Proxy zu konfigurieren, der durch Profile eingeschränkt ist, damit Benutzer sich anmelden können.</li>
+                    <li>Benutzer können jetzt den Nginx-Servernamen, das Read-Timeout und die maximale Upload-Größe über den Setup-Assistenten konfigurieren.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Die Nginx-Konfiguration ist jetzt als Vorlage verfügbar und vollständig konfigurierbar, wodurch die Anpassung von Servername, Read-Timeout, Client Max Body Size und SSL-Listen-Direktive ermöglicht wird.</li>
+                    <li>Die Nginx-Konfigurationsvorlage ist jetzt im YADS-Paket (pyz) für eine einfachere Verteilung enthalten.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Der API-Port wird jetzt über die Umgebungsvariable YADS_DIRECT_PORT konfiguriert, um potenzielle Konflikte mit anderen Diensten zu vermeiden.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
 <!-- Version 2.0.4 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v2.0.4</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
