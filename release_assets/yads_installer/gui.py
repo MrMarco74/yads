@@ -1973,7 +1973,7 @@ with SessionLocal() as session:
                  padx=12, pady=10).pack(fill="x")
 
         if not hasattr(self, 'telemetry_var'):
-            self.telemetry_var = tk.BooleanVar(value=False)
+            self.telemetry_var = tk.BooleanVar(value=True)
         tk.Checkbutton(
             self.content_frame,
             text="Ja, ich sende eine anonyme Installationsmeldung an das YADS-Team.",
