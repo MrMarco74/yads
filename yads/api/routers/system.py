@@ -441,13 +441,14 @@ async def view_settings(request: Request, session: Session = Depends(get_session
             license_status = "Invalid / Expired"
 
     # --- Activation Status ---
+    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
     activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
     activation_data = None
     is_business_license = bool(license_data and license_data.get("customer_id"))
     if activation_code_conf and activation_code_conf.value:
-        activation_data = license_manager.verify(activation_code_conf.value)
-    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
+        from yads.core.license import activation_verifier
+        activation_data = activation_verifier.verify(activation_code_conf.value, instance_uuid)
 
     # --- TLS/SSL Certificate Settings ---
     https_only = False
@@ -971,13 +972,14 @@ async def view_license(request: Request, session: Session = Depends(get_session)
         else:
             license_status = "Invalid / Expired"
 
+    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
+    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
     activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
     activation_data = None
     is_business_license = bool(license_data and license_data.get("customer_id"))
     if activation_code_conf and activation_code_conf.value:
-        activation_data = license_manager.verify(activation_code_conf.value)
-    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
+        from yads.core.license import activation_verifier
+        activation_data = activation_verifier.verify(activation_code_conf.value, instance_uuid)
 
     from yads.core.community_edition import get_ce_state
     ce_state = get_ce_state(session)
@@ -1079,22 +1081,26 @@ async def check_activation_from_portal(
     if not response_code:
         return RedirectResponse(url="/license?error=Kein+Antwortcode+im+Portal+hinterlegt", status_code=303)
 
-    # Save as license key (DB + persistent config + in-memory settings)
-    existing = session.get(SystemConfig, "license_key")
+    # Verify the activation code before saving
+    from yads.core.license import activation_verifier
+    act_data = activation_verifier.verify(response_code)
+    if not act_data:
+        return RedirectResponse(url="/license?error=Aktivierungscode+ungültig+oder+abgelaufen+(falscher+Signing-Key?)", status_code=303)
+
+    # Save as ACTIVATION_CODE (separate from license_key — does NOT overwrite the license!)
+    existing = session.get(SystemConfig, "ACTIVATION_CODE")
     if existing:
         existing.value = response_code
         session.add(existing)
     else:
-        session.add(SystemConfig(key="license_key", value=response_code))
+        session.add(SystemConfig(key="ACTIVATION_CODE", value=response_code))
     session.commit()
 
-    # Also persist to config.env and update in-memory settings
+    # Persist to config.env
     from yads.api.routers.setup import update_persistent_config
-    update_persistent_config("LICENSE_KEY", response_code)
-    settings.LICENSE_KEY = response_code
+    update_persistent_config("ACTIVATION_CODE", response_code)
 
-    threading.Thread(target=_register_license_key_with_portal, args=(response_code,), daemon=True).start()
-    return RedirectResponse(url="/license?msg=Aktivierungscode+erfolgreich+vom+Portal+abgerufen+und+gespeichert", status_code=303)
+    return RedirectResponse(url="/license?msg=Instanz+erfolgreich+aktiviert", status_code=303)
 
 
 @router.post("/admin/license/validate", response_class=HTMLResponse)
