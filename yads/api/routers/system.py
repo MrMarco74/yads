@@ -1079,7 +1079,7 @@ async def check_activation_from_portal(
     if not response_code:
         return RedirectResponse(url="/license?error=Kein+Antwortcode+im+Portal+hinterlegt", status_code=303)
 
-    # Save as license key
+    # Save as license key (DB + persistent config + in-memory settings)
     existing = session.get(SystemConfig, "license_key")
     if existing:
         existing.value = response_code
@@ -1087,6 +1087,11 @@ async def check_activation_from_portal(
     else:
         session.add(SystemConfig(key="license_key", value=response_code))
     session.commit()
+
+    # Also persist to config.env and update in-memory settings
+    from yads.api.routers.setup import update_persistent_config
+    update_persistent_config("LICENSE_KEY", response_code)
+    settings.LICENSE_KEY = response_code
 
     threading.Thread(target=_register_license_key_with_portal, args=(response_code,), daemon=True).start()
     return RedirectResponse(url="/license?msg=Aktivierungscode+erfolgreich+vom+Portal+abgerufen+und+gespeichert", status_code=303)
