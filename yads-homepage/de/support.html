@@ -10,7 +10,7 @@
     <style>
         .support-section { margin-bottom: 4rem; padding: 2.5rem; }
         .support-header { margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
-        .code-block { background: #1e293b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; color: #e2e8f0; margin: 1rem 0; }
+        .code-block { background: #1e293b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: monospace; color: #e2e8f0; margin: 1rem 0; white-space: pre; }
         .support-section ul { padding-left: 1.5rem; margin-bottom: 1.5rem; }
         .step-number { display: inline-block; width: 24px; height: 24px; background: var(--accent-primary); color: white; text-align: center; border-radius: 50%; margin-right: 0.5rem; line-height: 24px; }
     </style>
@@ -69,7 +69,7 @@
                         <h3 style="margin: 0; color: #10b981; font-size: 1.25rem;">Stabile Version</h3>
                     </div>
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Produktionsreife Version. Gründlich getestet und für alle Benutzer empfohlen. Enthält Konfigurationsvorlagen, <code>setup.sh</code> und Dokumentation. Docker-Images werden während der Einrichtung aus der Registry geladen.
+                        Produktionsreife Version. Gründlich getestet und für alle Benutzer empfohlen. Enthält Konfigurationsvorlagen, das grafische <code>yads-setup.pyz</code> Tool und Dokumentation. Docker-Images werden während der Einrichtung aus der Registry geladen.
                     </p>
                     <a id="download-stable" href="#" class="btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; width: 100%; justify-content: center; background: #10b981;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -145,18 +145,18 @@
                 <li>Lizenzschlüssel (wurde Ihnen per E-Mail zugesendet)</li>
             </ul>
 
-            <h3 style="margin-top: 2rem;">Schritt 1: Setup-Skript ausführen</h3>
-            <p>Entpacken Sie das ZIP-Archiv und führen Sie das interaktive Setup-Skript aus. Es authentifiziert sich bei der YADS Container Registry und konfiguriert Ihre Umgebung:</p>
+            <h3 style="margin-top: 2rem;">Schritt 1: Grafischen Installer ausführen</h3>
+            <p>Entpacken Sie das ZIP-Archiv und führen Sie den interaktiven GUI-Installer aus. Dieser prüft alle Abhängigkeiten, konfiguriert das System und lädt die Docker-Images:</p>
             <div class="code-block">
-unzip yads_v*_customer_pkg.zip
-cd yads_v*_customer_pkg
-chmod +x setup.sh
-./setup.sh
+unzip yads-test-release.zip
+cd yads-test-release
+chmod +x yads-setup.pyz
+./yads-setup.pyz
             </div>
-            <p>Das Setup-Skript fragt nach Ihrem <strong>Registry-Token</strong> (in Ihrer Lizenz-E-Mail enthalten) und lädt die Docker-Images automatisch von <code>registry.yads-security.com</code>.</p>
+            <p>Der Installer führt Sie durch die Konfiguration von Ports und SSL-Zertifikaten und authentifiziert das System automatisch an der YADS Registry.</p>
 
             <h3 style="margin-top: 2rem;">Schritt 2: Starten</h3>
-            <p>Nach Abschluss von setup.sh starten Sie den Stack:</p>
+            <p>Nachdem die Konfiguration durch den Installer abgeschlossen wurde, starten Sie den Stack:</p>
             <div class="code-block">
 docker compose up -d
             </div>

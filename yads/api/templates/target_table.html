@@ -209,14 +209,22 @@
                                 </div>
                                 <div id="{{ cat.group_id }}-body" class="pl-3 border-l border-slate-700/40 ml-2 mt-0.5 space-y-0.5 mb-1">
                                     {% for mod in cat.modules %}
-                                    <label class="flex items-center gap-1.5 px-1 py-0.5 hover:bg-slate-800 rounded cursor-pointer">
+                                    {% set _unavail = mod.name in unavailable_modules %}
+                                    {% set _degraded = mod.name in degraded_modules %}
+                                    <label class="flex items-center gap-1.5 px-1 py-0.5 {% if _unavail %}opacity-40 cursor-not-allowed{% else %}hover:bg-slate-800 cursor-pointer{% endif %} rounded"
+                                        {% if _unavail %}title="{{ mod.requires_binary }} not installed — run: apt-get install {{ mod.requires_binary }}"{% elif _degraded %}title="{{ mod.degraded_without_binary }} not installed — running in socket fallback mode (limited)"{% endif %}>
                                         <input type="checkbox" name="scan_types" value="{{ mod.name }}"
-                                            {% if mod.name in selected_scan_types or mod.default_on %}checked{% endif %}
+                                            {% if not _unavail and (mod.name in selected_scan_types or mod.default_on) %}checked{% endif %}
+                                            {% if _unavail %}disabled{% endif %}
                                             data-group="{{ cat.group_id }}" data-passive="{{ 'true' if mod.passive else 'false' }}"
                                             onchange="yadsScanUpdateGroup('{{ cat.group_id }}')"
                                             class="rounded bg-slate-950 border-slate-600 {{ _tc.input }} focus:ring-0 w-3 h-3 flex-shrink-0">
-                                        <span class="text-xs text-slate-200 flex-1">{{ mod.label }}</span>
-                                        {% if mod.passive %}
+                                        <span class="text-xs {% if _unavail %}text-slate-500{% else %}text-slate-200{% endif %} flex-1">{{ mod.label }}</span>
+                                        {% if _unavail %}
+                                        <span class="text-[9px] px-1 py-px rounded bg-slate-800 text-slate-500 border border-slate-700 flex-shrink-0">not installed</span>
+                                        {% elif _degraded %}
+                                        <span class="text-[9px] px-1 py-px rounded bg-yellow-900/40 text-yellow-400 border border-yellow-700/30 flex-shrink-0">limited</span>
+                                        {% elif mod.passive %}
                                         <span class="text-[9px] px-1 py-px rounded bg-emerald-900/40 text-emerald-400 border border-emerald-700/30 flex-shrink-0">passive</span>
                                         {% else %}
                                         <span class="text-[9px] px-1 py-px rounded bg-orange-900/40 text-orange-400 border border-orange-700/30 flex-shrink-0">active</span>

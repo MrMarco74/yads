@@ -102,7 +102,6 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://yads:changeme_in_env@db:5432/yads}
       - REDIS_URL=redis://redis:6379/0
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
       - WORKER_MODE=primary
       - WORKER_NAME=yads-worker-primary
@@ -146,7 +145,6 @@ services:
       - WORKER_MODE=secondary
       - WORKER_MAX_TASKS=${WORKER_MAX_TASKS:-4}
       - WORKER_MAX_NETWORK_MBPS=${WORKER_MAX_NETWORK_MBPS:-100}
-      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
     volumes:
       - data:/app/data

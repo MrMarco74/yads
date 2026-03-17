@@ -20,7 +20,7 @@ from yads.api.templating import templates
 from yads.auth.deps import RoleChecker, get_current_user_html
 from yads.database import get_session
 from yads.models import ScanProfile, User
-from yads.core.module_registry import REGISTRY, get_scan_categories
+from yads.core.module_registry import REGISTRY, get_scan_categories, get_unavailable_modules, get_degraded_modules
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,8 @@ async def list_profiles(
         "profiles": profiles,
         "builtin_profiles": BUILTIN_PROFILES,
         "scan_categories": scan_categories,
+        "unavailable_modules": get_unavailable_modules(),
+        "degraded_modules": get_degraded_modules(),
         "page_title": "Scan Profiles",
     })
 
