@@ -488,6 +488,7 @@ async def convert_contact_to_report(
 async def installations_page(
     request: Request,
     version: Optional[str] = None,
+    install_type: Optional[str] = None,
     session: Session = Depends(get_session),
 ):
     """Admin installations overview page."""
@@ -536,8 +537,12 @@ async def installations_page(
             entry["versions"].append(r.version)
     by_customer = sorted(cust_groups.values(), key=lambda x: -x["count"])
 
-    # Apply version filter to instance list
-    filtered = [r for r in rows if not version or r.version == version]
+    # Apply filters to instance list
+    filtered = [
+        r for r in rows
+        if (not version or r.version == version)
+        and (not install_type or r.install_type == install_type)
+    ]
 
     return templates.TemplateResponse("installations.html", {
         "request": request,
@@ -549,6 +554,7 @@ async def installations_page(
         "version_color_map": version_color_map,
         "all_versions": all_versions,
         "selected_version": version or "",
+        "selected_install_type": install_type or "",
         "type_distribution": type_dist,
         "by_customer": by_customer,
         "installations": [
