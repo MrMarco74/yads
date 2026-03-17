@@ -225,6 +225,95 @@
     <div class="container">
 
         <div class="timeline">
+<!-- Version 2.0.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v2.0.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Verbesserte Sicherheit & KI-Einblicke</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Funktionen zur Erklärung von Ergebnissen und KI-gestützte Executive Summary hinzugefügt (Enterprise-Lizenz erforderlich).</li>
+                    <li>Automatisierte Changelog-Archivierung im Release Manager für einfachere Navigation implementiert.</li>
+                    <li>Webbasierter GUI-Installer zur Optimierung der Einrichtung eingeführt, der den Web-Assistenten ersetzt.</li>
+                    <li>Vollständiges Lizenzaktivierungssystem für Geschäftslizenzen mit Online- und Offline-Optionen implementiert.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Verbesserter CSRF-Schutz durch Verwendung von signierten Double-Submit-Cookies.</li>
+                    <li>Erhöhte Sicherheit durch Validierung von ZIP-Elementen bei Modul-Uploads, um Path-Traversal-Angriffe zu verhindern, und strikte Regex-Validierung von Python-Bezeichnern implementiert, um Import Injection zu verhindern.</li>
+                    <li>Mehrere Ergebnisse der Sicherheitsüberprüfung behoben, darunter MFA-Passwort-Echo-Ersatz, Login-Rate-Limiting, Validierung des Redirect-Ziels, SSRF-Schutz in Webhooks und OIDC-Token-Verifizierung.</li>
+                    <li>Eine starke Passwortrichtlinie mit einem Minimum von 12 Zeichen und 3 von 4 Zeichenklassen erzwungen.</li>
+                    <li>Socket-basiertes Fallback für Nmap-Scans implementiert, wenn das Nmap-Binary fehlt.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Migration von Redis 7 zu Valkey 8 zur Einhaltung der Open-Source-Lizenz.</li>
+                    <li>Verbesserte Sichtbarkeit der Telemetrie-Opt-in mit einem neu gestalteten Schritt im Installer.</li>
+                    <li>Der Release Manager erstellt und pusht versionierte Image-Tags zusätzlich zu :latest.</li>
+                    <li>Das Support-Portal wurde mit KPI-Karten erweitert, die nach install_type filtern, anklickbaren Versions-Badges und einer Löschtaste für Installations-Einträge; Session-basiertes Login und Kontaktarchiv-Funktionalität eingeführt.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Fehlender 'matches'-Schlüssel im Ergebnis der Methode maintain_changelog_archive() behoben.</li>
+                    <li>XSS-Schwachstelle in workers.py und SQL-Injection-Schwachstellen in worker_tasks.py behoben.</li>
+                    <li>Sicherstellung der Persistenz des Lizenzschlüssels in config.env nach der Portalaktivierung und Klarstellung einer irreführenden Aktivierungsvorlage.</li>
+                    <li>Verschiedene Docker-Setup-Probleme behoben, darunter robuste Löschprozeduren, zuverlässige Setup-Ausführung und korrektes Verhalten der Health-Wait-Schleife.</li>
+                    <li>Verbesserte Installer-UI mit Korrekturen für PhotoImage-Aufhängen, Desktop-Icon-Überschreiben, Vorabfüllen des Host-Felds und UI-Layout-Probleme.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Base64-codiertes komplettes python3 -c-Skript, um jegliches Shell-Escaping zu eliminieren.</li>
+                    <li>Release Manager refaktorisiert, SETUP_TOKEN entfernt und Pyz-Packaging optimiert.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a046828f9c0d41071ee38279dd80163099b681be68e11aa94a24afe898d758cd</p>
+            </div>
+        </div>
+<!-- Version 2.0.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v2.0.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Sicherheit, Lizenzierung und UI-Verbesserungen</h2>
+
+                <h3>🚀 Neue Funktionen</h3>
+                <ul>
+                    <li>Eingeführt KI-gestützte Funktionen für Erklärungssuche und Executive Summary (Enterprise-Lizenz erforderlich).</li>
+                    <li>Implementiert ein vollständiges Aktivierungssystem für Geschäftslizenzen, einschließlich Online- und Offline-Aktivierungs-Workflows und Support-Portal-Integration.</li>
+                    <li>Hinzugefügt einen Opt-in-Installationsberichtsschritt im GUI-Installer, um anonyme Installationsdaten zur Produktverbesserung zu sammeln.</li>
+                    <li>Automatische Changelog-Archivwartung im Release Manager hinzugefügt.</li>
+                    <li>Migriert von Redis 7 (SSPL) zu Valkey 8 (BSD 3-Clause).</li>
+                    <li>Session-basiertes Login zum Support-Portal hinzugefügt und Admin-Token aus HTML entfernt.</li>
+                    <li>Release Manager erstellt und pusht jetzt versionierte Image-Tags.</li>
+                </ul>
+                <h3>⚡ Verbesserungen</h3>
+                <ul>
+                    <li>Verbesserte Sicherheit mit CSRF-Schutz durch signierte Double-Submit-Cookies.</li>
+                    <li>Implementierte Lizenzschlüsselpersistenz nach Portalaktivierung und verbesserte die Klarheit der Aktivierungsvorlage.</li>
+                    <li>Verbesserte Sichtbarkeit der Telemetrie-Opt-in mit neu gestaltetem Telemetrie-Schritt.</li>
+                    <li>Verbesserte Installer-UX, einschließlich UPDATE/REINSTALL-Modusauswahl und einem webbasierten Setup-Assistenten mit GUI-Installer.</li>
+                    <li>Verbessertes Nmap-Modul mit Socket-basiertem Fallback, wenn die Nmap-Binärdatei fehlt, und Nmap aus Dockerfile entfernt, um die Lizenzkonformität zu gewährleisten.</li>
+                    <li>Separate öffentliche Schlüssel und Verifizierer für die Zwei-Faktor-Lizenzaktivierung hinzugefügt.</li>
+                    <li>Support-Portal-Verbesserungen, einschließlich CE/Enterprise-Aufteilung pro KPI-Karte, Versionsfilter, Löschtaste für Installationseinträge und Archiv-Kontaktanfragen.</li>
+                </ul>
+                <h3>🐛 Fehlerbehebungen</h3>
+                <ul>
+                    <li>Behoben Ergebnisse der Sicherheitsüberprüfung, einschließlich BSI-Passwortrichtlinien, XSS-Schwachstelle, SQL-Injection und OIDC-Client-Secret-Standard.</li>
+                    <li>SEC-P3 Zip-Slip- und Identifier-Injection-Schwachstellen beim Modul-Upload behoben.</li>
+                    <li>Mehrere Probleme im Setup-Prozess mit Release Manager behoben, einschließlich Konfigurationspersistenz, Health Check und anfänglicher Benutzererstellung.</li>
+                    <li>Korrigierte MFA-Reset-Logik für Reinstall-Szenarien.</li>
+                    <li>Fehler bei der Telemetrie-Vorschau behoben, bei dem 'unbekannt' für Neuinstallationen angezeigt wurde.</li>
+                    <li>Aktivierungs-UX-Fehler und Admin-Banner zur Anzeige der ausstehenden Aktivierung behoben.</li>
+                    <li>Base64-Codierungsprobleme in Python3-Skripten behoben, um Probleme mit Shell-Escaping zu vermeiden.</li>
+                    <li>Robuster Wipe- und Setup-Prozess durch Entfernen ungenutzter Docker-Container und -Volumes.</li>
+                </ul>
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>Implementierter SSRF-Schutz durch Validierung von Webhook-URLs anhand privater IP-Bereiche, Link-Local- und Cloud-Metadaten-Endpunkten vor der Zustellung.</li>
+                    <li>Geschützt vor Subdomain-Injection mit HMAC-SHA256-signierten CSRF-Token.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a046828f9c0d41071ee38279dd80163099b681be68e11aa94a24afe898d758cd</p>
+            </div>
+        </div>
 <!-- Version 1.51.5 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v1.51.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -361,6 +450,13 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 244c69580d28201988e787383c9fd3d8855570257de7db819f5ae2d7edd8d697</p>
             </div>
         </div>
+        <details class="change-archive">
+            <summary>
+                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Ältere Versionen anzeigen (v1.50.x und früher)
+            </summary>
+            <div class="archive-body">
+
 <!-- Version 1.50.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.50.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -391,13 +487,6 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 244c69580d28201988e787383c9fd3d8855570257de7db819f5ae2d7edd8d697</p>
             </div>
         </div>
-        <details class="change-archive">
-            <summary>
-                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                Ältere Versionen anzeigen (v1.49.x und früher)
-            </summary>
-            <div class="archive-body">
-
 <!-- Version 1.49.2 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.49.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>

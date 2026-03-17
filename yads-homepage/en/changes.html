@@ -224,6 +224,95 @@
     <div class="container">
 
         <div class="timeline">
+<!-- Version 2.0.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v2.0.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Security & AI Insights</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added Finding Explanation and Executive Summary AI-powered features (Enterprise license required).</li>
+                    <li>Implemented automated changelog archiving in Release Manager for easier navigation.</li>
+                    <li>Introduced a web-based GUI installer to streamline setup, replacing the web wizard.</li>
+                    <li>Implemented a full license activation system for business licenses with online and offline options.</li>
+                </ul>
+                <h3>🔒 Security</h3>
+                <ul>
+                    <li>Improved CSRF protection using signed double-submit cookies.</li>
+                    <li>Enhanced security by validating ZIP members during module uploads to prevent path traversal attacks and implemented strict Python identifier regex validation to prevent import injection.</li>
+                    <li>Addressed several security review findings, including MFA password echo replacement, login rate limiting, redirect target validation, SSRF protection in webhooks, and OIDC token verification.</li>
+                    <li>Enforced a strong password policy requiring a minimum of 12 characters and 3 of 4 character classes.</li>
+                    <li>Implemented socket-based fallback for nmap scans when the nmap binary is absent.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Migrated from Redis 7 to Valkey 8 for open-source license compliance.</li>
+                    <li>Improved telemetry opt-in visibility with a redesigned step in the installer.</li>
+                    <li>The release manager builds and pushes versioned image tags in addition to :latest.</li>
+                    <li>Enhanced the support portal with KPI cards filter by install_type, clickable version badges, and delete button for installation entries; Introduced session-based login and contact archive functionality.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed a missing 'matches' key in the maintain_changelog_archive() method result.</li>
+                    <li>Resolved XSS vulnerability in workers.py and SQL injection vulnerabilities in worker_tasks.py.</li>
+                    <li>Ensured license key persistence to config.env after portal activation and clarified misleading activation template</li>
+                    <li>Addressed various Docker setup issues, including robust wipe procedures, reliable setup execution, and correct health-wait loop behavior.</li>
+                    <li>Improved installer UI with fixes for PhotoImage hang, desktop icon overwrite, host field pre-filling, and UI layout issues.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Base64-encoded entire python3 -c script to eliminate all shell escaping.</li>
+                    <li>Refactored Release Manager, removing SETUP_TOKEN and streamlining pyz packaging.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a046828f9c0d41071ee38279dd80163099b681be68e11aa94a24afe898d758cd</p>
+            </div>
+        </div>
+<!-- Version 2.0.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v2.0.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Security, Licensing, and UI Refinements</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Introduced AI-powered features for Finding Explanation and Executive Summary (Enterprise license required).</li>
+                    <li>Implemented a full activation system for business licenses, including online and offline activation workflows and support portal integration.</li>
+                    <li>Added an opt-in installation report step in the GUI installer to collect anonymous installation data for product improvement.</li>
+                    <li>Added automatic changelog archive maintenance in Release Manager.</li>
+                    <li>Migrated from Redis 7 (SSPL) to Valkey 8 (BSD 3-Clause).</li>
+                    <li>Added session-based login to the support portal and removed the admin token from HTML.</li>
+                    <li>Release Manager now builds and pushes versioned image tags.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Enhanced security with CSRF protection via signed double-submit cookie.</li>
+                    <li>Implemented license key persistence after portal activation and improved the activation template's clarity.</li>
+                    <li>Improved telemetry opt-in visibility with redesigned telemetry step.</li>
+                    <li>Improved installer UX including UPDATE/REINSTALL mode selection and a web-based setup wizard with GUI installer.</li>
+                    <li>Enhanced Nmap module with socket-based fallback when the nmap binary is absent, and removed nmap from Dockerfile to address license compliance.</li>
+                    <li>Added separate public key and verifier for two-factor license activation.</li>
+                    <li>Support portal improvements including CE/Enterprise split per KPI card, version filter, delete button for installation entries, and archive contact requests.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Addressed security review findings, including BSI password policy enforcement, XSS vulnerability, SQL injection, and OIDC client secret default.</li>
+                    <li>Fixed SEC-P3 zip slip and identifier injection vulnerabilities in module upload.</li>
+                    <li>Fixed multiple issues in the setup process using Release Manager, including configuration persistence, health check, and initial user creation.</li>
+                    <li>Corrected MFA reset logic for reinstall scenarios.</li>
+                    <li>Fixed telemetry preview issue where 'unbekannt' was displayed for fresh installs.</li>
+                    <li>Resolved activation UX bugs and admin banner to indicate pending activation.</li>
+                    <li>Fixed base64 encoding issues in python3 scripts to avoid shell escaping problems.</li>
+                    <li>Made robust wipe and setup process by pruning unused docker containers and volume.</li>
+                </ul>
+                <h3>🔒 Security</h3>
+                <ul>
+                    <li>Implemented SSRF protection by validating webhook URLs against private IP ranges, link-local, and cloud metadata endpoints before delivery.</li>
+                    <li>Protected against subdomain injection with HMAC-SHA256 signed CSRF tokens.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a046828f9c0d41071ee38279dd80163099b681be68e11aa94a24afe898d758cd</p>
+            </div>
+        </div>
 <!-- Version 1.51.5 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v1.51.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -360,6 +449,13 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 244c69580d28201988e787383c9fd3d8855570257de7db819f5ae2d7edd8d697</p>
             </div>
         </div>
+        <details class="change-archive">
+            <summary>
+                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Show older releases (v1.50.x and earlier)
+            </summary>
+            <div class="archive-body">
+
 <!-- Version 1.50.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.50.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -390,13 +486,6 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 244c69580d28201988e787383c9fd3d8855570257de7db819f5ae2d7edd8d697</p>
             </div>
         </div>
-        <details class="change-archive">
-            <summary>
-                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                Show older releases (v1.49.x and earlier)
-            </summary>
-            <div class="archive-body">
-
 <!-- Version 1.49.2 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v1.49.2</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
