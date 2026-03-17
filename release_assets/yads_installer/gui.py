@@ -28,6 +28,9 @@ class YADSInstallerGUI:
             "api_port": "80",
             "host": "localhost",
             "use_nginx": True,
+            "nginx_server_name": "localhost",
+            "nginx_read_timeout": "120s",
+            "nginx_max_body_size": "50m",
             "use_ssl": False,
             "ssl_choice": "1", # 1: self-signed, 2: custom
             "ssl_cn": "localhost",
@@ -143,16 +146,17 @@ class YADSInstallerGUI:
             self.data["host"] = resolved
             self.data["ssl_cn"] = resolved
             self.data["yads_host"] = resolved
-            # Patch entry widget if the host step has already been rendered
-            ent = getattr(self, "ent_host", None)
-            if ent is not None:
-                try:
-                    current = ent.get()
-                    if current == "localhost":
-                        ent.delete(0, tk.END)
-                        ent.insert(0, resolved)
-                except Exception:
-                    pass
+            self.data["nginx_server_name"] = resolved
+            # Patch entry widgets if the host step has already been rendered
+            for attr, key in [("ent_host", "host"), ("ent_nginx_server_name", "nginx_server_name")]:
+                ent = getattr(self, attr, None)
+                if ent is not None:
+                    try:
+                        if ent.get() == "localhost":
+                            ent.delete(0, tk.END)
+                            ent.insert(0, resolved)
+                    except Exception:
+                        pass
 
         self.root.after(0, _apply)
 
@@ -378,6 +382,14 @@ class YADSInstallerGUI:
                 self.data['ssl_choice'] = self.ssl_choice_var.get()
             if hasattr(self, 'ent_host'):
                 self.data['host'] = self.ent_host.get()
+            if hasattr(self, 'nginx_var'):
+                self.data['use_nginx'] = self.nginx_var.get()
+            if hasattr(self, 'ent_nginx_server_name'):
+                self.data['nginx_server_name'] = self.ent_nginx_server_name.get().strip() or "localhost"
+            if hasattr(self, 'ent_nginx_read_timeout'):
+                self.data['nginx_read_timeout'] = self.ent_nginx_read_timeout.get().strip() or "120s"
+            if hasattr(self, 'ent_nginx_max_body_size'):
+                self.data['nginx_max_body_size'] = self.ent_nginx_max_body_size.get().strip() or "50m"
         elif current_fn == self.step_idp:
             if hasattr(self, 'idp_var'):
                 self.data['kc_choice'] = self.idp_var.get()
@@ -1311,27 +1323,40 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
     def write_nginx_config(self):
         if not self.data['use_nginx']:
             return
-        
-        template_path = "nginx.conf.template"
-        # Since we are in a pyz, we might need to find where the template is.
-        # But usually the installer is run in a directory that HAS the template.
-        if os.path.exists(template_path):
-            with open(template_path, "r") as f:
+
+        # Read template from pyz first, fall back to filesystem
+        content = None
+        try:
+            raw = _zipimport.zipimporter(sys.argv[0]).get_data("nginx.conf.template")
+            content = raw.decode("utf-8")
+        except Exception:
+            pass
+        if content is None and os.path.exists("nginx.conf.template"):
+            with open("nginx.conf.template", "r") as f:
                 content = f.read()
-            
-            content = content.replace("{{PORT}}", self.data['api_port'])
-            if self.data['use_ssl']:
-                content = content.replace(f"listen {self.data['api_port']};", f"listen {self.data['api_port']} ssl;")
-            
-            os.makedirs("nginx", exist_ok=True)
-            # Docker may have created nginx/nginx.conf as a directory on a previous
-            # failed start (bind-mount with missing file) — remove it before writing
-            nginx_conf = "nginx/nginx.conf"
-            if os.path.isdir(nginx_conf):
-                import shutil
-                shutil.rmtree(nginx_conf)
-            with open(nginx_conf, "w") as f:
-                f.write(content)
+        if content is None:
+            raise RuntimeError("nginx.conf.template nicht gefunden — pyz scheint unvollständig.")
+
+        port = self.data['api_port']
+        listen_directive = f"listen {port} ssl;" if self.data['use_ssl'] else f"listen {port};"
+        content = (
+            content
+            .replace("listen {{PORT}};", listen_directive)
+            .replace("{{PORT}}", port)
+            .replace("{{SERVER_NAME}}", self.data.get('nginx_server_name', 'localhost'))
+            .replace("{{PROXY_READ_TIMEOUT}}", self.data.get('nginx_read_timeout', '120s'))
+            .replace("{{CLIENT_MAX_BODY_SIZE}}", self.data.get('nginx_max_body_size', '50m'))
+        )
+
+        os.makedirs("nginx", exist_ok=True)
+        # Docker may have created nginx/nginx.conf as a directory on a previous
+        # failed start (bind-mount with missing file) — remove it before writing
+        nginx_conf = "nginx/nginx.conf"
+        if os.path.isdir(nginx_conf):
+            import shutil
+            shutil.rmtree(nginx_conf)
+        with open(nginx_conf, "w") as f:
+            f.write(content)
 
     def prev_step(self):
         if self.current_step > 0:
@@ -1781,6 +1806,52 @@ with SessionLocal() as session:
         self.lbl_resolution = ttk.Label(self.content_frame, text="IP: unknown | Hostname: unknown", font=("Courier", 9))
         self.lbl_resolution.pack(anchor="w")
         self.update_resolution()
+
+        ttk.Separator(self.content_frame, orient="horizontal").pack(fill="x", pady=15)
+
+        # Nginx reverse proxy
+        self.nginx_var = tk.BooleanVar(value=self.data['use_nginx'])
+        ttk.Checkbutton(
+            self.content_frame,
+            text="Nginx Reverse Proxy einbinden (empfohlen)",
+            variable=self.nginx_var,
+            command=self._toggle_nginx_options
+        ).pack(anchor="w")
+
+        ttk.Label(
+            self.content_frame,
+            text="Ohne Nginx läuft yads-api direkt auf dem konfigurierten Port.",
+            font=("sans-serif", 9, "italic"),
+            foreground=self.colors['fg_sub'],
+            wraplength=500
+        ).pack(anchor="w")
+
+        self._nginx_options_frame = tk.Frame(self.content_frame, bg=self.colors['bg'])
+        self._nginx_options_frame.pack(fill="x", padx=20, pady=(5, 0))
+
+        def _row(parent, label, attr, default, width=20):
+            f = tk.Frame(parent, bg=self.colors['bg'])
+            f.pack(fill="x", pady=2)
+            ttk.Label(f, text=label, width=24, anchor="w").pack(side="left")
+            ent = ttk.Entry(f, width=width)
+            ent.insert(0, default)
+            ent.pack(side="left")
+            setattr(self, attr, ent)
+
+        _row(self._nginx_options_frame, "Server Name:", "ent_nginx_server_name",
+             self.data['nginx_server_name'])
+        _row(self._nginx_options_frame, "Proxy Read Timeout:", "ent_nginx_read_timeout",
+             self.data['nginx_read_timeout'], width=10)
+        _row(self._nginx_options_frame, "Max. Upload-Größe:", "ent_nginx_max_body_size",
+             self.data['nginx_max_body_size'], width=10)
+
+        self._toggle_nginx_options()
+
+    def _toggle_nginx_options(self):
+        if self.nginx_var.get():
+            self._nginx_options_frame.pack(fill="x", padx=20, pady=(5, 0))
+        else:
+            self._nginx_options_frame.pack_forget()
 
     def toggle_ssl_options(self):
         if self.ssl_var.get():
