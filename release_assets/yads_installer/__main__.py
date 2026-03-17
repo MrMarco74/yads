@@ -1,6 +1,6 @@
 import sys
 import os
-import pkgutil
+import zipimport
 import threading
 import tkinter as tk
 
@@ -54,7 +54,8 @@ def main():
     )
     if not os.path.exists(desktop_path):
         try:
-            logo_data = pkgutil.get_data("yads_installer", "logo.png") or b""
+            # Read directly from the .pyz ZIP — no import-lock involved
+            logo_data = zipimport.zipimporter(sys.argv[0]).get_data("logo.png")
         except Exception:
             logo_data = b""
         threading.Thread(target=_create_desktop_entry, args=(logo_data,), daemon=True).start()
