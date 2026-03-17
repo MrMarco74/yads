@@ -34,9 +34,9 @@
   <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
     {% for entry in version_distribution %}
     {% set color = version_color_map.get(entry.version, '#6366f1') %}
+    {% set border = color if selected_version == entry.version else color + '44' %}
     <a href="/installations?version={{ entry.version }}"
-       style="background:var(--surface-2);border:2px solid {{ color }}33;border-radius:8px;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.75rem;text-decoration:none;transition:border-color 0.15s;"
-       {% if selected_version == entry.version %}style="border-color:{{ color }};"{% endif %}>
+       style="background:var(--surface-2);border:2px solid {{ border }};border-radius:8px;padding:0.5rem 1rem;display:flex;align-items:center;gap:0.75rem;text-decoration:none;cursor:pointer;">
       <span style="font-weight:600;color:{{ color }};">{{ entry.version }}</span>
       <span style="background:{{ color }};color:#fff;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;">{{ entry.count }}</span>
     </a>
