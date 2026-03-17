@@ -1178,68 +1178,91 @@ class ProdDeployWorker(QThread):
 
 
     def _run_post_deploy_setup(self):
-        """Call /setup/* endpoints on prod via SSH after a wipe+reinstall."""
+        """Call /setup/* endpoints via docker exec python3 inside the API container.
+
+        NOTE: The API is only reachable inside the Docker network (yads-api:8000).
+        localhost:8000 on the host is NOT reliable in Swarm ingress mode.
+        We use 'docker exec <container> python3 -c ...' to call localhost:8000
+        from inside the container itself — always works regardless of networking.
+        """
         import json as _json
         import time as _time
 
-        base = "http://localhost:8000"
-
-        def _curl(path, payload):
-            body = _json.dumps(payload).replace("'", "'\\''")
-            # -s: silent, -S: show errors, -w: append HTTP status at end
-            # -f omitted so we always get the response body (incl. 403/500 detail)
-            cmd = (
-                f"curl -sS --max-time 15 --connect-timeout 5 -X POST '{base}{path}' "
-                f"-H 'Content-Type: application/json' "
-                f"-d '{body}' -w '\\nHTTP_STATUS:%{{http_code}}' 2>&1"
+        def _get_container_id():
+            result = subprocess.run(
+                self._inject_ssh_opts([
+                    "ssh", self.remote_host,
+                    "docker ps -q --filter name=yads_yads-api"
+                ]),
+                capture_output=True, text=True, timeout=15
             )
+            return result.stdout.strip().split("\n")[0].strip()
+
+        def _docker_post(container_id, path, payload):
+            """Run HTTP POST inside the container via python3."""
+            # Escape payload for embedding in a python string literal
+            payload_json = _json.dumps(payload).replace("\\", "\\\\").replace("'", "\\'")
+            py = (
+                "import http.client, urllib.parse, json; "
+                f"body = '{payload_json}'; "
+                "conn = http.client.HTTPConnection('localhost', 8000, timeout=15); "
+                f"conn.request('POST', '{path}', body.encode(), {{'Content-Type': 'application/json'}}); "
+                "r = conn.getresponse(); data = r.read().decode(); "
+                "print(f'HTTP_STATUS:{r.status}'); print(data)"
+            )
+            cmd = f"docker exec {container_id} python3 -c \"{py}\""
             result = subprocess.run(
                 self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
                 capture_output=True, text=True, timeout=30
             )
             out = result.stdout.strip()
-            # Extract HTTP status from output
             http_status = 0
-            if "HTTP_STATUS:" in out:
-                parts = out.rsplit("HTTP_STATUS:", 1)
-                out = parts[0].strip()
-                try:
-                    http_status = int(parts[1].strip())
-                except ValueError:
-                    pass
+            body = out
+            for line in out.splitlines():
+                if line.startswith("HTTP_STATUS:"):
+                    try:
+                        http_status = int(line.split(":", 1)[1])
+                    except ValueError:
+                        pass
+                else:
+                    body = line
             ok = (result.returncode == 0 and 200 <= http_status < 300)
-            if not ok and http_status:
-                out = f"HTTP {http_status}: {out}"
-            return (0 if ok else 1), out
+            if not ok:
+                body = f"HTTP {http_status}: {body}"
+            return (0 if ok else 1), body
 
-        def _curl_get(path):
-            cmd = f"curl -sf --max-time 5 --connect-timeout 3 '{base}{path}' 2>&1"
-            result = subprocess.run(
-                self._inject_ssh_opts(["ssh", self.remote_host, cmd]),
-                capture_output=True, text=True, timeout=15
-            )
-            return result.returncode, result.stdout.strip()
-
-        # Wait for API to be ready (up to 180s)
-        self._log("Setup: Waiting for API to be ready (fresh DB init may take ~60-90s)...", "info")
+        # Wait for API container to be running (up to 180s)
+        self._log("Setup: Waiting for API container to start...", "info")
+        container_id = ""
         for i in range(60):
-            rc, out = _curl_get("/api/updates/version")
-            if rc == 0 and "running" in out.lower():
-                self._log(f"  ✅ API is up after ~{i * 3}s", "success")
-                break
-            # Progress update every 10 iterations (~30s)
+            container_id = _get_container_id()
+            if container_id:
+                # Also verify the API process is responding inside the container
+                py_health = (
+                    "import http.client; conn = http.client.HTTPConnection('localhost', 8000, timeout=5); "
+                    "conn.request('GET', '/api/updates/version'); r = conn.getresponse(); "
+                    "print('ok' if r.status == 200 else 'not_ready')"
+                )
+                chk = subprocess.run(
+                    self._inject_ssh_opts([
+                        "ssh", self.remote_host,
+                        f"docker exec {container_id} python3 -c \"{py_health}\" 2>/dev/null"
+                    ]),
+                    capture_output=True, text=True, timeout=15
+                )
+                if "ok" in chk.stdout:
+                    self._log(f"  ✅ API is up after ~{i * 3}s", "success")
+                    break
             if i > 0 and i % 10 == 0:
-                elapsed = i * 3
-                # Also show current service replica count so user knows if API is crashing
-                _svc_result = subprocess.run(
+                replicas_result = subprocess.run(
                     self._inject_ssh_opts([
                         "ssh", self.remote_host,
                         "docker service ls --filter name=yads_yads-api --format '{{.Replicas}}'"
                     ]),
                     capture_output=True, text=True, timeout=15
                 )
-                replicas = _svc_result.stdout.strip() or "?"
-                self._log(f"  Still waiting... {elapsed}s elapsed, yads-api replicas: {replicas}", "info")
+                replicas = replicas_result.stdout.strip() or "?"
+                self._log(f"  Still waiting... {i * 3}s elapsed, yads-api replicas: {replicas}", "info")
             _time.sleep(3)
         else:
             self._log("⚠️  Setup: API not ready after 180s — skipping auto-setup.", "warning")
@@ -1248,7 +1271,7 @@ class ProdDeployWorker(QThread):
         # 1. License key (optional)
         if self.setup_license:
             self._log("Setup: Activating license key...", "info")
-            rc, out = _curl("/setup/check-license", {"license_key": self.setup_license})
+            rc, out = _docker_post(container_id, "/setup/check-license", {"license_key": self.setup_license})
             if rc == 0:
                 self._log("  ✅ License activated.", "success")
             else:
@@ -1256,7 +1279,7 @@ class ProdDeployWorker(QThread):
 
         # 2. Create admin
         self._log(f"Setup: Creating admin user '{self.setup_admin_user}'...", "info")
-        rc, out = _curl("/setup/create-admin", {
+        rc, out = _docker_post(container_id, "/setup/create-admin", {
             "username": self.setup_admin_user,
             "password": self.setup_admin_pass,
         })
@@ -1267,7 +1290,7 @@ class ProdDeployWorker(QThread):
 
         # 3. Finish setup
         self._log("Setup: Finalizing...", "info")
-        rc, out = _curl("/setup/finish", {})
+        rc, out = _docker_post(container_id, "/setup/finish", {})
         if rc == 0:
             self._log("  ✅ Setup complete — YADS is ready!", "success")
         else:
