@@ -224,6 +224,77 @@
     <div class="container">
 
         <div class="timeline">
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Configurable Nginx Proxy</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Introduced an Nginx proxy that is configurable through the setup wizard and enabled via profiles. The Nginx proxy can be enabled/disabled during setup.</li>
+                    <li>Added options to configure the Nginx proxy, including server name, read timeout, and maximum upload size, accessible in the setup wizard.</li>
+                    <li>The setup wizard can now write the Nginx configuration with customizable settings including SSL listen directive, server name, proxy read timeout, and client max body size.  The configuration template is bundled within the YADS installation package.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>Updated yads-tools base image to version 1.1.</li>
+                    <li>The YADS API port is now configured using the `YADS_DIRECT_PORT` environment variable to avoid potential port conflicts.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Bumped yads-tools version to 1.1.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Nginx Configuration</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added a setup wizard option to configure Nginx as a reverse proxy.</li>
+                    <li>The Nginx proxy can be enabled/disabled via profiles in the docker-compose configuration.</li>
+                    <li>Users can now configure Nginx parameters such as server name, read timeout, and maximum upload size via the setup wizard.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>The API port configuration now uses YADS_DIRECT_PORT, preventing potential port conflicts.</li>
+                    <li>The Nginx configuration template is now bundled within the yads_installer, simplifying deployment and fallback.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>Updated the yads-tools base image to version 1.1 in the worker Dockerfile.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
+<!-- Version 2.0.5 (stable) -->
+        <div class="change-entry change-entry-patch">
+            <span class="version-badge">v2.0.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Enhanced Nginx Configuration</h2>
+
+                <h3>🚀 New Features</h3>
+                <ul>
+                    <li>Added a setup wizard option to configure YADS with an Nginx proxy, gated behind profiles to allow users to opt-in.</li>
+                    <li>Users can now configure the Nginx server name, read timeout, and maximum upload size through the setup wizard.</li>
+                </ul>
+                <h3>⚡ Improvements</h3>
+                <ul>
+                    <li>The Nginx configuration is now templated and fully configurable, allowing customization of server name, read timeout, client max body size, and SSL listen directive.</li>
+                    <li>The Nginx configuration template is now bundled within the YADS package (pyz) for easier distribution.</li>
+                </ul>
+                <h3>🔧 Technical Improvements</h3>
+                <ul>
+                    <li>The API port is now configured using the YADS_DIRECT_PORT environment variable to avoid potential conflicts with other services.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 53a2f9aaa6a60a136e326ed2715ade11bcfbb69c006ed9299ce5630ba2bb21cc</p>
+            </div>
+        </div>
 <!-- Version 2.0.4 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v2.0.4</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
