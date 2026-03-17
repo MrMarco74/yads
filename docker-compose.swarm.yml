@@ -207,7 +207,7 @@ services:
           memory: 256M
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
     volumes:
       - redis_data:/data
