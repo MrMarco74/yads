@@ -108,7 +108,12 @@ async def login(
     # ── First step: username + password ──
     else:
         # Rate limiting: 10 attempts per IP per 5 minutes
-        client_ip = (request.client.host if request.client else "unknown")
+        # Use X-Forwarded-For / X-Real-IP since the app runs behind a reverse proxy
+        client_ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.headers.get("X-Real-IP", "")
+            or (request.client.host if request.client else "")
+        ) or "unknown"
         rate_key = f"yads:login_rate:{client_ip}"
         attempts = redis_client.incr(rate_key)
         if attempts == 1:
@@ -201,7 +206,9 @@ async def login(
         httponly=True,
         max_age=token_minutes * 60,
         samesite="lax",
-        secure=not settings.DEBUG,
+        # App runs behind a TLS-terminating reverse proxy — secure=True unless operator
+        # explicitly disables HTTPS via DISABLE_HTTPS_ONLY (e.g. local dev without proxy)
+        secure=not settings.DISABLE_HTTPS_ONLY,
     )
     return response
 
@@ -470,7 +477,7 @@ async def oidc_callback(
         httponly=True,
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=not settings.DEBUG,
+        secure=not settings.DISABLE_HTTPS_ONLY,
     )
     logger.info(f"OIDC login successful: {user.email} (role={user.role})")
     return response

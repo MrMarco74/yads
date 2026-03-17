@@ -455,6 +455,10 @@ def get_all_tenants():
 
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
+# -- CSRF Protection --
+from yads.api.middleware.csrf_middleware import CSRFMiddleware
+app.add_middleware(CSRFMiddleware)
+
 # -- CORS Setup --
 # Kept for dev compatibility, though strictly not needed for server-side rendering
 from fastapi.middleware.cors import CORSMiddleware
