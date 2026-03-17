@@ -181,46 +181,6 @@ services:
           memory: 1G
 
   # ==========================================================================
-  # Support Portal (Manager Node Only)
-  # ==========================================================================
-
-  yads-support:
-    image: registry.yads-security.com/yads-support:latest
-    environment:
-      - DEV_PRIVATE_KEY_FILE=/app/keys/dev_x25519_private.key
-      - ADMIN_TOKEN=${SUPPORT_ADMIN_TOKEN}
-      - ADMIN_IP_ALLOWLIST=${SUPPORT_ADMIN_IP_ALLOWLIST:-178.203.9.206,127.0.0.1,10.0.0.0/8}
-      - ADMIN_PUBLIC_KEY=${SUPPORT_ADMIN_PUBLIC_KEY:-lvbmCRtPXZ5Z6IDym34PyM+T6b/vh20AlZEOlIx6NgY=}
-      # License authority public key — same as YADS LICENSE_PUBLIC_KEY.
-      # Enables self-service key registration from YADS instances.
-      - LICENSE_AUTHORITY_PUBLIC_KEY=${LICENSE_AUTHORITY_PUBLIC_KEY:-}
-      # Docker registry viewer
-      - REGISTRY_URL=${REGISTRY_URL:-https://registry.yads-security.com}
-      - REGISTRY_USER=${REGISTRY_USER:-yads-push}
-      - REGISTRY_PASS=${REGISTRY_PASS:-REDACTED}
-    volumes:
-      - support_keys:/app/keys:ro
-      - support_data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - proxy-net
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.hostname == prod-node
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 64M
-
-  # ==========================================================================
   # Infrastructure (Manager Node Only)
   # ==========================================================================
 
@@ -345,10 +305,6 @@ volumes:
   data:
     driver: local
   nuclei_templates:
-    driver: local
-  support_keys:
-    driver: local
-  support_data:
     driver: local
 
 
