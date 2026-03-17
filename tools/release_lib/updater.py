@@ -12,6 +12,126 @@ from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
 
+# ---------------------------------------------------------------------------
+# Module-level helpers for changelog archive maintenance
+# ---------------------------------------------------------------------------
+
+def _parse_ver(v_str: str) -> tuple:
+    try:
+        return tuple(int(x) for x in v_str.strip().split('.'))
+    except Exception:
+        return (0, 0, 0)
+
+
+def _strip_archive_wrapper(html: str) -> str:
+    """Remove <details class="change-archive"> wrapper, keeping only the entry blocks."""
+    # Remove opening preamble: <details ...> ... <div class="archive-body">
+    html = re.sub(
+        r'\s*<details class="change-archive">.*?<div class="archive-body">\s*',
+        '\n',
+        html,
+        flags=re.DOTALL,
+    )
+    # Remove closing </div> + </details> of the archive
+    html = re.sub(r'\s*</div>\s*\n\s*</details>', '', html)
+    return html
+
+
+def _extract_entry_html(block: str) -> str:
+    """
+    From a raw block (comment + div + content + trailing junk), extract only the
+    <!-- Version --> comment + balanced <div class="change-entry">...</div>.
+    """
+    comment_match = re.search(r'<!--.*?-->', block, re.DOTALL)
+    comment_start = comment_match.start() if comment_match else 0
+
+    div_start = re.search(r'<div class="change-entry[^"]*">', block)
+    if not div_start:
+        return block[comment_start:]
+
+    pos = div_start.end()
+    depth = 1
+    while pos < len(block) and depth > 0:
+        next_open = block.find('<div', pos)
+        next_close = block.find('</div>', pos)
+        if next_open == -1 and next_close == -1:
+            break
+        elif next_open == -1 or (next_close != -1 and next_close < next_open):
+            depth -= 1
+            pos = next_close + len('</div>')
+        else:
+            depth += 1
+            pos = next_open + 4  # len('<div')
+
+    return block[comment_start:pos]
+
+
+def _split_into_entries(html: str) -> list:
+    """Split flat timeline HTML into a list of entry dicts."""
+    pattern = re.compile(
+        r'<!--\s*Version\s+(\d+\.\d+\.\d+)\s+\((\w+)\)\s*-->',
+        re.IGNORECASE,
+    )
+    matches = list(pattern.finditer(html))
+    entries = []
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(html)
+        block = _extract_entry_html(html[start:end])
+        entries.append({
+            'version': _parse_ver(m.group(1)),
+            'channel': m.group(2),
+            'html': block,
+        })
+    return entries
+
+
+def _set_patch_class(html: str, is_patch: bool) -> str:
+    """Add or remove `change-entry-patch` CSS class from an entry block."""
+    html = re.sub(
+        r'<div class="change-entry change-entry-patch">',
+        '<div class="change-entry">',
+        html,
+    )
+    if is_patch:
+        html = html.replace(
+            '<div class="change-entry">',
+            '<div class="change-entry change-entry-patch">',
+            1,
+        )
+    return html
+
+
+def _build_archive_block(archive_entries: list, language: str) -> str:
+    """Build the <details class="change-archive"> block for older entries."""
+    if not archive_entries:
+        return ''
+    first_ver = archive_entries[0]['version']
+    minor_str = f"v{first_ver[0]}.{first_ver[1]}.x"
+    if language == 'de':
+        summary_text = f"Ältere Versionen anzeigen ({minor_str} und früher)"
+    else:
+        summary_text = f"Show older releases ({minor_str} and earlier)"
+
+    inner = '\n'.join(e['html'] for e in archive_entries)
+    chevron = (
+        '<svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>'
+        '</svg>'
+    )
+    return (
+        '        <details class="change-archive">\n'
+        '            <summary>\n'
+        f'                {chevron}\n'
+        f'                {summary_text}\n'
+        '            </summary>\n'
+        '            <div class="archive-body">\n'
+        f'\n{inner}\n'
+        '            </div>\n'
+        '        </details>\n'
+    )
+
+
 class FileUpdater:
     """Atomically update files with rollback support"""
 
@@ -324,6 +444,85 @@ class FileUpdater:
 
         return result
 
+    def maintain_changelog_archive(
+        self,
+        language: str = 'en',
+        keep_minor_series: int = 2,
+        dry_run: bool = False,
+    ) -> Dict:
+        """
+        Maintain the archive structure in changes.html after a new entry was inserted.
+
+        - Keeps the last `keep_minor_series` minor version series fully visible
+          (default: 2, e.g. v1.51.x + v1.50.x)
+        - Marks patch releases (x.y.z, z > 0) in the visible range with
+          `change-entry-patch` CSS class (compact display)
+        - Wraps all older entries in a <details class="change-archive"> block
+          (collapsed by default, labelled with the oldest visible minor)
+
+        Called automatically by update_all_files / update_beta_files.
+        """
+        file_path = self.project_root / "yads-homepage" / language / "changes.html"
+        if not file_path.exists():
+            return {'file': str(file_path), 'changed': False, 'error': 'file not found'}
+
+        content = file_path.read_text(encoding='utf-8')
+
+        TIMELINE_OPEN = '<div class="timeline">'
+        FOOTER_ANCHOR = '\n    <footer'
+
+        idx_open = content.find(TIMELINE_OPEN)
+        idx_footer = content.find(FOOTER_ANCHOR)
+
+        if idx_open == -1 or idx_footer == -1:
+            return {'file': str(file_path), 'changed': False, 'error': 'timeline/footer marker not found'}
+
+        head = content[:idx_open + len(TIMELINE_OPEN)]
+        tail = content[idx_footer:]  # starts with \n    <footer...
+        timeline_body = content[idx_open + len(TIMELINE_OPEN):idx_footer]
+
+        # 1. Flatten: remove existing archive wrapper
+        flat = _strip_archive_wrapper(timeline_body)
+
+        # 2. Split into individual entry dicts
+        entries = _split_into_entries(flat)
+        if not entries:
+            return {'file': str(file_path), 'changed': False, 'error': 'no entries found'}
+
+        # 3. Determine which minor series to keep visible
+        all_minors = sorted(
+            set((e['version'][0], e['version'][1]) for e in entries),
+            reverse=True,
+        )
+        keep_minors = set(all_minors[:keep_minor_series])
+
+        visible = [e for e in entries if (e['version'][0], e['version'][1]) in keep_minors]
+        archive = [e for e in entries if (e['version'][0], e['version'][1]) not in keep_minors]
+
+        # 4. Apply / remove patch CSS class for visible entries
+        for e in visible:
+            e['html'] = _set_patch_class(e['html'], e['version'][2] > 0)
+
+        # 5. Rebuild timeline body
+        new_body = '\n' + '\n'.join(e['html'] for e in visible) + '\n'
+        if archive:
+            new_body += _build_archive_block(archive, language)
+        new_body += '\n    </div>\n'  # close timeline/container
+
+        new_content = head + new_body + tail
+
+        result = {
+            'file': str(file_path),
+            'changed': content != new_content,
+            'visible_entries': len(visible),
+            'archived_entries': len(archive),
+        }
+
+        if not dry_run and result['changed']:
+            self._backup_and_write(file_path, new_content)
+
+        return result
+
     def _backup_and_write(self, file_path: Path, content: str) -> None:
         """
         Create backup and write new content atomically.
@@ -442,6 +641,9 @@ class FileUpdater:
                 results.append(self.insert_changelog_in_html(
                     version, changelog_html_de, 'de', dry_run
                 ))
+                # Maintain archive structure after insert
+                results.append(self.maintain_changelog_archive('en', dry_run=dry_run))
+                results.append(self.maintain_changelog_archive('de', dry_run=dry_run))
                 return results
 
             # Stable release: update all files
@@ -467,6 +669,10 @@ class FileUpdater:
             results.append(self.insert_changelog_in_html(
                 version, changelog_html_de, 'de', dry_run
             ))
+
+            # Maintain archive structure (patch class + <details> cutoff)
+            results.append(self.maintain_changelog_archive('en', dry_run=dry_run))
+            results.append(self.maintain_changelog_archive('de', dry_run=dry_run))
 
             # Update version badge in index.html (EN and DE)
             results.append(self.update_index_html_badge(version, 'en', dry_run))
