@@ -11,6 +11,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -255,6 +256,15 @@ async def upload_module(
             f.write(content)
 
         with zipfile.ZipFile(zip_path, "r") as zf:
+            # Zip slip protection: reject members that escape tmpdir
+            resolved_tmp = os.path.realpath(tmpdir)
+            for member in zf.namelist():
+                member_path = os.path.realpath(os.path.join(tmpdir, member))
+                if not member_path.startswith(resolved_tmp + os.sep):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Malicious ZIP: path traversal in member '{member}'"
+                    )
             zf.extractall(tmpdir)
 
         # Read manifest
@@ -271,6 +281,21 @@ async def upload_module(
                 raise HTTPException(status_code=400, detail=f"Missing field in manifest: {field}")
 
         module_name = manifest["module_name"]
+
+        # Validate module_name and class_name are safe Python identifiers
+        _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+        if not _IDENT_RE.match(module_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid module_name '{module_name}': must be a valid Python identifier (a-z, 0-9, _)."
+            )
+        class_name = manifest["class_name"]
+        if not _IDENT_RE.match(class_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid class_name '{class_name}': must be a valid Python identifier."
+            )
+
         if module_name in REGISTRY:
             raise HTTPException(status_code=409, detail=f"Module '{module_name}' already exists in registry")
 
