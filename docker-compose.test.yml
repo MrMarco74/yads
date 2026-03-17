@@ -28,7 +28,7 @@ services:
       retries: 15
 
   test-redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     command: redis-server --loglevel warning --save ""   # no persistence
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

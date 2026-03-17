@@ -117,7 +117,7 @@ services:
       - yads-net
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     command: redis-server --appendonly yes
     # Expose Redis only on the LAN interface (not all interfaces).
     # REDIS_HOST_IP defaults to edward's LAN IP so remote workers (dana) can connect.

@@ -61,7 +61,7 @@ services:
       - yads-net
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     command: redis-server --appendonly yes
     restart: always
     volumes:
