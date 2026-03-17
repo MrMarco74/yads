@@ -512,6 +512,17 @@ async def installations_page(
     for r in rows:
         type_dist[r.install_type] = type_dist.get(r.install_type, 0) + 1
 
+    # CE vs Enterprise splits
+    def _split(subset):
+        ce = sum(1 for r in subset if not r.customer_id)
+        return {"ce": ce, "ent": len(subset) - ce}
+
+    splits = {
+        "total":      _split(rows),
+        "installer":  _split([r for r in rows if r.install_type == "installer"]),
+        "web_wizard": _split([r for r in rows if r.install_type == "web_wizard"]),
+    }
+
     # customer_id → customer_name lookup
     from app.models import CustomerKey
     cust_ids = {r.customer_id for r in rows if r.customer_id}
@@ -556,6 +567,7 @@ async def installations_page(
         "selected_version": version or "",
         "selected_install_type": install_type or "",
         "type_distribution": type_dist,
+        "splits": splits,
         "by_customer": by_customer,
         "installations": [
             {
