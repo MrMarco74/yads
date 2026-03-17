@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
 import os
-import pkgutil
+import zipimport as _zipimport
 import secrets
 import socket
 import threading
@@ -239,19 +239,24 @@ class YADSInstallerGUI:
 
     def load_logo(self):
         try:
-            import base64, io
-            logo_data = pkgutil.get_data(__name__, "logo.png")
+            import io
+            # Read directly from the .pyz ZIP — bypasses Python's import lock
+            try:
+                logo_data = _zipimport.zipimporter(sys.argv[0]).get_data("logo.png")
+            except Exception:
+                logo_data = b""
             if not logo_data:
                 self.logo_img = None
                 return
-            # Use Pillow to resize before handing to Tk — avoids hanging on large PNGs
+            # Pillow path (preferred): resize in Python, hand small image to Tk
             try:
                 from PIL import Image, ImageTk
                 img = Image.open(io.BytesIO(logo_data))
                 img.thumbnail((128, 128), Image.LANCZOS)
                 self.logo_img = ImageTk.PhotoImage(img)
             except ImportError:
-                # Pillow not available — fall back to tk.PhotoImage with base64
+                # Pillow not available — subsample in Tk (only safe for small PNGs)
+                import base64
                 b64 = base64.b64encode(logo_data).decode("ascii")
                 full_img = tk.PhotoImage(data=b64)
                 w = full_img.width()
