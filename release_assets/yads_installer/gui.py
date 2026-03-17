@@ -21,23 +21,20 @@ class YADSInstallerGUI:
         self.root.geometry("620x700")
         
         self.current_step = 0
-        _real_ip = NetworkTools._real_ip() or ""
-        try:
-            _real_hostname = socket.gethostname()
-        except Exception:
-            _real_hostname = _real_ip or "localhost"
-        _default_host = _real_hostname or _real_ip or "localhost"
+        # Use "localhost" immediately so the window appears without delay.
+        # Resolve the real hostname/IP in a background thread and patch self.data
+        # + any already-rendered entry widgets once the result is available.
         self.data = {
             "api_port": "80",
-            "host": _default_host,
+            "host": "localhost",
             "use_nginx": True,
             "use_ssl": False,
             "ssl_choice": "1", # 1: self-signed, 2: custom
-            "ssl_cn": _default_host,
+            "ssl_cn": "localhost",
             "auth_mode": "local", # local, oidc
             "kc_choice": "1",    # 1: Local, 2: Bundled, 3: External
             "kc_port": "8080",
-            "yads_host": _default_host,
+            "yads_host": "localhost",
             "license_key": "",
             "admin_user": "admin",
             "admin_pass": "",
@@ -48,6 +45,7 @@ class YADSInstallerGUI:
             "admin_email": "admin@example.com",
             # Secrets will be generated at the end
         }
+        threading.Thread(target=self._resolve_hostname, daemon=True).start()
         
         # Detect Theme
         self.dark_mode = self.detect_dark_mode()
@@ -125,6 +123,38 @@ class YADSInstallerGUI:
         self.data['remote_workers'] = []
         
         self.show_step()
+
+    def _resolve_hostname(self):
+        """Resolve real IP/hostname in background and patch self.data + any live entry widgets."""
+        try:
+            _real_ip = NetworkTools._real_ip() or ""
+            try:
+                _real_hostname = socket.gethostname()
+            except Exception:
+                _real_hostname = ""
+            resolved = _real_hostname or _real_ip or "localhost"
+        except Exception:
+            resolved = "localhost"
+
+        if resolved == "localhost":
+            return  # nothing to update
+
+        def _apply():
+            self.data["host"] = resolved
+            self.data["ssl_cn"] = resolved
+            self.data["yads_host"] = resolved
+            # Patch entry widget if the host step has already been rendered
+            ent = getattr(self, "ent_host", None)
+            if ent is not None:
+                try:
+                    current = ent.get()
+                    if current == "localhost":
+                        ent.delete(0, tk.END)
+                        ent.insert(0, resolved)
+                except Exception:
+                    pass
+
+        self.root.after(0, _apply)
 
     def detect_dark_mode(self):
         # 1. Check for GTK_THEME environment variable
