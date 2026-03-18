@@ -19,6 +19,21 @@ class DependencyChecker:
             return False
 
     @staticmethod
+    def check_docker_daemon():
+        try:
+            # Running 'docker version' requires daemon access. 
+            # We specifically check for permission errors to suggest sudo.
+            result = subprocess.run(["docker", "version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return True, "ok"
+            err = (result.stderr + result.stdout).lower()
+            if "permission denied" in err or "connect" in err:
+                return False, "permission_denied"
+            return False, "error"
+        except Exception:
+            return False, "not_installed"
+
+    @staticmethod
     def check_openssl():
         return shutil.which("openssl") is not None
 

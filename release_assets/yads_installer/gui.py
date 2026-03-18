@@ -51,6 +51,7 @@ class YADSInstallerGUI:
             "mon_choice": "1",   # 1: None, 2: Bundled, 3: External
             "grafana_port": "3000",
             "admin_email": "admin@example.com",
+            "use_sudo": False,
             # Secrets will be generated at the end
         }
         threading.Thread(target=self._resolve_hostname, daemon=True).start()
@@ -168,6 +169,13 @@ class YADSInstallerGUI:
                         pass
 
         self.root.after(0, _apply)
+
+    def run_docker(self, args, **kwargs):
+        """Wrapper for docker commands to optionally use sudo."""
+        cmd = ["docker"] + args
+        if self.data.get("use_sudo", False):
+            cmd = ["sudo"] + cmd
+        return subprocess.run(cmd, **kwargs)
 
     def detect_dark_mode(self):
         # 1. Check for GTK_THEME environment variable
@@ -691,9 +699,9 @@ class YADSInstallerGUI:
                 # UPDATE: pull new images, restart — preserve all config
                 self.authenticate_registry()
                 print("Pulling latest images...")
-                subprocess.run(["docker", "compose", "pull"], check=True)
+                self.run_docker(["compose", "pull"], check=True)
                 print("Restarting services...")
-                subprocess.run(["docker", "compose", "up", "-d", "--remove-orphans"], check=True)
+                self.run_docker(["compose", "up", "-d", "--remove-orphans"], check=True)
                 messagebox.showinfo("Update abgeschlossen",
                                     "YADS wurde erfolgreich aktualisiert.\n\n"
                                     "Die neuen Images sind aktiv.")
@@ -703,12 +711,12 @@ class YADSInstallerGUI:
             # REINSTALL or fresh install
             if self.is_upgrade:
                 print("Stopping existing containers for reinstall...")
-                subprocess.run(["docker", "compose", "down"], capture_output=True, timeout=60)
+                self.run_docker(["compose", "down"], capture_output=True, timeout=60)
 
                 db_action = self.data.get('db_init_action', 'upgrade')
                 if db_action == "purge":
                     # Purge: drop the postgres volume so new password works cleanly
-                    subprocess.run(["docker", "volume", "rm", "-f", "yads_postgres_data"],
+                    self.run_docker(["volume", "rm", "-f", "yads_postgres_data"],
                                    capture_output=True, timeout=30)
 
             self.generate_secrets()
@@ -780,17 +788,17 @@ class YADSInstallerGUI:
 
                 # Remove any stale containers from a previous (failed) install
                 # before starting — avoids "container name already in use" conflicts.
-                subprocess.run(
-                    ["docker", "compose", "down", "--remove-orphans"],
+                self.run_docker(
+                    ["compose", "down", "--remove-orphans"],
                     capture_output=True, timeout=60
                 )
                 # Explicitly remove core containers to avoid naming conflicts with other projects
                 for name in ["yads-api", "yads-worker", "yads-db", "yads-redis", "yads-nginx"]:
-                    subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+                    self.run_docker(["rm", "-f", name], capture_output=True, timeout=15)
 
 
-                result = subprocess.run(
-                    ["docker", "compose", "up", "-d", "--force-recreate"],
+                result = self.run_docker(
+                    ["compose", "up", "-d", "--force-recreate"],
                     capture_output=True, text=True
                 )
                 if result.returncode != 0:
@@ -1262,8 +1270,8 @@ class YADSInstallerGUI:
         try:
             # Note: In a production environment, we might want to mask the token 
             # but for this installer it mirrors the original setup.sh logic.
-            cmd = ["docker", "login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"]
-            subprocess.run(cmd, input=REGISTRY_TOKEN, text=True, check=True, capture_output=True, timeout=30)
+            args = ["login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"]
+            self.run_docker(args, input=REGISTRY_TOKEN, text=True, check=True, capture_output=True, timeout=30)
             print("Successfully authenticated with YADS registry.")
         except subprocess.CalledProcessError as e:
             print(f"Registry login failed: {e.stderr}")
@@ -1491,8 +1499,8 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
         def run():
             try:
-                result = subprocess.run(
-                    ["docker", "compose", "down", "-v", "--remove-orphans"],
+                result = self.run_docker(
+                    ["compose", "down", "-v", "--remove-orphans"],
                     capture_output=True, text=True, timeout=120
                 )
                 if result.returncode == 0:
@@ -1502,7 +1510,7 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
                 # Also remove any leftover named containers
                 for name in ["yads-api", "yads-worker", "yads-db", "yads-redis"]:
-                    subprocess.run(["docker", "rm", "-f", name],
+                    self.run_docker(["rm", "-f", name],
                                    capture_output=True, timeout=15)
 
                 log_var.set("Fertig — Starte als Neuinstallation…")
@@ -1717,17 +1725,17 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
             # Check that yads-db container is running (use container name, not compose service,
             # to work regardless of which directory/project started the stack)
-            check = subprocess.run(
-                ["docker", "inspect", "--format", "{{.State.Running}}", "yads-db"],
+            check = self.run_docker(
+                ["inspect", "--format", "{{.State.Running}}", "yads-db"],
                 capture_output=True, text=True, timeout=10
             )
             if check.stdout.strip() != "true":
                 raise RuntimeError("Container yads-db läuft nicht. Starte YADS zuerst oder backup manuell.")
 
             sql_file = filename.replace(".gz", "")
-            cmd = ["docker", "exec", "-i", "yads-db", "pg_dump", "-U", "yads", "yads"]
+            cmd = ["exec", "-i", "yads-db", "pg_dump", "-U", "yads", "yads"]
             with open(sql_file, "w") as f_out:
-                subprocess.run(cmd, check=True, stdout=f_out, env=env)
+                self.run_docker(cmd, check=True, stdout=f_out, env=env)
 
             subprocess.run(["gzip", sql_file], check=True)
             messagebox.showinfo("Backup", f"Backup erstellt: {os.path.abspath(filename)}")
@@ -1752,16 +1760,16 @@ with SessionLocal() as session:
         f.write(buf.getbuffer())
 """
             # Check container is running before exec
-            check = subprocess.run(
-                ["docker", "inspect", "--format", "{{.State.Running}}", "yads-api"],
+            check = self.run_docker(
+                ["inspect", "--format", "{{.State.Running}}", "yads-api"],
                 capture_output=True, text=True, timeout=10
             )
             if check.stdout.strip() != "true":
                 raise RuntimeError("Container yads-api läuft nicht. Encrypted Backup nicht möglich.\n"
                                    "Wähle 'Unverschlüsselt' oder starte YADS zuerst.")
-            subprocess.run(["docker", "exec", "-i", "yads-api", "python3", "-c", script], check=True)
-            subprocess.run(["docker", "cp", "yads-api:/tmp/backup.enc", filename], check=True)
-            subprocess.run(["docker", "exec", "-i", "yads-api", "rm", "/tmp/backup.enc"], check=True)
+            self.run_docker(["exec", "-i", "yads-api", "python3", "-c", script], check=True)
+            self.run_docker(["cp", "yads-api:/tmp/backup.enc", filename], check=True)
+            self.run_docker(["exec", "-i", "yads-api", "rm", "/tmp/backup.enc"], check=True)
             messagebox.showinfo("Backup", f"Verschlüsseltes Backup erstellt: {filename}")
         except Exception as e:
             messagebox.showerror("Backup Error", f"Verschlüsseltes Backup fehlgeschlagen: {e}")
@@ -1800,6 +1808,13 @@ with SessionLocal() as session:
         
         self.add_dep_status("Docker CLI", DependencyChecker.check_docker())
         self.add_dep_status("Docker Compose (v2+)", DependencyChecker.check_docker_compose())
+        
+        daemon_ok, daemon_status = DependencyChecker.check_docker_daemon()
+        self.add_dep_status("Docker Daemon Connectivity", daemon_ok)
+        
+        if not daemon_ok and daemon_status == "permission_denied":
+            self.prompt_for_sudo()
+            
         self.add_dep_status("OpenSSL", DependencyChecker.check_openssl())
         
         btn_fix = ttk.Button(self.content_frame, text="Install Missing Dependencies", command=self.fix_dependencies)
@@ -1811,6 +1826,17 @@ with SessionLocal() as session:
         frame = tk.Frame(self.dep_list, bg=self.colors['bg'])
         frame.pack(fill="x", pady=2)
         ttk.Label(frame, text=f"{icon} {name}", foreground=color).pack(side="left")
+
+    def prompt_for_sudo(self):
+        msg = ("Es wurde ein Berechtigungsproblem mit dem Docker-Socket festgestellt.\n\n"
+               "Der aktuelle Benutzer hat keinen Zugriff auf '/var/run/docker.sock'. "
+               "Dies kann behoben werden, indem der Benutzer der Gruppe 'docker' hinzugefügt wird, "
+               "oder indem der Installer 'sudo' verwendet.\n\n"
+               "Möchten Sie, dass der Installer fortan 'sudo' für Docker-Befehle verwendet?")
+        if messagebox.askyesno("Docker Berechtigung", msg):
+            self.data["use_sudo"] = True
+            # Re-check to update icons
+            self.show_step()
 
     def fix_dependencies(self):
         ok, msg = DependencyChecker.install_dependencies()
@@ -2100,8 +2126,8 @@ with SessionLocal() as session:
             pass
         if not preview_version:
             try:
-                result = subprocess.run(
-                    ["docker", "inspect", "--format",
+                result = self.run_docker(
+                    ["inspect", "--format",
                      "{{index .Config.Labels \"YADS_GIT_SHA\"}}",
                      "registry.yads-security.com/yads/yads-api:latest"],
                     capture_output=True, text=True, timeout=5
