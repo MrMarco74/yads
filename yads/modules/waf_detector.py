@@ -148,7 +148,7 @@ def _check_direct_ip_access(ip: str, domain: str) -> Optional[Dict]:
     except Exception:
         pass
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec B113 — scanner probes target IP over http
             f"http://{ip}/",
             timeout=TIMEOUT,
             headers={**HEADERS, "Host": domain},

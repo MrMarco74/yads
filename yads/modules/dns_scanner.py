@@ -169,7 +169,7 @@ class DNSRecordScanner(BaseScannerModule):
                     # Potential match, verify fingerprint
                     # We presume http unless it handles https well. most takeover checks are http.
                     try:
-                        resp = requests.get(f"http://{cname}", timeout=5, headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"})
+                        resp = requests.get(f"http://{cname}", timeout=5, headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"})  # nosec B113 — scanner probes target CNAME over http
                         if sig["fingerprint"] in resp.text:
                             return {"provider": sig["provider"], "cname": cname, "status": "VULNERABLE"}
                     except Exception as e:

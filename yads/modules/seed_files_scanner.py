@@ -147,7 +147,7 @@ class SeedFilesScanner(BaseScannerModule):
         for url in urls:
             try:
                 verify = url.startswith("https")
-                resp = requests.get(url, timeout=self.timeout, headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"}, verify=verify, allow_redirects=True)
+                resp = requests.get(url, timeout=self.timeout, headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"}, verify=verify, allow_redirects=True)  # nosec B113 B501 — scanner probes target over http/https with intentional cert handling
                 if resp.status_code == 200:
                     return self._parse_robots_txt(resp.text, url)
             except Exception as e:
