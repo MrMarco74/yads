@@ -7,7 +7,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "2.0.9"
+    VERSION: str = "2.0.10"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Database
@@ -107,11 +107,27 @@ class Settings(BaseSettings):
         extra = "ignore"
 
     @model_validator(mode='after')
-    def fix_masked_password(self):
-        if self.DATABASE_URL and "***" in self.DATABASE_URL and self.POSTGRES_PASSWORD:
-            # URL-encode the password so special chars like @ don't break URL parsing
-            encoded = quote(self.POSTGRES_PASSWORD, safe='')
-            self.DATABASE_URL = self.DATABASE_URL.replace("***", encoded)
+    def assemble_database_url(self):
+        # Case 1: Individual components are provided (most robust)
+        # We check for POSTGRES_PASSWORD and either SERVER or DB_URL with placeholder
+        if self.POSTGRES_PASSWORD:
+            user = self.POSTGRES_USER or "yads"
+            password = quote(self.POSTGRES_PASSWORD, safe='')
+            db = self.POSTGRES_DB or "yads"
+            # Extract host/port from current URL if it looks like a placeholder or default
+            # Default: postgresql://yads:yads_dev_local@db:5432/yads
+            from sqlalchemy.engine.url import make_url
+            try:
+                url_obj = make_url(self.DATABASE_URL)
+                host = url_obj.host or "db"
+                port = url_obj.port or 5432
+                
+                # Rebuild safely
+                self.DATABASE_URL = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+            except Exception:
+                # Fallback to simple replace if URL parsing fails
+                if "***" in self.DATABASE_URL:
+                    self.DATABASE_URL = self.DATABASE_URL.replace("***", password)
         return self
 
     @classmethod
