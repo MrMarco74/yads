@@ -26,7 +26,9 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
+RUN pip install --no-cache-dir --upgrade pip==25.3 wheel==0.46.2 && \
+    pip install --no-cache-dir "jaraco.context>=6.1.0" && \
+    pip install --no-cache-dir -r requirements-api.txt
 
 
 # ── Stage 3: Scanner-tools layer ──────────────────────────────────────────────
@@ -52,7 +54,9 @@ RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/
 
 # Full worker deps (imagehash, mmh3, ipwhois, Pillow, psutil, etc.) + Playwright/Chromium
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir --upgrade pip==25.3 wheel==0.46.2 && \
+    pip install --no-cache-dir "jaraco.context>=6.1.0" && \
+    pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium
 
 
