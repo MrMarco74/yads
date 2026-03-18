@@ -1,6 +1,10 @@
 
 import os
 import sys
+
+# Add project root to sys.path so yads is importable when called with a full path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from sqlmodel import Session, select
 from yads.database import engine
 from yads.models import SystemConfig
