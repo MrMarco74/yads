@@ -888,6 +888,7 @@
         <!-- Hidden Forms for Single Actions -->
         {% for row in rows %}
             <form id="single-scan-{{ row.target.id }}" action="/targets/{{ row.target.id }}/scan" method="POST" class="hidden">
+                {{ csrf_token() }}
             </form>
         {% endfor %}
     </div>
