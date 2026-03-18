@@ -10,7 +10,7 @@ requests
 dnspython
 playwright
 jinja2
-python-multipart
+python-multipart>=0.0.22
 aiofiles
 
 ipwhois
@@ -18,7 +18,7 @@ fpdf2
 pandas
 openpyxl
 python-whois
-Pillow
+Pillow>=12.1.1
 imagehash
 tldextract
 python-jose[cryptography]
