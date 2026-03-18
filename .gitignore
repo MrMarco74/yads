@@ -49,3 +49,10 @@ yads/api/static/screenshots_locked/
 # Test backups
 tests/*.zip
 tests/*.sql
+
+# Security scan results
+results_semgrep.txt
+results_trivy.txt
+results.trivy
+trivy.txt
+ergebnisse.txt
