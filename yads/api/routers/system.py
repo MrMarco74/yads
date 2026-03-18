@@ -1091,21 +1091,16 @@ async def check_activation_from_portal(
     portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
 
     try:
-        req = _urllib.Request(
+        resp = requests.get(
             f"{portal_url}/api/installation/activation/{instance_uuid}",
             headers={"Accept": "application/json"},
+            timeout=10,
+            verify=settings.SUPPORT_PORTAL_VERIFY_SSL,
         )
-        ctx = None
-        if not settings.SUPPORT_PORTAL_VERIFY_SSL:
-            import ssl
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-        with _urllib.urlopen(req, timeout=10, context=ctx) as resp:
-            import json as _json
-            data = _json.loads(resp.read())
-    except _urlerr.URLError as e:
-        return RedirectResponse(url=f"/license?error=Portal+nicht+erreichbar:+{e.reason}", status_code=303)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.RequestException as e:
+        return RedirectResponse(url=f"/license?error=Portal+nicht+erreichbar+oder+Fehler:+{e}", status_code=303)
     except Exception as e:
         return RedirectResponse(url=f"/license?error=Fehler:+{e}", status_code=303)
 

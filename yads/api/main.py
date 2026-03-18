@@ -222,22 +222,20 @@ async def lifespan(app: FastAPI):
             with Session(engine) as session:
                 from yads.models import SystemConfig as _SC
                 import threading as _threading, json as _json
+                import requests as _requests
                 pending = session.get(_SC, "INSTALL_REPORT_PENDING")
                 already_sent = session.get(_SC, "INSTALL_REPORT_SENT")
                 if pending and not already_sent:
                     payload_str = pending.value
                     def _send_pending(pstr=payload_str):
                         try:
-                            import urllib.request as _ur
-                            data = pstr.encode()
-                            req = _ur.Request(
+                            data = _json.loads(pstr)
+                            resp = _requests.post(
                                 "https://support.yads-security.com/api/installation",
-                                data=data,
-                                headers={"Content-Type": "application/json"},
-                                method="POST",
+                                json=data,
+                                timeout=10,
                             )
-                            with _ur.urlopen(req, timeout=10):
-                                pass
+                            resp.raise_for_status()
                             # Mark as sent, remove pending
                             from yads.database import engine as _eng
                             from sqlmodel import Session as _Sess
@@ -372,11 +370,11 @@ from yads.api.middleware.csrf_middleware import CSRFMiddleware
 app.add_middleware(CSRFMiddleware)
 
 # -- CORS Setup --
-# Kept for dev compatibility, though strictly not needed for server-side rendering
+# Restricted to origins defined in settings
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

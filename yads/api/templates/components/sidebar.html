@@ -624,10 +624,14 @@
          <div class="mt-2 flex items-center justify-center gap-1 border-t border-slate-800 pt-2">
              <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">{{ _('common.language') if _('common.language') != 'common.language' else 'Lang' }}:</span>
              <form method="post" action="/profile/language" class="inline">
+                 {{ csrf_token() }}
+
                  <input type="hidden" name="language" value="en">
                  <button type="submit" class="text-[10px] font-bold px-2 py-0.5 rounded transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'en' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">EN</button>
              </form>
              <form method="post" action="/profile/language" class="inline">
+                 {{ csrf_token() }}
+
                  <input type="hidden" name="language" value="de">
                  <button type="submit" class="text-[10px] font-bold px-2 py-0.5 rounded transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'de' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">DE</button>
              </form>

@@ -202,8 +202,10 @@ function templateEditor() {
 
                 const response = await fetch('/reports/templates', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: { 'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}' }
                 });
+
 
                 if (response.ok) {
                     const redirectUrl = response.headers.get('HX-Redirect');
@@ -243,9 +245,11 @@ function templateEditor() {
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'HX-Request': 'true'
+                        'HX-Request': 'true',
+                        'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}'
                     }
                 });
+
 
                 if (response.ok) {
                     // Show success notification

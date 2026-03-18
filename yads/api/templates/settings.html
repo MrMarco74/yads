@@ -30,6 +30,8 @@
     {% endif %}
 
     <form id="settings-form" action="/settings" method="POST" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 items-start">
+        {{ csrf_token() }}
+
         
         <!-- License → eigene Seite -->
         <a href="/license" class="bg-gray-800 border border-amber-600/40 hover:border-amber-500/70 rounded-xl p-6 shadow-lg flex items-center gap-4 transition-colors group">
@@ -298,7 +300,11 @@
             function testEmail() {
                 const el = document.getElementById('email-test-result');
                 el.textContent = 'Sending...';
-                fetch('/settings/email/test', {method: 'POST'})
+                fetch('/settings/email/test', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}' }
+                })
+
                     .then(r => r.json())
                     .then(d => { el.textContent = d.message || 'Sent!'; el.className = 'ml-2 text-xs text-green-400'; })
                     .catch(e => { el.textContent = 'Failed: ' + e; el.className = 'ml-2 text-xs text-red-400'; });
@@ -640,7 +646,11 @@
                         icon.classList.add('hidden');
 
                         try {
-                            const response = await fetch('/api/updates/check', { method: 'POST' });
+                            const response = await fetch('/api/updates/check', { 
+                                method: 'POST',
+                                headers: { 'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}' }
+                            });
+
                             const data = await response.json();
                             updateData = data;
 
@@ -667,7 +677,11 @@
                         }
 
                         try {
-                            const response = await fetch(`/api/updates/start?channel=${channel}`, { method: 'POST' });
+                            const response = await fetch(`/api/updates/start?channel=${channel}`, { 
+                                method: 'POST',
+                                headers: { 'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}' }
+                            });
+
                             const data = await response.json();
 
                             if (response.ok) {
@@ -701,7 +715,11 @@
 
                     async function cancelUpdate() {
                         try {
-                            const response = await fetch('/api/updates/cancel', { method: 'POST' });
+                            const response = await fetch('/api/updates/cancel', { 
+                                method: 'POST',
+                                headers: { 'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}' }
+                            });
+
                             const data = await response.json();
 
                             if (response.ok) {
@@ -1060,6 +1078,8 @@
     
     <!-- Hidden Forms -->
     <form id="export-form" action="/api/backup/export" method="POST" class="hidden">
+        {{ csrf_token() }}
+
         <input type="hidden" name="tenant_ids" id="export_tenant_ids">
         <!-- Re-adding encryption input here if needed? The user's original form had an input visible in the UI? 
              Wait, the original form had visible inputs inside a "hidden" form? 
@@ -1071,10 +1091,22 @@
         <input type="password" name="password" id="export_password_hidden">
     </form>
     
-    <form id="reset-form" action="/admin/reset" method="POST" class="hidden"></form>
-    <form id="restore-analyze-form" hx-post="/api/backup/analyze" hx-encoding="multipart/form-data" hx-target="#restore-modal-container" hx-indicator="#restore-spinner"></form>
-    <form id="upload-wordlist-form" action="/settings/wordlist/upload" method="POST" enctype="multipart/form-data" class="hidden"></form>
-    <form id="delete-wordlist-form" action="/settings/wordlist/delete" method="POST" class="hidden"></form>
+    <form id="reset-form" action="/admin/reset" method="POST" class="hidden">
+        {{ csrf_token() }}
+    </form>
+
+    <form id="restore-analyze-form" hx-post="/api/backup/analyze" hx-encoding="multipart/form-data" hx-target="#restore-modal-container" hx-indicator="#restore-spinner">
+        {{ csrf_token() }}
+    </form>
+
+    <form id="upload-wordlist-form" action="/settings/wordlist/upload" method="POST" enctype="multipart/form-data" class="hidden">
+        {{ csrf_token() }}
+    </form>
+
+    <form id="delete-wordlist-form" action="/settings/wordlist/delete" method="POST" class="hidden">
+        {{ csrf_token() }}
+    </form>
+
 </div>
 
 <script>
@@ -1087,9 +1119,13 @@ async function submitActivationCode() {
     try {
         const resp = await fetch('/setup/activate', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}'
+            },
             body: JSON.stringify({activation_code: code}),
         });
+
         const data = await resp.json();
         if (resp.ok) {
             result.className = 'text-xs mt-1 text-green-400';

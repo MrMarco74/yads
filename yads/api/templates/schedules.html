@@ -73,6 +73,8 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                              <form action="/schedules/delete/{{ item.schedule.id }}" method="POST" class="inline-block" onsubmit="return confirm('Delete this schedule?');">
+                                {{ csrf_token() }}
+
                                 <button type="submit" class="text-xs text-red-400 hover:text-red-300 font-medium transition-colors">
                                     Delete
                                 </button>
@@ -100,6 +102,8 @@
         <h3 class="text-lg font-medium text-white">Create New Schedule</h3>
     </div>
     <form action="/schedules/add" method="POST" class="p-6">
+        {{ csrf_token() }}
+
         <div class="space-y-4">
             <div>
                 <label for="target_id" class="block text-sm font-medium text-slate-300">Target</label>
