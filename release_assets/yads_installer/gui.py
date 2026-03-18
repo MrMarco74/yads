@@ -14,6 +14,11 @@ from installer import DependencyChecker, NetworkTools
 STYLE_HEADER = "Header.TLabel"
 STYLE_ACTION_BTN = "Action.TButton"
 
+# Registry Constants
+REGISTRY_URL = "registry.yads-security.com"
+REGISTRY_USER = "yads-readonly"
+REGISTRY_TOKEN = "REDACTED"
+
 class YADSInstallerGUI:
     def __init__(self, root):
         self.root = root
@@ -591,12 +596,14 @@ class YADSInstallerGUI:
         db_url = f"postgresql://yads:{self.secrets.get('POSTGRES_PASSWORD')}@{self.data['host']}:5432/yads"
         redis_url = f"redis://{self.data['host']}:6379/0"
         
-        return f"docker run -d --name yads-remote-worker \\\n" \
+        login_cmd = f"echo '{REGISTRY_TOKEN}' | docker login {REGISTRY_URL} -u {REGISTRY_USER} --password-stdin && "
+        
+        return login_cmd + f"docker run -d --name yads-remote-worker \\\n" \
                f"  -e MANAGER_URL={manager_url} \\\n" \
                f"  -e WORKER_REGISTRATION_TOKEN={token} \\\n" \
                f"  -e DATABASE_URL={db_url} \\\n" \
                f"  -e REDIS_URL={redis_url} \\\n" \
-               f"  registry.yads-security.com/yads/yads-worker:latest"
+               f"  {REGISTRY_URL}/yads/yads-worker:latest"
 
     def deploy_worker_ssh(self, index):
         worker = self.data['remote_workers'][index]
@@ -682,6 +689,7 @@ class YADSInstallerGUI:
 
             if self.is_upgrade and mode == "update":
                 # UPDATE: pull new images, restart — preserve all config
+                self.authenticate_registry()
                 print("Pulling latest images...")
                 subprocess.run(["docker", "compose", "pull"], check=True)
                 print("Restarting services...")
@@ -1251,16 +1259,11 @@ class YADSInstallerGUI:
         return f"{proto}://localhost:{direct_port}"
 
     def authenticate_registry(self):
-        # Read-only credentials for YADS registry
-        reg_user = "yads-readonly"
-        reg_token = "REDACTED"
-        reg_url = "registry.yads-security.com"
-        
         try:
             # Note: In a production environment, we might want to mask the token 
             # but for this installer it mirrors the original setup.sh logic.
-            cmd = ["docker", "login", reg_url, "-u", reg_user, "--password-stdin"]
-            subprocess.run(cmd, input=reg_token, text=True, check=True, capture_output=True, timeout=30)
+            cmd = ["docker", "login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"]
+            subprocess.run(cmd, input=REGISTRY_TOKEN, text=True, check=True, capture_output=True, timeout=30)
             print("Successfully authenticated with YADS registry.")
         except subprocess.CalledProcessError as e:
             print(f"Registry login failed: {e.stderr}")
