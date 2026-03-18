@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
     VERSION: str = "2.1.0"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
+
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:yads_dev_local@db:5432/yads")
@@ -56,7 +58,7 @@ class Settings(BaseSettings):
     # Bug Report / Support Portal
     SUPPORT_PORTAL_URL: str = os.getenv("SUPPORT_PORTAL_URL", "https://support.yads-security.com")
     # X25519 public key (base64 raw, 32 bytes) — generated via scripts/generate_support_keypair.py
-    SUPPORT_DEV_PUBLIC_KEY: str = "0Q7SCbynTF/x9jd0E6VXbHfdDliZZsCTii7Inyfekj8="
+    SUPPORT_DEV_PUBLIC_KEY: str = "2MDu0XELKKqTCSW97qSwoWg2u+S4eXxN+O8PK25qnTc="
     # Set to false to skip TLS verification for the support portal (dev/staging without proper cert)
     SUPPORT_PORTAL_VERIFY_SSL: bool = os.getenv("SUPPORT_PORTAL_VERIFY_SSL", "true").lower() == "true"
 
