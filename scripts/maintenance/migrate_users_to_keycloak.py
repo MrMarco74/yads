@@ -370,18 +370,28 @@ def migrate(
         )).fetchall()
 
         # Tenant-User
-        where_parts = ["u.role != 'admin'"]  # Admins nur in yads-platform, nicht in Tenant-Realm
         if tenant_filter:
-            where_parts.append("lower(t.name) = lower(:tf)")
-        where_clause = "WHERE " + " AND ".join(where_parts)
+            # Admins only in yads-platform, filter by tenant name
+            query = (
+                'SELECT u.id, u.username, u.email, u.role, u.is_active, u.auth_mode, '
+                'u.oidc_sub, t.name as tenant_name '
+                'FROM "user" u JOIN tenant t ON u.tenant_id = t.id '
+                "WHERE u.role != 'admin' AND lower(t.name) = lower(:tf) "
+                'ORDER BY t.name, u.role, u.username'
+            )
+            params = {"tf": tenant_filter}
+        else:
+            # Admins only in yads-platform, all tenants
+            query = (
+                'SELECT u.id, u.username, u.email, u.role, u.is_active, u.auth_mode, '
+                'u.oidc_sub, t.name as tenant_name '
+                'FROM "user" u JOIN tenant t ON u.tenant_id = t.id '
+                "WHERE u.role != 'admin' "
+                'ORDER BY t.name, u.role, u.username'
+            )
+            params = {}
 
-        tenant_users = conn.execute(text(
-            'SELECT u.id, u.username, u.email, u.role, u.is_active, u.auth_mode, '
-            'u.oidc_sub, t.name as tenant_name '
-            'FROM "user" u JOIN tenant t ON u.tenant_id = t.id '
-            + where_clause
-            + ' ORDER BY t.name, u.role, u.username'
-        ), {"tf": tenant_filter} if tenant_filter else {}).fetchall()
+        tenant_users = conn.execute(text(query), params).fetchall()
 
         migrated = 0
         skipped = 0

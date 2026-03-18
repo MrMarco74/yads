@@ -23,6 +23,8 @@
     <div class="p-6 mb-8 bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
         <h2 class="mb-4 text-xl font-semibold text-gray-200">Create New Tenant</h2>
         <form action="/tenants/add" method="post" class="flex flex-wrap items-end gap-4">
+            {{ csrf_token() }}
+
             <div class="flex-1 min-w-[300px]">
                 <label class="block mb-1 text-sm text-gray-400">Tenant Name</label>
                 <input type="text" name="name" placeholder="Acme Corp" required class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500 transition-colors">
@@ -62,6 +64,8 @@
                         <button onclick="openLicenseModal({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.osint_enabled|lower }}, {{ tenant.osint_quota_max }}, {{ tenant.osint_cost_per_search }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">License</button>
                         <button onclick="openManageUsers({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.allowed_users|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">Users</button>
                         <form action="/tenants/delete" method="post" class="inline" onsubmit="return confirm('DANGER: This will delete ALL users, targets, and scan results for this tenant. Continue?');">
+                            {{ csrf_token() }}
+
                             <input type="hidden" name="tenant_id" value="{{ tenant.id }}">
                             <button class="px-3 py-1 text-xs font-bold text-red-300 bg-slate-800 border border-slate-700 rounded hover:bg-red-950 hover:border-red-900 transition-colors">Delete</button>
                         </form>
@@ -87,6 +91,8 @@
             <p class="text-gray-400 text-sm mb-6">Enter a new name for the tenant.</p>
             
             <form action="/tenants/update" method="POST" id="renameForm">
+                {{ csrf_token() }}
+
                 <input type="hidden" name="tenant_id" id="renameTenantId">
                 <div class="space-y-4">
                     <div>
@@ -119,6 +125,8 @@
             <p class="text-gray-400 text-sm mb-6">Configure OSINT features for <span id="licenseTenantName" class="font-bold text-purple-400"></span>.</p>
             
             <form action="/tenants/update" method="POST" id="licenseForm">
+                {{ csrf_token() }}
+
                 <input type="hidden" name="tenant_id" id="licenseTenantId">
                 <input type="hidden" name="name" id="licenseTenantNameHidden">
                 
@@ -175,6 +183,8 @@
         </div>
         
         <form action="/tenants/users/update" method="POST" id="manageUsersForm" class="flex-1 flex flex-col min-h-0">
+            {{ csrf_token() }}
+
             <input type="hidden" name="tenant_id" id="manageUsersTenantId">
             
             <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">

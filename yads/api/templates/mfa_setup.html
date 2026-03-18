@@ -28,6 +28,8 @@
             </div>
 
             <form method="post" action="/mfa/verify" class="space-y-4">
+                {{ csrf_token() }}
+
                 <input type="hidden" name="secret" value="{{ secret }}">
                 
                 <div>

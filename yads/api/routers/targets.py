@@ -4,6 +4,7 @@ import os
 import shutil
 import tldextract
 from typing import Optional, List
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
@@ -20,6 +21,16 @@ from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY, get_unavailable_modules, get_degraded_modules
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 from yads.models import SecurityAuditLog
+
+
+def _safe_redirect(url: Optional[str], default: str = "/targets/table") -> str:
+    """Reject absolute or protocol-relative URLs to prevent open redirect."""
+    if not url:
+        return default
+    parsed = urlparse(url)
+    if parsed.scheme or parsed.netloc or url.startswith("//"):
+        return default
+    return url
 
 
 def _audit_scan_trigger(session, user, domains: list, scan_types: list, trigger: str, request=None):
@@ -160,7 +171,7 @@ async def bulk_import_targets(
     form = await request.form()
     raw_text = form.get("targets_raw", "")
     discovery_reason = form.get("discovery_reason")
-    next_url = form.get("next", "/targets/table")
+    next_url = _safe_redirect(form.get("next"), "/targets/table")
     verify_dns = form.get("verify_dns") == "true"
     
     # Process File Upload if present
@@ -1660,7 +1671,7 @@ def replay_traffic(
             url=traffic.url,
             headers=headers,
             timeout=10,
-            verify=False
+            verify=False  # nosec B501 — replaying against arbitrary scan targets, cert validation intentionally skipped
         )
         duration = round(time.time() - start_time, 2)
         

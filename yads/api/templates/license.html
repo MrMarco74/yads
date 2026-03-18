@@ -43,6 +43,8 @@
             </h3>
 
             <form action="/license/save-key" method="POST" class="space-y-4 relative z-10">
+                {{ csrf_token() }}
+
                 <div id="license-card-content">
                     {% include "_license_card_content.html" %}
                 </div>
@@ -104,6 +106,8 @@
 
             <!-- Auto-fetch from portal -->
             <form action="/license/check-activation" method="POST" class="mb-4">
+                {{ csrf_token() }}
+
                 <button type="submit"
                     class="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-600 text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,9 +150,13 @@ async function submitActivationCode() {
     try {
         const resp = await fetch('/setup/activate', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}'
+            },
             body: JSON.stringify({activation_code: code})
         });
+
         const data = await resp.json();
         if (resp.ok) {
             result.className = 'text-xs mt-1 text-green-400';

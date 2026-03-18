@@ -49,6 +49,8 @@
                 Account Details
             </h2>
             <form action="/profile/update" method="POST" class="space-y-4">
+                {{ csrf_token() }}
+
                 <div>
                      <label class="block text-sm font-medium text-slate-400 mb-1">Username</label>
                      <input type="text" value="{{ user.username }}" disabled class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-500 cursor-not-allowed">
@@ -72,6 +74,8 @@
                 Security & Password
             </h2>
             <form action="/profile/password" method="POST" class="space-y-4">
+                {{ csrf_token() }}
+
                 <div>
                      <label class="block text-sm font-medium text-slate-400 mb-1">New Password</label>
                      <input type="password" name="password" required minlength="8" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
@@ -95,6 +99,8 @@
                  {% if user.mfa_enabled %}
                     <p class="text-sm text-slate-400">Your account is secured with MFA.</p>
                     <form action="/profile/mfa/reset" method="POST" onsubmit="return confirm('Disable MFA? This will reduce account security.');">
+                        {{ csrf_token() }}
+
                          <button type="submit" class="text-xs text-red-400 hover:text-red-300 underline font-medium">Disable MFA (Reset)</button>
                     </form>
                  {% else %}
@@ -116,6 +122,8 @@
             </h2>
             <p class="text-xs text-slate-500 mb-4">{{ _('profile.language_hint') }}</p>
             <form action="/profile/language" method="POST" class="space-y-4">
+                {{ csrf_token() }}
+
                 <div>
                     <label class="block text-sm font-medium text-slate-400 mb-2">{{ _('profile.language_label') }}</label>
                     <div class="flex gap-3">
@@ -146,6 +154,8 @@
             </h2>
             <p class="text-xs text-slate-400 mb-4">You are an administrator. Changing this affects all users.</p>
              <form action="/users/set_session" method="POST" class="flex gap-4 items-end max-w-md">
+                 {{ csrf_token() }}
+
                  <div class="flex-1">
                      <label class="block text-sm font-medium text-slate-400 mb-1">Session Timeout</label>
                      <input type="number" name="duration" value="{{ session_minutes|default(60) }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
