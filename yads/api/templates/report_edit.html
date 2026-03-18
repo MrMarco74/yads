@@ -98,6 +98,7 @@
 
     <!-- Hidden form for submission -->
     <form id="reportForm" action="/reports/{{ report.id }}/update" method="POST" class="hidden">
+        {{ csrf_token() }}
         <input type="hidden" name="title" :value="title">
         <input type="hidden" name="description" :value="description">
         <input type="hidden" name="markdown_content" :value="markdownContent">
