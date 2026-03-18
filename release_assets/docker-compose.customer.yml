@@ -21,7 +21,7 @@ services:
   yads-api:
     image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
     container_name: yads-api
-    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
     ports:
       # YADS_DIRECT_PORT=8000 when nginx is active (nginx handles external port).
