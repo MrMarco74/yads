@@ -131,7 +131,7 @@ class InfrastructureScanner(BaseScannerModule):
         import requests
         res = {"geoip": None, "cloud_provider_geoip": None}
         try:
-            geo_resp = requests.get(f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as", timeout=3)
+            geo_resp = requests.get(f"https://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as", timeout=3)
             if geo_resp.status_code == 200:
                 geo_data = geo_resp.json()
                 if geo_data.get("status") == "success":

@@ -90,7 +90,7 @@ class TLDScanner(BaseScannerModule):
                 server_header = None
                 try:
                     # Quick HEAD request
-                    h = requests.head(f"http://{candidate}", timeout=2, allow_redirects=True)
+                    h = requests.head(f"http://{candidate}", timeout=2, allow_redirects=True)  # nosec B113 — scanner probes typosquat candidate over http
                     server_header = h.headers.get("Server")
                 except Exception:
                     pass
