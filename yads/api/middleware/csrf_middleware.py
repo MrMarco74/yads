@@ -53,9 +53,15 @@ class CSRFMiddleware:
         method = request.method
         path = request.url.path
 
-        # ── GET / safe methods: pass through, set cookie if absent ──
+        # ── GET / safe methods: pass through, set cookie if absent OR invalid ──
+        # An existing cookie may be stale (signed with an old SECRET_KEY after a reinstall).
+        # Always validate and replace it if it fails — this is the key fix for the "CSRF
+        # cookie missing or invalid" error that returns after fresh installs.
         if method in _SAFE_METHODS:
-            if CSRF_COOKIE not in request.cookies:
+            existing = request.cookies.get(CSRF_COOKIE, "")
+            if not existing or not validate_csrf_token(existing):
+                if existing:
+                    logger.info("CSRF: replacing stale/invalid cookie on GET %s", path)
                 await self._pass_set_cookie(scope, receive, send)
             else:
                 await self.app(scope, receive, send)
@@ -118,9 +124,25 @@ class CSRFMiddleware:
         from yads.config import settings
 
         token = generate_csrf_token()
-        # Secure flag: True when running behind a TLS-terminating reverse proxy
-        # (always the case in prod). Only skip when operator explicitly disables HTTPS.
-        secure = not settings.DISABLE_HTTPS_ONLY
+
+        # Determine if we should set the Secure flag.
+        # 1. Check if the current request is HTTPS (direct or via reverse proxy)
+        scheme = scope.get("scheme", "http")
+        headers = dict(scope.get("headers", []))
+        if b"x-forwarded-proto" in headers:
+            if headers[b"x-forwarded-proto"].lower() == b"https":
+                scheme = "https"
+
+        # 2. Secure flag:
+        # - If DISABLE_HTTPS_ONLY is True (dev/installer fallback):
+        #   Only set Secure if we are actually on HTTPS.
+        # - If DISABLE_HTTPS_ONLY is False (production default):
+        #   Force Secure even if the internal connection is HTTP (expected behind proxy).
+        if settings.DISABLE_HTTPS_ONLY:
+            secure = (scheme == "https")
+        else:
+            secure = True
+
         cookie_header = (
             f"{CSRF_COOKIE}={token}; Path=/; SameSite=Strict"
             + ("; Secure" if secure else "")

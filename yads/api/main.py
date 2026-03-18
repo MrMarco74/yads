@@ -42,171 +42,79 @@ async def lifespan(app: FastAPI):
             create_db_and_tables()
             
             # --- Schema Migration & Multi-Tenancy Init ---
+            from sqlalchemy import inspect
+            inspector = inspect(engine)
+            
             with Session(engine) as session:
-                # Check if tenant table exists and columns are present (SQLModel create_all creates tables but doesn't alter)
-                # We can rely on basic SQL checks for SQLite/Postgres compatibility or inspection
-                # Simplest for this setup: Try to query tenant, if fail, we might be in weird state.
-                # But create_all should have created the table "tenant" if it didn't exist.
-                
-                # Check if User table has tenant_id column
-                try:
-                    session.exec(text("SELECT tenant_id FROM \"user\" LIMIT 1"))
-                except Exception:
-                    logger.info("Migrating schema: Adding tenant_id to user table")
-                    session.rollback()
-                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
-                except Exception:
-                    logger.info("Migrating schema: Adding tenant_id to user table")
-                    session.rollback()
-                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
-                    session.commit()
-                    
-                # Check for last_login column
-                try:
-                    session.exec(text("SELECT last_login FROM \"user\" LIMIT 1"))
-                except Exception:
-                    logger.info("Migrating schema: Adding last_login to user table")
-                    session.rollback()
-                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login TIMESTAMP WITHOUT TIME ZONE"))
+                # --- User Table ---
+                if inspector.has_table("user"):
+                    user_columns = [c["name"] for c in inspector.get_columns("user")]
+                    if "tenant_id" not in user_columns:
+                        logger.info("Migrating schema: Adding tenant_id to user table")
+                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                    if "last_login" not in user_columns:
+                        logger.info("Migrating schema: Adding last_login to user table")
+                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login TIMESTAMP WITHOUT TIME ZONE"))
+                    if "email" not in user_columns:
+                        logger.info("Migrating schema: Adding email to user table")
+                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN email VARCHAR"))
+                    if "language" not in user_columns:
+                        logger.info("Migrating schema: Adding language to user table")
+                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN language VARCHAR DEFAULT 'en'"))
                     session.commit()
 
-                # Check for email column (v1.3.0)
-                try:
-                    session.exec(text("SELECT email FROM \"user\" LIMIT 1"))
-                except Exception:
-                    logger.info("Migrating schema: Adding email to user table")
-                    session.rollback()
-                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN email VARCHAR"))
-                    session.commit()
-                    
-                # Check if Target table has tenant_id column
-                # Check if target table has tenant_id column
-                try:
-                    session.exec(text("SELECT tenant_id FROM target LIMIT 1"))
-                except Exception:
-                    logger.info("Migrating schema: Adding tenant_id to target table")
-                    session.rollback()
-                    session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                # --- Target Table ---
+                if inspector.has_table("target"):
+                    target_columns = [c["name"] for c in inspector.get_columns("target")]
+                    if "tenant_id" not in target_columns:
+                        logger.info("Migrating schema: Adding tenant_id to target table")
+                        session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
+                    if "scan_priority" not in target_columns:
+                        logger.info("Migrating schema: Adding scan_priority to target table")
+                        session.exec(text("ALTER TABLE target ADD COLUMN scan_priority INTEGER DEFAULT 5"))
                     session.commit()
 
-                # Migration for OSINT API Keys (v1.16.0)
-                # Use inspector for robust checking
-                from sqlalchemy import inspect
-                inspector = inspect(engine)
-                
-                # Check Tenant Columns
+                # --- Tenant Table ---
                 if inspector.has_table("tenant"):
-                    columns = [c["name"] for c in inspector.get_columns("tenant")]
-                    
-                    if "shodan_api_key" not in columns:
-                        logger.info("Migrating schema: Adding shodan_api_key to tenant table")
-                        session.exec(text("ALTER TABLE tenant ADD COLUMN shodan_api_key VARCHAR"))
-                        
-                    if "censys_api_key" not in columns:
-                         logger.info("Migrating schema: Adding censys_api_key to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN censys_api_key VARCHAR"))
-                         
-                    if "virustotal_api_key" not in columns:
-                         logger.info("Migrating schema: Adding virustotal_api_key to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN virustotal_api_key VARCHAR"))
-
-                    # v1.15.0 Keys
-                    if "hunter_api_key" not in columns:
-                         logger.info("Migrating schema: Adding hunter_api_key to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN hunter_api_key VARCHAR"))
-                    if "github_token" not in columns:
-                         logger.info("Migrating schema: Adding github_token to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN github_token VARCHAR"))
-                    if "twitter_bearer_token" not in columns:
-                         logger.info("Migrating schema: Adding twitter_bearer_token to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN twitter_bearer_token VARCHAR"))
-                    
-                    # Session & Branding
-                    if "session_timeout_minutes" not in columns:
-                         logger.info("Migrating schema: Adding session_timeout_minutes to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN session_timeout_minutes INTEGER DEFAULT 60"))
-
-                    if "report_logo_url" not in columns:
-                         logger.info("Migrating schema: Adding report_logo_url to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_logo_url VARCHAR"))
-
-                    if "report_company_name" not in columns:
-                         logger.info("Migrating schema: Adding report_company_name to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_company_name VARCHAR"))
-
-                    if "report_primary_color" not in columns:
-                         logger.info("Migrating schema: Adding report_primary_color to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_primary_color VARCHAR DEFAULT '#3b82f6'"))
-
-                    if "report_secondary_color" not in columns:
-                         logger.info("Migrating schema: Adding report_secondary_color to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_secondary_color VARCHAR DEFAULT '#64748b'"))
-                         
-                    if "report_header_text" not in columns:
-                         logger.info("Migrating schema: Adding report_header_text to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_header_text VARCHAR"))
-
-                    if "report_footer_text" not in columns:
-                         logger.info("Migrating schema: Adding report_footer_text to tenant table")
-                         session.exec(text("ALTER TABLE tenant ADD COLUMN report_footer_text VARCHAR"))
-
+                    tenant_columns = [c["name"] for c in inspector.get_columns("tenant")]
+                    keys = [
+                        "shodan_api_key", "censys_api_key", "virustotal_api_key",
+                        "hunter_api_key", "github_token", "twitter_bearer_token",
+                        "session_timeout_minutes", "report_logo_url", "report_company_name",
+                        "report_primary_color", "report_secondary_color",
+                        "report_header_text", "report_footer_text"
+                    ]
+                    for key in keys:
+                        if key not in tenant_columns:
+                            logger.info(f"Migrating schema: Adding {key} to tenant table")
+                            if key == "session_timeout_minutes":
+                                session.exec(text("ALTER TABLE tenant ADD COLUMN session_timeout_minutes INTEGER DEFAULT 60"))
+                            elif key == "report_primary_color":
+                                session.exec(text("ALTER TABLE tenant ADD COLUMN report_primary_color VARCHAR DEFAULT '#3b82f6'"))
+                            elif key == "report_secondary_color":
+                                session.exec(text("ALTER TABLE tenant ADD COLUMN report_secondary_color VARCHAR DEFAULT '#64748b'"))
+                            else:
+                                session.exec(text(f"ALTER TABLE tenant ADD COLUMN {key} VARCHAR"))
                     session.commit()
 
-                # Target scan_priority (v1.20.0)
-                target_columns = [c["name"] for c in inspector.get_columns("target")]
-                if "scan_priority" not in target_columns:
-                    logger.info("Migrating schema: Adding scan_priority to target table")
-                    session.exec(text("ALTER TABLE target ADD COLUMN scan_priority INTEGER DEFAULT 5"))
-                    session.commit()
-
-                # User language preference (i18n v1.20.0)
-                user_columns = [c["name"] for c in inspector.get_columns("user")]
-                if "language" not in user_columns:
-                    logger.info("Migrating schema: Adding language to user table")
-                    session.exec(text("ALTER TABLE \"user\" ADD COLUMN language VARCHAR DEFAULT 'en'"))
-                    session.commit()
-
-                # Check WorkerNode Columns
+                # --- WorkerNode Table ---
                 if inspector.has_table("workernode"):
-                    columns = [c["name"] for c in inspector.get_columns("workernode")]
-                    
-                    if "node_id" not in columns:
-                        logger.info("Migrating schema: Adding node_id to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN node_id VARCHAR"))
-                        
-                    if "status" not in columns:
-                        logger.info("Migrating schema: Adding status to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN status VARCHAR DEFAULT 'pending'"))
-                        
-                    if "capabilities" not in columns:
-                        logger.info("Migrating schema: Adding capabilities to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN capabilities JSONB DEFAULT '[]'"))
-
-                    if "assigned_tenant_ids" not in columns:
-                        logger.info("Migrating schema: Adding assigned_tenant_ids to workernode table")
-                        # JSONB column
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN assigned_tenant_ids JSONB DEFAULT '[]'"))
-
-                    if "max_daily_scans" not in columns:
-                        logger.info("Migrating schema: Adding max_daily_scans to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN max_daily_scans INTEGER"))
-
-                    if "description" not in columns:
-                        logger.info("Migrating schema: Adding description to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN description VARCHAR"))
-
-                    if "version" not in columns:
-                        logger.info("Migrating schema: Adding version to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN version VARCHAR"))
-
-                    if "cpu_count" not in columns:
-                        logger.info("Migrating schema: Adding cpu_count to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN cpu_count INTEGER"))
-
-                    if "memory_mb" not in columns:
-                        logger.info("Migrating schema: Adding memory_mb to workernode table")
-                        session.exec(text("ALTER TABLE workernode ADD COLUMN memory_mb INTEGER"))
-
+                    node_columns = [c["name"] for c in inspector.get_columns("workernode")]
+                    cols = {
+                        "node_id": "VARCHAR",
+                        "status": "VARCHAR DEFAULT 'pending'",
+                        "capabilities": "JSONB DEFAULT '[]'",
+                        "assigned_tenant_ids": "JSONB DEFAULT '[]'",
+                        "max_daily_scans": "INTEGER",
+                        "description": "VARCHAR",
+                        "version": "VARCHAR",
+                        "cpu_count": "INTEGER",
+                        "memory_mb": "INTEGER"
+                    }
+                    for col, db_type in cols.items():
+                        if col not in node_columns:
+                            logger.info(f"Migrating schema: Adding {col} to workernode table")
+                            session.exec(text(f"ALTER TABLE workernode ADD COLUMN {col} {db_type}"))
                     session.commit()
 
                 # Ensure Default Tenant "a customer" -> REMOVED PER USER REQ
@@ -419,6 +327,10 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 # -- Static & Templates --
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
