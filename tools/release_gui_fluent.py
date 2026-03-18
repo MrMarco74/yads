@@ -1053,7 +1053,7 @@ class ProdDeployWorker(QThread):
                 self.signals.progress_update.emit(8, 100, "Building Worker image...")
                 # Use Dockerfile.worker (pre-baked tools base) if available — much faster.
                 # Falls back to --target worker (inline full build) if Dockerfile.worker is missing.
-                tools_image = f"{RebuildToolsWorker.TOOLS_REGISTRY_IMAGE}:{getattr(self, 'tools_tag', '1.0')}"
+                tools_image = f"{RebuildToolsWorker.TOOLS_REGISTRY_IMAGE}:{getattr(self, 'tools_tag', '1.2')}"
                 worker_dockerfile = self.project_root / "Dockerfile.worker"
                 if worker_dockerfile.exists():
                     self._log(f"  Using Dockerfile.worker with pre-baked tools image ({tools_image})...", "info")
@@ -1388,12 +1388,12 @@ class ProdDeployWorker(QThread):
 class RebuildToolsWorker(QThread):
     """
     Builds and pushes the pre-baked yads-tools base image (Dockerfile.tools).
-    Only needed when Playwright, Nuclei, or Nmap versions change — not on every code push.
+    Only needed when Playwright, Nuclei, or system dependency versions change — not on every code push.
     """
 
     TOOLS_REGISTRY_IMAGE = "registry.yads-security.com/yads/yads-tools"
 
-    def __init__(self, project_root: Path, tools_tag: str = "1.0"):
+    def __init__(self, project_root: Path, tools_tag: str = "1.2"):
         super().__init__()
         self.project_root = project_root
         self.tools_tag = tools_tag
@@ -1495,7 +1495,7 @@ class ProdDeployPage(QWidget):
             import yaml as _yaml
             if self._CONFIG_PATH.exists():
                 data = _yaml.safe_load(self._CONFIG_PATH.read_text()) or {}
-                self.tools_tag_input.setText(str(data.get('tools_tag', '1.0')))
+                self.tools_tag_input.setText(str(data.get('tools_tag', '1.2')))
         except Exception:
             pass
 
@@ -1503,7 +1503,7 @@ class ProdDeployPage(QWidget):
         try:
             import yaml as _yaml
             data = _yaml.safe_load(self._CONFIG_PATH.read_text()) or {} if self._CONFIG_PATH.exists() else {}
-            data['tools_tag'] = self.tools_tag_input.text().strip() or '1.0'
+            data['tools_tag'] = self.tools_tag_input.text().strip() or '1.2'
             self._CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
             self._CONFIG_PATH.write_text(_yaml.dump(data, allow_unicode=True))
         except Exception:
@@ -1572,9 +1572,9 @@ class ProdDeployPage(QWidget):
         tools_layout.addStretch()
 
         self.tools_tag_input = LineEdit(self)
-        self.tools_tag_input.setText("1.0")
+        self.tools_tag_input.setText("1.2")
         self.tools_tag_input.setFixedWidth(60)
-        self.tools_tag_input.setToolTip("Image version tag, e.g. 1.0, 1.1")
+        self.tools_tag_input.setToolTip("Image version tag, e.g. 1.1, 1.2")
         tools_layout.addWidget(self.tools_tag_input)
 
         self.rebuild_tools_btn = PushButton(FIF.UPDATE, "Rebuild & Push Tools Image", self)
