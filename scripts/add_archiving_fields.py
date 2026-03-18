@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 def run_migration():
     """Add archiving fields to target table"""
-    # Get database URL from environment or fallback to detected config.env password
-    # In docker-compose, yads-api should usually have DATABASE_URL set.
-    db_url = os.getenv("DATABASE_URL", "postgresql://yads:REDACTED@db:5432/yads")
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise SystemExit("ERROR: DATABASE_URL environment variable is not set.")
     engine = create_engine(db_url)
     
     with Session(engine) as session:
