@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from sqlmodel import Session, select
-from yads.database import engine
+from yads.database import engine, wait_for_db
 from yads.models import SystemConfig
 from yads.core.logging_config import configure_logging
 
@@ -20,6 +20,11 @@ def apply_license():
 
     logger.info("Found LICENSE_KEY in environment. Applying to SystemConfig...")
     
+    # Wait for DB to be potentially ready (especially useful on first boot)
+    if not wait_for_db():
+        logger.error("Database connection failed. Exiting.")
+        sys.exit(1)
+
     try:
         with Session(engine) as session:
             # Check existing

@@ -23,6 +23,28 @@ router = APIRouter()
 _templates_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_templates_dir))
 
+# ---------------------------------------------------------------------------
+# CSRF Helpers (for shared templates)
+# ---------------------------------------------------------------------------
+from jinja2 import pass_context
+from markupsafe import Markup
+
+@pass_context
+def csrf_token(context):
+    request = context.get('request')
+    if not request: return Markup('')
+    token = request.scope.get('csrf_token', '')
+    return Markup(f'<input type="hidden" name="_csrf" value="{token}">')
+
+@pass_context
+def csrf_token_value(context):
+    request = context.get('request')
+    if not request: return ''
+    return request.scope.get('csrf_token', '')
+
+templates.env.globals['csrf_token'] = csrf_token
+templates.env.globals['csrf_token_value'] = csrf_token_value
+
 VALID_STATUSES = ["new", "open", "resolved"]
 VALID_CONTACT_STATUSES = ["offen", "in_arbeit", "potenzial", "kunde", "spam"]
 

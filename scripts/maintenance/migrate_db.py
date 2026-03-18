@@ -5,7 +5,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from sqlmodel import text
-from yads.database import engine
+from yads.database import engine, wait_for_db
 from yads.core.seeding import seed_changelog
 
 def migrate():
@@ -14,6 +14,10 @@ def migrate():
     VERIFIED SAFE: This script only performs ADD COLUMN / CREATE TABLE operations.
     It DOES NOT drop tables or columns, ensuring NO DATA LOSS.
     """
+    if not wait_for_db():
+        print("[ERROR] Database connection failed. Exiting migration.")
+        sys.exit(1)
+
     with engine.connect() as conn:
         print("Migrating Database...")
         

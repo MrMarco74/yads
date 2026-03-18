@@ -158,6 +158,17 @@ except ImportError as e:
     print(f"Error importing release modules: {e}")
 
 
+def get_tools_version(project_root: Path) -> str:
+    """Read tools version from central tools/TOOLS_VERSION file"""
+    try:
+        ver_file = project_root / "tools" / "TOOLS_VERSION"
+        if ver_file.exists():
+            return ver_file.read_text().strip()
+    except Exception:
+        pass
+    return "1.2"  # Fallback
+
+
 class LogSignals(QObject):
     """Signals for thread-safe log updates"""
     log_message = Signal(str, str)  # message, level
@@ -647,6 +658,7 @@ class ProdDeployWorker(QThread):
                  setup_license: str = ""):
         super().__init__()
         self.project_root = project_root
+        self.tools_tag = get_tools_version(project_root)
         self.wipe_reinstall = wipe_reinstall
         self.pg_password = pg_password
         self.setup_admin_user = setup_admin_user
@@ -1393,10 +1405,10 @@ class RebuildToolsWorker(QThread):
 
     TOOLS_REGISTRY_IMAGE = "registry.yads-security.com/yads/yads-tools"
 
-    def __init__(self, project_root: Path, tools_tag: str = "1.2"):
+    def __init__(self, project_root: Path, tools_tag: str = None):
         super().__init__()
         self.project_root = project_root
-        self.tools_tag = tools_tag
+        self.tools_tag = tools_tag or get_tools_version(project_root)
         self.signals = LogSignals()
         self.cancelled = False
         self.current_process = None
