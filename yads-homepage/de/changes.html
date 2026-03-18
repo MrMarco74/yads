@@ -225,6 +225,39 @@
     <div class="container">
 
         <div class="timeline">
+<!-- Version 2.2.0 (stable) -->
+        <div class="change-entry">
+            <span class="version-badge">v2.2.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
+            <div class="change-card">
+                <h2 style="margin-bottom: 1rem; color: #fff;">Sicherheits- & Stabilitäts-Release</h2>
+
+                <h3>🔒 Sicherheit</h3>
+                <ul>
+                    <li>CSRF-Schutz zu allen verbleibenden Formularen hinzugefügt, wodurch potenzielle Schwachstellen behoben wurden.</li>
+                    <li>Offene Redirect-Schwachstelle durch Implementierung einer sicheren Redirect-Funktionalität behoben.</li>
+                    <li>Konfigurierbare SSL-Verifizierung für SIEM-Integrationen zur Verbesserung der Sicherheit und Flexibilität.</li>
+                    <li>Abhängigkeiten aktualisiert, um mehrere CVEs zu beheben, darunter Schwachstellen in pip, wheel, jaraco.context, python-multipart, Pillow, cryptography und pyasn1.</li>
+                    <li>X25519-Schlüsselpaar rotiert und sichere Bereitstellung des privaten Schlüssels.</li>
+                    <li>Privater Schlüssel aus dem Docker-Image entfernt.</li>
+                    <li>Fehlerpfade in Benutzermigrationsskripten gehärtet.</li>
+                    <li>`nosec`-Annotationen für gerechtfertigte Sicherheitsausnahmen in verschiedenen Scannern hinzugefügt, um falsche Positivmeldungen zu verhindern und gleichzeitig das Bewusstsein für potenzielle Risiken aufrechtzuerhalten.</li>
+                    <li>`urllib`-Aufrufe durch `requests` in Installationsberichten und Portalprüfungen ersetzt, um die Fehlerbehandlung und Sicherheit zu verbessern.</li>
+                </ul>
+                <h3>📈 Performance</h3>
+                <ul>
+                    <li>Verbesserte Abfrageleistung von ChangeEvent durch serverseitige Zählung, wodurch das Laden aller Zeilen in den Speicher vermieden wird.</li>
+                </ul>
+                <h3>🔧 Technische Verbesserungen</h3>
+                <ul>
+                    <li>Nmap aus dem Standard-Docker-Image entfernt; Nmap ist jetzt über die Admin-UI optional.</li>
+                    <li>Docker-Bereinigung umgestaltet, um nur den YADS-Stack zu betreffen und Interferenzen mit dem Support-Portal zu verhindern.</li>
+                    <li>Ausnahmemeldungen vor der Protokollierung bereinigt, um Log-Injection zu verhindern.</li>
+                    <li>GeoIP-API aktualisiert, um HTTPS für verbesserte Sicherheit und Datenintegrität zu verwenden.</li>
+                    <li>Sicherheits-Scan-Ergebnisse in .gitignore ignoriert und VS Code-Einstellungen für Semgrep aktualisiert.</li>
+                </ul>
+                <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 465b4320787a71cec2ced6e46cf0f2dfb0b03c5a32c4c4059fe16fb47e6325b7</p>
+            </div>
+        </div>
 <!-- Version 2.1.0 (stable) -->
         <div class="change-entry">
             <span class="version-badge">v2.1.0</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -247,6 +280,13 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: 95652139c8435ba83b7e7c5f0ccb9d5d8617f49907765bfc2dbb29007aea0a3d</p>
             </div>
         </div>
+        <details class="change-archive">
+            <summary>
+                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Ältere Versionen anzeigen (v2.0.x und früher)
+            </summary>
+            <div class="archive-body">
+
 <!-- Version 2.0.9 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v2.0.9</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
@@ -524,13 +564,6 @@
                 <p style="margin-top: 1.5rem; font-family: monospace; font-size: 0.8rem; color: #888; word-break: break-all;">SHA256: a046828f9c0d41071ee38279dd80163099b681be68e11aa94a24afe898d758cd</p>
             </div>
         </div>
-        <details class="change-archive">
-            <summary>
-                <svg class="archive-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                Ältere Versionen anzeigen (v1.51.x und früher)
-            </summary>
-            <div class="archive-body">
-
 <!-- Version 1.51.5 (stable) -->
         <div class="change-entry change-entry-patch">
             <span class="version-badge">v1.51.5</span><span class="channel-badge stable" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; text-transform: uppercase;">Stable</span>
