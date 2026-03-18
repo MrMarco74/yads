@@ -332,7 +332,9 @@ async def health_check():
 
 # -- Static & Templates --
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
-from yads.api.templating import templates
+from yads.api.templating import templates, csrf_token, csrf_token_value
+templates.env.globals['csrf_token'] = csrf_token
+templates.env.globals['csrf_token_value'] = csrf_token_value
 
 # Inject Globals
 templates.env.globals['settings'] = settings

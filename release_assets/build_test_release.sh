@@ -18,6 +18,28 @@ echo "==========================================================================
 echo "[1/4] Building installer package..."
 python3 "$ASSETS_DIR/yads_installer/build.py"
 
+# 1.5. Rebuild and Push Docker Images
+# This ensures the test device pulls the latest code changes.
+echo "[1.5/4] Rebuilding and pushing Docker images..."
+REGISTRY="registry.yads-security.com/yads"
+
+# Build API
+docker build --target api \
+  --build-arg YADS_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+  -t ${REGISTRY}/yads-api:latest \
+  -f "$ROOT_DIR/Dockerfile" "$ROOT_DIR"
+
+# Build Worker
+docker build \
+  --build-arg TOOLS_IMAGE="${REGISTRY}/yads-tools:$(cat "${ROOT_DIR}/tools/TOOLS_VERSION")" \
+  --build-arg YADS_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+  -t ${REGISTRY}/yads-worker:latest \
+  -f "$ROOT_DIR/Dockerfile.worker" "$ROOT_DIR"
+
+# Push
+docker push ${REGISTRY}/yads-api:latest
+docker push ${REGISTRY}/yads-worker:latest
+
 # 2. Create a clean staging directory inside a temp dir
 echo "[2/4] Preparing staging area..."
 mkdir -p "$INSTALL_TEST_DIR"

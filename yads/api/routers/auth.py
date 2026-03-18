@@ -84,13 +84,32 @@ async def login(
                 "request": request,
                 "error": "MFA session expired. Please log in again."
             })
-        pending_username = stored.decode()
+        pending_username = stored if isinstance(stored, str) else stored.decode()
         user = session.exec(select(User).where(User.username == pending_username)).first()
         if not user or not user.is_active:
             redis_client.delete(pending_key)
             return templates.TemplateResponse("login.html", {
                 "request": request,
-                "error": "Invalid session."
+                    "error": "Invalid session."
+                })
+        
+        # Rate limiting for MFA: 10 attempts per IP per 5 minutes
+        client_ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or request.headers.get("X-Real-IP", "")
+            or (request.client.host if request.client else "")
+        ) or "unknown"
+        mfa_rate_key = f"yads:mfa_rate:{client_ip}"
+        mfa_attempts = redis_client.incr(mfa_rate_key)
+        if mfa_attempts == 1:
+            redis_client.expire(mfa_rate_key, 300)
+        if mfa_attempts > 10:
+            return templates.TemplateResponse("login.html", {
+                "request": request,
+                "error": "Too many MFA attempts. Please try again later.",
+                "mfa_required": True,
+                "username": pending_username,
+                "mfa_token": mfa_token,
             })
         if not otp_code or not pyotp.TOTP(user.mfa_secret).verify(
             otp_code, valid_window=_get_otp_window(session)

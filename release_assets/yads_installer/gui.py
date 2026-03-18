@@ -182,10 +182,15 @@ class YADSInstallerGUI:
                 cmd = ["sudo", "-H", "-S"] + cmd
                 # Mix password with existing input if any
                 orig_input = kwargs.get('input', '')
-                if isinstance(orig_input, bytes):
-                    kwargs['input'] = self.sudo_password.encode() + b"\n" + orig_input
+                if orig_input:
+                    # Provide password on first line, then the rest
+                    if isinstance(orig_input, bytes):
+                        kwargs['input'] = self.sudo_password.encode() + b"\n" + orig_input
+                    else:
+                        kwargs['input'] = str(self.sudo_password) + "\n" + str(orig_input)
                 else:
-                    kwargs['input'] = str(self.sudo_password) + "\n" + str(orig_input)
+                    # Only password
+                    kwargs['input'] = self.sudo_password + "\n"
                 kwargs['text'] = not isinstance(kwargs['input'], bytes)
         
         return subprocess.run(cmd, **kwargs)
@@ -832,8 +837,8 @@ class YADSInstallerGUI:
                 pg_password = self.secrets.get("POSTGRES_PASSWORD", "")
                 if pg_password:
                     for _ in range(15):  # wait up to 30s for DB to be ready
-                        sync = subprocess.run(
-                            ["docker", "exec", "yads-db", "psql", "-U", "yads", "-d", "yads",
+                        sync = self.run_docker(
+                            ["exec", "yads-db", "psql", "-U", "yads", "-d", "yads",
                              "-c", f"ALTER USER yads WITH PASSWORD '{pg_password.replace(chr(39), chr(39)*2)}';"],
                             capture_output=True, text=True, timeout=10
                         )
@@ -858,16 +863,18 @@ class YADSInstallerGUI:
                     self.root.after(0, lambda i=i: self._set_progress(
                         f"Warte auf YADS-Start... ({i*2}s) — {health_url}"))
                     try:
-                        urllib.request.urlopen(health_url, timeout=2)
-                        api_ready = True
-                        break
+                        with urllib.request.urlopen(health_url, timeout=2) as r:
+                            if r.status == 200:
+                                api_ready = True
+                                break
                     except Exception:
-                        time.sleep(2)
+                        pass
+                    time.sleep(2)
 
                 if not api_ready:
                     # Show docker logs for diagnosis
-                    logs = subprocess.run(
-                        ["docker", "logs", "--tail", "20", "yads-api"],
+                    logs = self.run_docker(
+                        ["logs", "--tail", "20", "yads-api"],
                         capture_output=True, text=True
                     )
                     raise RuntimeError(
@@ -1287,13 +1294,47 @@ class YADSInstallerGUI:
 
     def authenticate_registry(self):
         try:
-            # Note: In a production environment, we might want to mask the token 
-            # but for this installer it mirrors the original setup.sh logic.
-            args = ["login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"]
-            self.run_docker(args, input=REGISTRY_TOKEN, text=True, check=True, capture_output=True, timeout=30)
+            print("Authenticating with YADS registry...")
+            
+            if self.data.get("use_sudo"):
+                if self.sudo_password is None:
+                    self.sudo_password = self.ask_sudo_password()
+                
+                if self.sudo_password:
+                    # To avoid complex stdin mixing with sudo -S and --password-stdin,
+                    # we use the -p flag directly. While this is slightly less secure 
+                    # (short-term visibility in ps), it is more reliable for this installer 
+                    # and uses a read-only token.
+                    args = ["login", REGISTRY_URL, "-u", REGISTRY_USER, "-p", REGISTRY_TOKEN]
+                    result = self.run_docker(args, capture_output=True, text=True, timeout=30)
+                else:
+                    return False
+            else:
+                # Normal login without sudo can use --password-stdin safely
+                args = ["login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"]
+                result = subprocess.run(["docker"] + args, input=REGISTRY_TOKEN, 
+                                       text=True, capture_output=True, timeout=30)
+            
+            if result.returncode != 0:
+                err = (result.stderr or result.stdout).strip()
+                print(f"Registry login failed: {err}")
+                # Filter out password from error message just in case
+                safe_err = err.replace(REGISTRY_TOKEN, "********")
+                if self.sudo_password:
+                    safe_err = safe_err.replace(self.sudo_password, "********")
+                
+                messagebox.showwarning("Registry Login Error", 
+                                       f"Login bei {REGISTRY_URL} fehlgeschlagen.\n\n"
+                                       f"Fehler: {safe_err}\n\n"
+                                       "Dies kann zu 'Permission Denied' Fehlern beim Ziehen der Images führen.")
+                return False
+                
             print("Successfully authenticated with YADS registry.")
-        except subprocess.CalledProcessError as e:
-            print(f"Registry login failed: {e.stderr}")
+            return True
+        except Exception as e:
+            print(f"Registry login exception: {e}")
+            messagebox.showerror("Error", f"Registry login exception: {e}")
+            return False
             # We don't necessarily want to crash here, maybe the user is already logged in 
             # or has their own credentials.
 
