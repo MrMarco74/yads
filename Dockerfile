@@ -41,11 +41,8 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     gnupg \
     unzip \
     && rm -rf /var/lib/apt/lists/*
-# NOTE: Nmap is NOT bundled — it is licensed under GPL-2.0.
-# Install it separately on the host or via the admin UI:
-#   apt-get install -y nmap        (Debian/Ubuntu)
-#   yum install -y nmap            (RHEL/CentOS)
-# If nmap is absent, the nmap_scanner module is automatically disabled in the UI.
+# NOTE: Nmap is not bundled. Install via the admin UI (Settings → Tools) if needed.
+# When absent, nmap_scanner falls back to socket-based port scanning automatically.
 
 # Nuclei binary only — templates come from the nuclei_templates Docker volume
 RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \
