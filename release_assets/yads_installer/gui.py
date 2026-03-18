@@ -1384,14 +1384,29 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
     def write_compose_file(self):
         """Extract docker-compose.customer.yml from the pyz and write it as docker-compose.yml."""
         content = None
+        # Try 1: use the module's own zipimporter (__loader__ is set when running from a pyz)
         try:
-            raw = _zipimport.zipimporter(sys.argv[0]).get_data("docker-compose.customer.yml")
-            content = raw.decode("utf-8")
+            loader = globals().get("__loader__") or sys.modules[__name__].__loader__
+            if isinstance(loader, _zipimport.zipimporter):
+                raw = loader.get_data("docker-compose.customer.yml")
+                content = raw.decode("utf-8")
         except Exception:
             pass
-        if content is None and os.path.exists("docker-compose.customer.yml"):
-            with open("docker-compose.customer.yml", "r") as f:
-                content = f.read()
+        # Try 2: zipimporter on sys.argv[0]
+        if content is None:
+            try:
+                raw = _zipimport.zipimporter(sys.argv[0]).get_data("docker-compose.customer.yml")
+                content = raw.decode("utf-8")
+            except Exception:
+                pass
+        # Try 3: filesystem fallback (dev mode — running unpacked)
+        if content is None:
+            for candidate in ("docker-compose.customer.yml",
+                              os.path.join(os.path.dirname(sys.argv[0]), "docker-compose.customer.yml")):
+                if os.path.exists(candidate):
+                    with open(candidate, "r") as f:
+                        content = f.read()
+                    break
         if content is None:
             raise RuntimeError("docker-compose.customer.yml nicht im Installer gefunden.")
         with open("docker-compose.yml", "w") as f:
