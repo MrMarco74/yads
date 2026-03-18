@@ -39,6 +39,7 @@ license_manager/
 tools/
 
 # Sensitive Data & Backups
+support/keys/
 data/
 *.sql
 *.sql.gz
