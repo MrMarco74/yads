@@ -35,6 +35,7 @@ services:
       - LOG_DIR=/app/logs
       - SECRET_KEY=${SECRET_KEY}
       - LICENSE_KEY=${LICENSE_KEY}
+      - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
     networks:
       - yads-net
 
