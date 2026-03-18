@@ -130,6 +130,8 @@
                         {% if active_tenant_id %}
                         <td class="px-4 py-3 text-center">
                             <form method="post" action="/scan-modules/toggle" class="inline">
+                                {{ csrf_token() }}
+
                                 <input type="hidden" name="tenant_id" value="{{ active_tenant_id }}">
                                 <input type="hidden" name="module_name" value="{{ mod.name }}">
                                 <input type="hidden" name="enabled" value="{{ 'false' if mod.enabled else 'true' }}">
@@ -148,6 +150,8 @@
                             {% if mod.custom %}
                             <form method="post" action="/scan-modules/{{ mod.name }}/delete"
                                   onsubmit="return confirm('Remove module {{ mod.name }}? This cannot be undone.')">
+                                {{ csrf_token() }}
+
                                 <button type="submit" class="text-xs text-rose-400 hover:text-rose-300 transition-colors">Remove</button>
                             </form>
                             {% else %}
@@ -212,6 +216,8 @@
         </div>
 
         <form method="post" action="/scan-modules/upload" enctype="multipart/form-data" class="space-y-4">
+            {{ csrf_token() }}
+
             <div>
                 <label class="block text-sm text-slate-300 mb-2">Module ZIP File</label>
                 <div class="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors cursor-pointer"

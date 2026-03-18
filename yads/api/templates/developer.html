@@ -56,6 +56,7 @@
         {% if user.role in ['admin', 'tenant_admin'] %}
         <!-- Create form -->
         <form action="/developer/keys/create" method="POST" class="mb-5 bg-gray-900/60 rounded-xl p-4 border border-gray-700/50">
+          {{ csrf_token() }}
           <h3 class="text-sm font-semibold text-gray-300 mb-3">Create new key</h3>
           <div class="flex flex-col gap-3">
             <input type="text" name="name" placeholder="Key name (e.g. CI/CD pipeline)"
@@ -102,6 +103,7 @@
             {% if user.role in ['admin', 'tenant_admin'] %}
             <form action="/developer/keys/{{ key.id }}/revoke" method="POST"
                   onsubmit="return confirm('Revoke key {{ key.name|e }}?')">
+              {{ csrf_token() }}
               <button type="submit" class="text-red-400 hover:text-red-200 text-xs px-2 py-1 rounded border border-red-800/40 hover:bg-red-900/30 transition-colors">
                 Revoke
               </button>

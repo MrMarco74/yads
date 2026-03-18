@@ -91,6 +91,8 @@
                 </button>
                 {% if not p.is_default and user.role in ('admin', 'tenant_admin') %}
                 <form action="/scan-profiles/{{ p.id }}/set-default" method="POST" class="inline">
+                    {{ csrf_token() }}
+
                     <button type="submit" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1.5 rounded transition-colors">Set Default</button>
                 </form>
                 {% endif %}
@@ -99,6 +101,8 @@
                     class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1.5 rounded transition-colors">Edit</button>
                 <form action="/scan-profiles/{{ p.id }}/delete" method="POST" class="inline"
                     onsubmit="return confirm('Delete this profile?')">
+                    {{ csrf_token() }}
+
                     <button type="submit" class="text-xs bg-red-900/30 hover:bg-red-800/40 text-red-400 px-2 py-1.5 rounded transition-colors">Delete</button>
                 </form>
                 {% endif %}
@@ -118,6 +122,8 @@
     <div class="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <h2 class="text-base font-bold text-white mb-4">Create Scan Profile</h2>
         <form action="/scan-profiles/create" method="POST" class="space-y-4">
+            {{ csrf_token() }}
+
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -281,6 +287,8 @@ function openEditModal(id, name, description, scanTypes, color, isDefault, isPub
     <div class="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <h2 class="text-base font-bold text-white mb-4">Edit Scan Profile</h2>
         <form action="" method="POST" class="space-y-4">
+            {{ csrf_token() }}
+
 
             <div class="grid grid-cols-2 gap-4">
                 <div>

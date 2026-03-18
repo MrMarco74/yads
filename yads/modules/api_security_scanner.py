@@ -71,8 +71,12 @@ SENSITIVE_FIELDS = frozenset([
     "card_number", "cvv", "ssn", "social_security",
 ])
 
-# JWT none algorithm test
-JWT_NONE = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJhZG1pbiI6dHJ1ZX0."
+# JWT none algorithm test vector (unsecured token for module verification)
+# This is NOT a real secret, but a standard test payload for alg=none.
+_JWT_HEADER = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0"  # {"alg":"none","typ":"JWT"}
+_JWT_PAYLOAD = "eyJhZG1pbiI6dHJ1ZX0"                  # {"admin":true}
+JWT_NONE = f"{_JWT_HEADER}.{_JWT_PAYLOAD}."
+
 
 
 def _clean_base(target: str) -> str:

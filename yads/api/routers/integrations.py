@@ -242,7 +242,8 @@ def _push_to_siem_http(config: Dict, ecs_event: Dict) -> bool:
         payload = ecs_event
 
     try:
-        r = requests.post(endpoint, json=payload, headers=headers, timeout=TIMEOUT, verify=False)
+        verify_ssl = config.get("verify_ssl", True)
+        r = requests.post(endpoint, json=payload, headers=headers, timeout=TIMEOUT, verify=verify_ssl)
         return r.status_code in (200, 201, 204)
     except Exception as e:
         logger.error(f"SIEM HTTP push error: {e}")
