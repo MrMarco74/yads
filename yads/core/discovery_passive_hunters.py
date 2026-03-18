@@ -32,7 +32,7 @@ def _http_get(url: str, timeout: int = 10, extra_headers: Optional[dict] = None)
         if extra_headers:
             headers.update(extra_headers)
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 — URL built from validated target domain, never user-supplied directly
             return r.read().decode("utf-8", errors="replace")
     except Exception as e:
         logger.debug(f"[Hunter] GET {url}: {e}")
@@ -234,7 +234,7 @@ def cors_csp_headers(domain: str) -> List[Tuple[str, str]]:
         url = f"{scheme}://{domain}/"
         try:
             req = urllib.request.Request(url, headers={"User-Agent": _UA})
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310 — scanner probes target domain over http/https
                 headers_dict = dict(resp.headers)
                 break
         except Exception:
@@ -362,7 +362,7 @@ def favicon_shodan(domain: str, api_key: str) -> List[Tuple[str, str]]:
     for path in ("/favicon.ico", "/favicon.png", "/static/favicon.ico", "/assets/favicon.ico"):
         try:
             req = urllib.request.Request(f"https://{domain}{path}", headers={"User-Agent": _UA})
-            with urllib.request.urlopen(req, timeout=8) as r:
+            with urllib.request.urlopen(req, timeout=8) as r:  # nosec B310 — scanner fetches favicon from target domain
                 raw = r.read()
                 if len(raw) > 64:  # discard empty/error responses
                     favicon_data = raw

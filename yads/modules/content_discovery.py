@@ -73,7 +73,7 @@ class ContentDiscoveryScanner(BaseScannerModule):
         primary_url = None
         for url in base_urls:
             try:
-                r = requests.get(url, timeout=5)
+                r = requests.get(url, timeout=5)  # nosec B113 — scanner probes target over http/https
                 if r.status_code < 500: # Accept 200, 403, 301, 404... just need connectivity
                     primary_url = url.rstrip('/')
                     break

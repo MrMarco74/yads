@@ -60,7 +60,7 @@ def get_external_ip(force_refresh: bool = False) -> Optional[str]:
 
         for service in services:
             try:
-                with urlopen(service, timeout=3) as response:
+                with urlopen(service, timeout=3) as response:  # nosec B310 — service is a hardcoded IP-check URL list
                     ip = response.read().decode('utf-8').strip()
                     if ip and _is_valid_ip(ip):
                         break

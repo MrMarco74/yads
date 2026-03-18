@@ -61,7 +61,7 @@ class ApiDiscoveryScanner(BaseScannerModule):
         
         for url in base_urls:
             try:
-                r = requests.get(url, timeout=5)
+                r = requests.get(url, timeout=5)  # nosec B113 — scanner probes target API endpoint (http or https)
                 # We accept even error codes if we can reach the server, but ideally we want something running
                 if r.status_code < 600: 
                     primary_url = url.rstrip('/')
