@@ -1881,12 +1881,10 @@ class ActivationRequestsPage(SmoothScrollArea):
     # ------------------------------------------------------------------
     def _load_private_key(self):
         """Load the activation Ed25519 private key. Returns (private_key_b64, error_str)."""
-        # 1. Try key_path from portal settings
-        cfg = self._cfg()
+        # NOTE: key_path from _cfg() is the admin API signing key — do NOT use it here.
+        # Activation signing uses a dedicated activation keypair.
         candidates = []
-        if cfg.get("key_path"):
-            candidates.append(Path(cfg["key_path"]).expanduser())
-        # 2. Prefer activation_private.pem (separate activation keypair), fall back to license_private.pem
+        # Prefer activation_private.pem (separate activation keypair), fall back to license_private.pem
         candidates.append(script_dir / "activation_private.pem")
         candidates.append(script_dir / "license_private.pem")
         candidates.append(Path.home() / ".yads" / "activation_private.pem")

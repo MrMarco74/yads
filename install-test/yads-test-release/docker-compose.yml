@@ -24,6 +24,7 @@ services:
       - METRICS_ENABLED=${METRICS_ENABLED:-false}
       - METRICS_AUTH_MODE=${METRICS_AUTH_MODE:-token}
       - METRICS_TOKEN=${METRICS_TOKEN}
+      - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
     # When nginx is active: YADS_DIRECT_PORT (default 8000) for internal/debug access
     # When nginx is inactive: set YADS_DIRECT_PORT=API_PORT in .env for direct access
     ports:
@@ -61,6 +62,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_URL=redis://redis:6379/0
       - LOG_DIR=/app/logs
+      - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
     volumes:
       - yads_logs:/app/logs
       - nuclei_templates:/root/nuclei-templates
