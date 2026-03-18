@@ -1,5 +1,7 @@
 
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import SQLModel, Session, create_engine, text
+import time
+import logging
 from yads.config import settings
 import redis
 
@@ -22,3 +24,21 @@ def get_session():
 def get_redis():
     """Helper to get the global redis client."""
     return redis_client
+
+def wait_for_db(max_retries=30, delay=2):
+    """
+    Blocks until the database is ready to accept connections.
+    """
+    logger = logging.getLogger("yads.database")
+    for i in range(max_retries):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                logger.info("Database is ready.")
+                return True
+        except Exception as e:
+            logger.warning(f"Database not ready (attempt {i+1}/{max_retries}): {e}")
+            time.sleep(delay)
+    
+    logger.error("Database connection timed out.")
+    return False

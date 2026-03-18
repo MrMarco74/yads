@@ -64,6 +64,7 @@ class CSRFMiddleware:
                     logger.info("CSRF: replacing stale/invalid cookie on GET %s", path)
                 await self._pass_set_cookie(scope, receive, send)
             else:
+                scope["csrf_token"] = existing
                 await self.app(scope, receive, send)
             return
 
@@ -147,6 +148,8 @@ class CSRFMiddleware:
             f"{CSRF_COOKIE}={token}; Path=/; SameSite=Strict"
             + ("; Secure" if secure else "")
         )
+
+        scope["csrf_token"] = token
 
         async def send_with_cookie(message: dict) -> None:
             if message["type"] == "http.response.start":
