@@ -959,7 +959,8 @@ class ProdDeployWorker(QThread):
                 self._log(f"Available space on Docker volume ({DOCKER_VOLUME_PATH}): {avail_gb:.2f} GB", "info")
                 if avail_gb < 10:  # Threshold for safety (YADS image is ~5.3GB)
                     self._log(f"⚠️  Low disk space on Docker volume ({avail_gb:.2f} GB). Running automatic cleanup...", "warning")
-                    self._run_cmd(["ssh", self.remote_host, "docker system prune -f"])
+                    # Scoped cleanup: only dangling images + build cache — never touches other stacks/containers
+                    self._run_cmd(["ssh", self.remote_host, "docker image prune -f && docker builder prune -f"])
                     self._log("Automatic cleanup finished.", "info")
             except:
                 self._log("Could not determine remote disk space, proceeding anyway.", "warning")
@@ -986,9 +987,10 @@ class ProdDeployWorker(QThread):
                 else:
                     self._log("⚠️  Some containers still present after 60s, forcing prune...", "warning")
 
-                self._log("Pruning all stopped containers...", "info")
-                # Prune without label filter to catch any stragglers holding volumes
-                self._run_cmd(["ssh", self.remote_host, "docker container prune -f"])
+                self._log("Pruning stopped YADS containers...", "info")
+                # Scoped to yads stack label only — never touches the support portal or other stacks
+                self._run_cmd(["ssh", self.remote_host,
+                    f"docker container prune -f --filter label=com.docker.stack.namespace={self.stack_name}"])
 
                 self._log("Removing data volumes...", "info")
                 for vol in self.data_volumes:
