@@ -152,7 +152,7 @@ async def bulk_scan_targets(
                 count += 1
 
         except Exception as e:
-            logger.error(f"Failed to queue target {tid_str}: {e}")
+            logger.error("Failed to queue target %s: %s", tid_str, str(e).replace("\n", " ").replace("\r", " "))
             continue
 
     session.commit()
