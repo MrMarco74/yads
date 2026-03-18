@@ -212,11 +212,13 @@ class ActivationVerifier:
     def verify(self, activation_code: str, instance_uuid: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Verify an activation code.
+        Supports fallback verification using the primary license key if the activation key fails.
         Returns the payload dict if valid, not expired, and (optionally) uuid matches.
-        Returns None if invalid.
         """
         if not activation_code or not self.public_key:
             return None
+
+        # 1. Parse and extract payload (required for error context)
         try:
             payload_b64, signature_b64 = activation_code.split(".")
             payload_bytes = payload_b64.encode("utf-8")
@@ -224,25 +226,43 @@ class ActivationVerifier:
             if sig_pad:
                 signature_b64 += "=" * (4 - sig_pad)
             signature = base64.urlsafe_b64decode(signature_b64)
-            self.public_key.verify(signature, payload_bytes)
 
             pay_pad = len(payload_b64) % 4
             if pay_pad:
                 payload_b64 += "=" * (4 - pay_pad)
             data = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
-
-            if "exp" in data and data["exp"] < time.time():
-                logger.warning("Activation code expired.")
-                return None
-
-            if instance_uuid and data.get("instance_uuid") and data["instance_uuid"] != instance_uuid:
-                logger.warning(f"Activation code instance_uuid mismatch: {data['instance_uuid']} != {instance_uuid}")
-                return None
-
-            return data
         except Exception as e:
-            logger.error(f"Activation verification failed: {e}")
+            logger.error(f"Failed to parse activation code: {e}")
             return None
+
+        # 2. cryptographic Verification
+        try:
+            # Primary attempt: use Activation Public Key
+            self.public_key.verify(signature, payload_bytes)
+        except Exception as e:
+            # Fallback attempt: use License Public Key
+            # (Ensures compatibility for test portals or licenses signed with the master key)
+            try:
+                if license_manager and license_manager.public_key:
+                    license_manager.public_key.verify(signature, payload_bytes)
+                    logger.info("Activation code verified via License Key fallback.")
+                else:
+                    raise e
+            except Exception as fallback_e:
+                logger.error(f"Activation signature verification failed. Primary: {e}, Fallback: {fallback_e}")
+                return None
+
+        # 3. Check Expiry
+        if "exp" in data and data["exp"] < time.time():
+            logger.warning("Activation code expired.")
+            return None
+
+        # 4. Check Instance UUID
+        if instance_uuid and data.get("instance_uuid") and data["instance_uuid"] != instance_uuid:
+            logger.warning(f"Activation code instance_uuid mismatch: {data['instance_uuid']} != {instance_uuid}")
+            return None
+
+        return data
 
 
 activation_verifier = ActivationVerifier()
