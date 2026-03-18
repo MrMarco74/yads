@@ -93,13 +93,15 @@ class YADSInstallerGUI:
         self.btn_next.pack(side="right", padx=40, pady=10)
         
         # Detection of existing installation
-        self.is_upgrade = False # BYPASS: Forced to False per user request to bypass detection
+        self.is_upgrade = os.path.exists(".env")
         self.install_mode_var = tk.StringVar(value="update")  # "update" or "reinstall"
         
         self.steps = [
             self.step_welcome,
             self.step_dependencies,
+            self.step_preflight_checks,  # Catch conflicts early!
         ]
+
 
         if self.is_upgrade:
             self.steps.extend([
@@ -118,6 +120,8 @@ class YADSInstallerGUI:
             self.step_telemetry,
             self.step_summary
         ])
+
+
         
         # Performance/Secret data
         self.secrets = {}
@@ -294,6 +298,7 @@ class YADSInstallerGUI:
         step_labels = {
             self.step_welcome:             "Start",
             self.step_dependencies:        "Check",
+            self.step_preflight_checks:    "System",
             self.step_upgrade_mode:        "Modus",
             self.step_upgrade_backup:      "Backup",
             self.step_upgrade_maintenance: "Pflege",
@@ -306,6 +311,8 @@ class YADSInstallerGUI:
             self.step_telemetry:           "Info",
             self.step_summary:             "Fertig",
         }
+
+
 
         # Compute dot x-positions evenly distributed
         usable = w - 2 * pad
@@ -710,6 +717,7 @@ class YADSInstallerGUI:
                                     self.secrets["POSTGRES_PASSWORD"] = old_pw
                                 break
             self.write_env_file()
+            self.write_compose_file()
             self.write_nginx_config()
             self.authenticate_registry()
 
@@ -768,6 +776,10 @@ class YADSInstallerGUI:
                     ["docker", "compose", "down", "--remove-orphans"],
                     capture_output=True, timeout=60
                 )
+                # Explicitly remove core containers to avoid naming conflicts with other projects
+                for name in ["yads-api", "yads-worker", "yads-db", "yads-redis", "yads-nginx"]:
+                    subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+
 
                 result = subprocess.run(
                     ["docker", "compose", "up", "-d", "--force-recreate"],
@@ -1286,6 +1298,7 @@ YADS_VERSION=latest
 API_PORT={self.data['api_port']}
 AUTH_MODE={self.data['auth_mode']}
 HAS_NGINX={'true' if use_nginx else 'false'}
+DISABLE_HTTPS_ONLY={'true' if not self.data['use_ssl'] else 'false'}
 """
         if self.data['auth_mode'] == "oidc" and self.data['kc_choice'] == "2": # Bundled
             profiles.append("keycloak")
@@ -1366,6 +1379,22 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
             import shutil
             shutil.rmtree(nginx_conf)
         with open(nginx_conf, "w") as f:
+            f.write(content)
+
+    def write_compose_file(self):
+        """Extract docker-compose.customer.yml from the pyz and write it as docker-compose.yml."""
+        content = None
+        try:
+            raw = _zipimport.zipimporter(sys.argv[0]).get_data("docker-compose.customer.yml")
+            content = raw.decode("utf-8")
+        except Exception:
+            pass
+        if content is None and os.path.exists("docker-compose.customer.yml"):
+            with open("docker-compose.customer.yml", "r") as f:
+                content = f.read()
+        if content is None:
+            raise RuntimeError("docker-compose.customer.yml nicht im Installer gefunden.")
+        with open("docker-compose.yml", "w") as f:
             f.write(content)
 
     def prev_step(self):
@@ -2146,6 +2175,91 @@ with SessionLocal() as session:
             foreground=self.colors['fg_sub'],
             wraplength=520,
         ).pack(anchor="w")
+
+    # --- Pre-flight Check Step ---
+    def step_preflight_checks(self):
+        ttk.Label(self.content_frame, text="Pre-flight Checks", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame, 
+                  text="Wir prüfen Ihr System auf potenzielle Konflikte, bevor die Installation startet.", 
+                  wraplength=500).pack(anchor="w", pady=(0, 16))
+
+        # Port checks
+        port_frame = tk.LabelFrame(self.content_frame, text="Port-Verfügbarkeit", bg=self.colors['bg'], fg=self.colors['fg'])
+        port_frame.pack(fill="x", pady=(0, 12))
+        
+        ports_to_check = [
+            (int(self.data.get('api_port', 80)), "YADS API / Nginx"),
+            (5432, "PostgreSQL (Datenbank)"),
+            (6379, "Redis (Cache)")
+        ]
+        
+        for port, desc in ports_to_check:
+            conflict = self._check_port_free(port)
+            color = self.colors['success'] if not conflict else self.colors['error']
+            icon = "✓" if not conflict else "✗"
+            status = "Frei" if not conflict else "Belegt"
+            
+            f = tk.Frame(port_frame, bg=self.colors['bg'])
+            f.pack(fill="x", padx=10, pady=2)
+            ttk.Label(f, text=f"{icon} Port {port} ({desc}):", foreground=color, width=30).pack(side="left")
+            ttk.Label(f, text=status, foreground=color).pack(side="left")
+
+        # Container checks
+        cont_frame = tk.LabelFrame(self.content_frame, text="Docker-Container Konflikte", bg=self.colors['bg'], fg=self.colors['fg'])
+        cont_frame.pack(fill="both", expand=True, pady=(0, 12))
+        
+        self.conflicting_containers = self._find_conflicting_containers()
+        
+        if not self.conflicting_containers:
+            ttk.Label(cont_frame, text="✓ Keine Namenskonflikte erkannt.", foreground=self.colors['success']).pack(padx=10, pady=10)
+        else:
+            ttk.Label(cont_frame, text="⚠ Folgende Container blockieren die Installation:", foreground=self.colors['error']).pack(padx=10, pady=(10, 5))
+            
+            list_f = tk.Frame(cont_frame, bg=self.colors['bg_alt'], padx=5, pady=5)
+            list_f.pack(fill="x", padx=10, pady=5)
+            
+            for c in self.conflicting_containers:
+                ttk.Label(list_f, text=f"• {c}", foreground=self.colors['error'], font=("monospace", 9)).pack(anchor="w")
+            
+            ttk.Label(cont_frame, text="Diese Container verwenden reservierte Namen (z.B. 'yads-db').", 
+                      font=("sans-serif", 9, "italic"), wraplength=480).pack(padx=10, pady=5)
+            
+            tk.Button(
+                cont_frame,
+                text="🗑  Konflikte jetzt beheben (Container entfernen)",
+                bg="#991b1b", fg="white",
+                activebackground="#7f1d1d", activeforeground="white",
+                relief="flat", padx=15, pady=8, font=("sans-serif", 10, "bold"),
+                cursor="hand2", command=self._resolve_preflight_conflicts
+            ).pack(pady=10)
+
+    def _find_conflicting_containers(self):
+        conflicts = []
+        reserved = ["yads-api", "yads-worker", "yads-db", "yads-redis", "yads-nginx"]
+        for name in reserved:
+            try:
+                # Check for EXACT name match
+                res = subprocess.run(["docker", "ps", "-a", "--filter", f"name=^{name}$", "--format", "{{.Names}} ({{.Status}})"],
+                                     capture_output=True, text=True, timeout=5)
+                out = res.stdout.strip()
+                if out:
+                    conflicts.append(out)
+            except Exception:
+                pass
+        return conflicts
+
+    def _resolve_preflight_conflicts(self):
+        if not messagebox.askyesno("Konflikte beheben", 
+                                   "Alle aufgeführten Container werden gestoppt und unwiderruflich entfernt.\n\nFortfahren?"):
+            return
+            
+        reserved = ["yads-api", "yads-worker", "yads-db", "yads-redis", "yads-nginx"]
+        for name in reserved:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+            
+        messagebox.showinfo("Erfolg", "Konflikte wurden behoben.")
+        self.show_step()
+
 
     def step_summary(self):
         mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
