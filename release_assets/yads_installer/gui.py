@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import subprocess
 import os
 import zipimport as _zipimport
@@ -54,6 +54,7 @@ class YADSInstallerGUI:
             "use_sudo": False,
             # Secrets will be generated at the end
         }
+        self.sudo_password = None
         threading.Thread(target=self._resolve_hostname, daemon=True).start()
         
         # Detect Theme
@@ -174,8 +175,26 @@ class YADSInstallerGUI:
         """Wrapper for docker commands to optionally use sudo."""
         cmd = ["docker"] + args
         if self.data.get("use_sudo", False):
-            cmd = ["sudo"] + cmd
+            if self.sudo_password is None:
+                self.sudo_password = self.ask_sudo_password()
+            
+            if self.sudo_password:
+                cmd = ["sudo", "-H", "-S"] + cmd
+                # Mix password with existing input if any
+                orig_input = kwargs.get('input', '')
+                if isinstance(orig_input, bytes):
+                    kwargs['input'] = self.sudo_password.encode() + b"\n" + orig_input
+                else:
+                    kwargs['input'] = str(self.sudo_password) + "\n" + str(orig_input)
+                kwargs['text'] = not isinstance(kwargs['input'], bytes)
+        
         return subprocess.run(cmd, **kwargs)
+
+    def ask_sudo_password(self):
+        return simpledialog.askstring("Sudo Passwort", 
+                                     "Der Installer benötigt Sudo-Rechte für Docker-Befehle.\n"
+                                     "Bitte geben Sie Ihr Passwort ein:", 
+                                     show='*')
 
     def detect_dark_mode(self):
         # 1. Check for GTK_THEME environment variable
@@ -1812,8 +1831,8 @@ with SessionLocal() as session:
         daemon_ok, daemon_status = DependencyChecker.check_docker_daemon()
         self.add_dep_status("Docker Daemon Connectivity", daemon_ok)
         
-        if not daemon_ok and daemon_status == "permission_denied":
-            self.prompt_for_sudo()
+        if not daemon_ok and daemon_status == "permission_denied" and not self.data.get("use_sudo"):
+            self.show_sudo_hint()
             
         self.add_dep_status("OpenSSL", DependencyChecker.check_openssl())
         
@@ -1827,16 +1846,22 @@ with SessionLocal() as session:
         frame.pack(fill="x", pady=2)
         ttk.Label(frame, text=f"{icon} {name}", foreground=color).pack(side="left")
 
-    def prompt_for_sudo(self):
-        msg = ("Es wurde ein Berechtigungsproblem mit dem Docker-Socket festgestellt.\n\n"
-               "Der aktuelle Benutzer hat keinen Zugriff auf '/var/run/docker.sock'. "
-               "Dies kann behoben werden, indem der Benutzer der Gruppe 'docker' hinzugefügt wird, "
-               "oder indem der Installer 'sudo' verwendet.\n\n"
-               "Möchten Sie, dass der Installer fortan 'sudo' für Docker-Befehle verwendet?")
-        if messagebox.askyesno("Docker Berechtigung", msg):
-            self.data["use_sudo"] = True
-            # Re-check to update icons
-            self.show_step()
+    def show_sudo_hint(self):
+        hint_frame = tk.Frame(self.content_frame, bg="#fff3cd", padx=10, pady=10)
+        hint_frame.pack(fill="x", pady=10, before=self.dep_list)
+        
+        txt = ("WICHTIG: Docker-Berechtigung fehlt.\n"
+               "Der Installer kann 'sudo' nutzen, um die Installation fortzusetzen.")
+        ttk.Label(hint_frame, text=txt, background="#fff3cd", foreground="#856404", 
+                  font=("sans-serif", 9)).pack(side="left")
+        
+        btn_enable = ttk.Button(hint_frame, text="Sudo nutzen", command=lambda: self._enable_sudo(hint_frame))
+        btn_enable.pack(side="right")
+
+    def _enable_sudo(self, frame):
+        self.data["use_sudo"] = True
+        frame.destroy()
+        self.show_step() 
 
     def fix_dependencies(self):
         ok, msg = DependencyChecker.install_dependencies()
