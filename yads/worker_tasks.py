@@ -14,6 +14,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait, ALL_COMPLETED, as_completed as _as_completed
 
 from sqlmodel import Session, select
+from sqlalchemy import func
 
 from yads.worker_core import celery_app, _reset_target_status, logger as _core_logger
 from yads.worker_modules import LogCapture, _run_parallel_module, _run_simple_module
@@ -235,9 +236,9 @@ def send_daily_digests():
                     ]
                     changes_count = 0
                     if recent_ids:
-                        changes_count = len(session.exec(
-                            select(ChangeEvent).where(ChangeEvent.scan_result_id.in_(recent_ids))
-                        ).all())
+                        changes_count = session.exec(
+                            select(func.count()).where(ChangeEvent.scan_result_id.in_(recent_ids))
+                        ).one()
                     targets_data.append({
                         "domain": t.domain, "target_id": t.id,
                         "last_scan": last_scan, "changes_count": changes_count,

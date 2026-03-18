@@ -75,7 +75,7 @@ SENSITIVE_FIELDS = frozenset([
 # This is NOT a real secret, but a standard test payload for alg=none.
 _JWT_HEADER = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0"  # {"alg":"none","typ":"JWT"}
 _JWT_PAYLOAD = "eyJhZG1pbiI6dHJ1ZX0"                  # {"admin":true}
-JWT_NONE = f"{_JWT_HEADER}.{_JWT_PAYLOAD}."
+JWT_NONE = f"{_JWT_HEADER}.{_JWT_PAYLOAD}."  # nosec B105 — intentional test vector, not a real credential
 
 
 

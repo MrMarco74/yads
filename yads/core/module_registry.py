@@ -91,7 +91,7 @@ class ModuleDef:
         if not self.module_path:
             raise ValueError(f"No module_path defined for {self.name}")
         pkg, cls_name = self.module_path.rsplit(":", 1)
-        mod = import_module(pkg)
+        mod = import_module(pkg)  # nosec B417 — pkg is hardcoded in module_registry, never user-supplied
         return getattr(mod, cls_name)
 
     def __repr__(self) -> str:
