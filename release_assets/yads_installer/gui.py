@@ -93,7 +93,7 @@ class YADSInstallerGUI:
         self.btn_next.pack(side="right", padx=40, pady=10)
         
         # Detection of existing installation
-        self.is_upgrade = os.path.exists(".env")
+        self.is_upgrade = False # BYPASS: Forced to False per user request to bypass detection
         self.install_mode_var = tk.StringVar(value="update")  # "update" or "reinstall"
         
         self.steps = [
@@ -862,7 +862,14 @@ class YADSInstallerGUI:
         import json
 
         def _post(path, payload):
+            import ssl
             data = json.dumps(payload).encode()
+            # BYPASS: Ignore proxies for local setup calls and disable SSL verification
+            # This fixes the bug where global proxies or self-signed certs break the last phase.
+            context = ssl._create_unverified_context()
+            proxy_handler = urllib.request.ProxyHandler({})
+            opener = urllib.request.build_opener(proxy_handler, urllib.request.HTTPSHandler(context=context))
+            
             req = urllib.request.Request(
                 f"{base_url}{path}",
                 data=data,
@@ -870,9 +877,12 @@ class YADSInstallerGUI:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with opener.open(req, timeout=10) as resp:
                     return resp.status, json.loads(resp.read())
             except urllib.error.HTTPError as e:
+                # 409 Conflict: Admin might already exist if we bypassed upgrade detection
+                if e.code == 409 and "create-admin" in path:
+                    return 200, {"message": "Admin already exists (bypassed)"}
                 body = e.read().decode(errors="replace")
                 return e.code, body
             except Exception as ex:
