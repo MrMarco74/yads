@@ -14,7 +14,7 @@ pydantic-settings
 requests
 dnspython
 jinja2
-python-multipart
+python-multipart>=0.0.22
 aiofiles
 tldextract
 
