@@ -71,11 +71,13 @@ SENSITIVE_FIELDS = frozenset([
     "card_number", "cvv", "ssn", "social_security",
 ])
 
-# JWT none algorithm test vector (unsecured token for module verification)
-# This is NOT a real secret, but a standard test payload for alg=none.
-_JWT_HEADER = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0"  # {"alg":"none","typ":"JWT"}
-_JWT_PAYLOAD = "eyJhZG1pbiI6dHJ1ZX0"                  # {"admin":true}
-JWT_NONE = f"{_JWT_HEADER}.{_JWT_PAYLOAD}."  # nosec B105 — intentional test vector, not a real credential
+# JWT 'none' algorithm test vector (for vulnerability probing)
+# This is a public specification for an unsecured token, NOT a real credential.
+# It is used solely to test if the remote API incorrectly accepts 'none' algorithm.
+_JWT_PROBE_HEADER = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0"  # {"alg":"none","typ":"JWT"}
+_JWT_PROBE_PAYLOAD = "eyJhZG1pbiI6dHJ1ZX0"                  # {"admin":true}
+# nosec B105 — intentional test vector
+JWT_NONE_PROBE = f"{_JWT_PROBE_HEADER}.{_JWT_PROBE_PAYLOAD}." 
 
 
 
@@ -222,7 +224,7 @@ def _check_jwt_none(base: str, api_base: str) -> bool:
     """Test if API accepts JWT with 'none' algorithm."""
     for resource in IDOR_RESOURCES[:3]:
         url = urljoin(base + api_base + "/", resource.lstrip("/"))
-        resp = _get(url, extra_headers={"Authorization": f"Bearer {JWT_NONE}"})
+        resp = _get(url, extra_headers={"Authorization": f"Bearer {JWT_NONE_PROBE}"})
         if resp and resp.status_code == 200:
             return True
     return False

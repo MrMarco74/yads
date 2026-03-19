@@ -366,14 +366,14 @@
 
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">Title</label>
-                            <input type="text" name="title" required
+                            <label for="task-title" class="block text-sm font-medium text-slate-300 mb-1">Title</label>
+                            <input type="text" name="title" id="task-title" required
                                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">Control ID</label>
-                            <select name="control_id" required
+                            <label for="task-control-id" class="block text-sm font-medium text-slate-300 mb-1">Control ID</label>
+                            <select name="control_id" id="task-control-id" required
                                     class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
                                 {% for control in controls %}
                                 <option value="{{ control.id }}">{{ control.id }} - {{ control.name }}</option>
@@ -382,15 +382,15 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">Finding Description</label>
-                            <textarea name="finding_description" rows="2" required
+                            <label for="task-finding-desc" class="block text-sm font-medium text-slate-300 mb-1">Finding Description</label>
+                            <textarea name="finding_description" id="task-finding-desc" rows="2" required
                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"></textarea>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Priority</label>
-                                <select name="priority"
+                                <label for="task-priority" class="block text-sm font-medium text-slate-300 mb-1">Priority</label>
+                                <select name="priority" id="task-priority"
                                         class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
                                     <option value="low">Low</option>
                                     <option value="medium" selected>Medium</option>
@@ -399,15 +399,15 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Due Date</label>
-                                <input type="date" name="due_date"
+                                <label for="task-due-date" class="block text-sm font-medium text-slate-300 mb-1">Due Date</label>
+                                <input type="date" name="due_date" id="task-due-date"
                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1">Assignee</label>
-                            <input type="text" name="assignee" placeholder="Optional"
+                            <label for="task-assignee" class="block text-sm font-medium text-slate-300 mb-1">Assignee</label>
+                            <input type="text" name="assignee" id="task-assignee" placeholder="Optional"
                                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
                         </div>
                     </div>
@@ -486,7 +486,7 @@
 </div>
 
 <!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/vendor/chart.4.4.1.min.js"></script>
 <script>
     // Trend Chart
     const ctx = document.getElementById('trendChart').getContext('2d');
