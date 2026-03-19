@@ -3,7 +3,7 @@ from datetime import datetime
 from yads.config import settings
 from yads.core.i18n import t as _translate, get_lang, SUPPORTED_LANGS
 from jinja2 import pass_context
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 # Shared Templates Instance
 print("--- YADS TEMPLATING SYSTEM INITIALIZING ---", flush=True)
@@ -17,7 +17,7 @@ def csrf_token(context):
     if not request:
         return Markup('')
     token = request.scope.get('csrf_token', '')
-    return Markup(f'<input type="hidden" name="_csrf" value="{token}">')
+    return Markup(f'<input type="hidden" name="_csrf" value="{escape(token)}">')
 
 @pass_context
 def csrf_token_value(context):

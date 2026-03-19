@@ -36,13 +36,23 @@ templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
 def _safe_redirect(url: Optional[str], default: str = "/") -> str:
-    """Reject absolute or protocol-relative URLs to prevent open redirect."""
+    """Reject absolute, protocol-relative, or malformed URLs to prevent open redirect."""
     if not url:
         return default
-    parsed = urlparse(url)
-    if parsed.scheme or parsed.netloc or url.startswith("//"):
+    try:
+        parsed = urlparse(url)
+        # 1. Reject if it has a scheme (http/https/etc.) or a domain (netloc)
+        if parsed.scheme or parsed.netloc:
+            return default
+        # 2. Reject protocol-relative URLs (e.g., //evil.com) or Windows shares
+        if url.startswith(("//", "\\\\")):
+            return default
+        # 3. YADS internal redirects must start with a single '/'
+        if not url.startswith("/") or url.startswith("//"):
+            return default
+        return url
+    except Exception:
         return default
-    return url
 
 
 @router.get("/login", response_class=HTMLResponse)

@@ -13,11 +13,75 @@ from installer import DependencyChecker, NetworkTools
 # Constants
 STYLE_HEADER = "Header.TLabel"
 STYLE_ACTION_BTN = "Action.TButton"
+NGINX_TEMPLATE = "nginx.conf.template"
+COMPOSE_FILE = "docker-compose.customer.yml"
+RUNNING_FORMAT = "{{.State.Running}}"
+JSON_CONTENT = "application/json"
 
 # Registry Constants
 REGISTRY_URL = "registry.yads-security.com"
 REGISTRY_USER = "yads-readonly"
 REGISTRY_TOKEN = "REDACTED"
+
+class LogPanel(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, bg="#1e1e1e")
+        self.header = tk.Frame(self, bg="#2d2d2d")
+        self.header.pack(fill="x")
+        tk.Label(self.header, text="TASK LOG", bg="#2d2d2d", fg="#007acc", font=("sans-serif", 8, "bold")).pack(side="left", padx=10, pady=5)
+        
+        from tkinter import filedialog
+        self.btn_export = tk.Button(self.header, text="Export Log", bg="#3c3c3c", fg="#cccccc", 
+                                    font=("sans-serif", 7), relief="flat", padx=5, pady=2,
+                                    command=self.export_log)
+        self.btn_export.pack(side="right", padx=10, pady=2)
+        
+        self.text_area = tk.Text(self, bg="#1e1e1e", fg="#d4d4d4", font=("monospace", 9), insertbackground="white", borderwidth=0, highlightthickness=0)
+        self.text_area.pack(fill="both", expand=True, padx=10, pady=5)
+        self.text_area.configure(state="disabled")
+        self.text_area.tag_configure("bold", font=("monospace", 9, "bold"), foreground="#ffffff")
+        self.text_area.tag_configure("error", foreground="#f44336")
+        self.text_area.tag_configure("success", foreground="#4caf50")
+        self.visible = False
+
+    def log(self, text, tag=None):
+        self.text_area.configure(state="normal")
+        self.text_area.insert(tk.END, text, tag)
+        self.text_area.see(tk.END)
+        self.text_area.configure(state="disabled")
+        self.update()
+
+    def show(self, root):
+        if not self.visible:
+            self.pack(side="right", fill="both", expand=True, before=None)
+            cur_geom = root.geometry().split("+")
+            w, h = map(int, cur_geom[0].split("x"))
+            root.geometry(f"{w + 450}x{h}+{cur_geom[1]}+{cur_geom[2]}")
+            self.visible = True
+
+    def hide(self, root):
+        if self.visible:
+            self.pack_forget()
+            cur_geom = root.geometry().split("+")
+            w, h = map(int, cur_geom[0].split("x"))
+            root.geometry(f"{max(620, w - 450)}x{h}+{cur_geom[1]}+{cur_geom[2]}")
+            self.visible = False
+
+    def export_log(self):
+        from tkinter import filedialog, messagebox
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".log",
+            filetypes=[("Log files", "*.log"), ("Text files", "*.txt"), ("All files", "*.*")],
+            title="Export Task Log"
+        )
+        if file_path:
+            try:
+                content = self.text_area.get("1.0", tk.END)
+                with open(file_path, "w") as f:
+                    f.write(content)
+                messagebox.showinfo("Success", "Log exported to " + file_path)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not export log: {e}")
 
 class YADSInstallerGUI:
     def __init__(self, root):
@@ -71,6 +135,10 @@ class YADSInstallerGUI:
         self.main_container = tk.Frame(root, bg=self.colors['bg'])
         self.main_container.pack(fill="both", expand=True)
         
+        # Log Panel (Right Side, docked)
+        self.log_panel = LogPanel(self.main_container)
+        self.log_win = self.log_panel # Compatibility alias
+        
         # Pack footer FIRST to ensure it stays at the bottom and isn't clipped
         self.nav_frame = tk.Frame(self.main_container, bg=self.colors['bg_alt'])
         self.nav_frame.pack(fill="x", side="bottom", ipady=10)
@@ -101,6 +169,9 @@ class YADSInstallerGUI:
         
         # Detection of existing installation
         self.is_upgrade = os.path.exists(".env")
+        if not self.is_upgrade:
+            self.is_upgrade = self._try_auto_detect_upgrade()
+
         self.install_mode_var = tk.StringVar(value="update")  # "update" or "reinstall"
         
         self.steps = [
@@ -137,6 +208,44 @@ class YADSInstallerGUI:
         self.data['remote_workers'] = []
         
         self.show_step()
+
+    def _try_auto_detect_upgrade(self):
+        """Checks if YADS is installed elsewhere via Docker labels and offers to switch directory."""
+        working_dir = self._get_yads_working_dir()
+        if not working_dir or not os.path.exists(os.path.join(working_dir, ".env")):
+            return False
+
+        if working_dir == os.getcwd():
+            return True # Should have been caught by os.path.exists(".env") but just in case
+
+        msg = (f"Eine bestehende YADS-Installation wurde in folgendem Verzeichnis gefunden:\n\n"
+               f"{working_dir}\n\n"
+               f"Möchten Sie in dieses Verzeichnis wechseln, um ein Update durchzuführen?")
+        if messagebox.askyesno("Installation erkannt", msg):
+            try:
+                os.chdir(working_dir)
+                return True
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Konnte nicht in das Verzeichnis wechseln: {e}")
+        return False
+
+    def _get_yads_working_dir(self):
+        """Attempts to find the working directory of the YADS project from Docker labels."""
+        import json
+        for name in ["yads-api", "yads-app-yads-api-1", "yads-db"]:
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", name, "--format", "{{json .Config.Labels}}"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    labels = json.loads(result.stdout)
+                    wdir = labels.get("com.docker.compose.project.working_dir")
+                    if wdir:
+                        return wdir
+            except Exception:
+                continue
+        return None
 
     def _resolve_hostname(self):
         """Resolve real IP/hostname in background and patch self.data + any live entry widgets."""
@@ -191,9 +300,47 @@ class YADSInstallerGUI:
                 else:
                     # Only password
                     kwargs['input'] = self.sudo_password + "\n"
-                kwargs['text'] = not isinstance(kwargs['input'], bytes)
+                kwargs['text'] = not isinstance(kwargs.get('input', ''), bytes)
         
+        # If we are streaming, we use Popen
+        if kwargs.pop('stream', False):
+            kwargs.setdefault('stdout', subprocess.PIPE)
+            kwargs.setdefault('stderr', subprocess.STDOUT)
+            kwargs.setdefault('text', True)
+            kwargs.setdefault('bufsize', 1)
+            # Remove 'input' if it's there, as we handle it via stdin.write
+            stdin_val = kwargs.pop('input', None)
+            if stdin_val:
+                kwargs['stdin'] = subprocess.PIPE
+            
+            proc = subprocess.Popen(cmd, **kwargs)
+            if stdin_val:
+                if isinstance(stdin_val, str): stdin_val = stdin_val.encode()
+                proc.stdin.write(stdin_val)
+                proc.stdin.close()
+            return proc
+
         return subprocess.run(cmd, **kwargs)
+
+    def run_with_log(self, title, args, **kwargs):
+        """Runs a docker (or other) command and streams output to the log panel."""
+        self.log_panel.show(self.root)
+        self.log_panel.log(f"\n>>> {title}\n", ("bold",))
+        
+        kwargs['stream'] = True
+        proc = self.run_docker(args, **kwargs)
+        
+        while True:
+            line = proc.stdout.readline()
+            if not line and proc.poll() is not None:
+                break
+            if line:
+                self.log_panel.log(line)
+        
+        rc = proc.poll()
+        if rc != 0:
+            self.log_panel.log(f"\n[!] Command failed with exit code {rc}\n", ("error",))
+        return rc
 
     def ask_sudo_password(self):
         return simpledialog.askstring("Sudo Passwort", 
@@ -287,6 +434,7 @@ class YADSInstallerGUI:
             import io
             # Read directly from the .pyz ZIP — bypasses Python's import lock
             try:
+                import sys
                 logo_data = _zipimport.zipimporter(sys.argv[0]).get_data("logo.png")
             except Exception:
                 logo_data = b""
@@ -326,7 +474,7 @@ class YADSInstallerGUI:
         accent   = self.colors['accent']
         bg_alt   = self.colors['bg_alt']
         fg_sub   = self.colors['fg_sub']
-        fg_done  = "#ffffff" if self.dark_mode else "#ffffff"
+        fg_done  = "#ffffff"
         dot_r    = 10          # dot radius
         cy       = h // 2 - 4  # vertical center of dots row
         pad      = 28          # left/right padding
@@ -403,73 +551,88 @@ class YADSInstallerGUI:
         self.steps[self.current_step]()
         self._update_progress_bar()
         
-        if self.current_step > 0:
-            self.btn_prev.pack(side="left", padx=40, pady=10)
-            self.btn_prev.configure(state="normal")
-        else:
-            self.btn_prev.pack_forget()
         self.btn_next.configure(text="Finish" if self.current_step == len(self.steps)-1 else "Next")
 
     def next_step(self):
-        # Save current step data — use step function identity, not index,
-        # so new steps don't break existing logic.
-        current_fn = self.steps[self.current_step]
-        if current_fn == self.step_license:
-            if hasattr(self, 'ent_license'):
-                self.data['license_key'] = self.ent_license.get("1.0", "end").strip()
-        elif current_fn == self.step_network_ssl:
-            if hasattr(self, 'ent_port'):
-                self.data['api_port'] = self.ent_port.get()
-            if hasattr(self, 'ssl_var'):
-                self.data['use_ssl'] = self.ssl_var.get()
-            if hasattr(self, 'ssl_choice_var'):
-                self.data['ssl_choice'] = self.ssl_choice_var.get()
-            if hasattr(self, 'ent_host'):
-                self.data['host'] = self.ent_host.get()
-            if hasattr(self, 'nginx_var'):
-                self.data['use_nginx'] = self.nginx_var.get()
-            if hasattr(self, 'ent_nginx_server_name'):
-                self.data['nginx_server_name'] = self.ent_nginx_server_name.get().strip() or "localhost"
-            if hasattr(self, 'ent_nginx_read_timeout'):
-                self.data['nginx_read_timeout'] = self.ent_nginx_read_timeout.get().strip() or "120s"
-            if hasattr(self, 'ent_nginx_max_body_size'):
-                self.data['nginx_max_body_size'] = self.ent_nginx_max_body_size.get().strip() or "50m"
-        elif current_fn == self.step_idp:
-            if hasattr(self, 'idp_var'):
-                self.data['kc_choice'] = self.idp_var.get()
-                self.data['auth_mode'] = "oidc" if self.idp_var.get() in ["2", "3"] else "local"
-        elif current_fn == self.step_monitoring:
-            if hasattr(self, 'mon_var'):
-                self.data['mon_choice'] = self.mon_var.get()
-            if hasattr(self, 'ent_grafana_port'):
-                self.data['grafana_port'] = self.ent_grafana_port.get()
-        elif current_fn == self.step_admin:
-            if hasattr(self, 'ent_admin_user'):
-                self.data['admin_user'] = self.ent_admin_user.get().strip()
-            if hasattr(self, 'ent_admin_pass'):
-                self.data['admin_pass'] = self.ent_admin_pass.get()
-            if hasattr(self, 'ent_admin_pass2'):
-                self.data['admin_pass2'] = self.ent_admin_pass2.get()
-            # Validate before proceeding
-            if current_fn == self.step_admin and self.current_step < len(self.steps) - 1:
-                err = self._validate_admin()
-                if err:
-                    messagebox.showerror("Eingabefehler", err)
-                    return
-        elif current_fn == self.step_telemetry:
-            if hasattr(self, 'telemetry_var'):
-                self.data['send_telemetry'] = self.telemetry_var.get()
-        elif current_fn == self.step_upgrade_mode:
-            # UPDATE mode: skip backup + maintenance + all config steps → jump to summary
-            if self.install_mode_var.get() == "update":
-                self.current_step = len(self.steps) - 1
-                self.show_step()
-                return
-        elif current_fn == self.step_upgrade_backup:
-            # Decide db_init_action for REINSTALL
-            if hasattr(self, 'db_init_var'):
-                self.data['db_init_action'] = self.db_init_var.get()
+        if self._save_current_step_data():
+            self._advance_to_next_step()
 
+    def _save_current_step_data(self):
+        """Saves data from the current step's widgets and performs validation."""
+        current_fn = self.steps[self.current_step]
+        
+        save_handlers = {
+            self.step_license: self._save_data_license,
+            self.step_network_ssl: self._save_data_network_ssl,
+            self.step_idp: self._save_data_idp,
+            self.step_monitoring: self._save_data_monitoring,
+            self.step_admin: self._save_data_admin,
+            self.step_telemetry: self._save_data_telemetry,
+            self.step_upgrade_mode: self._save_data_upgrade_mode,
+            self.step_upgrade_backup: self._save_data_upgrade_backup,
+        }
+        
+        if current_fn in save_handlers:
+            return save_handlers[current_fn]()
+        return True
+
+    def _save_data_license(self):
+        if hasattr(self, 'ent_license'):
+            self.data['license_key'] = self.ent_license.get("1.0", "end").strip()
+        return True
+
+    def _save_data_network_ssl(self):
+        if hasattr(self, 'ent_port'): self.data['api_port'] = self.ent_port.get()
+        if hasattr(self, 'ssl_var'): self.data['use_ssl'] = self.ssl_var.get()
+        if hasattr(self, 'ssl_choice_var'): self.data['ssl_choice'] = self.ssl_choice_var.get()
+        if hasattr(self, 'ent_host'): self.data['host'] = self.ent_host.get()
+        if hasattr(self, 'nginx_var'): self.data['use_nginx'] = self.nginx_var.get()
+        if hasattr(self, 'ent_nginx_server_name'):
+            self.data['nginx_server_name'] = self.ent_nginx_server_name.get().strip() or "localhost"
+        if hasattr(self, 'ent_nginx_read_timeout'):
+            self.data['nginx_read_timeout'] = self.ent_nginx_read_timeout.get().strip() or "120s"
+        if hasattr(self, 'ent_nginx_max_body_size'):
+            self.data['nginx_max_body_size'] = self.ent_nginx_max_body_size.get().strip() or "50m"
+        return True
+
+    def _save_data_idp(self):
+        if hasattr(self, 'idp_var'):
+            self.data['kc_choice'] = self.idp_var.get()
+            self.data['auth_mode'] = "oidc" if self.idp_var.get() in ["2", "3"] else "local"
+        return True
+
+    def _save_data_monitoring(self):
+        if hasattr(self, 'mon_var'): self.data['mon_choice'] = self.mon_var.get()
+        if hasattr(self, 'ent_grafana_port'): self.data['grafana_port'] = self.ent_grafana_port.get()
+        return True
+
+    def _save_data_admin(self):
+        if hasattr(self, 'ent_admin_user'): self.data['admin_user'] = self.ent_admin_user.get().strip()
+        if hasattr(self, 'ent_admin_pass'): self.data['admin_pass'] = self.ent_admin_pass.get()
+        if hasattr(self, 'ent_admin_pass2'): self.data['admin_pass2'] = self.ent_admin_pass2.get()
+        
+        err = self._validate_admin()
+        if err:
+            messagebox.showerror("Eingabefehler", err)
+            return False
+        return True
+
+    def _save_data_telemetry(self):
+        if hasattr(self, 'telemetry_var'): self.data['send_telemetry'] = self.telemetry_var.get()
+        return True
+
+    def _save_data_upgrade_mode(self):
+        if self.install_mode_var.get() == "update":
+            self.current_step = len(self.steps) - 1
+            self.show_step()
+            return False # Skip normal advance
+        return True
+
+    def _save_data_upgrade_backup(self):
+        if hasattr(self, 'db_init_var'): self.data['db_init_action'] = self.db_init_var.get()
+        return True
+
+    def _advance_to_next_step(self):
         if self.current_step < len(self.steps) - 1:
             self.current_step += 1
             # Reinstall+Upgrade: skip step_admin (admin stays in DB, no new credentials needed)
@@ -493,7 +656,7 @@ class YADSInstallerGUI:
         cats = sum([
             bool(re.search(r'[A-Z]', pw)),
             bool(re.search(r'[a-z]', pw)),
-            bool(re.search(r'[0-9]', pw)),
+            bool(re.search(r'\d', pw)),
             bool(re.search(r'[^A-Za-z0-9]', pw)),
         ])
         if cats < 3:
@@ -714,63 +877,83 @@ class YADSInstallerGUI:
         mode_label = "Update" if mode == "update" else "Neuinstallation"
         if not messagebox.askyesno("Bestätigen", f"{mode_label} jetzt durchführen?"):
             return
-        try:
-            # Backup always enforced for existing installations
-            if self.is_upgrade:
-                self.execute_backup()
+        
+        # Show startup progress UI
+        self.show_startup_progress()
+        
+        # Run the actual work in a background thread
+        threading.Thread(target=self._execute_finish, args=(mode,), daemon=True).start()
 
-            if self.is_upgrade and mode == "update":
-                # UPDATE: pull new images, restart — preserve all config
-                self.authenticate_registry()
-                print("Pulling latest images...")
-                self.run_docker(["compose", "pull"], check=True)
-                print("Restarting services...")
-                self.run_docker(["compose", "up", "-d", "--remove-orphans"], check=True)
-                messagebox.showinfo("Update abgeschlossen",
-                                    "YADS wurde erfolgreich aktualisiert.\n\n"
-                                    "Die neuen Images sind aktiv.")
-                self.root.quit()
+    def _execute_finish(self, mode):
+        try:
+            if not self._perform_backup_if_needed():
                 return
 
-            # REINSTALL or fresh install
-            if self.is_upgrade:
-                print("Stopping existing containers for reinstall...")
-                self.run_docker(["compose", "down"], capture_output=True, timeout=60)
+            if self.is_upgrade and mode == "update":
+                self._handle_update_mode()
+                return
 
-                db_action = self.data.get('db_init_action', 'upgrade')
-                if db_action == "purge":
-                    # Purge: drop the postgres volume so new password works cleanly
-                    self.run_docker(["volume", "rm", "-f", "yads_postgres_data"],
-                                   capture_output=True, timeout=30)
-
-            self.generate_secrets()
-
-            # For reinstall with data preservation: keep existing POSTGRES_PASSWORD
-            # so the running volume isn't locked out by a new credential
-            if self.is_upgrade and self.data.get('db_init_action', 'upgrade') == "upgrade":
-                if os.path.exists(".env"):
-                    with open(".env") as f:
-                        for line in f:
-                            if line.startswith("POSTGRES_PASSWORD="):
-                                old_pw = line.split("=", 1)[1].strip()
-                                if old_pw:
-                                    self.secrets["POSTGRES_PASSWORD"] = old_pw
-                                break
-            self.write_env_file()
-            self.write_compose_file()
-            self.write_nginx_config()
-            self.authenticate_registry()
-
-            msg = "Configuration applied successfully!\n\nSoll YADS jetzt gestartet und der Browser (in 5s) geöffnet werden?"
-            if messagebox.askyesno("Start YADS?", msg):
-                # Show progress in UI
-                self.show_startup_progress()
-                self.start_yads_and_open_browser()
-            else:
-                messagebox.showinfo("Success", "Setup complete. Start YADS manually with 'docker compose up -d'.")
-                self.root.quit()
+            self._handle_reinstall_mode()
+            self._apply_config_and_start()
+            
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to complete setup: {e}")
+            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to complete setup: {e}"))
+            self.root.after(0, self.show_step)
+
+    def _perform_backup_if_needed(self):
+        if not self.is_upgrade:
+            return True
+        self.log_panel.show(self.root)
+        self.log_panel.log("Starte Backup-Prozess...\n", "bold")
+        try:
+            self.execute_backup()
+            return True
+        except Exception as e:
+            if messagebox.askyesno("Backup fehlgeschlagen", 
+                f"Das Backup ist fehlgeschlagen: {e}\n\nSoll trotzdem fortgefahren werden?"):
+                return True
+            self.root.after(0, self.show_step)
+            return False
+
+    def _handle_update_mode(self):
+        self.authenticate_registry()
+        self.run_with_log("Pulling latest images...", ["compose", "pull"])
+        self.log_panel.log("Restarting services...", ["compose", "up", "-d", "--remove-orphans"])
+        self.root.after(0, lambda: messagebox.showinfo("Update abgeschlossen",
+                            "YADS wurde erfolgreich aktualisiert.\n\n"
+                            "Die neuen Images sind aktiv."))
+        self.root.after(0, self.root.quit)
+
+    def _handle_reinstall_mode(self):
+        if self.is_upgrade:
+            self.log_panel.log("Stopping existing services (keeping DB alive for last check)....\n")
+            self.run_docker(["compose", "stop", "api", "worker", "redis", "nginx", "keycloak", "prometheus", "grafana"], capture_output=True)
+            self.log_panel.log("Stopping all containers...\n")
+            self.run_docker(["compose", "down"], capture_output=True, timeout=60)
+
+            if self.data.get('db_init_action', 'upgrade') == "purge":
+                self.log_panel.log("Purging database volume...\n", "error")
+                self.run_docker(["volume", "rm", "-f", "yads_postgres_data"], capture_output=True, timeout=30)
+
+        self.generate_secrets()
+        if self.is_upgrade and self.data.get('db_init_action', 'upgrade') == "upgrade":
+            if os.path.exists(".env"):
+                with open(".env") as f:
+                    for line in f:
+                        if line.startswith("POSTGRES_PASSWORD="):
+                            old_pw = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if old_pw:
+                                self.secrets["POSTGRES_PASSWORD"] = old_pw
+                            break
+
+    def _apply_config_and_start(self):
+        self.log_panel.log("Writing configuration files...\n")
+        self.write_env_file()
+        self.write_compose_file()
+        self.write_nginx_config()
+        self.authenticate_registry()
+        self.run_with_log("Pulling and starting YADS...", ["compose", "up", "-d", "--remove-orphans"])
+        self.root.after(0, self.start_yads_and_open_browser)
 
     def show_startup_progress(self):
         for widget in self.content_frame.winfo_children():
@@ -927,7 +1110,7 @@ class YADSInstallerGUI:
             req = urllib.request.Request(
                 f"{base_url}{path}",
                 data=data,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": JSON_CONTENT},
                 method="POST",
             )
             try:
@@ -1118,11 +1301,14 @@ class YADSInstallerGUI:
             req = urllib.request.Request(
                 "https://support.yads-security.com/api/installation",
                 data=data,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": JSON_CONTENT},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10):
-                sent = True
+            import ssl
+            ctx = ssl.create_default_context()
+            resp = urllib.request.urlopen(req, timeout=10, context=ctx)
+            resp.read() # Ensure response is read to close connection properly
+            sent = True
         except Exception as exc:
             send_error = str(exc)
 
@@ -1135,7 +1321,7 @@ class YADSInstallerGUI:
             q_req = urllib.request.Request(
                 f"{self._base_url_for_api()}/setup/queue-report",
                 data=q_data,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": JSON_CONTENT},
                 method="POST",
             )
             urllib.request.urlopen(q_req, timeout=5)
@@ -1353,66 +1539,69 @@ class YADSInstallerGUI:
         }
 
     def write_env_file(self):
-        use_nginx = self.data['use_nginx']
-        # Build COMPOSE_PROFILES: activate nginx profile when chosen,
-        # add keycloak/monitoring profiles as needed below
         profiles = []
-        if use_nginx:
-            profiles.append("nginx")
+        env_lines = [
+            "# Generated by YADS GUI Setup",
+            f"POSTGRES_PASSWORD={self.secrets['POSTGRES_PASSWORD']}",
+            f"SECRET_KEY={self.secrets['SECRET_KEY']}",
+            f"WORKER_REGISTRATION_TOKEN={self.secrets['WORKER_REGISTRATION_TOKEN']}",
+            f"SUPPORT_ADMIN_TOKEN={self.secrets['SUPPORT_ADMIN_TOKEN']}",
+            "YADS_VERSION=latest",
+            f"API_PORT={self.data['api_port']}",
+            f"AUTH_MODE={self.data['auth_mode']}",
+            f"HAS_NGINX={'true' if self.data['use_nginx'] else 'false'}",
+            f"DISABLE_HTTPS_ONLY={'true' if not self.data['use_ssl'] else 'false'}"
+        ]
+        
+        if self.data['use_nginx']: profiles.append("nginx")
+        self._add_oidc_env(env_lines, profiles)
+        self._add_monitoring_env(env_lines, profiles)
+        
+        if profiles:
+            env_lines.append(f"COMPOSE_PROFILES={','.join(profiles)}")
+            
+        self._add_network_env(env_lines)
+        
+        license_key = self.data.get('license_key', '').strip()
+        if license_key: env_lines.append(f"LICENSE_KEY={license_key}")
+        
+        with open(".env", "w") as f:
+            f.write("\n".join(env_lines) + "\n")
 
-        env_content = f"""# Generated by YADS GUI Setup
-POSTGRES_PASSWORD={self.secrets['POSTGRES_PASSWORD']}
-SECRET_KEY={self.secrets['SECRET_KEY']}
-WORKER_REGISTRATION_TOKEN={self.secrets['WORKER_REGISTRATION_TOKEN']}
-SUPPORT_ADMIN_TOKEN={self.secrets['SUPPORT_ADMIN_TOKEN']}
-YADS_VERSION=latest
-API_PORT={self.data['api_port']}
-AUTH_MODE={self.data['auth_mode']}
-HAS_NGINX={'true' if use_nginx else 'false'}
-DISABLE_HTTPS_ONLY={'true' if not self.data['use_ssl'] else 'false'}
-"""
+    def _add_oidc_env(self, lines, profiles):
         if self.data['auth_mode'] == "oidc" and self.data['kc_choice'] == "2": # Bundled
             profiles.append("keycloak")
-            env_content += f"""
-KC_PORT={self.data['kc_port']}
-KC_ADMIN=admin
-KC_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
-KC_DB_PASSWORD={secrets.token_urlsafe(16)}
-OIDC_SERVER_URL=http://keycloak:8080
-OIDC_PUBLIC_URL=http://{self.data['yads_host']}:{self.data['kc_port']}
-OIDC_REALM=yads
-OIDC_CLIENT_ID=yads
-OIDC_CLIENT_SECRET={secrets.token_hex(24)}
-OIDC_REDIRECT_URI=http://{self.data['yads_host']}:{self.data['api_port']}/auth/oidc/callback
-"""
+            lines.extend([
+                "",
+                f"KC_PORT={self.data['kc_port']}",
+                "KC_ADMIN=admin",
+                f"KC_ADMIN_PASSWORD={secrets.token_urlsafe(16)}",
+                f"KC_DB_PASSWORD={secrets.token_urlsafe(16)}",
+                "OIDC_SERVER_URL=http://keycloak:8080",
+                f"OIDC_PUBLIC_URL=http://{self.data['yads_host']}:{self.data['kc_port']}",
+                "OIDC_REALM=yads",
+                "OIDC_CLIENT_ID=yads",
+                f"OIDC_CLIENT_SECRET={secrets.token_hex(24)}",
+                f"OIDC_REDIRECT_URI=http://{self.data['yads_host']}:{self.data['api_port']}/auth/oidc/callback"
+            ])
 
+    def _add_monitoring_env(self, lines, profiles):
         if self.data['mon_choice'] == "2": # Bundled
             profiles.append("monitoring")
-            env_content += f"""
-METRICS_ENABLED=true
-METRICS_AUTH_MODE=token
-METRICS_TOKEN={secrets.token_hex(24)}
-GRAFANA_PORT={self.data['grafana_port']}
-GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
-"""
+            lines.extend([
+                "",
+                "METRICS_ENABLED=true",
+                "METRICS_AUTH_MODE=token",
+                f"METRICS_TOKEN={secrets.token_hex(24)}",
+                f"GRAFANA_PORT={self.data['grafana_port']}",
+                f"GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}"
+            ])
 
-        if profiles:
-            env_content += f"COMPOSE_PROFILES={','.join(profiles)}\n"
-
-        # When nginx is active: yads-api uses YADS_DIRECT_PORT (8000) internally,
-        # nginx handles the external API_PORT — prevents port conflict
-        # When no nginx: YADS_DIRECT_PORT = API_PORT so yads-api is directly reachable
-        if use_nginx:
-            env_content += "YADS_DIRECT_PORT=8000\n"
+    def _add_network_env(self, lines):
+        if self.data['use_nginx']:
+            lines.append("YADS_DIRECT_PORT=8000")
         else:
-            env_content += f"YADS_DIRECT_PORT={self.data['api_port']}\n"
-
-        license_key = self.data.get('license_key', '').strip()
-        if license_key:
-            env_content += f"LICENSE_KEY={license_key}\n"
-
-        with open(".env", "w") as f:
-            f.write(env_content)
+            lines.append(f"YADS_DIRECT_PORT={self.data['api_port']}")
 
     def write_nginx_config(self):
         if not self.data['use_nginx']:
@@ -1421,15 +1610,15 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         # Read template from pyz first, fall back to filesystem
         content = None
         try:
-            raw = _zipimport.zipimporter(sys.argv[0]).get_data("nginx.conf.template")
+            raw = _zipimport.zipimporter(sys.argv[0]).get_data(NGINX_TEMPLATE)
             content = raw.decode("utf-8")
         except Exception:
             pass
-        if content is None and os.path.exists("nginx.conf.template"):
-            with open("nginx.conf.template", "r") as f:
+        if content is None and os.path.exists(NGINX_TEMPLATE):
+            with open(NGINX_TEMPLATE, "r") as f:
                 content = f.read()
         if content is None:
-            raise RuntimeError("nginx.conf.template nicht gefunden — pyz scheint unvollständig.")
+            raise RuntimeError(f"{NGINX_TEMPLATE} nicht gefunden — pyz scheint unvollständig.")
 
         port = self.data['api_port']
         listen_directive = f"listen {port} ssl;" if self.data['use_ssl'] else f"listen {port};"
@@ -1453,33 +1642,33 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
             f.write(content)
 
     def write_compose_file(self):
-        """Extract docker-compose.customer.yml from the pyz and write it as docker-compose.yml."""
+        """Extract COMPOSE_FILE from the pyz and write it as docker-compose.yml."""
         content = None
         # Try 1: use the module's own zipimporter (__loader__ is set when running from a pyz)
         try:
             loader = globals().get("__loader__") or sys.modules[__name__].__loader__
             if isinstance(loader, _zipimport.zipimporter):
-                raw = loader.get_data("docker-compose.customer.yml")
+                raw = loader.get_data(COMPOSE_FILE)
                 content = raw.decode("utf-8")
         except Exception:
             pass
         # Try 2: zipimporter on sys.argv[0]
         if content is None:
             try:
-                raw = _zipimport.zipimporter(sys.argv[0]).get_data("docker-compose.customer.yml")
+                raw = _zipimport.zipimporter(sys.argv[0]).get_data(COMPOSE_FILE)
                 content = raw.decode("utf-8")
             except Exception:
                 pass
         # Try 3: filesystem fallback (dev mode — running unpacked)
         if content is None:
-            for candidate in ("docker-compose.customer.yml",
-                              os.path.join(os.path.dirname(sys.argv[0]), "docker-compose.customer.yml")):
+            for candidate in (COMPOSE_FILE,
+                              os.path.join(os.path.dirname(sys.argv[0]), COMPOSE_FILE)):
                 if os.path.exists(candidate):
                     with open(candidate, "r") as f:
                         content = f.read()
                     break
         if content is None:
-            raise RuntimeError("docker-compose.customer.yml nicht im Installer gefunden.")
+            raise RuntimeError(f"{COMPOSE_FILE} nicht im Installer gefunden.")
         with open("docker-compose.yml", "w") as f:
             f.write(content)
 
@@ -1552,7 +1741,8 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
         win.geometry("480x200")
         win.configure(bg=self.colors['bg'])
         win.grab_set()
-        ttk.Label(win, text="YADS wird bereinigt…", style=STYLE_HEADER).pack(pady=(20, 10))
+        self.log_win.show()
+        self.log_win.log("\n>>> WIPE: Starte Bereinigung...\n", "bold")
         log_var = tk.StringVar(value="Starte docker compose down -v …")
         ttk.Label(win, textvariable=log_var, foreground=self.colors['fg_sub'],
                   wraplength=440, justify="left").pack(padx=20)
@@ -1565,10 +1755,13 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
                 )
                 if result.returncode == 0:
                     log_var.set("Container und Volumes entfernt.")
+                    self.log_win.log("Container und Volumes entfernt.\n")
                 else:
                     log_var.set(f"Warnung: {result.stderr.strip()[:200]}")
+                    self.log_win.log(f"Warnung: {result.stderr}\n", "error")
 
                 # Also remove any leftover named containers
+                self.log_win.log("Entferne restliche Container...\n")
                 for name in ["yads-api", "yads-worker", "yads-db", "yads-redis"]:
                     self.run_docker(["rm", "-f", name],
                                    capture_output=True, timeout=15)
@@ -1794,10 +1987,13 @@ GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}
 
             sql_file = filename.replace(".gz", "")
             cmd = ["exec", "-i", "yads-db", "pg_dump", "-U", "yads", "yads"]
+            self.log_win.log(f"Exporting database to {sql_file}...\n")
             with open(sql_file, "w") as f_out:
                 self.run_docker(cmd, check=True, stdout=f_out, env=env)
 
+            self.log_win.log("Compressing backup...\n")
             subprocess.run(["gzip", sql_file], check=True)
+            self.log_win.log(f"✓ Backup erstellt: {os.path.abspath(filename)}\n", "success")
             messagebox.showinfo("Backup", f"Backup erstellt: {os.path.abspath(filename)}")
         except Exception as e:
             messagebox.showerror("Backup Error", f"SQL Backup fehlgeschlagen:\n{e}")
@@ -1827,7 +2023,10 @@ with SessionLocal() as session:
             if check.stdout.strip() != "true":
                 raise RuntimeError("Container yads-api läuft nicht. Encrypted Backup nicht möglich.\n"
                                    "Wähle 'Unverschlüsselt' oder starte YADS zuerst.")
+            
+            self.log_win.log(f"Erstelle verschlüsseltes Backup in {filename}...\n")
             self.run_docker(["exec", "-i", "yads-api", "python3", "-c", script], check=True)
+            self.log_win.log(f"✓ Backup erstellt: {os.path.abspath(filename)}\n", "success")
             self.run_docker(["cp", "yads-api:/tmp/backup.enc", filename], check=True)
             self.run_docker(["exec", "-i", "yads-api", "rm", "/tmp/backup.enc"], check=True)
             messagebox.showinfo("Backup", f"Verschlüsseltes Backup erstellt: {filename}")
@@ -2142,7 +2341,7 @@ with SessionLocal() as session:
         cats = sum([
             bool(re.search(r'[A-Z]', pw)),
             bool(re.search(r'[a-z]', pw)),
-            bool(re.search(r'[0-9]', pw)),
+            bool(re.search(r'\d', pw)),
             bool(re.search(r'[^A-Za-z0-9]', pw)),
         ])
         if cats < 3:
@@ -2374,29 +2573,9 @@ with SessionLocal() as session:
     def step_summary(self):
         mode = self.install_mode_var.get() if self.is_upgrade else "reinstall"
         if self.is_upgrade and mode == "update":
-            ttk.Label(self.content_frame, text="Bereit zum Update", style=STYLE_HEADER).pack(pady=(0, 10))
-            ttk.Label(self.content_frame,
-                      text="YADS wird auf die neueste Version aktualisiert.\n"
-                           "Konfiguration und Daten bleiben unverändert.",
-                      wraplength=500, justify="center").pack(pady=10)
-            summary_txt = f"Modus: Update (Images aktualisieren)\n"
-            summary_txt += f"Backup: {self.backup_var.get()}\n\n"
-            summary_txt += "Ablauf:\n"
-            summary_txt += "  1. Backup erstellen\n"
-            summary_txt += "  2. docker compose pull\n"
-            summary_txt += "  3. docker compose up -d --remove-orphans\n"
+            summary_txt = self._show_update_summary()
         else:
-            ttk.Label(self.content_frame, text="Bereit zur Installation", style=STYLE_HEADER).pack(pady=(0, 10))
-            ttk.Label(self.content_frame, text="Zusammenfassung der Konfiguration:").pack(anchor="w")
-            summary_txt = f"Modus: {'Reinstall' if self.is_upgrade else 'Neuinstallation'}\n"
-            summary_txt += f"Host: {self.data['host']}\n"
-            summary_txt += f"Port: {self.data['api_port']}\n"
-            summary_txt += f"SSL: {'Aktiviert' if self.data['use_ssl'] else 'Deaktiviert'}\n"
-            summary_txt += f"Auth: {self.data['auth_mode']}\n"
-            summary_txt += f"Monitoring: {'Aktiviert' if self.data['mon_choice'] != '1' else 'Deaktiviert'}\n"
-            if self.is_upgrade:
-                summary_txt += f"Backup: {self.backup_var.get()}\n"
-            summary_txt += "\nPasswörter und Tokens werden beim Klick auf Finish generiert und in .env gespeichert."
+            summary_txt = self._show_install_summary()
         
         self.text_area = tk.Text(self.content_frame, height=10, bg=self.colors['bg_alt'], fg=self.colors['fg'])
         self.text_area.insert("1.0", summary_txt)
@@ -2405,8 +2584,35 @@ with SessionLocal() as session:
         
         btn_frame = tk.Frame(self.content_frame, bg=self.colors['bg'])
         btn_frame.pack(fill="x")
-        
         ttk.Button(btn_frame, text="Save to Disk", command=self.save_to_disk).pack(side="right")
+
+    def _show_update_summary(self):
+        ttk.Label(self.content_frame, text="Bereit zum Update", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame,
+                  text="YADS wird auf die neueste Version aktualisiert.\n"
+                       "Konfiguration und Daten bleiben unverändert.",
+                  wraplength=500, justify="center").pack(pady=10)
+        txt = f"Modus: Update (Images aktualisieren)\n"
+        txt += f"Backup: {self.backup_var.get()}\n\n"
+        txt += "Ablauf:\n"
+        txt += "  1. Backup erstellen\n"
+        txt += "  2. docker compose pull\n"
+        txt += "  3. docker compose up -d --remove-orphans\n"
+        return txt
+
+    def _show_install_summary(self):
+        ttk.Label(self.content_frame, text="Bereit zur Installation", style=STYLE_HEADER).pack(pady=(0, 10))
+        ttk.Label(self.content_frame, text="Zusammenfassung der Konfiguration:").pack(anchor="w")
+        txt = f"Modus: {'Reinstall' if self.is_upgrade else 'Neuinstallation'}\n"
+        txt += f"Host: {self.data['host']}\n"
+        txt += f"Port: {self.data['api_port']}\n"
+        txt += f"SSL: {'Aktiviert' if self.data['use_ssl'] else 'Deaktiviert'}\n"
+        txt += f"Auth: {self.data['auth_mode']}\n"
+        txt += f"Monitoring: {'Aktiviert' if self.data['mon_choice'] != '1' else 'Deaktiviert'}\n"
+        if self.is_upgrade:
+            txt += f"Backup: {self.backup_var.get()}\n"
+        txt += "\nPasswörter und Tokens werden beim Klick auf Finish generiert und in .env gespeichert."
+        return txt
 
     def save_to_disk(self):
         from tkinter import filedialog

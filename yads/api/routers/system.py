@@ -1080,8 +1080,7 @@ async def check_activation_from_portal(
     Poll the support portal for an approved activation response code.
     If found, save it as the license key and redirect to /license with a success message.
     """
-    import urllib.request as _urllib
-    import urllib.error as _urlerr
+    import requests
 
     instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
     if not instance_uuid_conf or not instance_uuid_conf.value:

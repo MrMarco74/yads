@@ -38,7 +38,8 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 ## 🚀 Quick Start & Installation
 
 1.  **Deployment**:
-    Use the provided `docker-compose.yml` to start the stack.
+    The infrastructure configuration has moved to the **[yads-infra](file:///home/mrmarco/Documents/gitlab/yads-infra)** repository.
+    Clone it and run:
 
     ```bash
     docker-compose up -d
