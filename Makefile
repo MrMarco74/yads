@@ -2,7 +2,7 @@
         test-smoke test-auth test-targets test-queue test-users \
         test-fast help
 
-COMPOSE_TEST = docker compose -f docker-compose.test.yml
+COMPOSE_TEST = docker compose -f ../yads-infra/docker-compose.test.yml
 
 # ── Full test run (build image if needed + run) ───────────────────────────────
 
@@ -40,7 +40,8 @@ test-coverage:
 	    $(COMPOSE_TEST) run --rm test-runner
 	@echo "Coverage report: htmlcov/index.html"
 
-# ── Infrastructure helpers ────────────────────────────────────────────────────
+# Note: docker-compose.yml has moved to the yads-infra repository.
+# These targets now assume yads-infra is a sibling directory.
 
 test-up:
 	$(COMPOSE_TEST) up -d test-db test-redis

@@ -3,12 +3,12 @@ import json
 import os
 import shutil
 import tldextract
-from typing import Optional, List
+from typing import Optional, List, Annotated
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from yads.database import get_session, redis_client
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
@@ -24,13 +24,23 @@ from yads.models import SecurityAuditLog
 
 
 def _safe_redirect(url: Optional[str], default: str = "/targets/table") -> str:
-    """Reject absolute or protocol-relative URLs to prevent open redirect."""
+    """Reject absolute, protocol-relative, or malformed URLs to prevent open redirect."""
     if not url:
         return default
-    parsed = urlparse(url)
-    if parsed.scheme or parsed.netloc or url.startswith("//"):
+    try:
+        parsed = urlparse(url)
+        # 1. Reject if it has a scheme (http/https/etc.) or a domain (netloc)
+        if parsed.scheme or parsed.netloc:
+            return default
+        # 2. Reject protocol-relative URLs (e.g., //evil.com) or Windows shares
+        if url.startswith(("//", "\\\\")):
+            return default
+        # 3. YADS internal redirects must start with a single '/'
+        if not url.startswith("/") or url.startswith("//"):
+            return default
+        return url
+    except Exception:
         return default
-    return url
 
 
 def _audit_scan_trigger(session, user, domains: list, scan_types: list, trigger: str, request=None):
@@ -83,284 +93,262 @@ router = APIRouter()
 @router.post("/targets/bulk/scan", response_class=HTMLResponse)
 async def bulk_scan_targets(
     request: Request,
-    scan_types: List[str] = Form(default=[]), 
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))],
+    scan_types: List[str] = Form(default=[])
 ):
     form = await request.form()
-    target_ids = form.getlist("target_ids") 
-    
+    target_ids = form.getlist("target_ids")
     if not target_ids:
-         return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
-         
-    scan_types_selected = form.getlist("scan_types")
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
 
-    from yads.core.module_registry import REGISTRY
-    # All registered module names + special pseudo-types
-    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
-    final_types = [t for t in scan_types_selected if t in valid_types]
-
-    if "full_scan" in final_types:
-        # Expand to all modules EXCEPT subdomain_scanner — it triggers
-        # mass auto-queuing of subdomains and must always be an explicit choice.
-        final_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
-    
+    final_types = _get_final_scan_types(form.getlist("scan_types"))
     if not final_types:
-         return RedirectResponse(url="/targets/table?msg=Error:+No+valid+scan+types+selected", status_code=303)
+        return RedirectResponse(url="/targets/table?msg=Error:+No+valid+scan+types+selected", status_code=303)
 
-    import logging
-    logger = logging.getLogger("yads-api")
-    logger.info(f"DEBUG: Bulk Scan Request. Target Count: {len(target_ids)}. Selected Types: {scan_types_selected}. Final: {final_types}")
+    logger.info(f"Bulk Scan Request. Target Count: {len(target_ids)}. Final: {final_types}")
 
     count = 0
-
-    # Check Queue Status
-    from yads.models import SystemConfig
-    queue_config = session.get(SystemConfig, "QUEUE_ACTIVE")
-    queue_active = False
-    if queue_config and queue_config.value.lower() == "true":
-        queue_active = True
-
     for tid_str in target_ids:
-        try:
-            tid = int(tid_str)
-            target = session.exec(select(Target).where(Target.id == tid, Target.tenant_id == user.tenant_id)).first()
-            if target:
-                # --- License / CE Check ---
-                from yads.models import SystemConfig
-                from yads.core.license import license_manager
-                from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
-                _ce = get_ce_state(session)
-                if _ce["edition"] == "community":
-                    _ok, _reason = ce_check_scan(session)
-                    if not _ok:
-                        return RedirectResponse(url=f"/targets/table?msg=Error:+{_reason}", status_code=303)
-                else:
-                    lc = session.get(SystemConfig, "license_key")
-                    if not lc or not lc.value or not license_manager.verify(lc.value):
-                        return RedirectResponse(url="/targets/table?msg=Error:+License+Required+for+Scanning", status_code=303)
-
-                # Dispatch Task
-                celery_app.send_task(
-                    "yads.worker.run_all_scans",
-                    args=[target.id, target.domain, final_types, user.tenant_id],
-                    priority=getattr(target, "scan_priority", 5),
-                )
-
-                target.scan_status = "queued"
-                session.add(target)
-                count += 1
-
-        except Exception as e:
-            logger.error("Failed to queue target %s: %s", tid_str, str(e).replace("\n", " ").replace("\r", " "))
-            continue
+        if _queue_single_bulk_target(session, user, tid_str, final_types):
+            count += 1
 
     session.commit()
     _audit_scan_trigger(session, user, list(target_ids)[:50], final_types, "bulk_scan", request)
 
-    msg = f"Queued+{count}+scans"
-    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+    return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)
+
+
+def _get_final_scan_types(selected_types: List[str]) -> List[str]:
+    """Validate and expand scan types for bulk processing."""
+    from yads.core.module_registry import REGISTRY
+    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
+    final = [t for t in selected_types if t in valid_types]
+    if "full_scan" in final:
+        return [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
+    return final
+
+
+def _queue_single_bulk_target(session: Session, user: User, tid_str: str, scan_types: List[str]) -> bool:
+    """Helper to validate and queue a single target within a bulk operation."""
+    try:
+        tid = int(tid_str)
+        target = session.exec(select(Target).where(Target.id == tid, Target.tenant_id == user.tenant_id)).first()
+        if not target:
+            return False
+
+        # License Check
+        from yads.core.community_edition import get_ce_state, check_can_scan
+        from yads.core.license import license_manager
+        _ce = get_ce_state(session)
+        if _ce["edition"] == "community":
+            ok, _ = check_can_scan(session)
+            if not ok: return False
+        else:
+            lc = session.get(SystemConfig, "license_key")
+            if not lc or not lc.value or not license_manager.verify(lc.value):
+                return False
+
+        # Dispatch
+        celery_app.send_task(
+            "yads.worker.run_all_scans",
+            args=[target.id, target.domain, scan_types, user.tenant_id],
+            priority=getattr(target, "scan_priority", 5),
+        )
+        target.scan_status = "queued"
+        session.add(target)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to queue target {tid_str}: {e}")
+        return False
+)
 
 @router.post("/targets/import", response_class=HTMLResponse)
 async def bulk_import_targets(
     request: Request,
-    file_upload: UploadFile = File(None),
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))],
+    file_upload: UploadFile = File(None)
 ):
     form = await request.form()
     raw_text = form.get("targets_raw", "")
     discovery_reason = form.get("discovery_reason")
     next_url = _safe_redirect(form.get("next"), "/targets/table")
     verify_dns = form.get("verify_dns") == "true"
-    
-    # Process File Upload if present
+
     if file_upload and file_upload.filename:
-        try:
-            content = await file_upload.read()
-            # Try decoding as utf-8, fallback to latin-1
-            try:
-                decoded = content.decode("utf-8")
-            except UnicodeDecodeError:
-                decoded = content.decode("latin-1")
-            except Exception as e:
-                logger.debug(f"Failed to decode uploaded file: {e}")
-                decoded = content.decode("latin-1", errors="ignore")
-            
-            raw_text += "\n" + decoded
-        except Exception as e:
-            logger.error(f"Failed to read uploaded file: {e}")
-    
+        raw_text += "\n" + await _read_uploaded_file(file_upload)
+
     if not raw_text.strip():
         return RedirectResponse(url=f"{next_url}?msg=No+data+provided", status_code=303)
-        
-    # Split lines and process
-    # Use set to remove duplicates within the import batch immediately
-    lines = list(set([l.strip().lower() for l in raw_text.splitlines() if l.strip()]))
-    
-    imported_count = 0
-    duplicate_count = 0
-    skipped_dns_count = 0
-    
-    import dns.resolver  # Import here execution context
-    
-    for domain in lines:
-        # Basic cleanup - remove http/https if present and trailing slashes
-        domain = domain.replace("http://", "").replace("https://", "").split("/")[0]
-        domain = domain.strip().lower()
 
+    domains = list(set([l.strip().lower() for l in raw_text.splitlines() if l.strip()]))
+    stats = {"imported": 0, "duplicates": 0, "skipped_dns": 0}
+
+    for domain in domains:
+        domain = _clean_domain(domain)
         if not domain: continue
-        
-        # DNS Verification if enabled
-        if verify_dns:
-            try:
-                # Try resolving A record
-                dns.resolver.resolve(domain, 'A')
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.LifetimeTimeout):
-                try:
-                    # Fallback to AAAA
-                     dns.resolver.resolve(domain, 'AAAA')
-                except Exception as e:
-                     logger.debug(f"DNS AAAA resolution failed for {domain}: {e}")
-                     skipped_dns_count += 1
-                     continue
-            except Exception as e:
-                # Other DNS errors -> skip
-                logger.debug(f"DNS resolution error for {domain}: {e}")
-                skipped_dns_count += 1
-                continue
-        
-        # Check duplicate (Tenant Scoped)
-        existing = session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first()
-        if existing:
-            duplicate_count += 1
+
+        if verify_dns and not _verify_domain_dns(domain):
+            stats["skipped_dns"] += 1
             continue
-            
-        # --- License / CE Check ---
-        total_active_targets = session.exec(select(func.count()).select_from(Target)).one()
 
-        from yads.core.community_edition import get_ce_state, check_can_add_target
-        from yads.models import SystemConfig
-        from yads.core.license import license_manager
+        if _is_duplicate_target(session, user, domain):
+            stats["duplicates"] += 1
+            continue
 
-        ce_state = get_ce_state(session)
-        if ce_state["edition"] == "community":
-            allowed, reason = check_can_add_target(session, total_active_targets)
-            if not allowed:
-                return RedirectResponse(url=f"{next_url}?error={reason}", status_code=303)
-        else:
-            # Legacy commercial license enforcement
-            license_conf = session.get(SystemConfig, "license_key")
-            limit = 5  # default free tier
-            if license_conf and license_conf.value:
-                data = license_manager.verify(license_conf.value)
-                if data:
-                    limit = data.get("max_targets", 0)
-            if total_active_targets >= limit:
-                msg = f"License Limit Reached ({limit}). Upgrade license to add more targets."
-                return RedirectResponse(url=f"{next_url}?error={msg}", status_code=303)
+        # License Check
+        if not _check_import_license_limit(session, stats["imported"]):
+            return RedirectResponse(url=f"{next_url}?error=License+Limit+Reached", status_code=303)
 
-        # Create
-        # Create
-        new_target = Target(domain=domain, tenant_id=user.tenant_id, discovery_reason=discovery_reason)
-        session.add(new_target)
-        imported_count += 1
-        
+        session.add(Target(domain=domain, tenant_id=user.tenant_id, discovery_reason=discovery_reason))
+        stats["imported"] += 1
+
     session.commit()
+    return RedirectResponse(url=f"{next_url}?msg={_format_import_msg(stats)}", status_code=303)
+
+
+async def _read_uploaded_file(file: UploadFile) -> str:
+    """Read and decode uploaded target file."""
+    try:
+        content = await file.read()
+        for encoding in ["utf-8", "latin-1"]:
+            try:
+                return content.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return content.decode("latin-1", errors="ignore")
+    except Exception as e:
+        logger.error(f"Failed to read uploaded file: {e}")
+        return ""
+
+
+def _clean_domain(domain: str) -> str:
+    """Cleanup domain string."""
+    return domain.replace("http://", "").replace("https://", "").split("/")[0].strip().lower()
+
+
+def _verify_domain_dns(domain: str) -> bool:
+    """Verify if a domain has valid DNS records."""
+    import dns.resolver
+    for rtype in ["A", "AAAA"]:
+        try:
+            dns.resolver.resolve(domain, rtype)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _is_duplicate_target(session: Session, user: User, domain: str) -> bool:
+    """Check if target already exists for tenant."""
+    return session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first() is not None
+
+
+def _check_import_license_limit(session: Session, current_batch_count: int) -> bool:
+    """Check if adding another target exceeds license limits."""
+    from yads.core.community_edition import get_ce_state, check_can_add_target
+    from yads.core.license import license_manager
+    total = session.exec(select(func.count()).select_from(Target)).one() + current_batch_count
+    ce = get_ce_state(session)
+    if ce["edition"] == "community":
+        ok, _ = check_can_add_target(session, total)
+        return ok
     
-    msg = f"Imported+{imported_count}+targets"
-    if duplicate_count > 0:
-        msg += f"+({duplicate_count}+skipped+duplicates)"
-    if skipped_dns_count > 0:
-        msg += f"+({skipped_dns_count}+skipped+offline)"
-        
-    return RedirectResponse(url=f"{next_url}?msg={msg}", status_code=303)
+    lc = session.get(SystemConfig, "license_key")
+    limit = 5
+    if lc and lc.value:
+        data = license_manager.verify(lc.value)
+        if data: limit = data.get("max_targets", 0)
+    return total < limit
+
+
+def _format_import_msg(stats: dict) -> str:
+    """Format the import result message."""
+    msg = f"Imported+{stats['imported']}+targets"
+    if stats["duplicates"] > 0: msg += f"+({stats['duplicates']}+skipped+duplicates)"
+    if stats["skipped_dns"] > 0: msg += f"+({stats['skipped_dns']}+skipped+offline)"
+    return msg
 
 @router.post("/targets/bulk/delete", response_class=HTMLResponse)
 async def bulk_delete_targets(
-    target_ids: List[int] = Form(...),
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))],
+    target_ids: List[int] = Form(...)
 ):
     """
     Deletes multiple targets and their associated data.
     """
     if not target_ids:
-        # Should probably return an error or just redirect
         return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
 
-    # Convert to set for safety
     ids_to_delete = set(target_ids)
     
-    # 1. Delete Dependencies (ScanResults, ModuleStates)
-    # Using raw SQL for efficiency with list of IDs
-    ids_str = ",".join(map(str, ids_to_delete))
-    
-    # Check if empty (shouldn't be due to check above)
-    if ids_str:
-        # 1a. Revoke Active/Queued Tasks for these Targets
-        # This is tricky without task IDs stored in DB.
-        # We have to inspect active/reserved tasks and check args.
-        i = celery_app.control.inspect()
-        active = i.active() if i else None
-        reserved = i.reserved() if i else None
-        
-        tasks_to_revoke = []
-        
-        def check_tasks(task_list):
-            for worker_name, tasks in task_list.items():
-                for task in tasks:
-                    # task args is usually [target_id, domain, ...]
-                    args = task.get("args", [])
-                    if args and isinstance(args, list) and len(args) > 0:
-                        try:
-                            tid = int(args[0])
-                            if tid in ids_to_delete:
-                                tasks_to_revoke.append(task.get("id"))
-                        except Exception as e:
-                            logger.debug(f"Task revocation check failed: {e}")
-                            pass
-                            
-        if active: check_tasks(active)
-        if reserved: check_tasks(reserved)
-        
-        for tid_revoke in tasks_to_revoke:
-            celery_app.control.revoke(tid_revoke, terminate=True)
+    # 1. Revoke Active/Queued Tasks
+    revoked_count = _revoke_tasks_for_targets(ids_to_delete)
             
-        # Safety: only delete targets owned by this tenant
-        owned_targets = session.exec(
-            select(Target.id).where(
-                Target.id.in_(ids_to_delete),
-                Target.tenant_id == user.tenant_id,
-            )
-        ).all()
-        safe_ids = list(owned_targets)
-        if not safe_ids:
-            session.rollback()
-            return JSONResponse({"deleted": 0})
+    # 2. Identify and Delete Owned Targets
+    safe_ids = _get_owned_target_ids(session, user, ids_to_delete)
+    if not safe_ids:
+        return RedirectResponse(url="/targets/table?msg=Error:+No+owned+targets+found", status_code=303)
 
-        ids = safe_ids
-        # Delete in FK dependency order
-        session.execute(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id = ANY(:ids))"), {"ids": ids})
-        session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM compliancetargetstatus WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM httptraffic WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM remediationtask WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM scanschedule WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM workertask WHERE target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = ANY(:ids)"), {"ids": ids})
-        session.execute(text("DELETE FROM target WHERE id = ANY(:ids)"), {"ids": ids})
-        
-        session.commit()
+    _perform_bulk_delete_from_db(session, safe_ids)
+    session.commit()
     
-    count = len(ids_to_delete)
-    revoke_count = len(tasks_to_revoke) if 'tasks_to_revoke' in locals() else 0
-    msg = f"Deleted+{count}+targets"
-    if revoke_count > 0:
-        msg += f"+(Stopped+{revoke_count}+scans)"
+    msg = f"Deleted+{len(safe_ids)}+targets"
+    if revoked_count > 0:
+        msg += f"+(Stopped+{revoked_count}+scans)"
         
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
+
+def _revoke_tasks_for_targets(target_ids: set) -> int:
+    """Find and revoke Celery tasks associated with given target IDs."""
+    i = celery_app.control.inspect()
+    active = i.active() if i else None
+    reserved = i.reserved() if i else None
+    
+    revoked = 0
+    for task_list in [active, reserved]:
+        if not task_list: continue
+        for worker_tasks in task_list.values():
+            for task in worker_tasks:
+                args = task.get("args", [])
+                if args and isinstance(args, list) and len(args) > 0:
+                    try:
+                        if int(args[0]) in target_ids:
+                            celery_app.control.revoke(task.get("id"), terminate=True)
+                            revoked += 1
+                    except Exception:
+                        continue
+    return revoked
+
+
+def _get_owned_target_ids(session: Session, user: User, target_ids: set) -> List[int]:
+    """Return subset of target IDs that belong to the user's tenant."""
+    owned = session.exec(
+        select(Target.id).where(
+            Target.id.in_(target_ids),
+            Target.tenant_id == user.tenant_id,
+        )
+    ).all()
+    return list(owned)
+
+
+def _perform_bulk_delete_from_db(session: Session, target_ids: List[int]):
+    """Execute raw SQL deletes for a list of target IDs in correct FK order."""
+    params = {"ids": target_ids}
+    # Delete in FK dependency order
+    session.execute(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id = ANY(:ids))"), params)
+    session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM compliancetargetstatus WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM httptraffic WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM remediationtask WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM scanschedule WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM workertask WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM target WHERE id = ANY(:ids)"), params)
 
 @router.post("/targets/bulk/archive-dead", response_class=HTMLResponse)
 async def bulk_archive_dead_targets(
@@ -393,7 +381,7 @@ async def bulk_archive_dead_targets(
         targets = session.exec(select(Target).where(Target.id.in_(dead_ids))).all()
         for target in targets:
             target.is_archived = True
-            target.archived_at = datetime.utcnow()
+            target.archived_at = datetime.now(timezone.utc)
             target.archived_reason = "DNS cleanup: empty records"
             session.add(target)
             count += 1
@@ -429,7 +417,7 @@ async def bulk_archive_targets(
     from datetime import datetime
     for target in owned_targets:
         target.is_archived = True
-        target.archived_at = datetime.utcnow()
+        target.archived_at = datetime.now(timezone.utc)
         target.archived_reason = "manual"
         session.add(target)
         count += 1
@@ -577,7 +565,7 @@ async def get_scan_status(target_id: int):
             
     return {"status": "Unknown"}
 
-@router.get("/api/scans/{target_id}/logs")
+@router.get("/api/scans/{target_id}/logs", responses={404: {"description": "Target or logs not found"}})
 async def get_scan_logs(target_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Returns the recent log lines from Redis.
@@ -609,7 +597,7 @@ async def get_scan_logs(target_id: int, session: Session = Depends(get_session),
             
     return {"logs": parsed_logs}
 
-@router.get("/api/scans/{target_id}/network-context")
+@router.get("/api/scans/{target_id}/network-context", responses={404: {"description": "Target not found"}})
 async def get_scan_network_context(target_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     """
     Returns the network context (external IP, resolved IPs) for a scan.
@@ -704,7 +692,7 @@ async def view_target_table(
     Supports pagination and filtering (Online Status, Last Scan).
     """
     from fastapi import Query # Ensure import availability if not global, but usually at top.
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from sqlmodel import or_, and_, col
 
     # Scan Types Persistence Logic
@@ -1292,7 +1280,7 @@ async def stop_all_scans(session: Session = Depends(get_session), user: User = D
     
     msg = f"PANIC STOP: Queue Paused. Purged: {purged_count}, Killed: {revoked_count}, Updated: {db_updated_count}"
     return RedirectResponse(url=f"/?msg={msg}", status_code=303)
-@router.get("/targets/{target_id}", response_class=HTMLResponse)
+@router.get("/targets/{target_id}", response_class=HTMLResponse, responses={404: {"description": "Target not found"}})
 async def view_target_detail(request: Request, target_id: int, history_id: Optional[int] = None, session: Session = Depends(get_session), user: User = Depends(get_current_active_user)):
     target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
     if not target:
@@ -1558,7 +1546,7 @@ async def view_target_detail(request: Request, target_id: int, history_id: Optio
 
 # -- Change Events API --
 
-@router.get("/targets/{target_id}/changes")
+@router.get("/targets/{target_id}/changes", responses={404: {"description": "Target not found"}})
 async def get_target_changes(
     target_id: int,
     limit: int = Query(default=30, le=100),
@@ -1637,7 +1625,7 @@ def get_target_traffic(
     
     return traffic
 
-@router.post("/api/targets/{target_id}/traffic/{traffic_id}/replay")
+@router.post("/api/targets/{target_id}/traffic/{traffic_id}/replay", responses={404: {"description": "Target or traffic not found"}})
 def replay_traffic(
     target_id: int, 
     traffic_id: int,
@@ -1688,7 +1676,7 @@ def replay_traffic(
             "error": str(e)
         }
 
-@router.get("/api/targets/{target_id}", response_model=Target)
+@router.get("/api/targets/{target_id}", response_model=Target, responses={404: {"description": "Target not found"}})
 def get_target(target_id: int, session: Session = Depends(get_session)):
     target = session.get(Target, target_id)
     if not target:
@@ -1700,7 +1688,7 @@ def get_target_results(target_id: int, session: Session = Depends(get_session)):
     results = session.exec(select(ScanResult).where(ScanResult.target_id == target_id).order_by(ScanResult.scanned_at.desc())).all()
     return results
 
-@router.post("/api/targets/{target_id}/brand-hunt")
+@router.post("/api/targets/{target_id}/brand-hunt", responses={404: {"description": "Target not found"}})
 def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """
     Triggers a visual comparison between a reference logo and identified typosquat domains.
@@ -1732,7 +1720,7 @@ def brand_hunt(target_id: int, logo_url: str = Body(..., embed=True), session: S
 
 # -- Brand Logo Management --
 
-@router.post("/targets/{target_id}/logo")
+@router.post("/targets/{target_id}/logo", responses={404: {"description": "Target not found"}})
 async def set_target_logo(
     target_id: int, 
     logo_url: str = Form(...), 
@@ -1752,7 +1740,7 @@ async def set_target_logo(
     
     return RedirectResponse(url=f"/targets/{target_id}?msg=Logo+updated", status_code=303)
 
-@router.post("/targets/{target_id}/logo/upload")
+@router.post("/targets/{target_id}/logo/upload", responses={404: {"description": "Target not found"}})
 async def upload_target_logo(
     target_id: int, 
     file: UploadFile = File(...), 
