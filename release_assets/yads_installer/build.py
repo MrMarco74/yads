@@ -3,6 +3,7 @@ import os
 import stat
 import shutil
 import tempfile
+import subprocess
 
 SOURCE = os.path.join(os.path.dirname(__file__))
 OUTPUT = os.path.join(os.path.dirname(__file__), "..", "yads-setup.pyz")
