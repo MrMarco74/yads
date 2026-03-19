@@ -55,14 +55,33 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
     *   **Admin**: Create your first System Admin account.
 
 3.  **Manual Development Setup**:
-    If running from source without Docker:
+    YADS is now split into multiple repositories. For development, ensure they are checked out as peer directories:
 
     ```bash
+    # Core API & Models
+    git clone .../yads.git
+    
+    # Common Utilities (Required by many)
+    git clone .../yads-common.git
+    
+    # Desktop Tools (GUI, Test Suite, License Manager)
+    git clone .../yads-tools.git
+    
+    # Setup for Core:
+    cd yads
     pip install -r requirements.txt
-    playwright install chromium
+    pip install -e ../yads-common
     uvicorn yads.api.main:app --reload
-    # Note: You may need to manually trigger setup flows or set SETUP_COMPLETE=true in .env
     ```
+
+## 📂 Project Structure
+
+- `yads`: Core API, Workers, and Models.
+- `yads-common`: Shared GUI components, cryptography, and utilities.
+- `yads-tools`: Release Manager, Test Suite, License Manager, and Support Watcher.
+- `yads-website`: Main landing page (static).
+- `yads-support-portal`: Dedicated support and ticket management system.
+- `yads-infra`: Docker Compose and infrastructure configurations.
 
 ## 🗺️ Roadmap
 

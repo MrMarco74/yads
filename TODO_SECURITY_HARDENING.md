@@ -9,14 +9,14 @@
 
 **Ziel:** Alle unverschlüsselten HTTP-Requests zu YADS sollen abgelehnt werden — außer im `DEBUG`-Modus.
 
-- [ ] `TLSEnforcementMiddleware` in `yads/api/main.py` einbauen
-  - [ ] FastAPI-Middleware, die `request.url.scheme` prüft
-  - [ ] Bei `http://` im Produktionsmodus → `HTTP 426 Upgrade Required` zurückgeben
-  - [ ] `DEBUG`-Flag aus `settings.py` auslesen → Middleware deaktivierbar für lokale Entwicklung
-  - [ ] Response-Header `Upgrade: TLS/1.3, HTTP/1.1` korrekt setzen
-  - [ ] Tests: Sicherstellen dass `/api/v1/*` und `/api/scan/*` im Nicht-DEBUG-Modus nur HTTPS akzeptieren
-- [ ] YADS-Doku in `docs/SECURITY.md` um TLS-Enforcement-Abschnitt erweitern
-- [ ] LLMGui-seitige TLS-Audit-Warnung in `YadsDastTool` reviewen (läuft bereits, aber ggf. Fehlermeldung verbessern)
+- [x] `TLSEnforcementMiddleware` in `yads/api/main.py` einbauen
+  - [x] FastAPI-Middleware, die `request.url.scheme` prüft
+  - [x] Bei `http://` im Produktionsmodus → `HTTP 426 Upgrade Required` zurückgeben
+  - [x] `DEBUG`-Flag aus `settings.py` auslesen → Middleware deaktivierbar für lokale Entwicklung
+  - [x] Response-Header `Upgrade: TLS/1.3, HTTP/1.1` korrekt setzen
+  - [x] Tests: Sicherstellen dass `/api/v1/*` und `/api/scan/*` im Nicht-DEBUG-Modus nur HTTPS akzeptieren
+- [x] YADS-Doku in `docs/SECURITY.md` um TLS-Enforcement-Abschnitt erweitern
+- [x] LLMGui-seitige TLS-Audit-Warnung in `YadsDastTool` reviewen (läufts bereits, aber ggf. Fehlermeldung verbessern)
 
 ---
 

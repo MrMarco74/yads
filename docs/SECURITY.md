@@ -147,11 +147,11 @@ The release packaging script (`tools/package_release.sh`) includes automated sec
 
 ### Network Security
 
-- Deploy YADS behind a reverse proxy (e.g., Nginx, Traefik)
-- Use HTTPS/TLS for all external access
-- Restrict database access to the internal Docker network
-- Implement firewall rules to limit access to authorized IPs
-- Consider using a VPN for remote access
+- **HTTPS Enforcement**: YADS returns `426 Upgrade Required` for HTTP requests in production.
+- **Proxy Support**: Middleware respects `X-Forwarded-Proto` for reverse proxy compatibility.
+- **Emergency Access**: Use `DISABLE_HTTPS_ONLY=true` only if you lose access to the instance.
+- **Network Isolation**: Restrict database access to the internal Docker network.
+- **Firewalls**: Implement rules to limit access to authorized IPs only.
 
 ## Monitoring & Auditing
 
