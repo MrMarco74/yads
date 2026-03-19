@@ -1,29 +1,49 @@
 import sys
 import os
-import zipimport
+import subprocess
 import threading
-import tkinter as tk
+from pathlib import Path
 
+def check_dependencies():
+    """Checks for PySide6 and QFluentWidgets, attempts install if missing."""
+    try:
+        import PySide6
+        import qfluentwidgets
+        return True
+    except ImportError:
+        print("Required dependencies (PySide6/qfluentwidgets) missing.")
+        # Attempt to install for the user if they have pip
+        try:
+            print("Attempting to install missing components...")
+            subprocess.run([sys.executable, "-m", "pip", "install", "PySide6", "qfluentwidgets"], check=True)
+            return True
+        except Exception as e:
+            print(f"Auto-install failed: {e}")
+            return False
 
-def _create_desktop_entry(logo_data: bytes):
+def _create_desktop_entry():
     """Create .desktop file and icon — called once in a background thread."""
-    desktop_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "applications")
-    icon_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "icons")
-    pyz_path = os.path.abspath(sys.argv[0])
+    desktop_dir = Path.home() / ".local" / "share" / "applications"
+    icon_dir = Path.home() / ".local" / "share" / "icons"
+    pyz_path = Path(sys.argv[0]).resolve()
 
     icon_path = "yads-setup"
     try:
-        os.makedirs(icon_dir, exist_ok=True)
-        icon_path = os.path.join(icon_dir, "yads-setup.png")
-        if logo_data:
-            with open(icon_path, "wb") as f:
-                f.write(logo_data)
+        icon_dir.mkdir(parents=True, exist_ok=True)
+        dest_icon = icon_dir / "yads-setup.png"
+        
+        # In a .pyz we might need to extract the logo
+        import zipfile
+        with zipfile.ZipFile(pyz_path, 'r') as z:
+            with z.open('logo.png') as src, open(dest_icon, 'wb') as f:
+                f.write(src.read())
+        icon_path = str(dest_icon)
     except Exception as e:
         print(f"[Desktop] Could not write icon: {e}", file=sys.stderr)
 
     try:
-        os.makedirs(desktop_dir, exist_ok=True)
-        desktop_path = os.path.join(desktop_dir, "yads-setup.desktop")
+        desktop_dir.mkdir(parents=True, exist_ok=True)
+        desktop_path = desktop_dir / "yads-setup.desktop"
         content = (
             "[Desktop Entry]\n"
             "Version=1.0\n"
@@ -35,52 +55,38 @@ def _create_desktop_entry(logo_data: bytes):
             "Terminal=false\n"
             "Categories=System;Settings;\n"
         )
-        with open(desktop_path, "w") as f:
-            f.write(content)
-        os.chmod(desktop_path, 0o755)
+        desktop_path.write_text(content)
+        desktop_path.chmod(0o755)
         print(f"[Desktop] Entry created: {desktop_path}")
     except Exception as e:
         print(f"[Desktop] Could not create .desktop entry: {e}", file=sys.stderr)
 
-
 def main():
-    # Skip desktop-entry creation if the .desktop file already exists —
-    # no need to rewrite it on every launch.
-    # When it does need creating: read logo bytes here in the main thread
-    # (avoids Python import-lock contention with the background thread that
-    # would otherwise call pkgutil.get_data while gui.py is being imported).
-    desktop_path = os.path.join(
-        os.path.expanduser("~"), ".local", "share", "applications", "yads-setup.desktop"
-    )
-    if not os.path.exists(desktop_path):
-        try:
-            # Read directly from the .pyz ZIP — no import-lock involved
-            logo_data = zipimport.zipimporter(sys.argv[0]).get_data("logo.png")
-        except Exception:
-            logo_data = b""
-        threading.Thread(target=_create_desktop_entry, args=(logo_data,), daemon=True).start()
+    # Only try to create desktop entry if not already present
+    desktop_path = Path.home() / ".local" / "share" / "applications" / "yads-setup.desktop"
+    if not desktop_path.exists() and not os.environ.get("YADS_INSTALLER_NO_DESKTOP"):
+        threading.Thread(target=_create_desktop_entry, daemon=True).start()
 
-    try:
-        root = tk.Tk()
-    except Exception as e:
-        print(f"[Fatal] Cannot open display: {e}", file=sys.stderr)
+    if not check_dependencies():
+        print("Could not satisfy dependencies. Please install PySide6 and qfluentwidgets manually.")
         sys.exit(1)
 
-    try:
-        from gui import YADSInstallerGUI
-        app = YADSInstallerGUI(root)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        tk.messagebox.showerror("Startup Error", str(e))
-        sys.exit(1)
+    from PySide6.QtWidgets import QApplication
+    from gui import GlassInstaller
 
-    # Bring window to front
-    root.lift()
-    root.attributes("-topmost", True)
-    root.after(200, lambda: root.attributes("-topmost", False))
-    root.mainloop()
+    app = QApplication(sys.argv)
+    
+    # Check for dark mode to match theme
+    from gui import detect_system_dark_mode
+    from qfluentwidgets import setTheme, Theme
+    if detect_system_dark_mode():
+        setTheme(Theme.DARK)
+    else:
+        setTheme(Theme.LIGHT)
 
+    window = GlassInstaller()
+    window.show()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

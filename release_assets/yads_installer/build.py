@@ -7,9 +7,34 @@ import tempfile
 SOURCE = os.path.join(os.path.dirname(__file__))
 OUTPUT = os.path.join(os.path.dirname(__file__), "..", "yads-setup.pyz")
 
+def run_trivy_scan(path):
+    """Scans the source directory for secrets using Trivy."""
+    print(f"  Security: Scanning {path} for secrets...")
+    try:
+        # Check if ignore file exists for release manager context (optional)
+        # For now, we just run a standard scan.
+        res = subprocess.run(["trivy", "fs", "--scanners", "secret", "--exit-code", "1", "-q", path], 
+                             capture_output=True, text=True)
+        if res.returncode != 0:
+            print("\n" + "!"*60)
+            print("  SECURITY ALERT: Potential secrets found in installer source!")
+            print("  Aborting build to prevent leakage.")
+            print("!"*60 + "\n")
+            print(res.stdout)
+            return False
+        print("  ✅ No secrets detected in source.")
+        return True
+    except FileNotFoundError:
+        print("  ⚠️  Trivy not available. Skipping secret scan.")
+        return True
+
 def build():
     output = os.path.abspath(OUTPUT)
     print(f"Building {output} from {SOURCE}...")
+
+    if not run_trivy_scan(SOURCE):
+        print("❌ Build aborted due to security findings.")
+        return
 
     with tempfile.TemporaryDirectory() as tmp:
         # Copy source into temp dir

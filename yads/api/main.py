@@ -388,22 +388,23 @@ from yads.core.tls_config import is_https_required
 @app.middleware("http")
 async def tls_enforcement_middleware(request: Request, call_next):
     """
-    Reject non-HTTPS requests if HTTPS_ONLY is enabled.
+    Reject non-HTTPS requests if HTTPS_ONLY is enabled (Phase 1).
     """
-    # Skip for local health checks/metrics if needed, 
-    # but generally, we want everything secure.
     if not settings.DEBUG:
-         # Check if HTTPS is required via DB/Env
-         with Session(engine) as session:
-             if is_https_required(session):
-                 if request.url.scheme != "https":
-                     # Allow for specific headers if behind a proxy (X-Forwarded-Proto)
-                     forwarded_proto = request.headers.get("X-Forwarded-Proto")
-                     if forwarded_proto != "https":
-                         return JSONResponse(
-                             {"detail": "SSL/TLS Required. Please use HTTPS."}, 
-                             status_code=403
-                         )
+        # is_https_required checks DISABLE_HTTPS_ONLY env and DB setting
+        with Session(engine) as session:
+            if is_https_required(session):
+                if request.url.scheme != "https":
+                    # Check X-Forwarded-Proto for scenarios behind a reverse proxy
+                    if request.headers.get("x-forwarded-proto") != "https":
+                        return Response(
+                            status_code=426,
+                            content="SSL/TLS Required. Please use HTTPS.",
+                            headers={
+                                "Upgrade": "TLS/1.3, HTTP/1.1",
+                                "Connection": "Upgrade"
+                            }
+                        )
     
     return await call_next(request)
 

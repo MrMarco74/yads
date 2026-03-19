@@ -1,0 +1,28 @@
+# GitLab CI/CD for YADS Core
+# Main application logic and backend tests
+
+stages:
+  - test
+  - security
+
+secret_scan:
+  stage: security
+  image: 
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --scanners secret --exit-code 1 .
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+
+test-api:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install -r requirements-api.txt -r requirements-test.txt
+    - pytest tests/api
+  only:
+    - merge_requests
+    - main
