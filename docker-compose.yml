@@ -1,116 +1,75 @@
+version: '3.8'
+
 services:
-  # ==========================================================================
-  # YADS CORE (always started)
-  # ==========================================================================
-  yads-api:
-    container_name: yads-app-yads-api-1
-    build:
-      context: .
-      target: dev
-    command: uvicorn yads.api.main:app --host 0.0.0.0 --port 8085 --reload
+  # --- Reverse Proxy (Optional, profile: nginx) ---
+  nginx:
+    image: nginx:alpine
+    container_name: yads-proxy
+    profiles: [nginx]
+    restart: always
     ports:
-      - "8085:8085"
+      - "${API_PORT:-80}:${API_PORT:-80}"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - yads-api
+    networks:
+      - yads-net
+
+  # --- Backend Services ---
+  yads-api:
+    image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
+    container_name: yads-api
+    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
+    restart: always
+    ports:
+      # YADS_DIRECT_PORT=8000 when nginx is active (nginx handles external port).
+      # YADS_DIRECT_PORT=API_PORT when no nginx (yads-api is directly reachable).
+      - "${YADS_DIRECT_PORT:-8000}:8000"
+    expose:
+      - "8000"
     environment:
-      # DATABASE_URL uses *** as password placeholder — config.py's fix_masked_password
-      # validator substitutes it with POSTGRES_PASSWORD at runtime, avoiding @ encoding issues.
-      - DATABASE_URL=postgresql://yads:***@db:5432/yads
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-yads}:${POSTGRES_PASSWORD}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
       - LOG_DIR=/app/logs
-      - MFA_ENABLED=${MFA_ENABLED:-true}
-      - SETUP_TOKEN=${SETUP_TOKEN:-}
-      # Authentication Mode: "local" (default) or "oidc" (Keycloak)
-      - AUTH_MODE=${AUTH_MODE:-oidc}
-      # OIDC/Keycloak — only relevant if AUTH_MODE=oidc
-      # OIDC_SERVER_URL: Docker-internal URL (container-to-container token exchange)
-      # OIDC_PUBLIC_URL: Browser-facing URL (user redirect to Keycloak login)
-      - OIDC_SERVER_URL=${OIDC_SERVER_URL:-http://keycloak:8080}
-      - OIDC_PUBLIC_URL=${OIDC_PUBLIC_URL:-http://localhost:8080}
-      - OIDC_REALM=${OIDC_REALM:-yads}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-yads}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-changeme}
-      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://localhost:8085/auth/oidc/callback}
-      # Prometheus Metrics
-      - METRICS_ENABLED=${METRICS_ENABLED:-false}
-      - METRICS_AUTH_MODE=${METRICS_AUTH_MODE:-token}
-      - METRICS_TOKEN=${METRICS_TOKEN:-}
-      # TLS/SSL Certificate Settings (optional)
-      # - DISABLE_HTTPS_ONLY=false
-      # - CUSTOM_CA_CERT_PATH=/app/certs/ca-bundle.crt
-      # - CLIENT_CERT_PATH=/app/certs/client.crt
-      # - CLIENT_KEY_PATH=/app/certs/client.key
-      # Support Portal — set to false if cert not yet issued (dev/staging)
-      - SUPPORT_PORTAL_VERIFY_SSL=${SUPPORT_PORTAL_VERIFY_SSL:-true}
-    volumes:
-      - ./logs:/app/logs
-      - .:/app
-      - nuclei_templates:/root/nuclei-templates
+      - SECRET_KEY=${SECRET_KEY}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - YADS_ADMIN_USER=${YADS_ADMIN_USER}
+      - YADS_ADMIN_PASS=${YADS_ADMIN_PASS}
+      - SETUP_COMPLETE=${SETUP_COMPLETE:-true}
+      - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
     depends_on:
       - db
       - redis
     networks:
       - yads-net
-      - proxy-net
 
   yads-worker:
-    hostname: ${WORKER_NAME:-yads-worker-1}
-    build:
-      context: .
-      target: dev
+    image: registry.yads-security.com/yads/yads-worker:${YADS_VERSION:-latest}
+    container_name: yads-worker
     command: python /app/scripts/start_worker.py
+    restart: always
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:***@db:5432/yads}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-yads}:${POSTGRES_PASSWORD}@db:5432/yads
+      - REDIS_URL=redis://redis:6379/0
+      - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}
-      - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
-      - WORKER_NAME=${WORKER_NAME:-yads-worker-1}
-    volumes:
-      - ./logs:/app/logs
-      - .:/app
-      - nuclei_templates:/root/nuclei-templates
     depends_on:
       - db
       - redis
     networks:
       - yads-net
 
-  # Second worker — handles overflow when main worker is saturated (dev only)
-  yads-worker-2:
-    hostname: ${WORKER_NAME_2:-yads-worker-2}
-    build:
-      context: .
-      target: dev
-    command: python /app/scripts/start_worker.py
-    environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://yads:***@db:5432/yads}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - LOG_DIR=/app/logs
-      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-}
-      - WORKER_QUEUES=${WORKER_QUEUES:-celery,discovery}
-      - WORKER_NAME=${WORKER_NAME_2:-yads-worker-2}
-    volumes:
-      - ./logs:/app/logs
-      - .:/app
-      - nuclei_templates:/root/nuclei-templates
-    depends_on:
-      - db
-      - redis
-    networks:
-      - yads-net
-
-  # --- Infrastructure (Core) ---
+  # --- Infrastructure ---
   db:
     image: postgres:15-alpine
-    command: postgres -N 300
+    container_name: yads-db
+    restart: always
     environment:
-      - POSTGRES_USER=yads
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-yads_dev_local}
+      - POSTGRES_USER=${POSTGRES_USER:-yads}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=yads
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -118,149 +77,18 @@ services:
 
   redis:
     image: valkey/valkey:8-alpine
+    container_name: yads-redis
     command: redis-server --appendonly yes
-    # Expose Redis only on the LAN interface (not all interfaces).
-    # REDIS_HOST_IP defaults to edward's LAN IP so remote workers (dana) can connect.
-    # Set REDIS_HOST_IP=127.0.0.1 in .env to restrict to localhost only.
-    ports:
-      - "${REDIS_HOST_IP:-192.168.10.92}:6379:6379"
+    restart: always
     volumes:
       - redis_data:/data
     networks:
       - yads-net
 
-  # ==========================================================================
-  # IDENTITY PROVIDER — Profile: keycloak
-  # Starten: docker compose --profile keycloak up -d
-  # Alternativ: externe Keycloak-Instanz via .env konfigurieren (OIDC_SERVER_URL etc.)
-  # ==========================================================================
-  keycloak-db:
-    image: postgres:15-alpine
-    profiles: [keycloak]
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak_secret}
-    volumes:
-      - keycloak-db-data:/var/lib/postgresql/data
-    networks:
-      - yads-net
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    profiles: [keycloak]
-    command: start-dev --import-realm
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_secret}
-      KEYCLOAK_ADMIN: ${KC_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
-      KC_HOSTNAME_STRICT: "false"
-      KC_HTTP_ENABLED: "true"
-    ports:
-      - "${KC_PORT:-8080}:8080"
-    volumes:
-      - ./keycloak/realms:/opt/keycloak/data/import
-    depends_on:
-      - keycloak-db
-    networks:
-      - yads-net
-
-  # ==========================================================================
-  # OBSERVABILITY STACK — Profile: monitoring
-  # Starten: docker compose --profile monitoring up -d
-  # Alternativ: externe Grafana/Prometheus-Instanz — nur METRICS_ENABLED=true
-  # setzen und Prometheus extern auf :8085/metrics scrapen lassen.
-  # ==========================================================================
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    profiles: [monitoring]
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
-    networks:
-      - yads-net
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    profiles: [monitoring]
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
-      GF_SMTP_HOST: ${GF_SMTP_HOST:-smtp.example.com:587}
-      GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-yads-alerts@example.com}
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
-      - loki
-    networks:
-      - yads-net
-
-  loki:
-    image: grafana/loki:2.9.0
-    profiles: [monitoring]
-    ports:
-      - "${LOKI_PORT:-3100}:3100"
-    volumes:
-      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
-      - loki-data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    networks:
-      - yads-net
-
-  promtail:
-    image: grafana/promtail:2.9.0
-    profiles: [monitoring]
-    volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/log:/var/log:ro
-      - yads-logs:/app/logs:ro
-    command: -config.file=/etc/promtail/config.yml
-    networks:
-      - yads-net
-
-  # Cold Storage (DORA EU 5-year retention)
-  minio:
-    image: minio/minio:latest
-    profiles: [monitoring]
-    command: server /data --console-address ":9001"
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-    volumes:
-      - minio-data:/data
-    networks:
-      - yads-net
-
 volumes:
   postgres_data:
-  nuclei_templates:
   redis_data:
-  keycloak-db-data:
-  prometheus-data:
-  grafana-data:
-  loki-data:
-  minio-data:
-  yads-logs:
 
 networks:
   yads-net:
     driver: bridge
-  proxy-net:
-    external: true

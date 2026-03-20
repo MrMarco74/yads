@@ -15,7 +15,11 @@ def check_dependencies():
         # Attempt to install for the user if they have pip
         try:
             print("Attempting to install missing components...")
-            subprocess.run([sys.executable, "-m", "pip", "install", "PySide6", "qfluentwidgets"], check=True)
+            # Try normal install first
+            res = subprocess.run([sys.executable, "-m", "pip", "install", "PySide6", "PySide6-Fluent-Widgets"], capture_output=True)
+            if res.returncode != 0:
+                print("Standard install blocked. Trying with --break-system-packages...")
+                subprocess.run([sys.executable, "-m", "pip", "install", "--break-system-packages", "PySide6", "PySide6-Fluent-Widgets"], check=True)
             return True
         except Exception as e:
             print(f"Auto-install failed: {e}")
@@ -61,7 +65,44 @@ def _create_desktop_entry():
     except Exception as e:
         print(f"[Desktop] Could not create .desktop entry: {e}", file=sys.stderr)
 
+def _extract_resources():
+    """Extract all resources to temp directory for GUI use."""
+    try:
+        import tempfile
+        import zipfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp(prefix="yads_setup_")
+        os.environ["YADS_INSTALLER_RESOURCES"] = temp_dir
+        
+        pyz_path = sys.argv[0]
+        resources = ['logo.png', 'docker-compose.customer.yml', 'nginx.conf.template']
+        
+        if zipfile.is_zipfile(pyz_path):
+            with zipfile.ZipFile(pyz_path, 'r') as z:
+                for res in resources:
+                    if res in z.namelist():
+                        dest = os.path.join(temp_dir, res)
+                        with z.open(res) as src, open(dest, 'wb') as f:
+                            f.write(src.read())
+            # Compatibility with previous env var
+            os.environ["YADS_INSTALLER_LOGO"] = os.path.join(temp_dir, "logo.png")
+            return
+        
+        # Fallback for direct execution
+        src_root = os.path.dirname(__file__)
+        for res in resources:
+            src = os.path.join(src_root, res)
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(temp_dir, res))
+        
+        os.environ["YADS_INSTALLER_LOGO"] = os.path.join(temp_dir, "logo.png")
+    except Exception as e:
+        print(f"Resource extraction failed: {e}", file=sys.stderr)
+
 def main():
+    _extract_resources()
+    
     # Only try to create desktop entry if not already present
     desktop_path = Path.home() / ".local" / "share" / "applications" / "yads-setup.desktop"
     if not desktop_path.exists() and not os.environ.get("YADS_INSTALLER_NO_DESKTOP"):
