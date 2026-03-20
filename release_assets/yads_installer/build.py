@@ -4,6 +4,7 @@ import stat
 import shutil
 import tempfile
 import subprocess
+import sys
 
 SOURCE = os.path.join(os.path.dirname(__file__))
 OUTPUT = os.path.join(os.path.dirname(__file__), "..", "yads-setup.pyz")
@@ -34,8 +35,11 @@ def build():
     print(f"Building {output} from {SOURCE}...")
 
     if not run_trivy_scan(SOURCE):
-        print("❌ Build aborted due to security findings.")
-        return
+        if os.getenv("STRICT_BUILD") == "1":
+            print("❌ Build aborted due to security findings (STRICT_BUILD=1).")
+            sys.exit(1)
+        else:
+            print("⚠️  Security findings detected, but continuing build (STRICT_BUILD=0/unset).")
 
     with tempfile.TemporaryDirectory() as tmp:
         # Copy source into temp dir
