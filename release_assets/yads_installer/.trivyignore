@@ -1,0 +1,2 @@
+# Ignore the installer read-only registry token in the GUI
+gui.py
