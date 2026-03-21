@@ -12,6 +12,9 @@ from yads.core.security_audit import log_api_key_access
 class LoginRequiredException(Exception):
     pass
 
+class MFARequiredException(Exception):
+    pass
+
 async def get_current_user_html(request: Request, session: Session = Depends(get_db_session)) -> User:
     token = request.cookies.get("access_token")
     if not token:
@@ -37,6 +40,11 @@ async def get_current_user_html(request: Request, session: Session = Depends(get
         
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        
+    # MFA Enforcement for Admins (Compliance)
+    if settings.MFA_ENABLED and user.role in ["admin", "tenant_admin"] and not user.mfa_enabled:
+        if "/mfa/" not in request.url.path and "/auth/logout" not in request.url.path and "/api/" not in request.url.path:
+             raise MFARequiredException()
         
     return user
 
@@ -73,6 +81,11 @@ async def get_current_user(request: Request, session: Session = Depends(get_db_s
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
         
+    # MFA Enforcement for Admins (Compliance API)
+    if settings.MFA_ENABLED and user.role in ["admin", "tenant_admin"] and not user.mfa_enabled:
+         # For API calls, return 403 with a hint
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="MFA_REQUIRED")
+         
     return user
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:

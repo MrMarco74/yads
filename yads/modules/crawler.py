@@ -16,6 +16,7 @@ from yads.database import redis_client
 from yads.config import settings
 from yads.models import SystemConfig, HTTPTraffic
 from yads.core.base import BaseScannerModule, sanitize_null_bytes
+from yads.utils.sanitize import redact_headers
 from sqlmodel import select
 
 TEXT_HTML = "text/html"
@@ -131,15 +132,18 @@ class Crawler(BaseScannerModule):
             body = resp.text or ""
             traffic = {
                 "url": url, "method": "GET", "status": resp.status_code, "duration": round(duration, 3),
-                "request_headers": dict(resp.request.headers), "response_headers": dict(resp.headers),
+                "request_headers": redact_headers(dict(resp.request.headers)), 
+                "response_headers": redact_headers(dict(resp.headers)),
                 "response_body_snippet": sanitize_null_bytes(body[:1024])
             }
             if self.db and target_id:
                 self._log_traffic(traffic, target_id)
             return {"status": resp.status_code, "content_type": resp.headers.get('Content-Type', ''), "html": body, "traffic": traffic}
         except Exception as e:
-            duration = time.time() - start_time
-            traffic = {"url": url, "method": "GET", "status": 0, "error": sanitize_null_bytes(str(e)), "duration": round(duration, 3), "request_headers": headers}
+            traffic = {
+                "url": url, "method": "GET", "status": 0, "error": sanitize_null_bytes(str(e)), 
+                "duration": round(duration, 3), "request_headers": redact_headers(headers)
+            }
             raise e
 
     def _log_traffic(self, traffic: Dict[str, Any], target_id: int):

@@ -6,8 +6,10 @@ Contains: auto_dns_cleanup, calculate_security_trends,
 
 Re-exported via yads/worker.py for backwards compatibility.
 """
+import os
 import socket
 import logging
+import requests
 import hashlib
 import json as _json
 from datetime import datetime
@@ -21,7 +23,8 @@ from yads.worker_modules import LogCapture, _run_parallel_module, _run_simple_mo
 from yads.database import engine
 from yads.models import (
     ScanResult, Target, SystemConfig, Tenant,
-    SecurityTrend, ComplianceTrend, ComplianceTargetStatus
+    SecurityTrend, ComplianceTrend, ComplianceTargetStatus,
+    SecurityAuditLog, SystemAlertLog, HTTPTraffic
 )
 from yads.config import settings
 from yads.core.splunk_logger import splunk_logger
@@ -300,61 +303,86 @@ def reset_stuck_targets():
 @celery_app.task(name="yads.worker.prune_old_scan_results")
 def prune_old_scan_results():
     """
-    Delete ScanResult rows older than DATA_RETENTION_DAYS (default 90).
-    Skips if DATA_RETENTION_DAYS is 0 (retain forever).
-    Also prunes associated ChangeEvent and ModuleState rows without ScanResults.
+    Periodic data retention task (DORA/DSGVO compliance).
+    - Deletes ScanResult rows older than DATA_RETENTION_DAYS (default 5 years).
+    - Deletes HTTPTraffic and SystemAlertLog older than LOG_RETENTION_DAYS (default 30 days).
+    - Deletes SecurityAuditLog older than 5 years (DORA requirement).
+    - Triggers anonymization in Support Portal.
     """
-    from datetime import timedelta
+    from datetime import timedelta, timezone
     from sqlalchemy import text
-    from yads.models import ChangeEvent, ModuleState
+    from yads.models import ChangeEvent
 
-    logger.info("[Worker] Starting data retention pruning...")
+    now = datetime.now(timezone.utc)
+    logger.info("[Worker] Starting comprehensive data retention pruning...")
+    
     try:
         with Session(engine) as session:
-            conf = session.get(SystemConfig, "DATA_RETENTION_DAYS")
-            try:
-                days = int(conf.value) if conf and conf.value else 90
-            except ValueError:
-                days = 90
+            # 1. Scan Results (Default: 5 years / 1825 days)
+            days = settings.DATA_RETENTION_DAYS
+            if days > 0:
+                cutoff = now - timedelta(days=days)
+                # Delete old change events first (FK dependency)
+                # We use a subquery/join to delete efficiently
+                old_events_stmt = text("""
+                    DELETE FROM changeevent 
+                    WHERE scan_result_id IN (
+                        SELECT id FROM scanresult WHERE scanned_at < :cutoff
+                    )
+                """)
+                res_events = session.execute(old_events_stmt, {"cutoff": cutoff})
+                
+                # Delete results
+                old_results_stmt = text("DELETE FROM scanresult WHERE scanned_at < :cutoff")
+                res_results = session.execute(old_results_stmt, {"cutoff": cutoff})
+                
+                logger.info(f"[Worker] Pruned {res_results.rowcount} ScanResults and {res_events.rowcount} ChangeEvents (> {days} days)")
 
-            if days == 0:
-                logger.info("[Worker] DATA_RETENTION_DAYS=0 — retention pruning skipped.")
-                return
+            # 2. HTTP Traffic & System Alerts (Default: 30 days)
+            log_days = settings.LOG_RETENTION_DAYS
+            if log_days > 0:
+                log_cutoff = now - timedelta(days=log_days)
+                
+                res_traffic = session.execute(text("DELETE FROM httptraffic WHERE timestamp < :cutoff"), {"cutoff": log_cutoff})
+                res_alerts = session.execute(text("DELETE FROM systemalertlog WHERE fired_at < :cutoff"), {"cutoff": log_cutoff})
+                
+                logger.info(f"[Worker] Pruned {res_traffic.rowcount} HTTPTraffic and {res_alerts.rowcount} SystemAlertLogs (> {log_days} days)")
 
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            # Delete old change events first (FK dependency)
-            old_scan_ids = session.exec(
-                select(ScanResult.id).where(ScanResult.scanned_at < cutoff)
-            ).all()
-            if not old_scan_ids:
-                logger.info("[Worker] Data retention: nothing to prune.")
-                return
-
-            deleted_events = 0
-            for chunk_start in range(0, len(old_scan_ids), 200):
-                chunk = old_scan_ids[chunk_start:chunk_start + 200]
-                rows = session.exec(
-                    select(ChangeEvent).where(ChangeEvent.scan_result_id.in_(chunk))
-                ).all()
-                for row in rows:
-                    session.delete(row)
-                    deleted_events += 1
-
-            # Delete old scan results
-            old_results = session.exec(
-                select(ScanResult).where(ScanResult.scanned_at < cutoff)
-            ).all()
-            deleted_results = len(old_results)
-            for row in old_results:
-                session.delete(row)
+            # 3. Security Audit Logs (Default: 1825 days / 5 years)
+            # DORA Art. 12 requires 5 years for ICT logs.
+            audit_cutoff = now - timedelta(days=1825)
+            res_audit = session.execute(text("DELETE FROM securityauditlog WHERE timestamp < :cutoff"), {"cutoff": audit_cutoff})
+            logger.info(f"[Worker] Pruned {res_audit.rowcount} SecurityAuditLogs (> 5 years)")
 
             session.commit()
-            logger.info(
-                f"[Worker] Data retention pruning done: removed {deleted_results} ScanResult(s) "
-                f"and {deleted_events} ChangeEvent(s) older than {days} days."
-            )
+            
+            # 4. Trigger Support Portal Cleanup
+            # We do this as a fire-and-forget background request
+            _trigger_support_portal_cleanup()
+            
+            logger.info("[Worker] Data retention pruning completed successfully.")
     except Exception as e:
         logger.error(f"[Worker] Data retention pruning failed: {e}")
+
+def _trigger_support_portal_cleanup():
+    """Triggers the anonymization task on the Support Portal."""
+    import requests
+    try:
+        url = f"{settings.SUPPORT_PORTAL_URL.rstrip('/')}/api/admin/cleanup"
+        # The Support Portal likely needs an ADMIN_TOKEN for this
+        token = os.getenv("SUPPORT_PORTAL_ADMIN_TOKEN")
+        if not token:
+            logger.warning("[Worker] SUPPORT_PORTAL_ADMIN_TOKEN not set, skipping remote cleanup.")
+            return
+            
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.post(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            logger.info("[Worker] Support Portal cleanup triggered successfully.")
+        else:
+            logger.warning(f"[Worker] Support Portal cleanup trigger failed (Status: {resp.status_code})")
+    except Exception as e:
+        logger.warning(f"[Worker] Failed to trigger Support Portal cleanup: {e}")
 
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────

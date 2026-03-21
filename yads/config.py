@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     MFA_ENABLED: bool = os.getenv("MFA_ENABLED", "true").lower() == "true"
+    YADS_ENCRYPTION_KEY: Optional[str] = os.getenv("YADS_ENCRYPTION_KEY", None)
     
     # Paths
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
@@ -73,6 +74,11 @@ class Settings(BaseSettings):
     # Setup
     SETUP_COMPLETE: bool = False
     CONFIG_PATH: str = os.getenv("CONFIG_PATH", "/app/data/config.env")
+    
+    # Retention / Lifecycle
+    DATA_RETENTION_DAYS: int = int(os.getenv("DATA_RETENTION_DAYS", 1825))  # 5 years (DORA)
+    LOG_RETENTION_DAYS: int = int(os.getenv("LOG_RETENTION_DAYS", 30))      # 30 days (DSGVO)
+    SUPPORT_IP_RETENTION_DAYS: int = int(os.getenv("SUPPORT_IP_RETENTION_DAYS", 7)) # 7 days
 
     # Phase 4 Threat Intelligence API Keys
     ABUSEIPDB_API_KEY: Optional[str] = None
