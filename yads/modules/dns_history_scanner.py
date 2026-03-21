@@ -170,6 +170,21 @@ class DnsHistoryScanner(BaseScannerModule):
                 all_subdomains.add(h["subdomain"])
                 if h.get("ip"):
                     all_ips.add(h["ip"])
+            
+            if target_id:
+                from yads.models import OSINTIntelligence
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="historical_dns"
+                ).all()
+                seen = {f"{r.data_json.get('subdomain')}_{r.data_json.get('ip')}" for r in existing}
+                for h in ht_hosts:
+                    key = f"{h.get('subdomain')}_{h.get('ip')}"
+                    if key not in seen:
+                        self.db.add(OSINTIntelligence(
+                            target_id=target_id, module_name=self.module_name,
+                            data_type="historical_dns", data_json=h, severity="info"
+                        ))
+                        seen.add(key)
 
         # Source 2: crt.sh
         crt_records = _crtsh_history(domain)
@@ -178,6 +193,21 @@ class DnsHistoryScanner(BaseScannerModule):
             result["historical_certs"] = crt_records
             for r2 in crt_records:
                 all_subdomains.add(r2["subdomain"])
+
+            if target_id:
+                from yads.models import OSINTIntelligence
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="certificate_transparency"
+                ).all()
+                seen = {f"{r.data_json.get('subdomain')}_{r.data_json.get('first_seen')}" for r in existing}
+                for r2 in crt_records:
+                    key = f"{r2.get('subdomain')}_{r2.get('first_seen')}"
+                    if key not in seen:
+                        self.db.add(OSINTIntelligence(
+                            target_id=target_id, module_name=self.module_name,
+                            data_type="certificate_transparency", data_json=r2, severity="info"
+                        ))
+                        seen.add(key)
 
         # Source 3: SecurityTrails (if key available)
         st_key = _get_securitytrails_key(target_id)
@@ -189,6 +219,21 @@ class DnsHistoryScanner(BaseScannerModule):
                 for r3 in st_records:
                     if r3.get("ip"):
                         all_ips.add(r3["ip"])
+
+                if target_id:
+                    from yads.models import OSINTIntelligence
+                    existing = self.db.query(OSINTIntelligence).filter_by(
+                        target_id=target_id, module_name=self.module_name, data_type="historical_ip"
+                    ).all()
+                    seen = {f"{r.data_json.get('ip')}_{r.data_json.get('first_seen')}" for r in existing}
+                    for r3 in st_records:
+                        key = f"{r3.get('ip')}_{r3.get('first_seen')}"
+                        if key not in seen:
+                            self.db.add(OSINTIntelligence(
+                                target_id=target_id, module_name=self.module_name,
+                                data_type="historical_ip", data_json=r3, severity="info"
+                            ))
+                            seen.add(key)
 
         result["unique_subdomains"] = sorted(all_subdomains)
         result["unique_ips"] = sorted(all_ips)

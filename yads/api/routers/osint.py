@@ -5,15 +5,15 @@ from sqlmodel import Session, select
 import random
 import os
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 # Setup Logger
 logger = logging.getLogger("yads-api")
 
 from yads.database import get_session
-from yads.models import User, Target, Tenant
-from yads.auth.deps import get_current_user_html, RoleChecker
+from yads.models import User, Target, Tenant, OSINTIntelligence
+from yads.auth.deps import get_current_user_html, RoleChecker, get_current_user
 from yads.config import settings
 from yads.utils.license_deps import require_feature
 
@@ -26,7 +26,7 @@ from yads.api.templating import templates
 
 # Inject Globals (Required for base.html)
 templates.env.globals['settings'] = settings
-templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+templates.env.globals['now_utc'] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 def get_all_tenants():
     # Helper to fetch all tenants for Platform Admin dropdown
@@ -370,3 +370,424 @@ async def osint_import(
         <a href="/targets/table" class="underline hover:text-green-300 ml-2">View Targets</a>
     </div>
     """
+
+# --- New OSINT Intelligence Endpoints (Evolution Phase 0) ---
+
+@router.get("/target/{target_id}")
+def get_osint_for_target(
+    target_id: int, 
+    module_name: Optional[str] = None,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    """
+    Retrieve all structured OSINT intelligence records for a specific target.
+    Optionally filter by module_name (e.g., 'leaked_credentials').
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    query = select(OSINTIntelligence).where(OSINTIntelligence.target_id == target_id)
+    
+    if module_name:
+        query = query.where(OSINTIntelligence.module_name == module_name)
+        
+    records = session.exec(query.order_by(OSINTIntelligence.timestamp.desc())).all()
+    return records
+
+
+@router.get("/target/{target_id}/graph")
+def get_osint_graph_data(
+    target_id: int, 
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    """
+    Retrieve OSINT data explicitly formatted for a relationship graph (nodes and edges).
+    This serves as the foundation for the Phase 4 Visual Intelligence UI.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    records = session.exec(
+        select(OSINTIntelligence).where(OSINTIntelligence.target_id == target_id)
+    ).all()
+    
+    nodes = [{"id": f"target_{target_id}", "label": target.domain, "type": "target"}]
+    edges = []
+    
+    for record in records:
+        node_id = f"{record.data_type}_{record.id}"
+        
+        # Leaked Credentials
+        if record.module_name == "leaked_credentials" and record.data_type == "breach_record":
+            breach_name = record.data_json.get("name", "Unknown Breach")
+            nodes.append({"id": node_id, "label": f"Breach:\n{breach_name}", "group": "leak"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "found in"})
+            
+        # Tech Stack
+        elif record.data_type == "tech_stack":
+            tech_name = record.data_json.get("name", "Tech")
+            nodes.append({"id": node_id, "label": f"Tech:\n{tech_name}", "group": "tech"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "runs"})
+
+        # Historical DNS / IPs
+        elif record.data_type in ["historical_dns", "historical_ip"]:
+            ip = record.data_json.get("ip", "Unknown IP")
+            sub = record.data_json.get("subdomain", "")
+            label = f"IP:\n{ip}" if not sub else f"Sub:\n{sub}\n({ip})"
+            nodes.append({"id": node_id, "label": label, "group": "infrastructure"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "resolved to"})
+
+        # Certificate Transparency
+        elif record.data_type == "certificate_transparency":
+            sub = record.data_json.get("subdomain", "Unknown")
+            nodes.append({"id": node_id, "label": f"Cert:\n{sub}", "group": "certificate"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "issued for"})
+
+        # Social Profiles
+        elif record.data_type == "social_profile":
+            platform = record.data_json.get("platform", "Social")
+            user = record.data_json.get("username", "Unknown")
+            nodes.append({"id": node_id, "label": f"{platform.title()}:\n{user}", "group": "social"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "owns profile"})
+
+        # Code Exposure
+        elif record.data_type == "code_exposure_leak":
+            repo = record.data_json.get("repo_name", "Unknown Repo")
+            nodes.append({"id": node_id, "label": f"Exposure:\n{repo}", "group": "leak"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "leaked in"})
+
+        # Cloud Exposure
+        elif record.data_type == "cloud_exposure":
+            bucket = record.data_json.get("bucket_name", "Bucket")
+            nodes.append({"id": node_id, "label": f"Exposed:\n{bucket}", "group": "leak"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "exposes"})
+
+        # Dangling CNAME
+        elif record.data_type == "dangling_cname":
+            subdomain = record.data_json.get("subdomain", "Subdomain")
+            nodes.append({"id": node_id, "label": f"Takeover:\n{subdomain}", "group": "vulnerability"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "vulnerable at"})
+
+        # Document Metadata
+        elif record.data_type == "document_metadata":
+            author = record.data_json.get("author") or record.data_json.get("creator") or "Unknown Author"
+            nodes.append({"id": node_id, "label": f"Author:\n{author}", "group": "identity"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "authored doc"})
+
+        # WHOIS Records
+        elif record.data_type == "whois_record":
+            registrar = record.data_json.get("registrar", "Unknown Registrar")
+            if isinstance(registrar, list): registrar = registrar[0]
+            nodes.append({"id": node_id, "label": f"Registrar:\n{registrar}", "group": "domain"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "registered via"})
+
+        # Shodan / Censys Vulnerabilities
+        elif record.data_type == "vulnerability":
+            cve = record.data_json.get("cve", "CVE")
+            nodes.append({"id": node_id, "label": f"CVE:\n{cve}", "group": "leak"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "vulnerable to"})
+
+        # Shodan / Censys Open Ports
+        elif record.data_type == "open_port":
+            port = record.data_json.get("port", "Port")
+            nodes.append({"id": node_id, "label": f"Port:\n{port}", "group": "infrastructure"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "has open"})
+            
+        # Shodan Tags
+        elif record.data_type == "shodan_tag":
+            tag = record.data_json.get("tag", "Tag")
+            nodes.append({"id": node_id, "label": f"Tag:\n{tag}", "group": "infrastructure"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "tagged as"})
+
+        # Threat Intel Verdicts
+        elif record.data_type == "threat_verdict":
+            title = record.data_json.get("title", "Threat").split(":")[0]
+            nodes.append({"id": node_id, "label": f"Alert:\n{title}", "group": "leak"})
+            edges.append({"source": f"target_{target_id}", "target": node_id, "label": "flagged by"})
+            
+    return {"nodes": nodes, "edges": edges}
+
+@router.post("/refresh/{target_id}")
+def refresh_osint_target(
+    target_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    """
+    Triggers an immediate OSINT-only scan for the given target using the dedicated 
+    high-priority Celery OSINT orchestration task.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    try:
+        from yads.worker_tasks import run_osint_enrichment
+        run_osint_enrichment.apply_async(
+            args=[target.id, target.domain, target.tenant_id],
+            queue="high_priority"
+        )
+        return {"status": "success", "message": f"OSINT enrichment actively queued for {target.domain}"}
+    except Exception as e:
+        logger.error(f"Error starting OSINT refresh scan for target {target_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start OSINT refresh scan")
+
+@router.get("/export-pdf/{target_id}")
+def export_osint_pdf(
+    target_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    """Generates and downloads the OSINT Intelligence Dossier."""
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    records = session.exec(
+        select(OSINTIntelligence).where(OSINTIntelligence.target_id == target_id)
+    ).all()
+    
+    osint_data = []
+    for r in records:
+        osint_data.append({
+            "data_type": r.data_type,
+            "data_json": r.data_json,
+            "severity": r.severity,
+            "module_name": r.module_name,
+            "timestamp": r.timestamp
+        })
+        
+    from yads.modules.report_generator import generate_osint_dossier
+    pdf_bytes = generate_osint_dossier(target.domain, osint_data)
+    
+    from fastapi.responses import Response
+    headers = {
+        "Content-Disposition": f'attachment; filename="osint_dossier_{target.domain}.pdf"'
+    }
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+@router.post("/target/{target_id}/ai-enrich")
+async def enrich_osint_with_ai(
+    target_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user)
+):
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    from yads.core.llm_service import load_llm_config, get_osint_analysis
+    config = load_llm_config(session, target.tenant_id)
+    if config.get("LLM_PROVIDER", "disabled").lower() == "disabled":
+        raise HTTPException(status_code=400, detail="LLM Provider is not configured or disabled.")
+        
+    records = session.exec(
+        select(OSINTIntelligence).where(OSINTIntelligence.target_id == target_id)
+    ).all()
+    
+    osint_data = []
+    for r in records:
+        if r.data_type == "ai_summary": continue
+        osint_data.append({
+            "data_type": r.data_type,
+            "data_json": r.data_json,
+            "severity": r.severity,
+            "module_name": r.module_name,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None
+        })
+        
+    if not osint_data:
+        raise HTTPException(status_code=400, detail="No OSINT records found to analyze.")
+        
+    result = await get_osint_analysis(target.domain, osint_data, config)
+    if not result:
+        raise HTTPException(status_code=500, detail="LLM analysis failed.")
+        
+    old_summary = session.exec(
+        select(OSINTIntelligence).where(
+            OSINTIntelligence.target_id == target_id,
+            OSINTIntelligence.data_type == "ai_summary"
+        )
+    ).first()
+    if old_summary:
+        session.delete(old_summary)
+        
+    import datetime
+    ai_record = OSINTIntelligence(
+        target_id=target.id,
+        module_name="llm_enrichment",
+        data_type="ai_summary",
+        data_json=result,
+        severity=result.get("risk_rating", "INFO").upper(),
+        timestamp=datetime.now(timezone.utc)
+    )
+    session.add(ai_record)
+    session.commit()
+    
+    return {"status": "success", "message": "OSINT Data successfully analyzed by AI."}
+    
+@router.get("/target/{target_id}/map", response_class=HTMLResponse)
+def get_osint_map_view(
+    request: Request,
+    target_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html)
+):
+    """Renders the dedicated Geospatial Infrastructure Map for a target."""
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    return templates.TemplateResponse("osint/map.html", {
+        "request": request,
+        "user": user,
+        "target": target
+    })
+
+@router.get("/target/{target_id}/geo-json")
+def get_osint_geo_json(
+    target_id: int,
+    session: Session = Depends(get_session),
+    _: User = Depends(get_current_user)
+):
+    """
+    Extracts all infrastructure points (IPs, Subdomains) for a target and 
+    returns them as a GeoJSON FeatureCollection with metadata.
+    """
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+        
+    records = session.exec(
+        select(OSINTIntelligence).where(
+            OSINTIntelligence.target_id == target_id
+        ).order_by(OSINTIntelligence.timestamp.desc())
+    ).all()
+    
+    features = []
+    seen_ips = set()
+    
+    for record in records:
+        data = record.data_json
+        if not data: continue
+        
+        # Check for Geo data
+        # Locations can come from:
+        # 1. infrastructure_scanner (real-time geoip)
+        # 2. historical_ip / historical_dns (enriched with geoip in future or already having it)
+        geo = data.get("geoip") or {}
+        lat = geo.get("lat")
+        lon = geo.get("lon")
+        
+        if lat and lon:
+            # Found coordinates
+            ip = data.get("ip") or "Unknown IP"
+            subdomain = data.get("subdomain") or target.domain
+            
+            # Use data_type for coloring/icons in frontend
+            feature = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [lon, lat]
+                },
+                "properties": {
+                    "id": record.id,
+                    "label": f"{subdomain} ({ip})",
+                    "ip": ip,
+                    "subdomain": subdomain,
+                    "data_type": record.data_type,
+                    "severity": record.severity,
+                    "city": geo.get("city", "Unknown"),
+                    "country": geo.get("country_name", "Unknown"),
+                    "timestamp": record.timestamp.isoformat() if record.timestamp else None
+                }
+            }
+            features.append(feature)
+            if ip != "Unknown IP":
+                seen_ips.add(ip)
+                
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+@router.get("/global-map", response_class=HTMLResponse)
+def get_global_osint_map(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user_html)
+):
+    """Renders the Global Intelligence Map showing all target infrastructure."""
+    return templates.TemplateResponse("osint/map.html", {
+        "request": request,
+        "user": user,
+        "target": None  # Indicates global mode
+    })
+
+@router.get("/global-geo-json")
+def get_global_osint_geo_json(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user)
+):
+    """
+    Extracts all infrastructure points across ALL targets the user has access to.
+    """
+    # For now, we fetch all if admin, or all for tenant
+    if user.role == 'admin':
+        records = session.exec(select(OSINTIntelligence)).all()
+    else:
+        # Filter by tenant targets
+        records = session.exec(
+            select(OSINTIntelligence)
+            .join(Target)
+            .where(Target.tenant_id == user.tenant_id)
+        ).all()
+        
+    features = []
+    
+    for record in records:
+        data = record.data_json
+        if not data: continue
+        
+        geo = data.get("geoip") or {}
+        lat = geo.get("lat")
+        lon = geo.get("lon")
+        
+        if lat and lon:
+            ip = data.get("ip") or "Unknown IP"
+            # Since this is global, we need the domain name from the target
+            target = session.get(Target, record.target_id)
+            domain = target.domain if target else "Unknown Target"
+            subdomain = data.get("subdomain") or domain
+            
+            feature = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [lon, lat]
+                },
+                "properties": {
+                    "id": record.id,
+                    "target_id": record.target_id,
+                    "domain": domain,
+                    "label": f"{subdomain} ({ip})",
+                    "ip": ip,
+                    "subdomain": subdomain,
+                    "data_type": record.data_type,
+                    "severity": record.severity,
+                    "city": geo.get("city", "Unknown"),
+                    "country": geo.get("country_name", "Unknown"),
+                    "timestamp": record.timestamp.isoformat() if record.timestamp else None
+                }
+            }
+            features.append(feature)
+            
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }

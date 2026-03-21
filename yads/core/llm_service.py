@@ -305,6 +305,100 @@ async def get_report_analysis(
         logger.error(f"[LLM] Analysis failed ({provider}/{model}): {type(exc).__name__}: {exc}")
         return None
 
+def _build_osint_prompt(data_by_type: Dict[str, list], target_domain: str) -> str:
+    summary = {
+        "target": target_domain,
+        "breaches": [
+            f"Leak: {b.get('data_json', {}).get('name')} from {b.get('data_json', {}).get('domain')}"
+            for b in data_by_type.get("breach_record", [])[:10]
+        ],
+        "threat_intel_verdicts": [
+            f"[{t.get('data_json', {}).get('source', '').upper()}] {t.get('data_json', {}).get('title')}: {t.get('severity')}"
+            for t in data_by_type.get("threat_verdict", [])[:10]
+        ],
+        "cloud_exposures": [
+            f"Public Bucket: {c.get('data_json', {}).get('bucket_name')}"
+            for c in data_by_type.get("cloud_exposure", [])
+        ],
+        "subdomain_takeovers": [
+            f"Dangling CNAME: {t.get('data_json', {}).get('subdomain')} -> {t.get('data_json', {}).get('cname')}"
+            for t in data_by_type.get("dangling_cname", [])
+        ],
+        "cve_vulnerabilities": [
+            f"{v.get('data_json', {}).get('cve')}: {v.get('data_json', {}).get('summary')[:100]}..."
+            for v in data_by_type.get("vulnerability", [])[:15]
+        ],
+        "open_ports": [str(p.get("data_json", {}).get("port")) for p in data_by_type.get("open_port", [])],
+        "technologies": [t.get("data_json", {}).get("name") for t in data_by_type.get("tech_stack", [])],
+    }
+
+    return (
+        "You are an elite threat intelligence analyst writing an OSINT dossier. "
+        "Analyze the following aggregated Open Source Intelligence (OSINT) data for the target domain and provide a structured synthesis.\n\n"
+        f"DATA:\n{json.dumps(summary, indent=2)}\n\n"
+        "Respond with a single valid JSON object in this exact format (no markdown, no code blocks):\n"
+        "{\n"
+        '  "risk_rating": "LOW|MEDIUM|HIGH|CRITICAL",\n'
+        '  "risk_score": <integer 0-100>,\n'
+        '  "executive_summary": "<3-5 sentences synthesizing the threat footprint from an attacker perspective>",\n'
+        '  "key_findings": ["<finding 1>", "<finding 2>", "<finding 3>"],\n'
+        '  "recommendations": ["<actionable mitigation 1>", "<rec 2>", "<rec 3>"]\n'
+        "}\n\n"
+        "Scoring guide: 0=no risk, 25=low, 50=medium, 75=high, 100=critical. "
+        "key_findings: most impactful public exposure risks. "
+        "recommendations: specific, prioritized actions to reduce the external attack surface."
+    )
+
+async def get_osint_analysis(
+    target_domain: str,
+    osint_data: list,
+    config: Dict[str, str],
+) -> Optional[Dict[str, Any]]:
+    provider = (config.get("LLM_PROVIDER") or "disabled").strip().lower()
+    if provider == "disabled" or not provider:
+        return None
+
+    api_key  = config.get("LLM_API_KEY", "")
+    api_url  = config.get("LLM_API_URL", "")
+    model    = config.get("LLM_MODEL", "") or _DEFAULT_MODELS.get(provider, "")
+    timeout  = int(config.get("LLM_TIMEOUT", _DEFAULT_TIMEOUT))
+    
+    # Group OSINT records by type
+    data_by_type = {}
+    for item in osint_data:
+        dtype = item.get("data_type", "unknown")
+        if dtype not in data_by_type:
+            data_by_type[dtype] = []
+        data_by_type[dtype].append(item)
+        
+    prompt = _build_osint_prompt(data_by_type, target_domain)
+
+    try:
+        loop = asyncio.get_event_loop()
+        raw = await loop.run_in_executor(
+            None, _run_sync, provider, api_key, api_url, model, prompt, timeout
+        )
+
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        result = json.loads(raw)
+        for key in ("risk_rating", "risk_score", "executive_summary"):
+            if key not in result:
+                raise ValueError(f"Missing key in LLM response: {key}")
+
+        result.setdefault("key_findings", [])
+        result.setdefault("recommendations", [])
+        return result
+
+    except Exception as exc:
+        logger.error(f"[LLM OSINT] Analysis failed ({provider}/{model}): {type(exc).__name__}: {exc}")
+        return None
+
+
 
 def load_llm_config(session, tenant_id: int = None) -> Dict[str, str]:
     """

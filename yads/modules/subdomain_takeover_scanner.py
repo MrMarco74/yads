@@ -158,6 +158,27 @@ class SubdomainTakeoverScanner(BaseScannerModule):
             elif f["severity"] == "medium":
                 score -= 10
 
+        # Persist findings to OSINTIntelligence model
+        if target_id and self.db_session:
+            from yads.models import OSINTIntelligence
+            import datetime
+            for f in result["findings"]:
+                sub = f["subdomain"]
+                existing = self.db_session.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="dangling_cname"
+                ).filter(OSINTIntelligence.data_json["subdomain"].astext == sub).first()
+                if not existing:
+                    self.db_session.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="dangling_cname",
+                        data_json={"subdomain": sub, "cname": f["cname"], "service": f["service"]},
+                        severity=f["severity"], timestamp=datetime.datetime.utcnow()
+                    ))
+            try:
+                self.db_session.commit()
+            except Exception as e:
+                logger.error(f"[TakeoverScanner] DB Commit failed: {e}")
+                self.db_session.rollback()
+
         result["summary"]["score"] = max(0, score)
         result["summary"]["vulnerable_count"] = len(result["vulnerable"])
         result["summary"]["potentially_vulnerable_count"] = len(result["potentially_vulnerable"])

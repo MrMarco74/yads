@@ -1,72 +1,31 @@
-# YADS OSINT Evolution: Technical Roadmap & Next Steps
+# Implementation Plan: Add-On Plugin Persistence Architecture
 
-This document serves as the high-level technical requirements and execution plan for evolving YADS from a basic scanner into a comprehensive Open Source Intelligence (OSINT) platform.
+## Goal Description
+The standard YADS distribution is deployed entirely via Docker. Currently, YADS has a secure, signature-validated upload endpoint (`/scan-modules/upload`) that allows administrators to upload custom modules. However, these modules are saved to the container's physical filesystem (`/app/yads/modules/custom/`). When the Docker images are wiped/upgraded, the physical files are deleted, but the PostgreSQL `InstalledModule` record survives. This causes execution/import crashes upon reboot.
+Additionally, the recently developed Module Builder packages `.pyz` files, which are incompatible with the existing Uploader's structural requirement (`.zip` with a `module_manifest.json`).
 
-## 🎯 Global Objective
-Transform YADS into a proactive intelligence platform that provides deep context (Identity, History, Leaks, Relationships) alongside traditional attack surface scanning.
+This plan outlines the architecture to make Add-On modules 100% resilient to Docker wipes, correctly formatted, and easily manageable by the Administrator during upgrades.
 
----
+## Proposed Changes
 
-## 🏗️ Implementation Strategy: "Module-First Enhancement"
-- **Logic**: Implement 80% of OSINT features as standalone modules in `yads/modules/`.
-- **Infrastructure**: Update core `models.py`, `api/`, and frontend ONLY to support the new modular data.
-- **Backwards Compatibility**: Ensure the core scanner remains operational without OSINT API keys.
+### [Component] Automation Scripts
+#### [MODIFY] [yads-tools/tools/build_modules_pyz.py](file:///home/mrmarco/Documents/gitlab/yads-tools/tools/build_modules_pyz.py)
+- **Manifest Auto-Generation:** Refactor the generator. Instead of compiling a `.pyz`, the script will package standard `.zip` files. For each module, it will inject a generated `module_manifest.json` by dynamically importing the script or using default fallbacks (e.g. `module_name`, `class_name`, `label`).
+- **Compatibility:** This ensures every module built by the Release Manager can be seamlessly uploaded using the existing YADS UI Plugin Manager.
 
----
+### [Component] Architecture & Deployment
+#### [MODIFY] [yads-infra/docker-compose.yml](file:///home/mrmarco/Documents/gitlab/yads-infra/docker-compose.yml)
+- **Volume Mounts**: Add a dedicated named volume for custom modules to both the `yads-api` and `yads-worker` containers:
+  - `- yads_custom_modules:/app/yads/modules/custom`
+- **Persistence**: This solves the wipe bug natively. Custom `.py` files will securely reside outside the ephemeral container layer and reliably survive image transitions.
 
-## 📅 Roadmap: 4-Phase Execution
+### [Component] Core Module Registry Loader
+#### [MODIFY] [yads/api/routers/scan_modules.py](file:///home/mrmarco/Documents/gitlab/yads/yads/api/routers/scan_modules.py)
+- **Auto-Detection & Recovery Logic**: Update `load_installed_modules_from_db()` (called on fastAPI boot). As it loops through active `InstalledModule` records from Postgres:
+  - It will perform an `os.path.exists()` check against the specific custom module physical file.
+  - **If Missing (Docker Wiped w/o Volume)**: It sets `im.is_active = False` in the database and logs a warning, rather than blindly importing it into `REGISTRY` (which causes 500 crashes).
+- **Admin Alert UI**: Pass a flag to the `scan_modules.html` template when an `InstalledModule` is physically missing. The UI will render a clear "Reactivation Required" badge on the module, prompting the Admin to click "Re-Upload Binaries" to restore it without losing the module's historical configuration or scheduling toggles.
 
-### Phase 1: Identity & Enrichment (High Priority)
-1. **Breach Monitoring**:
-    - Update `yads/modules/leaked_credentials.py` to correctly handle HaveIBeenPwned and DeHashed API responses.
-    - Implement a "Breached Identity" record in the database.
-2. **Metadata Intelligence**:
-    - Enable `yads/modules/metadata_scanner.py`.
-    - Extract usernames, software versions, and network paths from public PDFs/Images.
-3. **API Keys**: Add `HIBP_API_KEY` and `DEHASHED_API_KEY` to the System Config settings.
-
-### Phase 2: Historical Context & Passive Recon
-1. **Passive DNS**:
-    - Implement `historical_dns_analyzer.py` module.
-    - Integrate with SecurityTrails/PassiveTotal to uncover decommissioned but still vulnerable subdomains.
-2. **WHOIS Archives**:
-    - Implement `whois_history_scanner.py` to identify original registrants and corporate relationships.
-
-### Phase 3: Deep Web & Social Surface
-1. **Secret Leak Detection**:
-    - Create `leak_monitor.py` to scan public GitHub repos and Pastebin sites for domain references, API keys, and internal DB strings.
-2. **Technical Footprint**:
-    - Implement `tech_stack_analyzer.py` to correlate discovered technologies with public developer discussions (StackOverflow/GitHub).
-
-### Phase 4: Visual Intelligence (Enterprise Visualization)
-1. **Relationship Graph**:
-    - Implement a graph-based UI (e.g., Cytoscape.js or Force Graph) to visualize connections between IPs, Domains, Breaches, and People.
-    - Create a dedicated `GET /api/targets/{id}/intelligence-graph` endpoint.
-2. **Asset Timeline**:
-    - Build a chronological "History of Changes" view for every target to track infrastructure drift.
-
----
-
-## 💻 Tech Tasks for the Coding Agent
-
-### 1. Data Layer (`yads/models.py`)
-- Define `OSINTIntelligence` model:
-    - `id`, `target_id`, `module_name`, `data_type`, `data_json`, `severity`, `timestamp`.
-- Link to traditional `Finding` model where appropriate.
-
-### 2. API Layer (`yads/api/routers/osint.py`)
-- Create routes to serve aggregated OSINT reports:
-    - `GET /osint/target/{id}`: Returns latest intelligence for a specific target.
-    - `POST /osint/refresh/{id}`: Triggers immediate OSINT-only scan.
-
-### 3. Worker Orchestration (`yads/worker_tasks.py`)
-- Create a new Celery task `run_osint_enrichment`.
-- Integrate `leaked_credentials`, `metadata_scanner`, and `dns_history_scanner` into the high-priority queue.
-
----
-
-## 🏁 Success Criteria
-- [ ] Functional breach monitoring with dashboard alerts.
-- [ ] Searchable historical DNS/WHOIS records.
-- [ ] Interactive graph showing asset relationships.
-- [ ] Zero impact on the speed of the "Simple" port/vuln scan.
+## Verification Plan
+- Build modules using the updated Module Builder and verify they contain `module_manifest.json`.
+- Upload a custom module to YADS, then physically delete the file to simulate a Docker image wipe. Boot YADS, and verify that it gracefully disables the module without crashing, and clearly prompts the Administrator in the Plugin Settings UI.

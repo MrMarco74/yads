@@ -139,6 +139,33 @@ class SocialMediaScanner(BaseScannerModule):
             f"{results['stats']['repos_with_secrets']} repos with secrets."
         )
 
+        if target_id:
+            from yads.models import OSINTIntelligence
+            # Save Profiles
+            for profile in results.get("company_profiles", []):
+                self.db_session.add(OSINTIntelligence(
+                    target_id=target_id, module_name=self.module_name,
+                    data_type="social_profile", data_json=profile, severity="info"
+                ))
+
+            # Save Code Exposures / Secrets
+            for exposure in results.get("code_exposure", []):
+                if exposure.get("contains_secrets"):
+                    # We can store the entire code exposure blob
+                    self.db_session.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name,
+                        data_type="code_exposure_leak", data_json=exposure, severity="high"
+                    ))
+
+            # Save Brand Mentions
+            for mention in results.get("mentions", []):
+                self.db_session.add(OSINTIntelligence(
+                    target_id=target_id, module_name=self.module_name,
+                    data_type="social_mention", data_json=mention, severity="info"
+                ))
+
+            self.db_session.commit()
+
         return results
 
     def _get_tenant(self, domain: str) -> Optional[Tenant]:

@@ -279,6 +279,26 @@ class LeakedCredentialsScanner(BaseScannerModule):
                             sensitive_data_classes.add(dc)
                         if "Passwords" in detail.get("data_classes", []):
                             has_passwords = True
+                            
+                        # ADD OSINT INTELLIGENCE RECORD
+                        if target_id:
+                            from yads.models import OSINTIntelligence
+                            # Check for duplicates
+                            existing = self.db.query(OSINTIntelligence).filter_by(
+                                target_id=target_id, 
+                                module_name=self.module_name,
+                                data_type="breach_record"
+                            ).all()
+                            if not any(r.data_json.get("name") == detail.get("name") for r in existing):
+                                sev = "critical" if "Passwords" in detail.get("data_classes", []) else "high"
+                                self.db.add(OSINTIntelligence(
+                                    target_id=target_id,
+                                    module_name=self.module_name,
+                                    data_type="breach_record",
+                                    data_json=detail,
+                                    severity=sev
+                                ))
+
                 result["breach_details"] = breach_details
 
         # 2. DeHashed (BYOK)
@@ -301,11 +321,47 @@ class LeakedCredentialsScanner(BaseScannerModule):
             result["sources_checked"].append("paste_sites")
             pastes = _check_paste_sites(domain, gse_key, gse_cx)
             result["paste_results"] = pastes
+            
+            # ADD OSINT INTELLIGENCE RECORD
+            if target_id and pastes:
+                from yads.models import OSINTIntelligence
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, 
+                    module_name=self.module_name,
+                    data_type="paste_leak"
+                ).all()
+                for paste in pastes:
+                    if not any(r.data_json.get("url") == paste.get("url") for r in existing):
+                        self.db.add(OSINTIntelligence(
+                            target_id=target_id,
+                            module_name=self.module_name,
+                            data_type="paste_leak",
+                            data_json=paste,
+                            severity="high"
+                        ))
 
         # 4. GitHub leaks (no auth required, rate-limited)
         result["sources_checked"].append("github")
         gh_leaks = _check_github_leaks(domain)
         result["github_leaks"] = gh_leaks
+        
+        # ADD OSINT INTELLIGENCE RECORD
+        if target_id and gh_leaks:
+            from yads.models import OSINTIntelligence
+            existing = self.db.query(OSINTIntelligence).filter_by(
+                target_id=target_id, 
+                module_name=self.module_name,
+                data_type="github_leak"
+            ).all()
+            for leak in gh_leaks:
+                if not any(r.data_json.get("url") == leak.get("url") for r in existing):
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id,
+                        module_name=self.module_name,
+                        data_type="github_leak",
+                        data_json=leak,
+                        severity="medium"
+                    ))
 
         result["summary"]["breach_count"] = total_breaches
         result["summary"]["exposed_accounts"] = total_accounts

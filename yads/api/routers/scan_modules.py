@@ -98,6 +98,24 @@ def _get_enabled_map(session: Session, tenant_id: int) -> Dict[str, bool]:
     return {r.module_name: r.enabled for r in rows}
 
 
+def _get_custom_module_filepath(im: InstalledModule) -> Optional[str]:
+    """Derive the physical file path from an InstalledModule's module_path.
+
+    module_path format: "yads.modules.custom.<stem>:<ClassName>"
+    Returns the expected file path, or None if the format is unexpected.
+    """
+    try:
+        pkg_part = im.module_path.split(":")[0]  # "yads.modules.custom.my_scanner"
+        parts = pkg_part.split(".")
+        # Reconstruct relative to _CUSTOM_MODULES_DIR
+        if len(parts) >= 4 and parts[0] == "yads" and parts[1] == "modules" and parts[2] == "custom":
+            filename = parts[3] + ".py"
+            return os.path.join(_CUSTOM_MODULES_DIR, filename)
+    except Exception:
+        pass
+    return None
+
+
 def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]:
     """Build display rows for all modules (registry + installed)."""
     enabled_map: Dict[str, bool] = {}
@@ -116,26 +134,42 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
             "finding_module": defn.finding_module,
             "custom": False,
             "enabled": enabled_map.get(name, True),
+            "file_missing": False,
         })
 
-    # Installed custom modules
-    for im in session.exec(select(InstalledModule).where(InstalledModule.is_active == True)).all():
-        if im.module_name not in REGISTRY:
-            rows.append({
-                "name": im.module_name,
-                "label": im.label,
-                "label_de": im.label_de,
-                "category": im.category,
-                "cat_label": CAT_LABELS.get(im.category, im.category),
-                "cat_color": CAT_COLORS.get(im.category, "gray"),
-                "finding_module": im.finding_module,
-                "custom": True,
-                "enabled": enabled_map.get(im.module_name, True),
-                "version": im.version,
-                "author": im.author,
-                "description": im.description,
-                "installed_at": im.installed_at,
-            })
+    # Installed custom modules (active + auto-deactivated with missing files)
+    all_installed = session.exec(select(InstalledModule)).all()
+    for im in all_installed:
+        if im.module_name in REGISTRY:
+            continue  # Built-in module, already listed above
+
+        # Check if physical file exists on disk
+        filepath = _get_custom_module_filepath(im)
+        file_missing = filepath is not None and not os.path.exists(filepath)
+
+        # Skip intentionally deleted modules (inactive AND file not missing).
+        # Only show inactive modules when the file is missing (auto-deactivated
+        # by the startup health check), so the admin can re-upload.
+        if not im.is_active and not file_missing:
+            continue
+
+        rows.append({
+            "name": im.module_name,
+            "label": im.label,
+            "label_de": im.label_de,
+            "category": im.category,
+            "cat_label": CAT_LABELS.get(im.category, im.category),
+            "cat_color": CAT_COLORS.get(im.category, "gray"),
+            "finding_module": im.finding_module,
+            "custom": True,
+            "enabled": enabled_map.get(im.module_name, True) if im.is_active else False,
+            "version": im.version,
+            "author": im.author,
+            "description": im.description,
+            "installed_at": im.installed_at,
+            "file_missing": file_missing,
+            "is_active": im.is_active,
+        })
 
     return rows
 
@@ -425,7 +459,31 @@ def _register_installed_module(im: InstalledModule) -> None:
 
 
 def load_installed_modules_from_db(session: Session) -> None:
-    """Called at startup to register custom modules into the runtime REGISTRY."""
+    """Called at startup to register custom modules into the runtime REGISTRY.
+
+    Performs a filesystem health check for each active InstalledModule:
+      - If the physical .py file exists: register normally.
+      - If the file is missing (e.g. Docker image wiped without volume):
+        deactivate the DB record and log a warning instead of crashing on import.
+    """
+    import logging
+    logger = logging.getLogger("yads.scan_modules")
+
     for im in session.exec(select(InstalledModule).where(InstalledModule.is_active == True)).all():
-        if im.module_name not in REGISTRY:
-            _register_installed_module(im)
+        if im.module_name in REGISTRY:
+            continue
+
+        # Verify the physical module file still exists on disk
+        filepath = _get_custom_module_filepath(im)
+        if filepath and not os.path.exists(filepath):
+            logger.warning(
+                "Custom module '%s' is registered in DB but physical file is missing (%s). "
+                "Deactivating to prevent import crash. Re-upload via Plugin Manager to restore.",
+                im.module_name, filepath,
+            )
+            im.is_active = False
+            session.add(im)
+            session.commit()
+            continue
+
+        _register_installed_module(im)

@@ -231,8 +231,25 @@
                 Integrations
             </h3>
             
-            <!-- Splunk -->
+            <!-- OSINT -->
             <div class="space-y-3 mb-6">
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">OSINT APIs</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2 md:col-span-1">
+                        <label class="block text-xs text-gray-400 mb-1">HaveIBeenPwned API Key</label>
+                        <input type="password" name="hibp_api_key" value="{{ hibp_api_key }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 font-mono" placeholder="Required for leak detection">
+                    </div>
+                    <div class="col-span-2 md:col-span-1">
+                        <label class="block text-xs text-gray-400 mb-1">DeHashed API Key</label>
+                        <input type="password" name="dehashed_api_key" value="{{ dehashed_api_key }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 font-mono" placeholder="Required for deep leak detection">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Splunk -->
+            <div class="space-y-3 mb-6 border-t border-gray-700/50 pt-4">
                 <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Splunk HEC</h4>
                 <div>
                         <label class="block text-xs text-gray-400 mb-1">HEC URL</label>

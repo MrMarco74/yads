@@ -77,7 +77,7 @@ class ThreatIntelScanner(BaseScannerModule):
             logger.info("[ThreatIntel] No VirusTotal key — skipping")
 
         result["summary"]["sources_checked"] = sources
-        self._build_summary(result)
+        self._build_summary(result, target_id)
 
         return result
 
@@ -283,7 +283,7 @@ class ThreatIntelScanner(BaseScannerModule):
     # Summary + Findings
     # ------------------------------------------------------------------
 
-    def _build_summary(self, result: Dict[str, Any]) -> None:
+    def _build_summary(self, result: Dict[str, Any], target_id: Optional[int] = None) -> None:
         findings: List[Dict] = []
         score = 100
 
@@ -402,6 +402,27 @@ class ThreatIntelScanner(BaseScannerModule):
             threat_level = "low"
         else:
             threat_level = "none"
+
+        # Persist findings to OSINTIntelligence model
+        if target_id and self.db:
+            from yads.models import OSINTIntelligence
+            import datetime
+            for f in findings:
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="threat_verdict"
+                ).filter(OSINTIntelligence.data_json["title"].astext == f["title"]).first()
+                
+                if not existing:
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="threat_verdict",
+                        data_json={"title": f["title"], "detail": f.get("detail", ""), "source": f.get("source", "")},
+                        severity=f["severity"], timestamp=datetime.datetime.utcnow()
+                    ))
+            try:
+                self.db.commit()
+            except Exception as e:
+                logger.error(f"[ThreatIntel] DB Commit failed: {e}")
+                self.db.rollback()
 
         result["findings"] = findings
         result["summary"]["score"] = max(0, min(100, score))
