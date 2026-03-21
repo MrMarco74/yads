@@ -249,37 +249,36 @@ class ChangeEvent(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     scan_result_id: int = Field(foreign_key="scanresult.id")
-    
+    event_type: str = Field(description="e.g. NEW_RECORD, DELETED_RECORD, CONTENT_CHANGE")
+    description: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    scan_result: ScanResult = Relationship(back_populates="change_events")
+
 class OSINTIntelligence(SQLModel, table=True):
     """
-    Structured intelligence data from OSINT modules like breached credentials, 
+    Structured intelligence data from OSINT modules like breached credentials,
     historical WHOIS, or leaked secrets.
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     target_id: int = Field(foreign_key="target.id", index=True)
-    
+
     # E.g. 'leaked_credentials', 'dns_history_scanner'
     module_name: str = Field(index=True)
-    
+
     # E.g. 'breach_record', 'whois_archive', 'github_leak'
     data_type: str = Field(index=True)
-    
+
     # The actual OSINT payload
     data_json: dict = Field(default={}, sa_column=Column(JSONB))
-    
+
     # severity: info, low, medium, high, critical
     severity: str = Field(default="info", index=True)
-    
+
     timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     # Relationships
     target: Target = Relationship(back_populates="osint_records")
-
-    event_type: str = Field(description="e.g. NEW_RECORD, DELETED_RECORD, CONTENT_CHANGE")
-    description: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    scan_result: ScanResult = Relationship(back_populates="change_events")
 
 class AIAnalysisResult(SQLModel, table=True):
     """Stores AI-generated risk assessments per tenant."""
