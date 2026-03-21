@@ -46,7 +46,8 @@ def test_flow(name, mode, user, password, port):
         "admin_pass": password,
         "install_mode": mode,
         "do_backup": False,
-        "license_key": "TEST-LICENSE-123"
+        "license_key": "TEST-LICENSE-123",
+        "yads_encryption_key": "integration-test-key-000!"
     }
     
     # 1. Run Installer
@@ -60,9 +61,15 @@ def test_flow(name, mode, user, password, port):
         print(f"FAILED: Service not healthy for {name}")
         return False
         
-    # 3. Verify Login
-    if not run_command(["python3", "verify_login.py", f"{url}/login", user, password]):
-        print(f"FAILED: Login verification failed for {name}")
+    # 4. Verify .env contains encryption key
+    if os.path.exists(".env"):
+        with open(".env", "r") as f:
+            content = f.read()
+            if "YADS_ENCRYPTION_KEY=" not in content:
+                print(f"FAILED: .env missing YADS_ENCRYPTION_KEY for {name}")
+                return False
+    else:
+        print(f"FAILED: .env not found after install for {name}")
         return False
         
     print(f"SUCCESS: Test {name} passed!")

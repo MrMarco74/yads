@@ -52,31 +52,10 @@ COMPOSE_FILE = "docker-compose.yml"
 NGINX_TEMPLATE = "nginx.conf.template"
 JSON_CONTENT = "application/json"
 
-import re
-
-def validate_bsi_password(password: str) -> (bool, str):
-    """
-    Validates password based on BSI CS 050 recommendations.
-    Returns (is_valid, error_message).
-    """
-    if len(password) < 12:
-        return False, "Passwort muss mindestens 12 Zeichen lang sein (BSI Empfehlung)."
-    
-    # Check for categories (at least 3 of 4)
-    categories = 0
-    if re.search(r"[a-z]", password): categories += 1
-    if re.search(r"[A-Z]", password): categories += 1
-    if re.search(r"[0-9]", password): categories += 1
-    if re.search(r"[^a-zA-Z0-9]", password): categories += 1
-    
-    if categories < 3:
-        return False, "Passwort muss Zeichen aus mindestens 3 Kategorien enthalten (Groß, Klein, Zahlen, Sonderzeichen)."
-    
-    # Basic check against common patterns
-    if password.lower() in ["password12345", "yadsadmin2026", "administrator"]:
-        return False, "Passwort ist zu einfach oder ein bekanntes Muster."
-        
-    return True, ""
+try:
+    from crypto_utils import validate_bsi_password
+except ImportError:
+    from release_assets.yads_installer.crypto_utils import validate_bsi_password
 
 class Style:
     ACCENT = "#FF8C00"  # Vibrant Orange
@@ -135,7 +114,7 @@ class InstallationManager(QObject):
     """Handles the heavy lifting in a separate thread"""
     log_signal = Signal(str, str) # message, level
     progress_signal = Signal(int, str) # percent, text
-    finished_signal = Signal(bool, str) # success, msg
+    finished_signal = Signal(bool, str, dict) # success, msg, secrets
 
     def __init__(self, data):
         super().__init__()
@@ -184,13 +163,13 @@ class InstallationManager(QObject):
             self.progress_signal.emit(90, "Warte auf Systemstart (Health Check)...")
             if self.verify_health():
                 self.progress_signal.emit(100, "Fertig!")
-                self.finished_signal.emit(True, "YADS wurde erfolgreich installiert und ist bereit!")
+                self.finished_signal.emit(True, "YADS wurde erfolgreich installiert und ist bereit!", self.secrets)
             else:
                 self.log_container_errors()
-                self.finished_signal.emit(False, "Das System wurde gestartet, antwortet aber nicht auf den Health Check. Die Fehlerlogs wurden oben ausgegeben.")
+                self.finished_signal.emit(False, "Das System wurde gestartet, antwortet aber nicht auf den Health Check. Die Fehlerlogs wurden oben ausgegeben.", {})
         except Exception as e:
             self.log_signal.emit(f"FEHLER: {str(e)}", "error")
-            self.finished_signal.emit(False, str(e))
+            self.finished_signal.emit(False, str(e), {})
 
     def shutdown_existing(self):
         """Shutdown existing containers to free up ports."""
@@ -305,6 +284,7 @@ class InstallationManager(QObject):
             'SECRET_KEY': existing.get('SECRET_KEY', secrets.token_urlsafe(32)),
             'SIGNING_KEY': existing.get('SIGNING_KEY', secrets.token_urlsafe(32)),
             'REFRESH_SECRET': existing.get('REFRESH_SECRET', secrets.token_urlsafe(32)),
+            'YADS_ENCRYPTION_KEY': existing.get('YADS_ENCRYPTION_KEY', self.data.get('encryption_pass', secrets.token_urlsafe(32))),
         }
 
     def prepare_installation_files(self):
@@ -482,6 +462,7 @@ class GlassInstaller(AcrylicWindow):
             (FIF.PIE_SINGLE, "Monitoring"),
             (FIF.CERTIFICATE, "Lizenz"),
             (FIF.SETTING, "Admin"),
+            (FIF.FINGERPRINT, "Verschlüsselung"),
             (FIF.TILES, "Modus"),
             (FIF.DOWNLOAD, "Installation")
         ]
@@ -529,8 +510,10 @@ class GlassInstaller(AcrylicWindow):
         self.content_stack.addWidget(self.create_monitoring_step())
         self.content_stack.addWidget(self.create_license_step())
         self.content_stack.addWidget(self.create_admin_step())
+        self.content_stack.addWidget(self.create_encryption_step())
         self.content_stack.addWidget(self.create_mode_step())
         self.content_stack.addWidget(self.create_install_step())
+        self.content_stack.addWidget(self.create_summary_step())
 
         # 3. Bottom Navigation Bar
         self.bottom_bar = QFrame(self)
@@ -792,6 +775,77 @@ class GlassInstaller(AcrylicWindow):
             self.password_status_label.setText("✅ Passwort erfüllt BSI Vorgaben und ist identisch.")
             self.password_status_label.setStyleSheet("color: #34d399;")
 
+    def create_encryption_step(self) -> QFrame:
+        page = QFrame()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(60, 40, 60, 40)
+        layout.addWidget(SubtitleLabel("Datenverschlüsselung (At Rest)", page))
+        layout.addWidget(BodyLabel("Legen Sie ein Master-Passwort für die Verschlüsselung sensitiver Daten fest (API-Keys, Bug-Reports).", page))
+        
+        form = QVBoxLayout()
+        form.setSpacing(10)
+        form.setContentsMargins(0, 20, 0, 0)
+
+        self.input_enc_pass = LineEdit(page)
+        self.input_enc_pass.setEchoMode(LineEdit.Password)
+        self.input_enc_pass.setPlaceholderText("Verschlüsselungs-Passwort (BSI: min 12 Zeichen)")
+        self.input_enc_pass.textChanged.connect(self._update_enc_password_status)
+        form.addWidget(BodyLabel("Master-Passwort:"))
+        
+        pwd_hbox = QHBoxLayout()
+        pwd_hbox.addWidget(self.input_enc_pass)
+        
+        btn_gen = TransparentPushButton(FIF.SYNC, "", page)
+        btn_gen.setToolTip("Sicheres Passwort generieren")
+        btn_gen.clicked.connect(self._generate_enc_password)
+        pwd_hbox.addWidget(btn_gen)
+        form.addLayout(pwd_hbox)
+
+        self.input_enc_pass_confirm = LineEdit(page)
+        self.input_enc_pass_confirm.setEchoMode(LineEdit.Password)
+        self.input_enc_pass_confirm.setPlaceholderText("Passwort wiederholen")
+        self.input_enc_pass_confirm.textChanged.connect(self._update_enc_password_status)
+        form.addWidget(BodyLabel("Passwort bestätigen:"))
+        form.addWidget(self.input_enc_pass_confirm)
+
+        self.enc_password_status_label = CaptionLabel("", page)
+        self.enc_password_status_label.setWordWrap(True)
+        form.addWidget(self.enc_password_status_label)
+        
+        layout.addLayout(form)
+        layout.addStretch(1)
+        
+        warning = CaptionLabel("⚠️ WICHTIG: Wenn Sie dieses Passwort verlieren, können verschlüsselte Daten NICHT wiederhergestellt werden!", page)
+        warning.setStyleSheet("color: #f87171; font-weight: bold;")
+        warning.setWordWrap(True)
+        layout.addWidget(warning)
+        
+        return page
+
+    def _generate_enc_password(self):
+        new_pw = secrets.token_urlsafe(24)
+        self.input_enc_pass.setEchoMode(LineEdit.Normal)
+        self.input_enc_pass.setText(new_pw)
+        self.input_enc_pass_confirm.setText(new_pw)
+        InfoBar.info("Passwort generiert", "Ein sicheres Passwort wurde generiert und eingefügt. Bitte notieren Sie es sich!", duration=5000, parent=self)
+
+    def _update_enc_password_status(self):
+        pw = self.input_enc_pass.text()
+        conf = self.input_enc_pass_confirm.text()
+        if not pw:
+            self.enc_password_status_label.setText("")
+            return
+        is_valid, err = validate_bsi_password(pw)
+        if not is_valid:
+            self.enc_password_status_label.setText(f"❌ {err}")
+            self.enc_password_status_label.setStyleSheet("color: #f87171;")
+        elif pw != conf:
+            self.enc_password_status_label.setText("⚠️ Passwörter stimmen nicht überein.")
+            self.enc_password_status_label.setStyleSheet("color: #fbbf24;")
+        else:
+            self.enc_password_status_label.setText("✅ Passwort erfüllt BSI Vorgaben und ist identisch.")
+            self.enc_password_status_label.setStyleSheet("color: #34d399;")
+
     def create_mode_step(self) -> QFrame:
         page = QFrame()
         layout = QVBoxLayout(page)
@@ -836,6 +890,63 @@ class GlassInstaller(AcrylicWindow):
         layout.addWidget(self.log_view)
         
         return page
+
+    def create_summary_step(self) -> QFrame:
+        page = QFrame()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(60, 40, 60, 40)
+        
+        layout.addWidget(SubtitleLabel("Installation abgeschlossen", page))
+        layout.addWidget(BodyLabel("Bitte notieren Sie sich die folgenden automatisch generierten Zugangsdaten. Diese benötigen Sie für den Zugriff auf die Datenbanken und verschlüsselte Backups.", page))
+        
+        scroll = ScrollArea(page)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background: transparent; border: none;")
+        
+        container = QFrame()
+        container_layout = QVBoxLayout(container)
+        container_layout.setSpacing(15)
+        
+        self.summary_fields = {} # label -> (LineEdit, value)
+        
+        secrets_to_show = [
+            ("PostgreSQL Passwort", "POSTGRES_PASSWORD"),
+            ("Redis Passwort", "REDIS_PASSWORD"),
+            ("Admin Passwort", "admin_pass"),
+            ("Verschlüsselungs-Key", "YADS_ENCRYPTION_KEY"),
+            ("Secret Key (API)", "SECRET_KEY")
+        ]
+        
+        for label_text, key in secrets_to_show:
+            row = QVBoxLayout()
+            lbl = BodyLabel(label_text, container)
+            lbl.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            row.addWidget(lbl)
+            
+            h_row = QHBoxLayout()
+            edit = LineEdit(container)
+            edit.setReadOnly(True)
+            edit.setPlaceholderText("Wird generiert...")
+            h_row.addWidget(edit)
+            
+            btn_copy = TransparentPushButton(FIF.COPY, "", container)
+            btn_copy.setFixedWidth(40)
+            btn_copy.clicked.connect(lambda checked=False, e=edit: self._copy_to_clipboard(e.text()))
+            h_row.addWidget(btn_copy)
+            
+            row.addLayout(h_row)
+            container_layout.addLayout(row)
+            self.summary_fields[key] = edit
+            
+        container_layout.addStretch(1)
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+        
+        return page
+
+    def _copy_to_clipboard(self, text):
+        QApplication.clipboard().setText(text)
+        InfoBar.success("Kopiert", "In die Zwischenablage kopiert.", duration=2000, parent=self)
 
     def show_step(self, index: int):
         # Validate current step before leaving
@@ -936,7 +1047,23 @@ class GlassInstaller(AcrylicWindow):
             self.data['admin_user'] = self.input_admin_user.text()
             self.data['admin_pass'] = self.input_admin_pass.text()
             
-        elif idx == 8: # Mode
+        elif idx == 8: # Encryption
+            if not self.input_enc_pass.text() or not self.input_enc_pass_confirm.text():
+                InfoBar.warning("Eingabe fehlt", "Ein Verschlüsselungspasswort ist zwingend erforderlich.", parent=self)
+                return False
+            
+            is_valid, err_msg = validate_bsi_password(self.input_enc_pass.text())
+            if not is_valid:
+                InfoBar.warning("Passwort-Sicherheit (BSI)", err_msg, duration=5000, parent=self)
+                return False
+                
+            if self.input_enc_pass.text() != self.input_enc_pass_confirm.text():
+                InfoBar.warning("Passwort-Fehler", "Passwörter stimmen nicht überein.", duration=5000, parent=self)
+                return False
+
+            self.data['encryption_pass'] = self.input_enc_pass.text()
+
+        elif idx == 9: # Mode
             self.data['install_mode'] = 'upgrade' if self.rb_upgrade.isChecked() else 'reinstall'
             self.data['do_backup'] = self.cb_backup.isChecked()
             
@@ -974,14 +1101,24 @@ class GlassInstaller(AcrylicWindow):
         self.progress_bar.setValue(val)
         self.add_log(text, "info")
 
-    @Slot(bool, str)
-    def on_finished(self, success, msg):
+    @Slot(bool, str, dict)
+    def on_finished(self, success, msg, secrets_dict):
         self.thread.quit()
         if success:
+            # Populate summary fields
+            for key, edit in self.summary_fields.items():
+                val = secrets_dict.get(key, self.data.get(key, "Nicht generiert"))
+                edit.setText(val)
+            
+            self.show_step(self.content_stack.count() - 1)
             InfoBar.success("Erfolg", msg, duration=5000, position=InfoBarPosition.TOP, parent=self)
+            
             self.btn_next.setText("Beenden")
             self.btn_next.setEnabled(True)
-            self.btn_next.clicked.disconnect()
+            self.btn_back.hide()
+            try:
+                self.btn_next.clicked.disconnect()
+            except: pass
             self.btn_next.clicked.connect(self.close)
         else:
             InfoBar.error("Fehler", msg, duration=-1, position=InfoBarPosition.TOP, parent=self)

@@ -160,8 +160,6 @@ def _queue_single_bulk_target(session: Session, user: User, tid_str: str, scan_t
         return True
     except Exception as e:
         logger.error(f"Failed to queue target {tid_str}: {e}")
-        return False
-)
 
 @router.post("/targets/import", response_class=HTMLResponse)
 async def bulk_import_targets(
@@ -188,6 +186,10 @@ async def bulk_import_targets(
     for domain in domains:
         domain = _clean_domain(domain)
         if not domain: continue
+
+        if _is_internal_target(domain):
+            stats["skipped_dns"] += 1
+            continue
 
         if verify_dns and not _verify_domain_dns(domain):
             stats["skipped_dns"] += 1
@@ -226,6 +228,39 @@ async def _read_uploaded_file(file: UploadFile) -> str:
 def _clean_domain(domain: str) -> str:
     """Cleanup domain string."""
     return domain.replace("http://", "").replace("https://", "").split("/")[0].strip().lower()
+
+
+def _is_internal_target(target: str) -> bool:
+    """
+    Checks if a target (IP or domain) is an internal/private address (SSRF Protection).
+    Follows RFC 1918 and other reserved ranges.
+    """
+    import ipaddress
+    import socket
+    
+    # Emergency bypass via environment variable
+    if os.getenv("ALLOW_INTERNAL_SCANNING", "false").lower() == "true":
+        return False
+
+    try:
+        # 1. Direct IP check
+        ip = ipaddress.ip_address(target)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast:
+            return True
+    except ValueError:
+        # 2. Domain resolution check
+        try:
+            # We resolve just to check the IP range. 
+            # Note: This adds a small delay to imports but prevents SSRF.
+            ip_str = socket.gethostbyname(target)
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return True
+        except (socket.gaierror, ValueError):
+            # If resolution fails, we'll let it through and the scanner will fail normally
+            pass
+            
+    return False
 
 
 def _verify_domain_dns(domain: str) -> bool:
@@ -503,6 +538,9 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
 async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """HTMX endpoint to add a target"""
     domain = domain.lower().strip()
+    if _is_internal_target(domain):
+        return RedirectResponse(url="/?error=Internal+targets+blocked+by+SSRF+protection", status_code=303)
+
     # Tenant Scope
     existing = session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first()
     

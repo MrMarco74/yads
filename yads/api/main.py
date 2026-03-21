@@ -20,7 +20,7 @@ from yads.core.logging_config import configure_logging
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
 from yads.core.scoring import calculate_target_score, get_grade, get_grade_color
 from yads.api.routers import auth, analytics, users, tenants, schedules, api_keys, dashboard, targets, graphs, exports, system, tags
-from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException
+from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user, PlatformAdminChecker, LoginRequiredException, MFARequiredException
 from yads.models import User
 from yads.api.utils.update_checker import UpdateService
 
@@ -566,6 +566,10 @@ app.include_router(waf_analysis.router)
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):
     return RedirectResponse(url="/login")
+
+@app.exception_handler(MFARequiredException)
+async def mfa_required_handler(request: Request, exc: MFARequiredException):
+    return RedirectResponse(url="/mfa/setup")
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
