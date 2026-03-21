@@ -82,9 +82,10 @@ async def get_current_user(request: Request, session: Session = Depends(get_db_s
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
         
     # MFA Enforcement for Admins (Compliance API)
+    # Exempt /mfa/ routes so users can complete MFA enrollment before it is active
     if settings.MFA_ENABLED and user.role in ["admin", "tenant_admin"] and not user.mfa_enabled:
-         # For API calls, return 403 with a hint
-         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="MFA_REQUIRED")
+        if "/mfa/" not in request.url.path:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="MFA_REQUIRED")
          
     return user
 
