@@ -29,3 +29,5 @@ This plan outlines the architecture to make Add-On modules 100% resilient to Doc
 ## Verification Plan
 - Build modules using the updated Module Builder and verify they contain `module_manifest.json`.
 - Upload a custom module to YADS, then physically delete the file to simulate a Docker image wipe. Boot YADS, and verify that it gracefully disables the module without crashing, and clearly prompts the Administrator in the Plugin Settings UI.
+- [ ] Execute OSINT Phase 5: Active Scanning Integration
+- [ ] Execute OSINT Phase 6: Social Media Identity Expansion
