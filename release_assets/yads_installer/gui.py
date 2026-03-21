@@ -47,7 +47,7 @@ except ImportError:
 REGISTRY_URL = "registry.yads-security.com"
 REGISTRY_USER = "yads-push"
 REGISTRY_TOKEN = "REDACTED"
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 COMPOSE_FILE = "docker-compose.yml"
 NGINX_TEMPLATE = "nginx.conf.template"
 JSON_CONTENT = "application/json"
@@ -213,18 +213,21 @@ class InstallationManager(QObject):
         backup_root = os.path.expanduser("~/yads_backups")
         os.makedirs(backup_root, exist_ok=True)
         backup_path = os.path.join(backup_root, f"yads_backup_{ts}")
-        
+
         self.log_signal.emit(f"Sichere Volumes nach {backup_path}...", "info")
         # Discover actual volumes for this project
         volumes = [f"{self.project_name}_postgres_data", f"{self.project_name}_redis_data"]
         os.makedirs(backup_path, exist_ok=True)
-        
+
         # We use docker run to copy data out of volumes
         for vol in volumes:
             cmd = ["docker", "run", "--rm", "-v", f"{vol}:/data", "-v", f"{backup_path}:/backup", "busybox", "sh", "-c", f"cp -a /data /backup/{vol}"]
             res = subprocess.run(cmd, capture_output=True)
             if res.returncode == 0:
                 self.log_signal.emit(f"Volume {vol} gesichert.", "info")
+
+        self.secrets["backup_done"] = True
+        self.secrets["backup_path"] = backup_path
 
     def login_registry(self):
         # Use --password-stdin to avoid insecurity warning and be more robust
@@ -487,8 +490,11 @@ class GlassInstaller(AcrylicWindow):
             (FIF.FINGERPRINT, "Verschlüsselung"),
             (FIF.TILES, "Modus"),
             (FIF.DOWNLOAD, "Installation"),
+            (FIF.SAVE, "Backup"),
             (FIF.COMPLETED, "Abschluss"),
         ]
+
+        self.backup_nav_idx = next((i for i, (_, t) in enumerate(steps) if t == "Backup"), None)
 
         from PySide6.QtWidgets import QPushButton
         for i, (icon, text) in enumerate(steps):
@@ -536,6 +542,7 @@ class GlassInstaller(AcrylicWindow):
         self.content_stack.addWidget(self.create_encryption_step())
         self.content_stack.addWidget(self.create_mode_step())
         self.content_stack.addWidget(self.create_install_step())
+        self.content_stack.addWidget(self.create_backup_step())
         self.content_stack.addWidget(self.create_summary_step())
 
         # 3. Bottom Navigation Bar
@@ -914,23 +921,43 @@ class GlassInstaller(AcrylicWindow):
         
         return page
 
+    def create_backup_step(self) -> QFrame:
+        page = QFrame()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(60, 40, 60, 40)
+        layout.setSpacing(16)
+
+        layout.addWidget(SubtitleLabel("Backup", page))
+
+        self.backup_status_label = BodyLabel("", page)
+        self.backup_status_label.setWordWrap(True)
+        layout.addWidget(self.backup_status_label)
+
+        self.backup_info_label = BodyLabel("", page)
+        self.backup_info_label.setWordWrap(True)
+        self.backup_info_label.setStyleSheet("color: rgba(255,255,255,150);")
+        layout.addWidget(self.backup_info_label)
+
+        layout.addStretch(1)
+        return page
+
     def create_summary_step(self) -> QFrame:
         page = QFrame()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(60, 40, 30, 40)
+        layout.setContentsMargins(60, 40, 60, 40)
 
         layout.addWidget(SubtitleLabel("Installation abgeschlossen", page))
         layout.addWidget(BodyLabel("Bitte notieren Sie sich die folgenden automatisch generierten Zugangsdaten. Diese benötigen Sie für den Zugriff auf die Datenbanken und verschlüsselte Backups.", page))
-        
+
         scroll = ScrollArea(page)
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("background: transparent; border: none;")
-        scroll.setViewportMargins(0, 0, 15, 0)  # reserve space for scrollbar
-        
+        scroll.setViewportMargins(0, 0, 20, 0)  # reserve space for scrollbar
+
         container = QFrame()
         container_layout = QVBoxLayout(container)
         container_layout.setSpacing(15)
-        container_layout.setContentsMargins(0, 0, 20, 0)  # right margin clears scrollbar
+        container_layout.setContentsMargins(0, 0, 8, 0)  # small right margin
         
         self.summary_fields = {} # label -> (LineEdit, value)
         
@@ -955,8 +982,9 @@ class GlassInstaller(AcrylicWindow):
             h_row.addWidget(edit)
             
             btn_copy = TransparentPushButton(FIF.COPY, "", container)
-            btn_copy.setFixedWidth(40)
+            btn_copy.setFixedWidth(44)
             btn_copy.clicked.connect(lambda checked=False, e=edit: self._copy_to_clipboard(e.text()))
+            h_row.addSpacing(8)
             h_row.addWidget(btn_copy)
             
             row.addLayout(h_row)
@@ -1006,10 +1034,22 @@ class GlassInstaller(AcrylicWindow):
             self.refresh_dependencies()
             
         count = self.content_stack.count()
-        if index == count - 2:        # install step (log view)
+        if index == count - 3:        # install step (log view)
             self.btn_next.setText("Installieren")
+        elif index == count - 2:      # backup step
+            self.btn_next.show()
+            self.btn_next.setText("Weiter")
         elif index == count - 1:      # summary step
-            self.btn_next.hide()
+            if getattr(self, '_install_done', False):
+                self.btn_next.show()
+                self.btn_next.setText("Beenden")
+                try:
+                    self.btn_next.clicked.disconnect()
+                except Exception:
+                    pass
+                self.btn_next.clicked.connect(self.close)
+            else:
+                self.btn_next.hide()
         else:
             self.btn_next.show()
             self.btn_next.setText("Weiter")
@@ -1020,7 +1060,7 @@ class GlassInstaller(AcrylicWindow):
             return
 
         count = self.content_stack.count()
-        if idx == count - 2:      # install step → start installation
+        if idx == count - 3:      # install step → start installation
             self.finish_setup()
         elif idx < count - 1:
             self.show_step(idx + 1)
@@ -1139,17 +1179,25 @@ class GlassInstaller(AcrylicWindow):
             for key, edit in self.summary_fields.items():
                 val = secrets_dict.get(key, self.data.get(key, "Nicht generiert"))
                 edit.setText(val)
-            
-            self.show_step(self.content_stack.count() - 1)
-            InfoBar.success("Erfolg", msg, duration=5000, position=InfoBarPosition.TOP, parent=self)
-            
-            self.btn_next.setText("Beenden")
+
+            # Update backup step status
+            backup_done = secrets_dict.get("backup_done", False)
+            backup_path = secrets_dict.get("backup_path", "")
+            if backup_done and backup_path:
+                self.backup_status_label.setText("✅ Backup erfolgreich erstellt.")
+                self.backup_info_label.setText(f"Pfad: {backup_path}")
+            elif self.data.get("do_backup"):
+                self.backup_status_label.setText("⚠️ Backup wurde versucht, aber nicht bestätigt.")
+                self.backup_info_label.setText("")
+            else:
+                self.backup_status_label.setText("⏭️ Backup übersprungen (Option nicht aktiviert).")
+                self.backup_info_label.setText("Sie können jederzeit manuell ein Backup erstellen.")
+
+            self._install_done = True
+            self.show_step(self.content_stack.count() - 2)  # backup step
             self.btn_next.setEnabled(True)
             self.btn_back.hide()
-            try:
-                self.btn_next.clicked.disconnect()
-            except: pass
-            self.btn_next.clicked.connect(self.close)
+            InfoBar.success("Erfolg", msg, duration=5000, position=InfoBarPosition.TOP, parent=self)
         else:
             InfoBar.error("Fehler", msg, duration=-1, position=InfoBarPosition.TOP, parent=self)
             self.btn_back.setEnabled(True)
