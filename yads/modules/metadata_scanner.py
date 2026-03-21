@@ -118,6 +118,24 @@ class MetadataScanner(BaseScannerModule):
             meta["type"] = DOC_EXTENSIONS.get(ext, "Document")
             result["metadata_items"].append(meta)
 
+            # ADD OSINT INTELLIGENCE RECORD
+            if target_id:
+                from yads.models import OSINTIntelligence
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id,
+                    module_name=self.module_name,
+                    data_type="document_metadata"
+                ).all()
+                if not any(r.data_json.get("url") == doc_url for r in existing):
+                    sev = "medium" if (meta.get("internal_paths") or meta.get("emails")) else "low"
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id,
+                        module_name=self.module_name,
+                        data_type="document_metadata",
+                        data_json=meta,
+                        severity=sev
+                    ))
+
             # Collect interesting fields
             if meta.get("author"):
                 authors.add(meta["author"])

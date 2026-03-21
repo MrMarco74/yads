@@ -1480,3 +1480,54 @@ def start_discovery_session(session_id: int):
     from yads.core.discovery_orchestrator import DiscoveryOrchestrator
     orchestrator = DiscoveryOrchestrator(session_id)
     orchestrator.start()
+
+
+@celery_app.task(name="yads.worker.run_osint_enrichment", bind=True)
+def run_osint_enrichment(self, target_id: int, target_domain: str, tenant_id: int):
+    """
+    High-priority dedicated task for refreshing all OSINT modules for a single Target.
+    """
+    logger.info(f"[OSINT Worker] Starting enrichment for {target_domain} (ID: {target_id})")
+    
+    modules_to_run = [
+        ("yads.modules.leaked_credentials", "LeakedCredentialsScanner"),
+        ("yads.modules.dns_history_scanner", "DNSHistoryScanner"),
+        ("yads.modules.whois_history_scanner", "WhoisHistoryScanner"),
+        ("yads.modules.social_media_scanner", "SocialMediaScanner"),
+        ("yads.modules.tech_stack_analyzer", "TechStackAnalyzer"),
+        ("yads.modules.cloud_scanner", "CloudScanner"),
+        ("yads.modules.subdomain_takeover_scanner", "SubdomainTakeoverScanner"),
+        ("yads.modules.threat_intel_scanner", "ThreatIntelScanner"),
+        ("yads.modules.shodan_censys_scanner", "ShodanCensysScanner"),
+    ]
+    
+    with Session(engine) as session:
+        for mod_path, class_name in modules_to_run:
+            try:
+                mod = __import__(mod_path, fromlist=[class_name])
+                ScannerClass = getattr(mod, class_name)
+                scanner = ScannerClass(db_session=session)
+                logger.info(f"[OSINT Worker] Running {class_name} against {target_domain}")
+                # Modules expecting (target_id, domain, tenant_id) or (target_id, target.domain)
+                # Signature varies, so we catch TypeErrors and fall back
+                try:
+                    scanner.run_scan(target_id, target_domain, tenant_id)
+                except TypeError:
+                    # Fallback for base module signature
+                    scanner.run_scan(target_id, target_domain)
+            except Exception as e:
+                logger.error(f"[OSINT Worker] {class_name} failed for {target_domain}: {e}")
+                
+        # Send Webhook Alert upon successful completion
+        try:
+            from yads.core.webhook_service import webhook_service
+            webhook_service.trigger_osint_alert({
+                "target_id": target_id,
+                "target_domain": target_domain,
+                "status": "completed",
+                "message": "OSINT Enrichment Scan Completed"
+            })
+        except Exception as webhook_e:
+            logger.error(f"[OSINT Worker] Failed to send webhook: {webhook_e}")
+            
+    logger.info(f"[OSINT Worker] Finished enrichment for {target_domain}")

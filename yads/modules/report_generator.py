@@ -2022,3 +2022,140 @@ def generate_infrastructure_report(data: Dict[str, Any], tenant_name: str = "Glo
     pdf = InfrastructurePDF(tenant_name, data, ai_analysis=ai_analysis)
     pdf.build()
     return pdf.output()
+
+def generate_osint_dossier(target_domain: str, osint_data: List[Dict[str, Any]]) -> bytes:
+    pdf = PDFReport(target_domain)
+    
+    data_by_type = {}
+    for item in osint_data:
+        dtype = item.get("data_type", "unknown")
+        if dtype not in data_by_type:
+            data_by_type[dtype] = []
+        data_by_type[dtype].append(item)
+    
+    # 1. Executive Summary
+    pdf.chapter_title("OSINT Executive Summary")
+    pdf.set_font("helvetica", "", 11)
+    pdf.multi_cell(0, 6, f"Target: {target_domain}")
+    pdf.multi_cell(0, 6, f"Total Intelligence Nodes: {len(osint_data)}")
+    malware_count = len(data_by_type.get("threat_verdict", [])) + len(data_by_type.get("vulnerability", [])) + len(data_by_type.get("dangling_cname", [])) + len(data_by_type.get("cloud_exposure", []))
+    pdf.multi_cell(0, 6, f"Critical Intelligence (Threats/Leaks/Vulns): {malware_count}")
+    pdf.ln(5)
+
+    ai_summaries = data_by_type.get("ai_summary", [])
+    if ai_summaries:
+        ai = ai_summaries[0].get("data_json", {})
+        pdf.chapter_title("AI Risk & Intelligence Synthesis")
+        
+        rating = str(ai.get('risk_rating', 'UNKNOWN')).upper()
+        if rating == "CRITICAL": pdf.set_text_color(220, 38, 38)
+        elif rating == "HIGH": pdf.set_text_color(234, 88, 12)
+        elif rating == "MEDIUM": pdf.set_text_color(202, 138, 4)
+        else: pdf.set_text_color(5, 150, 105)
+        
+        pdf.set_font("helvetica", "B", 11)
+        pdf.multi_cell(0, 6, f"Risk Rating: {rating} ({ai.get('risk_score', 0)}/100)")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(2)
+        
+        pdf.set_font("helvetica", "", 10)
+        pdf.multi_cell(0, 6, _s(ai.get("executive_summary", "")))
+        pdf.ln(4)
+        
+        pdf.set_font("helvetica", "B", 10)
+        pdf.cell(0, 6, "Key Exposure Findings:", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 10)
+        for kf in ai.get("key_findings", []):
+            pdf.multi_cell(0, 6, f"- {_s(kf)}")
+            
+        pdf.ln(4)
+        pdf.set_font("helvetica", "B", 10)
+        pdf.cell(0, 6, "Strategic Recommendations:", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 10)
+        for rec in ai.get("recommendations", []):
+            pdf.multi_cell(0, 6, f"- {_s(rec)}")
+            
+        pdf.ln(8)
+
+    # 2. Breaches & Leaks
+    breaches = data_by_type.get("breach_record", [])
+    if breaches:
+        pdf.chapter_title("Credential Breaches & Leaks")
+        for b in breaches[:30]:
+            name = _s(b.get("data_json", {}).get("name", "Unknown"))
+            domain_breach = _s(b.get("data_json", {}).get("domain", ""))
+            pdf.set_font("helvetica", "B", 10)
+            pdf.cell(0, 6, f"- {name} ({domain_breach})", new_x="LMARGIN", new_y="NEXT")
+        if len(breaches) > 30:
+            pdf.set_font("helvetica", "I", 10)
+            pdf.cell(0, 6, f"... and {len(breaches) - 30} more", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+
+    # 3. Technologies
+    techs = data_by_type.get("tech_stack", [])
+    if techs:
+        pdf.chapter_title("Discovered Technologies")
+        tech_list = []
+        for t in techs:
+            tech_list.append(_s(t.get("data_json", {}).get("name", "Unknown")))
+        pdf.set_font("courier", "", 9)
+        pdf.multi_cell(0, 5, ", ".join(set(tech_list)))
+        pdf.ln(5)
+
+    # 4. Open Ports
+    ports = data_by_type.get("open_port", [])
+    if ports:
+        pdf.chapter_title("Open Infrastructure Ports")
+        port_list = []
+        for p in ports:
+            port_list.append(str(p.get("data_json", {}).get("port", "Unknown")))
+        pdf.set_font("courier", "", 9)
+        pdf.multi_cell(0, 5, ", ".join(set(port_list)))
+        pdf.ln(5)
+
+    # 5. Threat Verdicts (Malware)
+    threats = data_by_type.get("threat_verdict", [])
+    if threats:
+        pdf.chapter_title("Threat Intelligence Verdicts")
+        for t in threats[:20]:
+            title = _s(t.get("data_json", {}).get("title", ""))
+            source = _s(t.get("data_json", {}).get("source", ""))
+            pdf.set_font("helvetica", "", 10)
+            pdf.set_text_color(200, 0, 0) # Red
+            pdf.cell(0, 6, f"[{source.upper()}] {title}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+
+    # 6. Cloud & Subdomain Takeovers
+    takeovers = data_by_type.get("dangling_cname", [])
+    clouds = data_by_type.get("cloud_exposure", [])
+    if takeovers or clouds:
+        pdf.chapter_title("Cloud & Infrastructure Exposures")
+        pdf.set_text_color(200, 0, 0) # Red
+        for t in takeovers:
+            sub = _s(t.get("data_json", {}).get("subdomain", ""))
+            cname = _s(t.get("data_json", {}).get("cname", ""))
+            pdf.cell(0, 6, f"[Takeover] {sub} -> {cname}", new_x="LMARGIN", new_y="NEXT")
+        for c in clouds:
+            buck = _s(c.get("data_json", {}).get("bucket_name", ""))
+            url = _s(c.get("data_json", {}).get("url", ""))
+            pdf.cell(0, 6, f"[Public Storage] {buck} ({url})", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+
+    # 7. Vulnerabilities
+    vulns = data_by_type.get("vulnerability", [])
+    if vulns:
+        pdf.chapter_title("Known Vulnerabilities (CVEs)")
+        pdf.set_text_color(200, 0, 0) # Red
+        for v in vulns[:30]:
+            cve = _s(v.get("data_json", {}).get("cve", "CVE"))
+            summary = _s(v.get("data_json", {}).get("summary", ""))[:80]
+            pdf.cell(0, 6, f"{cve} - {summary}...", new_x="LMARGIN", new_y="NEXT")
+        if len(vulns) > 30:
+            pdf.set_font("helvetica", "I", 10)
+            pdf.cell(0, 6, f"... and {len(vulns) - 30} more", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+
+    return pdf.output()

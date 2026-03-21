@@ -85,6 +85,24 @@ class WebhookService:
         except Exception as e:
             logger.error(f"Error triggering webhooks: {e}")
 
+    def trigger_osint_alert(self, payload: dict):
+        """
+        Triggers the global OSINT webhook defined in SystemConfig.
+        """
+        logger.info("Triggering global OSINT webhook alert")
+        try:
+            from yads.models import SystemConfig
+            with Session(engine) as session:
+                osint_url_record = session.get(SystemConfig, "OSINT_WEBHOOK_URL")
+                if not osint_url_record or not osint_url_record.value:
+                    return
+                
+                url = osint_url_record.value.strip()
+                if url:
+                    self._send_payload(url, "osint_alert", payload)
+        except Exception as e:
+            logger.error(f"Error triggering OSINT webhook: {e}")
+
     def _send_payload(self, url: str, event_type: str, data: dict):
         """
         Sends the actual HTTP POST request.
