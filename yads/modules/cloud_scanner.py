@@ -225,6 +225,27 @@ class CloudScanner(BaseScannerModule):
             f"{len(shadow_it)} shadow IT)"
         )
 
+        # Persist public buckets to OSINTIntelligence model
+        if target_id and self.db:
+            from yads.models import OSINTIntelligence
+            import datetime
+            for bucket in open_buckets:
+                bucket_name = bucket["bucket_name"]
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="cloud_exposure"
+                ).filter(OSINTIntelligence.data_json["url"].astext == bucket["url"]).first()
+                if not existing:
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="cloud_exposure",
+                        data_json={"bucket_name": bucket_name, "provider": bucket["provider"], "url": bucket["url"]},
+                        severity=bucket["severity"], timestamp=datetime.datetime.utcnow()
+                    ))
+            try:
+                self.db.commit()
+            except Exception as e:
+                self.logger.error(f"[CloudScanner] DB Commit failed: {e}")
+                self.db.rollback()
+
         return {
             "assets": assets,
             "findings": findings,

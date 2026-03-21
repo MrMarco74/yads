@@ -97,7 +97,7 @@ class ShodanCensysScanner(BaseScannerModule):
             logger.info("[ShodanCensys] No Censys API key — skipping Censys lookup")
 
         # 4. Merge into unified summary + findings
-        self._build_summary(result)
+        self._build_summary(result, target_id)
 
         return result
 
@@ -255,11 +255,14 @@ class ShodanCensysScanner(BaseScannerModule):
     # Summary + Findings
     # ------------------------------------------------------------------
 
-    def _build_summary(self, result: Dict[str, Any]) -> None:
+    def _build_summary(self, result: Dict[str, Any], target_id: Optional[int] = None) -> None:
         shodan = result.get("shodan") or {}
         censys = result.get("censys") or {}
         findings: List[Dict] = []
         score = 100
+        
+        from yads.models import OSINTIntelligence
+        import datetime
 
         # Merge ports (prefer Shodan, fill with Censys)
         ports = set()
@@ -285,6 +288,17 @@ class ShodanCensysScanner(BaseScannerModule):
 
         # CVE findings
         for cve in cves:
+            if target_id and self.db:
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="vulnerability"
+                ).filter(OSINTIntelligence.data_json["cve"].astext == cve["cve"]).first()
+                if not existing:
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="vulnerability",
+                        data_json={"cve": cve["cve"], "summary": cve.get("summary", ""), "severity": cve["severity"]},
+                        severity=cve["severity"], timestamp=datetime.datetime.utcnow()
+                    ))
+
             findings.append({
                 "type": "cve",
                 "title": f"Known vulnerability: {cve['cve']}",
@@ -318,6 +332,17 @@ class ShodanCensysScanner(BaseScannerModule):
             1433: ("MSSQL open to internet", "high"),
         }
         for port in sorted(ports):
+            if target_id and self.db:
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="open_port"
+                ).filter(OSINTIntelligence.data_json["port"].astext == str(port)).first()
+                if not existing:
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="open_port",
+                        data_json={"port": port},
+                        severity="info", timestamp=datetime.datetime.utcnow()
+                    ))
+
             if port in RISKY_PORTS:
                 msg, sev = RISKY_PORTS[port]
                 findings.append({
@@ -344,6 +369,17 @@ class ShodanCensysScanner(BaseScannerModule):
             "tor": ("Host is a Tor exit node", "high"),
         }
         for tag in shodan.get("tags", []):
+            if target_id and self.db:
+                existing = self.db.query(OSINTIntelligence).filter_by(
+                    target_id=target_id, module_name=self.module_name, data_type="shodan_tag"
+                ).filter(OSINTIntelligence.data_json["tag"].astext == tag).first()
+                if not existing:
+                    self.db.add(OSINTIntelligence(
+                        target_id=target_id, module_name=self.module_name, data_type="shodan_tag",
+                        data_json={"tag": tag},
+                        severity="info", timestamp=datetime.datetime.utcnow()
+                    ))
+
             if tag in RISKY_TAGS:
                 msg, sev = RISKY_TAGS[tag]
                 findings.append({
@@ -359,3 +395,10 @@ class ShodanCensysScanner(BaseScannerModule):
         result["summary"]["score"] = score
         result["findings"] = findings
         result["summary"]["findings_count"] = len(findings)
+        
+        if target_id and self.db:
+            try:
+                self.db.commit()
+            except Exception as e:
+                logger.error(f"[ShodanCensys] DB Commit failed: {e}")
+                self.db.rollback()

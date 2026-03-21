@@ -627,6 +627,12 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "metrics_auth_mode": metrics_auth_mode,
         "metrics_token": metrics_token,
         "metrics_include_tenant_labels": metrics_include_tenant_labels,
+        
+        # OSINT Settings
+        "hibp_api_key": session.get(SystemConfig, "HIBP_API_KEY").value if session.get(SystemConfig, "HIBP_API_KEY") else "",
+        "dehashed_api_key": session.get(SystemConfig, "DEHASHED_API_KEY").value if session.get(SystemConfig, "DEHASHED_API_KEY") else "",
+        "osint_webhook_url": session.get(SystemConfig, "OSINT_WEBHOOK_URL").value if session.get(SystemConfig, "OSINT_WEBHOOK_URL") else "",
+        
         "workers": __import__('yads.core.worker_manager', fromlist=['worker_manager']).worker_manager.get_worker_list(),
     })
 
@@ -675,6 +681,11 @@ async def update_settings(
     metrics_auth_mode: str = Form("token", max_length=20),
     metrics_token: Optional[str] = Form(None, max_length=256),
     metrics_include_tenant_labels: bool = Form(False),
+
+    # OSINT Settings
+    hibp_api_key: Optional[str] = Form(None, max_length=100),
+    dehashed_api_key: Optional[str] = Form(None, max_length=256),
+    osint_webhook_url: Optional[str] = Form(None, max_length=500),
 
     session: Session = Depends(get_session)
 ):
@@ -797,6 +808,15 @@ async def update_settings(
     if client_key_path is not None:
         client_key_path = client_key_path.strip()
         set_conf("CLIENT_KEY_PATH", client_key_path)
+
+    # OSINT Settings
+    if hibp_api_key is not None:
+        set_conf("HIBP_API_KEY", hibp_api_key.strip())
+    if dehashed_api_key is not None:
+        set_conf("DEHASHED_API_KEY", dehashed_api_key.strip())
+        
+    if osint_webhook_url is not None:
+        set_conf("OSINT_WEBHOOK_URL", osint_webhook_url.strip())
 
     # Email / SMTP Settings
     if smtp_host is not None:

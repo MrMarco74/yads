@@ -36,6 +36,19 @@
     </div>
     {% endif %}
 
+    <!-- Missing files warning banner -->
+    {% set missing_modules = modules | selectattr('file_missing', 'equalto', true) | list %}
+    {% if missing_modules %}
+    <div class="bg-amber-900/40 border border-amber-700/50 rounded-lg px-4 py-3 text-sm text-amber-300 flex items-start gap-3">
+        <svg class="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        <div>
+            <strong>{{ missing_modules | length }} module{{ 's' if missing_modules | length != 1 }} missing on disk.</strong>
+            Physical files were lost (e.g. Docker image rebuild without persistent volume).
+            Re-upload the module ZIP to restore functionality. Module configuration and scheduling are preserved.
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Filters bar -->
     <div class="flex flex-wrap items-center gap-3">
         {% if is_platform_admin and tenants %}
@@ -105,9 +118,17 @@
                 </thead>
                 <tbody class="divide-y divide-slate-700/30">
                     {% for mod in group.modules %}
-                    <tr class="hover:bg-slate-800/30 transition-colors {% if not mod.enabled %}opacity-40{% endif %}">
+                    <tr class="hover:bg-slate-800/30 transition-colors {% if mod.file_missing %}opacity-60 bg-amber-900/10{% elif not mod.enabled %}opacity-40{% endif %}">
                         <td class="px-4 py-3">
-                            <div class="font-medium text-white">{{ mod.label }}</div>
+                            <div class="font-medium text-white flex items-center gap-2">
+                                {{ mod.label }}
+                                {% if mod.file_missing %}
+                                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-700/50 rounded font-semibold">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                    File Missing — Re-Upload Required
+                                </span>
+                                {% endif %}
+                            </div>
                             <div class="text-xs text-slate-500 font-mono mt-0.5">{{ mod.name }}</div>
                             {% if mod.description %}
                             <div class="text-xs text-slate-400 mt-0.5">{{ mod.description }}</div>
@@ -129,6 +150,9 @@
                         </td>
                         {% if active_tenant_id %}
                         <td class="px-4 py-3 text-center">
+                            {% if mod.file_missing %}
+                            <span class="text-xs text-amber-500" title="Module file missing — cannot toggle">Inactive</span>
+                            {% else %}
                             <form method="post" action="/scan-modules/toggle" class="inline">
                                 {{ csrf_token() }}
 
@@ -143,11 +167,24 @@
                                         {% if mod.enabled %}translate-x-5{% else %}translate-x-0.5{% endif %}"></span>
                                 </button>
                             </form>
+                            {% endif %}
                         </td>
                         {% endif %}
                         {% if is_platform_admin %}
                         <td class="px-4 py-3 text-center">
-                            {% if mod.custom %}
+                            {% if mod.custom and mod.file_missing %}
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="document.getElementById('upload-modal').classList.remove('hidden')"
+                                        class="text-xs px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded font-semibold transition-colors">
+                                    Re-Upload
+                                </button>
+                                <form method="post" action="/scan-modules/{{ mod.name }}/delete"
+                                      onsubmit="return confirm('Remove module {{ mod.name }}? This cannot be undone.')" class="inline">
+                                    {{ csrf_token() }}
+                                    <button type="submit" class="text-xs text-rose-400 hover:text-rose-300 transition-colors">Remove</button>
+                                </form>
+                            </div>
+                            {% elif mod.custom %}
                             <form method="post" action="/scan-modules/{{ mod.name }}/delete"
                                   onsubmit="return confirm('Remove module {{ mod.name }}? This cannot be undone.')">
                                 {{ csrf_token() }}
@@ -176,9 +213,11 @@
         </p>
         <pre class="bg-slate-900 text-slate-300 text-xs rounded-lg p-4 overflow-x-auto">my_module.zip
 ├── module_manifest.json   <span class="text-slate-500"># Required: module metadata</span>
-├── my_module.py           <span class="text-slate-500"># Required: scanner implementation</span>
-├── setup.py               <span class="text-slate-500"># Optional: runs pip install / setup steps</span>
-└── setup.sh               <span class="text-slate-500"># Optional alternative: shell setup script</span></pre>
+└── my_module.py           <span class="text-slate-500"># Required: scanner implementation</span></pre>
+        <p class="text-xs text-slate-500 mt-2">
+            <strong>Note:</strong> The YADS Module Builder (<code>build_modules_pyz.py</code>) automatically generates
+            compatible ZIP packages with manifests from scanner source files.
+        </p>
         <details class="mt-3">
             <summary class="text-xs text-slate-400 cursor-pointer hover:text-white">Show manifest schema</summary>
             <pre class="bg-slate-900 text-slate-300 text-xs rounded-lg p-4 mt-2 overflow-x-auto">{
@@ -233,7 +272,7 @@
             </div>
 
             <div class="bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2 text-xs text-amber-300">
-                <strong>Warning:</strong> The setup script in the ZIP will be executed on the server. Only install modules from trusted sources.
+                <strong>Security:</strong> Only install modules from trusted sources. Module code runs on the server with scanner privileges.
             </div>
 
             <div class="flex gap-3">
