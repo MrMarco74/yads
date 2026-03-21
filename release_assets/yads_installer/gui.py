@@ -47,7 +47,7 @@ except ImportError:
 REGISTRY_URL = "registry.yads-security.com"
 REGISTRY_USER = "yads-push"
 REGISTRY_TOKEN = "REDACTED"
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 COMPOSE_FILE = "docker-compose.yml"
 NGINX_TEMPLATE = "nginx.conf.template"
 JSON_CONTENT = "application/json"
@@ -135,15 +135,24 @@ class InstallationManager(QObject):
 
     def run_install(self):
         """Main installation sequence — data driven to reduce complexity."""
+        local_images = os.environ.get("YADS_LOCAL_IMAGES") == "1" or os.environ.get("YADS_VERSION") == "local"
+        if local_images:
+            self.log_signal.emit("ℹ️  Lokale Images erkannt — Registry-Login und Pull werden übersprungen.", "info")
+
         steps = [
             (10, "Stoppe bestehende Dienste (falls vorhanden)...", self.shutdown_existing),
-            (20, "Authentifiziere bei Registry...", self.login_registry),
+        ]
+        if not local_images:
+            steps += [
+                (20, "Authentifiziere bei Registry...", self.login_registry),
+                (50, "Downloade Docker Images (Dies kann dauern)...",
+                 lambda: self.run_docker(["compose", "pull"])),
+            ]
+        steps += [
             (30, "Generiere kryptografische Schlüssel...", self.generate_secrets),
             (35, "Bereite Konfigurationsdateien vor...", self.prepare_installation_files),
             (40, "Schreibe Umgebungsvariablen...", self.write_env),
-            (50, "Downloade Docker Images (Dies kann dauern)...", 
-             lambda: self.run_docker(["compose", "pull"])),
-            (80, "Starte Container...", 
+            (80, "Starte Container...",
              lambda: self.run_docker(["compose", "up", "-d"])),
         ]
 
@@ -375,25 +384,37 @@ class InstallationManager(QObject):
             self.log_signal.emit(f"Fehler beim Abrufen der Logs: {e}", "warning")
         self.log_signal.emit("-----------------------------\n", "error")
 
-    def verify_health(self, timeout_sec=60):
+    def verify_health(self, timeout_sec=180):
         """Wait for the API to respond with status: ok."""
         port = self.data.get('api_port', 8085)
         host = self.data.get('host', 'localhost')
-        url = f"http://{host}:{port}/health"
-        
-        self.log_signal.emit(f"Prüfe System-Gesundheit unter {url}...", "info")
-        
+        # Always probe via localhost — the host field is the external hostname,
+        # but during install the API is always on the local machine.
+        url = f"http://localhost:{port}/health"
+
+        self.log_signal.emit(f"Warte auf YADS API unter {url} (max. {timeout_sec}s)...", "info")
+        self.log_signal.emit("(Startup beinhaltet: DB-Backup, Lizenz, Migrationen — das dauert etwas.)", "info")
+
         start_time = time.time()
+        last_log = 0
         while time.time() - start_time < timeout_sec:
             try:
-                # Use curl as a simple available client
-                res = subprocess.run(["curl", "-s", "-k", url], capture_output=True, text=True)
+                res = subprocess.run(
+                    ["curl", "-s", "-k", "--max-time", "5", url],
+                    capture_output=True, text=True
+                )
                 if res.returncode == 0 and '"status":"ok"' in res.stdout:
-                    self.log_signal.emit("System ist gesund und erreichbar.", "info")
+                    elapsed = int(time.time() - start_time)
+                    self.log_signal.emit(f"System ist gesund und erreichbar. (nach {elapsed}s)", "info")
                     return True
             except Exception:
                 pass
-            time.sleep(2)
+
+            elapsed = int(time.time() - start_time)
+            if elapsed - last_log >= 15:
+                self.log_signal.emit(f"  ... warte auf API-Start ({elapsed}s / {timeout_sec}s)", "info")
+                last_log = elapsed
+            time.sleep(3)
         return False
 
 # --- UI Components ---
@@ -407,8 +428,9 @@ class GlassInstaller(AcrylicWindow):
         if hasattr(self, 'titleBar'): 
             self.titleBar.iconLabel.hide()
         
-        self.resize(1000, 700)
-        
+        self.setMinimumSize(500, 500)
+        self.resize(960, 780)
+
         # Configure Glass effects
         self.windowEffect.setMicaEffect(self.winId(), isDarkMode=True)
         # For Linux/Mac, we use transparency if mica isn't available
@@ -464,7 +486,8 @@ class GlassInstaller(AcrylicWindow):
             (FIF.SETTING, "Admin"),
             (FIF.FINGERPRINT, "Verschlüsselung"),
             (FIF.TILES, "Modus"),
-            (FIF.DOWNLOAD, "Installation")
+            (FIF.DOWNLOAD, "Installation"),
+            (FIF.COMPLETED, "Abschluss"),
         ]
 
         from PySide6.QtWidgets import QPushButton
@@ -894,18 +917,20 @@ class GlassInstaller(AcrylicWindow):
     def create_summary_step(self) -> QFrame:
         page = QFrame()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(60, 40, 60, 40)
-        
+        layout.setContentsMargins(60, 40, 30, 40)
+
         layout.addWidget(SubtitleLabel("Installation abgeschlossen", page))
         layout.addWidget(BodyLabel("Bitte notieren Sie sich die folgenden automatisch generierten Zugangsdaten. Diese benötigen Sie für den Zugriff auf die Datenbanken und verschlüsselte Backups.", page))
         
         scroll = ScrollArea(page)
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("background: transparent; border: none;")
+        scroll.setViewportMargins(0, 0, 15, 0)  # reserve space for scrollbar
         
         container = QFrame()
         container_layout = QVBoxLayout(container)
         container_layout.setSpacing(15)
+        container_layout.setContentsMargins(0, 0, 20, 0)  # right margin clears scrollbar
         
         self.summary_fields = {} # label -> (LineEdit, value)
         
@@ -980,9 +1005,13 @@ class GlassInstaller(AcrylicWindow):
         if index == 1: # Dependencies
             self.refresh_dependencies()
             
-        if index == self.content_stack.count() - 1:
+        count = self.content_stack.count()
+        if index == count - 2:        # install step (log view)
             self.btn_next.setText("Installieren")
+        elif index == count - 1:      # summary step
+            self.btn_next.hide()
         else:
+            self.btn_next.show()
             self.btn_next.setText("Weiter")
 
     def next_step(self):
@@ -990,10 +1019,11 @@ class GlassInstaller(AcrylicWindow):
         if not self._validate_and_save_data(idx):
             return
 
-        if idx < self.content_stack.count() - 1:
-            self.show_step(idx + 1)
-        else:
+        count = self.content_stack.count()
+        if idx == count - 2:      # install step → start installation
             self.finish_setup()
+        elif idx < count - 1:
+            self.show_step(idx + 1)
 
     def _validate_and_save_data(self, idx: int) -> bool:
         if idx == 2: # Network
