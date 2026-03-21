@@ -10,6 +10,7 @@ from yads.config import settings
 from yads.core.rate_limiter import RateLimiter
 from yads.modules.cve_lookup import lookup_cves
 from yads.models import HTTPTraffic
+from yads.utils.sanitize import redact_headers
 
 import re
 
@@ -625,7 +626,8 @@ class WebAnalyzer(BaseScannerModule):
         try:
             self.db.add(HTTPTraffic(
                 target_id=target_id, method="GET", url=resp.url, status_code=resp.status_code,
-                request_headers=dict(resp.request.headers), response_headers=dict(resp.headers),
+                request_headers=redact_headers(dict(resp.request.headers)), 
+                response_headers=redact_headers(dict(resp.headers)),
                 response_body_snippet=resp.text[:1024] if resp.text else "",
                 duration=round(time.time() - start_time, 3)
             ))

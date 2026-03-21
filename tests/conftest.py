@@ -21,6 +21,7 @@ os.environ.setdefault("METRICS_ENABLED", "false")
 os.environ.setdefault("DEBUG", "true")          # disables TLS-enforcement middleware
 os.environ.setdefault("LOG_DIR", "/tmp/yads-test-logs")
 os.environ.setdefault("WORKER_MODE", "standalone")
+os.environ.setdefault("YADS_ENCRYPTION_KEY", "test-encryption-key-bsi-compliant-123!")
 
 import pytest
 from starlette.testclient import TestClient

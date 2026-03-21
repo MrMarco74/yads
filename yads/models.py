@@ -5,6 +5,39 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, String, Text
 
 
+import sqlalchemy as sa
+from yads.utils.crypto import encrypt_data, decrypt_data
+from yads.config import settings
+
+class EncryptedString(sa.TypeDecorator):
+    """
+    SQLAlchemy TypeDecorator that automatically encrypts/decrypts strings at rest.
+    Requires settings.YADS_ENCRYPTION_KEY to be set.
+    """
+    impl = sa.Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None and value.strip():
+            if not settings.YADS_ENCRYPTION_KEY:
+                # If key is missing during dev/migration, don't crash but don't encrypt
+                return value
+            try:
+                return encrypt_data(value, settings.YADS_ENCRYPTION_KEY)
+            except Exception:
+                return value
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.strip():
+            if not settings.YADS_ENCRYPTION_KEY:
+                return value
+            try:
+                return decrypt_data(value, settings.YADS_ENCRYPTION_KEY)
+            except Exception:
+                return value
+        return value
+
 class UserTenantLink(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.id", primary_key=True)
     tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", primary_key=True)
@@ -20,30 +53,30 @@ class Tenant(SQLModel, table=True):
     osint_quota_used: int = Field(default=0)
     osint_cost_per_search: float = Field(default=0.0)
     
-    # OSINT BYOK (Bring Your Own Key)
-    google_api_key: Optional[str] = Field(default=None)
-    google_cse_cx: Optional[str] = Field(default=None)
-    nuclei_api_key: Optional[str] = Field(default=None)
-    hibp_api_key: Optional[str] = Field(default=None)
+    # OSINT BYOK (Bring Your Own Key) - NOW ENCRYPTED AT REST
+    google_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    google_cse_cx: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    nuclei_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    hibp_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
 
     # New OSINT API Keys (v1.15.0)
-    hunter_api_key: Optional[str] = Field(default=None)  # Hunter.io email discovery
-    github_token: Optional[str] = Field(default=None)     # GitHub API for social/code scanning
-    twitter_bearer_token: Optional[str] = Field(default=None)  # Twitter/X API v2
+    hunter_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    github_token: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    twitter_bearer_token: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     
     # Advanced OSINT Pivots (v1.16.0)
-    shodan_api_key: Optional[str] = Field(default=None)
-    censys_api_key: Optional[str] = Field(default=None)
-    virustotal_api_key: Optional[str] = Field(default=None)
+    shodan_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    censys_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    virustotal_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
 
     # LLM / AI Report Analysis (per-tenant)
     llm_provider: Optional[str] = Field(default=None)   # disabled|ollama|openai|anthropic|custom
-    llm_api_url: Optional[str] = Field(default=None)    # base URL for ollama/custom
-    llm_api_key: Optional[str] = Field(default=None)    # API key for openai/anthropic/custom
-    llm_model: Optional[str] = Field(default=None)      # model name override
+    llm_api_url: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    llm_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    llm_model: Optional[str] = Field(default=None)
 
     # Report Branding Settings
     report_logo_url: Optional[str] = Field(default=None)  # URL or base64 data URI

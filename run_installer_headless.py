@@ -75,7 +75,7 @@ class HeadlessInstallationManager:
                 for line in f:
                     if "=" in line:
                         k, v = line.strip().split("=", 1)
-                        if k in ['POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'SECRET_KEY', 'SIGNING_KEY', 'REFRESH_SECRET']:
+                        if k in ['POSTGRES_PASSWORD', 'REDIS_PASSWORD', 'SECRET_KEY', 'SIGNING_KEY', 'REFRESH_SECRET', 'YADS_ENCRYPTION_KEY']:
                             existing_secrets[k] = v
         
         self.secrets = {
@@ -84,6 +84,7 @@ class HeadlessInstallationManager:
             'SECRET_KEY': existing_secrets.get('SECRET_KEY', secrets.token_urlsafe(32)),
             'SIGNING_KEY': existing_secrets.get('SIGNING_KEY', secrets.token_urlsafe(32)),
             'REFRESH_SECRET': existing_secrets.get('REFRESH_SECRET', secrets.token_urlsafe(32)),
+            'YADS_ENCRYPTION_KEY': existing_secrets.get('YADS_ENCRYPTION_KEY', secrets.token_urlsafe(32)),
         }
 
     def prepare_installation_files(self):
