@@ -112,10 +112,37 @@
       </div>
     </div>
 
+    <!-- Bulk Action Toolbar (hidden until rows selected) -->
+    <div id="bulk-toolbar" class="hidden px-4 py-2 bg-slate-700/50 border-b border-slate-700 flex items-center gap-3 flex-wrap">
+      <span id="bulk-count" class="text-sm text-slate-300 font-medium">0 selected</span>
+      <div class="flex gap-2 ml-auto flex-wrap">
+        <button onclick="bulkAccept()"
+                class="text-xs px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded-lg transition-colors font-medium">
+          ✓ Accept Selected
+        </button>
+        <button onclick="bulkReject()"
+                class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded-lg transition-colors font-medium">
+          ✕ Reject Selected
+        </button>
+        <button onclick="bulkBlock()"
+                class="text-xs px-3 py-1.5 bg-orange-700 hover:bg-orange-600 text-white rounded-lg transition-colors font-medium">
+          🚫 Block Parent Domains
+        </button>
+        <button onclick="clearSelection()"
+                class="text-xs px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded-lg transition-colors">
+          Clear
+        </button>
+      </div>
+    </div>
+
     <div class="overflow-x-auto">
       <table class="w-full text-sm text-left" id="candidates-table">
         <thead>
           <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase">
+            <th class="px-4 py-3 w-8">
+              <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"
+                     class="rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer">
+            </th>
             <th class="px-4 py-3">Domain</th>
             <th class="px-4 py-3">Score</th>
             <th class="px-4 py-3">Signals</th>
@@ -129,6 +156,10 @@
           {% for c in candidates %}
           <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors candidate-row"
               data-status="{{ c.status }}" id="cand-row-{{ c.id }}">
+            <td class="px-4 py-3">
+              <input type="checkbox" class="cand-checkbox rounded border-slate-600 bg-slate-700 text-blue-500 cursor-pointer"
+                     data-id="{{ c.id }}" data-domain="{{ c.domain }}" onchange="onCheckboxChange()">
+            </td>
             <td class="px-4 py-3 font-mono text-slate-200">{{ c.domain }}</td>
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
@@ -179,7 +210,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+            <td colspan="8" class="px-4 py-12 text-center text-slate-500">
               {% if disc_sess.status == 'running' %}
                 <span class="animate-pulse">Discovery in progress — candidates will appear here...</span>
               {% else %}
@@ -235,6 +266,94 @@ function filterCandidates(status) {
     activeTab.classList.remove('text-slate-400');
     activeTab.classList.add('bg-blue-600', 'text-white');
   }
+  // Clear selection when switching tabs
+  clearSelection();
+}
+
+// ── Multi-select ───────────────────────────────────────────────────────────
+
+function _selectedCheckboxes() {
+  return [...document.querySelectorAll('.cand-checkbox:checked')];
+}
+
+function onCheckboxChange() {
+  const checked = _selectedCheckboxes();
+  const toolbar = document.getElementById('bulk-toolbar');
+  const countEl = document.getElementById('bulk-count');
+  if (checked.length > 0) {
+    toolbar.classList.remove('hidden');
+    countEl.textContent = checked.length + ' selected';
+  } else {
+    toolbar.classList.add('hidden');
+  }
+  // Update "select all" indeterminate state
+  const all = document.querySelectorAll('.cand-checkbox');
+  const selectAll = document.getElementById('select-all');
+  selectAll.checked = checked.length === all.length && all.length > 0;
+  selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+}
+
+function toggleSelectAll(cb) {
+  // Only select visible (non-filtered) rows
+  document.querySelectorAll('.cand-checkbox').forEach(chk => {
+    const row = chk.closest('tr');
+    if (row && row.style.display !== 'none') chk.checked = cb.checked;
+  });
+  onCheckboxChange();
+}
+
+function clearSelection() {
+  document.querySelectorAll('.cand-checkbox').forEach(chk => chk.checked = false);
+  const selectAll = document.getElementById('select-all');
+  selectAll.checked = false;
+  selectAll.indeterminate = false;
+  document.getElementById('bulk-toolbar').classList.add('hidden');
+}
+
+async function bulkAccept() {
+  const ids = _selectedCheckboxes().map(c => c.dataset.id);
+  if (!ids.length) return;
+  if (!confirm(`Accept ${ids.length} candidate(s)?`)) return;
+  let ok = 0;
+  for (const id of ids) {
+    const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${id}/accept`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
+    if (r.ok) ok++;
+  }
+  if (ok > 0) location.reload();
+}
+
+async function bulkReject() {
+  const boxes = _selectedCheckboxes();
+  if (!boxes.length) return;
+  if (!confirm(`Reject ${boxes.length} candidate(s)?`)) return;
+  for (const chk of boxes) {
+    const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${chk.dataset.id}/reject`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
+    if (r.ok) _removeRow(parseInt(chk.dataset.id));
+  }
+  clearSelection();
+}
+
+async function bulkBlock() {
+  const boxes = _selectedCheckboxes();
+  if (!boxes.length) return;
+  // Collect unique parent patterns
+  const patterns = new Set();
+  boxes.forEach(chk => {
+    const parts = chk.dataset.domain.split('.');
+    if (parts.length >= 2) patterns.add('*.' + parts.slice(1).join('.'));
+  });
+  const patternList = [...patterns].join('\n');
+  if (!confirm(`Block ${patterns.size} parent domain pattern(s) tenant-wide?\n\n${patternList}\n\nAll matching candidates will be rejected immediately.`)) return;
+  for (const chk of boxes) {
+    const parts = chk.dataset.domain.split('.');
+    if (parts.length < 2) continue;
+    const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${chk.dataset.id}/block-domain`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
+    if (r.ok) {
+      const data = await r.json();
+      _removeRowsByPattern(data.pattern);
+    }
+  }
+  clearSelection();
 }
 
 function _removeRow(candidateId) {
@@ -251,19 +370,24 @@ function _removeRowsByPattern(pattern) {
   });
 }
 
+function _csrfToken() {
+  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
 async function manualAccept(candidateId) {
-  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/accept`, {method:'POST'});
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/accept`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
   if (r.ok) location.reload();
 }
 
 async function manualReject(candidateId) {
-  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/reject`, {method:'POST'});
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/reject`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
   if (r.ok) _removeRow(candidateId);
 }
 
 async function blockDomain(candidateId, pattern) {
   if (!confirm(`Block "${pattern}" tenant-wide?\n\nAll matching candidates in this session will be rejected immediately. Future discovery sessions will also skip these domains.`)) return;
-  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/block-domain`, {method:'POST'});
+  const r = await fetch(`/api/discovery/sessions/${SESSION_ID}/candidates/${candidateId}/block-domain`, {method:'POST', headers:{'X-CSRF-Token':_csrfToken()}});
   if (r.ok) {
     const data = await r.json();
     _removeRowsByPattern(data.pattern);
@@ -272,7 +396,7 @@ async function blockDomain(candidateId, pattern) {
 
 async function unblockDomain(entryId, pattern) {
   if (!confirm(`Remove block for "${pattern}"?`)) return;
-  const r = await fetch(`/api/discovery/blocklist/${entryId}`, {method:'DELETE'});
+  const r = await fetch(`/api/discovery/blocklist/${entryId}`, {method:'DELETE', headers:{'X-CSRF-Token':_csrfToken()}});
   if (r.ok) location.reload();
 }
 

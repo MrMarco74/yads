@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # Generate a keypair with: python scripts/sign_module.py --keygen
     MODULE_SIGNING_PUBLIC_KEY: Optional[str] = None
     MODULE_SIGNING_DISABLED: bool = False
+    # Path to the Ed25519 private key PEM file used for auto-signing uploaded modules.
+    # When set, the Plugin Manager signs every uploaded ZIP automatically — no external
+    # signing tool needed. Only set this on trusted internal instances.
+    # Example: MODULE_SIGNING_PRIVATE_KEY_PATH=/run/secrets/yads_module_signing.key
+    MODULE_SIGNING_PRIVATE_KEY_PATH: Optional[str] = None
 
     # Setup
     SETUP_COMPLETE: bool = False

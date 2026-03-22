@@ -42,9 +42,8 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
     unzip \
+    nmap \
     && rm -rf /var/lib/apt/lists/*
-# NOTE: Nmap is not bundled. Install via the admin UI (Settings → Tools) if needed.
-# When absent, nmap_scanner falls back to socket-based port scanning automatically.
 
 # Nuclei binary only — templates come from the nuclei_templates Docker volume
 RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/nuclei_3.3.4_linux_amd64.zip \

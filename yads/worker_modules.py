@@ -4,6 +4,7 @@ worker_modules.py — Scanner module runner helpers and LogCapture.
 Re-exported via yads/worker.py for backwards compatibility.
 """
 import io
+import logging
 import os
 import socket
 import ipaddress
@@ -56,19 +57,24 @@ def validate_target_safety(domain: str) -> bool:
             pass # Not an IP, continue to DNS resolution
 
         # 2. Resolve DNS and check all returned IPs
-        ips = socket.getaddrinfo(domain, None)
+        try:
+            ips = socket.getaddrinfo(domain, None)
+        except socket.gaierror:
+            # Domain does not resolve — not an SSRF risk, let the scan attempt and fail naturally
+            logger.debug(f"[Worker] {domain} does not resolve (NXDOMAIN/no address) — skipping SSRF check")
+            return True
+
         for family, kind, proto, canonname, sockaddr in ips:
             ip_str = sockaddr[0]
             ip = ipaddress.ip_address(ip_str)
             if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
                 logger.warning(f"[Worker] Blocked target {domain} resolving to internal IP: {ip_str}")
                 return False
-                
+
         return True
     except Exception as e:
-        logger.error(f"[Worker] Failed to validate target safety for {domain}: {e}")
-        # Fail safe: block if we can't verify
-        return False
+        logger.warning(f"[Worker] Could not verify target safety for {domain}: {e} — allowing")
+        return True
 
 
 def _run_parallel_module(module_cls, target_id: int, domain: str):

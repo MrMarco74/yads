@@ -7,8 +7,6 @@ Admin interface for:
   - Installing new modules via ZIP upload (platform admin only)
   - Removing custom-installed modules (platform admin only)
 """
-import base64
-import hashlib
 import json
 import os
 import re
@@ -18,13 +16,12 @@ import zipfile
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from yads.api.templating import templates
+from yads.core.module_signing import compute_file_hash, recheck_file_integrity, sign_zip, verify_module_signature
 from yads.auth.deps import PlatformAdminChecker, RoleChecker, get_current_user_html
 from yads.core.module_registry import CATEGORIES, REGISTRY, ModuleDef, get_module_labels
 from yads.database import get_session
@@ -40,54 +37,6 @@ _CUSTOM_MODULES_DIR = os.path.join(
 CAT_LABELS = {c["id"]: c["label"] for c in CATEGORIES}
 CAT_COLORS = {c["id"]: c["color"] for c in CATEGORIES}
 
-
-def _verify_module_signature(zip_bytes: bytes, signature_b64: Optional[str]) -> None:
-    """
-    Verify Ed25519 signature over SHA-256(zip_bytes).
-
-    If MODULE_SIGNING_PUBLIC_KEY is configured, a valid signature is required.
-    If it is not configured, the check is skipped (unsigned modules allowed).
-
-    Raises HTTPException 400/403 on failure.
-    """
-    from yads.config import settings
-
-    pubkey_b64 = settings.MODULE_SIGNING_PUBLIC_KEY
-    if not pubkey_b64:
-        if settings.MODULE_SIGNING_DISABLED:
-            return  # Signing explicitly disabled by operator
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "Module signing is enforced by default. "
-                "Configure MODULE_SIGNING_PUBLIC_KEY or set MODULE_SIGNING_DISABLED=true "
-                "to explicitly allow unsigned uploads."
-            )
-        )
-
-    if not signature_b64:
-        raise HTTPException(
-            status_code=403,
-            detail="Module signing is enforced. Upload must include an Ed25519 signature."
-        )
-
-    try:
-        raw_key = base64.b64decode(pubkey_b64)
-        try:
-            pub: Ed25519PublicKey = serialization.load_pem_public_key(raw_key)  # type: ignore[assignment]
-        except ValueError:
-            pub: Ed25519PublicKey = serialization.load_der_public_key(raw_key)  # type: ignore[assignment]
-
-        # Normalise base64 padding
-        sig_padded = signature_b64 + "=" * (-len(signature_b64) % 4)
-        sig = base64.urlsafe_b64decode(sig_padded)
-
-        digest = hashlib.sha256(zip_bytes).digest()
-        pub.verify(sig, digest)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid module signature.")
 
 
 def _get_enabled_map(session: Session, tenant_id: int) -> Dict[str, bool]:
@@ -117,6 +66,8 @@ def _get_custom_module_filepath(im: InstalledModule) -> Optional[str]:
 
 
 def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]:
+    from datetime import timedelta
+    _new_threshold = datetime.utcnow() - timedelta(days=7)
     """Build display rows for all modules (registry + installed)."""
     enabled_map: Dict[str, bool] = {}
     if tenant_id:
@@ -132,6 +83,7 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
             "cat_label": CAT_LABELS.get(defn.category, defn.category),
             "cat_color": CAT_COLORS.get(defn.category, "gray"),
             "finding_module": defn.finding_module,
+            "passive": defn.passive,
             "custom": False,
             "enabled": enabled_map.get(name, True),
             "file_missing": False,
@@ -161,6 +113,7 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
             "cat_label": CAT_LABELS.get(im.category, im.category),
             "cat_color": CAT_COLORS.get(im.category, "gray"),
             "finding_module": im.finding_module,
+            "passive": getattr(im, "passive", True),
             "custom": True,
             "enabled": enabled_map.get(im.module_name, True) if im.is_active else False,
             "version": im.version,
@@ -169,6 +122,9 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
             "installed_at": im.installed_at,
             "file_missing": file_missing,
             "is_active": im.is_active,
+            "signature": im.signature,
+            "file_hash": im.file_hash,
+            "is_new": im.installed_at is not None and im.installed_at > _new_threshold,
         })
 
     return rows
@@ -181,13 +137,14 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
 async def scan_modules_view(
     request: Request,
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+    user: User = Depends(PlatformAdminChecker()),
     tenant_id: Optional[int] = None,
     category: Optional[str] = None,
 ):
-    is_platform_admin = user.role == "admin" and user.tenant_id is None
+    # Route is behind PlatformAdminChecker — always true here
+    is_platform_admin = True
 
-    # Tenant list (platform admin sees all; tenant_admin sees own)
+    # Tenant list (platform admin sees all)
     if is_platform_admin:
         tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
         active_tenant_id = tenant_id or (tenants[0].id if tenants else None)
@@ -210,6 +167,24 @@ async def scan_modules_view(
     if other:
         grouped.append({"cat": {"id": "other", "label": "Other", "color": "gray"}, "modules": other})
 
+    from yads.config import settings as _s
+    from yads.core.module_signing import YADS_OFFICIAL_PUBLIC_KEY
+    if _s.MODULE_SIGNING_DISABLED:
+        _key_source = "disabled"
+    elif _s.MODULE_SIGNING_PUBLIC_KEY:
+        _key_source = "operator"
+    elif YADS_OFFICIAL_PUBLIC_KEY:
+        _key_source = "official"
+    else:
+        _key_source = "none"
+
+    signing_status = {
+        "disabled": _s.MODULE_SIGNING_DISABLED,
+        "auto_sign": bool(_s.MODULE_SIGNING_PRIVATE_KEY_PATH),
+        "key_source": _key_source,
+        "key_path_name": os.path.basename(_s.MODULE_SIGNING_PRIVATE_KEY_PATH) if _s.MODULE_SIGNING_PRIVATE_KEY_PATH else None,
+    }
+
     return templates.TemplateResponse("scan_modules.html", {
         "request": request,
         "user": user,
@@ -220,6 +195,7 @@ async def scan_modules_view(
         "selected_category": category,
         "categories": CATEGORIES,
         "is_platform_admin": is_platform_admin,
+        "signing_status": signing_status,
     })
 
 
@@ -230,15 +206,11 @@ async def scan_modules_view(
 async def toggle_module(
     request: Request,
     session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+    user: User = Depends(PlatformAdminChecker()),
     tenant_id: int = Form(...),
     module_name: str = Form(...),
     enabled: bool = Form(...),
 ):
-    is_platform_admin = user.role == "admin" and user.tenant_id is None
-    # Tenant admin can only toggle their own tenant
-    if not is_platform_admin and tenant_id != user.tenant_id:
-        raise HTTPException(status_code=403, detail="Access denied")
 
     existing = session.exec(
         select(TenantModuleConfig).where(
@@ -266,6 +238,83 @@ async def toggle_module(
 
 
 # ---------------------------------------------------------------------------
+# POST /scan-modules/preview — parse manifest from ZIP, no install (platform admin)
+# ---------------------------------------------------------------------------
+@router.post("/preview")
+async def preview_module(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+    module_zip: UploadFile = File(...),
+):
+    if not module_zip.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only ZIP files are accepted")
+
+    content = await module_zip.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="ZIP file too large (max 20 MB)")
+
+    tmpdir = tempfile.mkdtemp(prefix="yads_preview_")
+    try:
+        zip_path = os.path.join(tmpdir, "upload.zip")
+        with open(zip_path, "wb") as f:
+            f.write(content)
+
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                names = zf.namelist()
+                if "module_manifest.json" not in names:
+                    raise HTTPException(status_code=400, detail="module_manifest.json not found in ZIP")
+                with zf.open("module_manifest.json") as mf:
+                    manifest = json.load(mf)
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="Invalid ZIP file")
+
+        required_fields = ["module_name", "label", "module_file", "class_name"]
+        for field in required_fields:
+            if field not in manifest:
+                raise HTTPException(status_code=400, detail=f"Missing required field in manifest: '{field}'")
+
+        module_name = manifest["module_name"]
+        _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+        if not _IDENT_RE.match(module_name):
+            raise HTTPException(status_code=400, detail=f"Invalid module_name '{module_name}'")
+
+        # Check conflicts
+        already_installed = module_name in REGISTRY
+        existing_db = session.exec(
+            select(InstalledModule).where(InstalledModule.module_name == module_name, InstalledModule.is_active == True)
+        ).first()
+
+        warnings = []
+        if already_installed and not existing_db:
+            warnings.append("A built-in module with this name already exists — installation will be blocked.")
+        if existing_db:
+            warnings.append(f"Module '{module_name}' is already installed (v{existing_db.version}). Re-uploading will replace it.")
+
+        return JSONResponse({
+            "module_name": module_name,
+            "label": manifest.get("label", module_name),
+            "label_de": manifest.get("label_de", ""),
+            "version": manifest.get("version", "—"),
+            "author": manifest.get("author", "—"),
+            "description": manifest.get("description", ""),
+            "category": manifest.get("category", "active"),
+            "passive": manifest.get("passive", True),
+            "module_file": manifest.get("module_file", ""),
+            "class_name": manifest.get("class_name", ""),
+            "requires_http": manifest.get("requires_http", False),
+            "requires_https": manifest.get("requires_https", False),
+            "default_on": manifest.get("default_on", False),
+            "finding_module": manifest.get("finding_module", True),
+            "files_in_zip": names,
+            "warnings": warnings,
+        })
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
 # POST /scan-modules/upload — install new module from ZIP (platform admin)
 # ---------------------------------------------------------------------------
 @router.post("/upload")
@@ -284,7 +333,11 @@ async def upload_module(
         zip_path = os.path.join(tmpdir, "upload.zip")
         content = await module_zip.read()
 
-        _verify_module_signature(content, signature)
+        # Auto-sign if private key is configured and no signature was supplied
+        if not signature:
+            signature = sign_zip(content)
+
+        verify_module_signature(content, signature)
 
         with open(zip_path, "wb") as f:
             f.write(content)
@@ -384,14 +437,30 @@ async def upload_module(
         im.default_on = manifest.get("default_on", False)
         im.finding_module = manifest.get("finding_module", True)
         im.extractor = manifest.get("extractor", "generic")
+        im.passive = manifest.get("passive", True)
         im.installed_at = datetime.utcnow()
         im.installed_by = user.id
         im.is_active = True
         im.setup_log = None
+        im.signature = signature  # Ed25519 sig over ZIP (audit trail; None if unsigned)
+        im.file_hash = compute_file_hash(dest)  # SHA-256 of installed .py for runtime integrity
 
         session.add(im)
         session.commit()
         session.refresh(im)
+
+        # Disable for all existing tenants by default — admin enables per tenant explicitly
+        tenants_all = session.exec(select(Tenant)).all()
+        for _t in tenants_all:
+            _existing_cfg = session.exec(
+                select(TenantModuleConfig).where(
+                    TenantModuleConfig.tenant_id == _t.id,
+                    TenantModuleConfig.module_name == module_name,
+                )
+            ).first()
+            if not _existing_cfg:
+                session.add(TenantModuleConfig(tenant_id=_t.id, module_name=module_name, enabled=False))
+        session.commit()
 
         # Dynamically register in runtime registry
         _register_installed_module(im)
@@ -454,6 +523,7 @@ def _register_installed_module(im: InstalledModule) -> None:
         default_on=im.default_on,
         finding_module=im.finding_module,
         extractor=im.extractor,
+        passive=getattr(im, "passive", True),
     )
     REGISTRY[im.module_name] = defn
 
@@ -480,6 +550,17 @@ def load_installed_modules_from_db(session: Session) -> None:
                 "Custom module '%s' is registered in DB but physical file is missing (%s). "
                 "Deactivating to prevent import crash. Re-upload via Plugin Manager to restore.",
                 im.module_name, filepath,
+            )
+            im.is_active = False
+            session.add(im)
+            session.commit()
+            continue
+
+        # Re-verify file integrity against stored SHA-256 hash
+        if filepath and not recheck_file_integrity(filepath, im.file_hash, im.module_name):
+            logger.critical(
+                "Deactivating module '%s' due to integrity violation.",
+                im.module_name,
             )
             im.is_active = False
             session.add(im)

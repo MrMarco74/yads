@@ -43,9 +43,24 @@ class UpdateService:
         """
         Fetches the latest version from yads-security.com and compares it with the current version.
         Returns a dictionary with result if an update is available, else None.
+        Set env var DISABLE_UPDATE_CHECK=true or SystemConfig key DISABLE_UPDATE_CHECK=true to skip.
         """
-        import json
-        
+        import json, os
+
+        # 0. Check if update check is disabled
+        if os.getenv("DISABLE_UPDATE_CHECK", "").lower() in ("1", "true", "yes"):
+            return None
+        try:
+            from yads.database import engine
+            from sqlmodel import Session
+            from yads.models import SystemConfig
+            with Session(engine) as _s:
+                cfg = _s.get(SystemConfig, "DISABLE_UPDATE_CHECK")
+                if cfg and cfg.value.lower() in ("1", "true", "yes"):
+                    return None
+        except Exception:
+            pass
+
         # 1. Check Cache (Redis)
         try:
             r = redis_client

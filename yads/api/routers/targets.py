@@ -6,13 +6,14 @@ import tldextract
 from typing import Optional, List, Annotated
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
 from datetime import datetime, timedelta, timezone
 
 from yads.database import get_session, redis_client
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
-from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig, ChangeEvent
+from yads.models import User, Target, ScanResult, ModuleState, SystemConfig, ChangelogEntry, TenantModuleConfig, ChangeEvent, HTTPTraffic
 from yads.api.templating import templates
 
 from yads.core.scoring import calculate_target_score, get_grade_color
@@ -377,6 +378,7 @@ def _perform_bulk_delete_from_db(session: Session, target_ids: List[int]):
     session.execute(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id = ANY(:ids))"), params)
     session.execute(text("DELETE FROM scanresult WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM modulestate WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM osintintelligence WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM compliancetargetstatus WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM httptraffic WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM remediationtask WHERE target_id = ANY(:ids)"), params)
@@ -566,14 +568,19 @@ async def delete_target(target_id: int, request: Request, session: Session = Dep
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     
-    # Manually delete related records if no cascade is set up in DB
-    # SQLModel/SQLAlchemy usually handles this if relationships are defined with cascade.
-    # Let's purge explicitly to be safe as we didn't inspect FK constraints deeply in DB init.
-    
-    session.exec(text("DELETE FROM scanresult WHERE target_id = :tid"), {"tid": target_id})
-    # Also delete module states (which control the 'scanned_at' badges)
-    session.exec(text("DELETE FROM modulestate WHERE target_id = :tid"), {"tid": target_id})
-    
+    # Delete all child rows in FK dependency order before removing the target
+    p = {"tid": target_id}
+    session.exec(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id = :tid)"), p)
+    session.exec(text("DELETE FROM scanresult WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM modulestate WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM osintintelligence WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM compliancetargetstatus WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM httptraffic WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM remediationtask WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM scanschedule WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM workertask WHERE target_id = :tid"), p)
+    session.exec(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = :tid"), p)
+
     session.delete(target)
     session.commit()
     

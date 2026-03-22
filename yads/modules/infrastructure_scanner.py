@@ -8,7 +8,7 @@ from ipwhois import IPWhois
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
 from sqlmodel import select
-from yads.models import Target, ScanResult
+from yads.models import Target, ScanResult, OSINTIntelligence
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,45 @@ class InfrastructureScanner(BaseScannerModule):
         if "error" in results["whois"]:
             results["whois_error"] = results["whois"].pop("error")
 
+        # 8. Write GeoIP to OSINTIntelligence for Global Map
+        if target_id and self.db and results.get("geoip"):
+            geo = results["geoip"]
+            if geo.get("lat") and geo.get("lon"):
+                self._upsert_osint_geo(target_id, domain, ip, geo)
+
         return results
+
+    def _upsert_osint_geo(self, target_id: int, domain: str, ip: str, geo: Dict[str, Any]):
+        """Writes/updates the GeoIP point in OSINTIntelligence for the Global Map."""
+        try:
+            existing = self.db.exec(
+                select(OSINTIntelligence).where(
+                    OSINTIntelligence.target_id == target_id,
+                    OSINTIntelligence.data_type == "infrastructure_geo",
+                )
+            ).first()
+            payload = {
+                "ip": ip,
+                "subdomain": domain,
+                "geoip": geo,
+                "cloud_provider": None,
+            }
+            if existing:
+                existing.data_json = payload
+                import datetime as _dt
+                existing.timestamp = _dt.datetime.utcnow()
+                self.db.add(existing)
+            else:
+                self.db.add(OSINTIntelligence(
+                    target_id=target_id,
+                    module_name="infrastructure_scanner",
+                    data_type="infrastructure_geo",
+                    severity="info",
+                    data_json=payload,
+                ))
+            self.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to write GeoIP to OSINTIntelligence: {e}")
 
     def _resolve_ip(self, domain: str) -> Optional[str]:
         """Resolves IP with DB fallback."""
@@ -127,24 +165,26 @@ class InfrastructureScanner(BaseScannerModule):
         return res
 
     def _lookup_geoip_enhanced(self, ip: str) -> Dict[str, Any]:
-        """Enhanced GeoIP and provider detection via IP-API."""
+        """Enhanced GeoIP and provider detection via ipinfo.io."""
         import requests
         res = {"geoip": None, "cloud_provider_geoip": None}
         try:
-            geo_resp = requests.get(f"https://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as", timeout=3)
+            geo_resp = requests.get(f"https://ipinfo.io/{ip}/json", timeout=3)
             if geo_resp.status_code == 200:
                 geo_data = geo_resp.json()
-                if geo_data.get("status") == "success":
+                loc = geo_data.get("loc", "")
+                if loc and "," in loc:
+                    lat, lon = loc.split(",")
                     res["geoip"] = {
                         "country_name": geo_data.get("country"),
-                        "country_code": geo_data.get("countryCode"),
+                        "country_code": geo_data.get("country"),
                         "city": geo_data.get("city"),
-                        "lat": geo_data.get("lat"),
-                        "lon": geo_data.get("lon"),
-                        "isp": geo_data.get("isp"),
-                        "org": geo_data.get("org")
+                        "lat": float(lat),
+                        "lon": float(lon),
+                        "isp": geo_data.get("org"),
+                        "org": geo_data.get("org"),
                     }
-                    isp_org = ((geo_data.get("isp") or "") + " " + (geo_data.get("org") or "")).lower()
+                    isp_org = (geo_data.get("org") or "").lower()
                     cloud_map = {
                         "amazon": "AWS", "aws": "AWS", "google": "GCP",
                         "microsoft": "Azure", "azure": "Azure", "hetzner": "Hetzner",

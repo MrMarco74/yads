@@ -1,5 +1,5 @@
 <div class="bg-gray-900 rounded-lg shadow-xl border border-gray-700 w-full max-w-4xl mx-auto overflow-hidden flex flex-col h-48 pointer-events-auto relative">
-    
+
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
         <h3 class="text-xs font-medium text-gray-200 flex items-center gap-2">
@@ -11,14 +11,7 @@
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
              </span>
-             <span class="text-xs text-gray-400 font-mono" 
-                   hx-get="/api/scans/{{ target_id }}/status" 
-                   hx-trigger="every 5s" 
-                   hx-swap="innerHTML"
-                   hx-target="this"
-                   hx-select="status">
-                 Connecting...
-             </span>
+             <span id="log-status-{{ target_id }}" class="text-xs text-gray-400 font-mono">Connecting...</span>
              <button type="button" onclick="document.getElementById('modal-container').innerHTML = '';" class="text-gray-400 hover:text-white transition-colors cursor-pointer z-50 p-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
              </button>
@@ -28,14 +21,35 @@
     <!-- Terminal Output -->
     <div class="flex-1 bg-[#0d1117] p-2 font-mono text-[10px] leading-tight overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent"
          id="terminal-scroll-area">
-        
+
         <ul class="space-y-0.5"
             hx-get="/components/log_lines/{{ target_id }}"
             hx-trigger="load, every 3s"
             hx-swap="innerHTML"
-            hx-on::after-swap="let el = document.getElementById('terminal-scroll-area'); el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });">
+            hx-on:htmx:after-swap="let el = document.getElementById('terminal-scroll-area'); el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });">
             <!-- Logs load here -->
             <li class="text-gray-500 italic">Waiting for log stream...</li>
         </ul>
     </div>
 </div>
+<script>
+(function() {
+    const tid = {{ target_id }};
+    const statusEl = document.getElementById('log-status-' + tid);
+    function pollStatus() {
+        fetch('/api/scans/' + tid + '/status')
+            .then(r => r.json())
+            .then(d => { if (statusEl && d.status) statusEl.textContent = d.status; })
+            .catch(() => {});
+    }
+    pollStatus();
+    const _iv = setInterval(pollStatus, 5000);
+    // Stop polling when modal is closed
+    const container = document.getElementById('modal-container');
+    if (container) {
+        new MutationObserver(() => {
+            if (!container.contains(statusEl)) clearInterval(_iv);
+        }).observe(container, { childList: true });
+    }
+})();
+</script>

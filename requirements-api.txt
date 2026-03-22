@@ -3,7 +3,8 @@
 # Pillow) are intentionally excluded; see requirements.txt for the
 # full set used by the Celery worker image.
 
-fastapi
+fastapi<0.115.99
+starlette<1.0.0
 uvicorn
 httpx
 celery
@@ -13,7 +14,7 @@ psycopg2-binary
 pydantic-settings
 requests
 dnspython
-jinja2
+jinja2<3.1.5
 python-multipart>=0.0.22
 aiofiles
 tldextract

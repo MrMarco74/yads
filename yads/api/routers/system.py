@@ -196,29 +196,122 @@ async def binary_status(request: Request, user: User = Depends(RoleChecker(["adm
     return result
 
 
+def _nmap_sudo_modal_html(error_msg: str = "") -> str:
+    error_html = ""
+    if error_msg:
+        error_html = f'<div class="bg-red-900/30 border border-red-500/40 rounded-lg p-2 mb-3 text-[10px] text-red-300">{error_msg}</div>'
+    return f'''<div id="nmap-install-btn">
+  <button type="button" disabled class="bg-amber-700/40 text-white/50 text-[10px] font-bold py-1.5 px-3 rounded cursor-not-allowed">Install nmap</button>
+</div>
+<div hx-swap-oob="beforeend:body">
+<div id="nmap-sudo-overlay" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  <div class="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-white">Root-Rechte erforderlich</h3>
+        <p class="text-[10px] text-gray-400">apt-get benötigt erhöhte Berechtigungen</p>
+      </div>
+    </div>
+    <div class="bg-amber-900/20 border border-amber-500/30 rounded-lg p-3 mb-4 flex items-start gap-2">
+      <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p class="text-[10px] text-amber-200">Das Passwort wird <strong>ausschließlich für diese Operation</strong> verwendet und wird <strong>nicht gespeichert, geloggt oder übertragen</strong>.</p>
+    </div>
+    {error_html}
+    <form hx-post="/admin/tools/nmap-install"
+          hx-target="#nmap-install-btn"
+          hx-swap="outerHTML"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('nmap-sudo-overlay').remove()">
+      <label class="block text-[10px] font-semibold text-gray-300 mb-1.5">System-Passwort (sudo)</label>
+      <input type="password"
+             name="sudo_password"
+             id="nmap-sudo-pwd"
+             placeholder="Passwort eingeben..."
+             required
+             autocomplete="current-password"
+             class="w-full bg-slate-700 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 mb-4 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50"/>
+      <div class="flex gap-2 justify-end">
+        <button type="button"
+                onclick="document.getElementById('nmap-sudo-overlay').remove()"
+                class="text-[10px] text-gray-400 hover:text-white px-3 py-1.5 rounded border border-slate-600 hover:border-slate-400 transition-colors">
+          Abbrechen
+        </button>
+        <button type="submit"
+                class="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold py-1.5 px-4 rounded transition-colors">
+          Installieren
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>(function(){{var f=document.getElementById('nmap-sudo-pwd');if(f)setTimeout(function(){{f.focus();}},50);}})();</script>
+</div>'''
+
+
 @router.post("/admin/tools/nmap-install")
 async def admin_nmap_install(request: Request, user: User = Depends(RoleChecker(["admin"]))):
     """
     Attempt to install nmap via apt-get.
-    Only works in Docker/Debian/Ubuntu containers where apt-get is available.
+    If apt-get fails due to missing permissions, returns an OOB sudo-password modal.
+    The sudo password (if provided) is used once and never stored or logged.
     """
     import subprocess
     import shutil
+
     if shutil.which("nmap"):
-        return HTMLResponse(content='<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2">Nmap is already installed.</div>')
-    logger.info(f"Admin {user.username} triggered nmap installation.")
+        return HTMLResponse(content='<div id="nmap-install-btn"><span class="text-[10px] text-green-500 font-semibold">✓ Nmap bereits installiert</span></div>')
+
+    form_data = await request.form()
+    sudo_password: str = form_data.get("sudo_password", "") or ""  # type: ignore[assignment]
+    using_sudo = bool(sudo_password.strip())
+
+    logger.info(f"Admin {user.username} triggered nmap installation (sudo={'yes' if using_sudo else 'no'}).")
+
     try:
-        proc = subprocess.run(  # nosec B603 B607 - hardcoded apt-get nmap, no user input
-            ["apt-get", "install", "-y", "--no-install-recommends", "nmap"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120
-        )
-        if proc.returncode == 0:
-            return HTMLResponse(content='<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Nmap installed successfully. Restart the worker to activate.</div>')
+        if using_sudo:
+            pwd_input = sudo_password + "\n"
+            update_proc = subprocess.run(  # nosec B603 B607 - hardcoded sudo apt-get, password from admin form
+                ["sudo", "-S", "apt-get", "update", "-qq"],
+                input=pwd_input, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60
+            )
+            proc = subprocess.run(  # nosec B603 B607 - hardcoded sudo apt-get nmap, password from admin form
+                ["sudo", "-S", "apt-get", "install", "-y", "--no-install-recommends", "nmap"],
+                input=pwd_input, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120
+            )
+            sudo_password = ""  # discard immediately after use
+            pwd_input = ""
+
+            if proc.returncode == 0:
+                return HTMLResponse(content='<div id="nmap-install-btn"><span class="text-[10px] text-green-500 font-semibold">✓ Nmap erfolgreich installiert</span></div>')
+            output = proc.stdout or ""
+            if "incorrect password" in output.lower() or "authentication failure" in output.lower() or proc.returncode == 1 and not output.strip():
+                return HTMLResponse(content=_nmap_sudo_modal_html("Falsches Passwort. Bitte erneut versuchen."))
+            return HTMLResponse(content=_nmap_sudo_modal_html(f"Fehler: {output[-200:]}"))
         else:
-            out = proc.stdout[-300:] if proc.stdout else ""
-            return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2">Installation failed: {out}</div>')
+            # Attempt without sudo first (works when running as root in Docker)
+            update_proc = subprocess.run(  # nosec B603 B607 - hardcoded apt-get, no user input
+                ["apt-get", "update", "-qq"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60
+            )
+            proc = subprocess.run(  # nosec B603 B607 - hardcoded apt-get nmap, no user input
+                ["apt-get", "install", "-y", "--no-install-recommends", "nmap"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120
+            )
+            if proc.returncode == 0:
+                return HTMLResponse(content='<div id="nmap-install-btn"><span class="text-[10px] text-green-500 font-semibold">✓ Nmap erfolgreich installiert</span></div>')
+            output = proc.stdout or ""
+            if "Permission denied" in output or "E: Could not open lock" in output or proc.returncode in (100, 1):
+                return HTMLResponse(content=_nmap_sudo_modal_html())
+            return HTMLResponse(content=f'<div id="nmap-install-btn"><div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px]">Fehler: {output[-200:]}</div></div>')
     except Exception as e:
-        return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2">Error: {str(e)}</div>')
+        sudo_password = ""
+        return HTMLResponse(content=f'<div id="nmap-install-btn"><div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px]">Error: {str(e)}</div></div>')
 
 
 @router.post("/admin/tools/nuclei-update")
