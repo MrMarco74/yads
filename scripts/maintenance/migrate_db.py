@@ -969,6 +969,16 @@ def migrate():
         except Exception as e:
             print(f"   Error: {e}")
 
+        # installedmodule: signature + file_hash (module signing v2.6+)
+        print(">> Checking installedmodule table: signature, file_hash...")
+        try:
+            conn.execute(text("ALTER TABLE installedmodule ADD COLUMN IF NOT EXISTS signature TEXT;"))
+            conn.execute(text("ALTER TABLE installedmodule ADD COLUMN IF NOT EXISTS file_hash TEXT;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

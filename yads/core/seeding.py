@@ -67920,6 +67920,8 @@ def seed_changelog():
 
 
 
+
+
         session.commit()
         print("Changelog seeded successfully.")
 

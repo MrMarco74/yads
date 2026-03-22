@@ -892,6 +892,12 @@
         }
     }
 
+    // ── CSRF helper ───────────────────────────────────────────────────────────
+    function getCsrfToken() {
+        var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
+
     // ── Import preview ────────────────────────────────────────────────────────
     async function doImportPreview() {
         var file = document.getElementById('import-file').files[0];
@@ -904,7 +910,11 @@
         fd.append('config_file', file);
         fd.append('import_password', pw);
         try {
-            var resp = await fetch('/tenant-settings/import-config/preview', { method: 'POST', body: fd });
+            var resp = await fetch('/tenant-settings/import-config/preview', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': getCsrfToken() },
+                body: fd
+            });
             area.innerHTML = await resp.text();
         } catch (err) {
             area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';
@@ -921,7 +931,11 @@
         fd.append('config_file', file);
         fd.append('import_password', pw);
         try {
-            var resp = await fetch('/tenant-settings/import-config/apply', { method: 'POST', body: fd });
+            var resp = await fetch('/tenant-settings/import-config/apply', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': getCsrfToken() },
+                body: fd
+            });
             area.innerHTML = await resp.text();
         } catch (err) {
             area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';

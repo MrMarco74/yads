@@ -17,15 +17,30 @@
     <!-- Header -->
     <div class="flex items-start justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-white">Scan Modules</h1>
-            <p class="text-sm text-slate-400 mt-1">Manage scanner modules — activate/deactivate per tenant, install new modules via ZIP.</p>
+            <h1 class="text-2xl font-bold text-white">Plugin Manager</h1>
+            <p class="text-sm text-slate-400 mt-1">Scanner-Module verwalten — aktivieren/deaktivieren pro Tenant, neue Module per ZIP installieren.</p>
         </div>
-        {% if is_platform_admin %}
-        <button onclick="document.getElementById('upload-modal').classList.remove('hidden')"
+        {% if user and user.role == 'admin' %}
+        {% if request.query_params.get('tenant_id') %}
+        <div class="flex flex-col items-end gap-1.5">
+            <button disabled
+                    class="flex items-center gap-2 px-4 py-2 bg-slate-700/50 text-slate-500 text-sm font-semibold rounded-lg cursor-not-allowed border border-slate-600/40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Add-On installieren
+            </button>
+            <p class="text-xs text-slate-500 flex items-center gap-1">
+                <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Kein Tenant aktiv sein — zur Installation
+                <a href="/scan-modules/" class="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Tenant-Auswahl aufheben</a>
+            </p>
+        </div>
+        {% else %}
+        <button onclick="openInstallModal()"
                 class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-            Install Module (ZIP)
+            Add-On installieren
         </button>
+        {% endif %}
         {% endif %}
     </div>
 
@@ -51,7 +66,7 @@
 
     <!-- Filters bar -->
     <div class="flex flex-wrap items-center gap-3">
-        {% if is_platform_admin and tenants %}
+        {% if user and user.role == 'admin' and tenants %}
         <form method="get" class="flex items-center gap-2">
             <label class="text-xs text-slate-400">Tenant:</label>
             <select name="tenant_id" onchange="this.form.submit()"
@@ -81,6 +96,138 @@
         </div>
     </div>
 
+    <!-- Installed Add-Ons Section -->
+    {% set custom_mods = modules | selectattr('custom', 'equalto', true) | list %}
+    {% if custom_mods %}
+    <div class="space-y-2">
+        <div class="flex items-center gap-3 px-1 mb-2">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded border text-violet-400 bg-violet-900/30 border-violet-800/40">Installed Add-Ons</span>
+            <span class="text-xs text-slate-500">{{ custom_mods | length }} installiert</span>
+        </div>
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden shadow">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700/50 bg-slate-800/50">
+                        <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Modul</th>
+                        <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Version / Autor</th>
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Mode</th>
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Installiert</th>
+                        {% if active_tenant_id %}
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-24">
+                            {% if user and user.role == 'admin' and tenants %}
+                            {{ (tenants | selectattr('id', 'equalto', active_tenant_id) | list | first).name if tenants else 'Aktiv' }}
+                            {% else %}Aktiv{% endif %}
+                        </th>
+                        {% endif %}
+                        {% if user and user.role == 'admin' %}
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-28">Aktionen</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/30">
+                {% for mod in custom_mods %}
+                <tr class="hover:bg-slate-800/30 transition-colors {% if mod.file_missing %}opacity-60 bg-amber-900/10{% elif not mod.enabled %}opacity-40{% endif %}">
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-white flex items-center gap-2 flex-wrap">
+                            {{ mod.label }}
+                            {% if mod.is_new %}
+                            <span class="inline-flex items-center text-xs px-2 py-0.5 bg-sky-900/40 text-sky-300 border border-sky-700/50 rounded font-semibold tracking-wide">New</span>
+                            {% endif %}
+                            {% if mod.file_missing %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-700/50 rounded font-semibold">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                File Missing
+                            </span>
+                            {% endif %}
+                            {% if signing_status.disabled %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-slate-800 text-slate-500 border border-slate-700 rounded" title="Signing disabled">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                Signing disabled
+                            </span>
+                            {% elif mod.signature %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 rounded" title="Ed25519-Signatur: {{ mod.signature[:24] }}…">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                Signiert
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-900/30 text-amber-400 border border-amber-700/40 rounded" title="Keine Signatur gespeichert">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                Unsigniert
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs text-slate-500 font-mono mt-0.5">{{ mod.name }}</div>
+                        {% if mod.description %}<div class="text-xs text-slate-400 mt-0.5">{{ mod.description }}</div>{% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-xs text-slate-300">v{{ mod.version }}</div>
+                        {% if mod.author %}<div class="text-xs text-slate-500 mt-0.5">{{ mod.author }}</div>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if mod.passive %}
+                        <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 rounded">Passive</span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-rose-900/30 text-rose-400 border border-rose-700/40 rounded">Active</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if mod.installed_at %}
+                        <span class="text-xs text-slate-400">{{ mod.installed_at.strftime('%d.%m.%Y') }}</span>
+                        {% else %}
+                        <span class="text-xs text-slate-600">—</span>
+                        {% endif %}
+                    </td>
+                    {% if active_tenant_id %}
+                    <td class="px-4 py-3 text-center">
+                        {% if mod.file_missing %}
+                        <span class="text-xs text-amber-500">Inaktiv</span>
+                        {% else %}
+                        <form method="post" action="/scan-modules/toggle" class="inline">
+                            {{ csrf_token() }}
+                            <input type="hidden" name="tenant_id" value="{{ active_tenant_id }}">
+                            <input type="hidden" name="module_name" value="{{ mod.name }}">
+                            <input type="hidden" name="enabled" value="{{ 'false' if mod.enabled else 'true' }}">
+                            <button type="submit"
+                                    class="relative inline-flex items-center h-5 w-9 rounded-full transition-colors focus:outline-none
+                                    {% if mod.enabled %}bg-indigo-600{% else %}bg-slate-600{% endif %}"
+                                    title="{{ 'Deaktivieren' if mod.enabled else 'Aktivieren' }}">
+                                <span class="inline-block w-3.5 h-3.5 bg-white rounded-full shadow transform transition-transform
+                                    {% if mod.enabled %}translate-x-5{% else %}translate-x-0.5{% endif %}"></span>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    {% if user and user.role == 'admin' %}
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            {% if mod.file_missing %}
+                            <button onclick="document.getElementById('upload-modal').classList.remove('hidden')"
+                                    class="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-semibold transition-colors">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                Re-Upload
+                            </button>
+                            {% endif %}
+                            <form method="post" action="/scan-modules/{{ mod.name }}/delete"
+                                  onsubmit="return confirm('Modul {{ mod.name }} entfernen? Dies kann nicht rückgängig gemacht werden.')" class="inline">
+                                {{ csrf_token() }}
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 bg-rose-900/40 hover:bg-rose-700/60 text-rose-400 hover:text-rose-200 border border-rose-800/50 rounded-lg font-semibold transition-colors">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    Entfernen
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Grouped Module Tables -->
     {% if not grouped_modules %}
     <div class="bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-8 text-center text-slate-500 text-sm">No modules found.</div>
@@ -88,11 +235,13 @@
 
     {% for group in grouped_modules %}
     {% set _cc = _cat_colors.get(group.cat.color, _cat_colors["gray"]) %}
+    {% set builtin_mods = group.modules | rejectattr('custom', 'equalto', true) | list %}
+    {% if builtin_mods %}
     <div class="space-y-1">
         <!-- Category header -->
         <div class="flex items-center gap-3 px-1 mb-2">
             <span class="text-xs font-semibold px-2.5 py-1 rounded border {{ _cc }}">{{ group.cat.label }}</span>
-            <span class="text-xs text-slate-500">{{ group.modules | length }} module{{ 's' if group.modules | length != 1 }}</span>
+            <span class="text-xs text-slate-500">{{ builtin_mods | length }} module{{ 's' if builtin_mods | length != 1 }}</span>
         </div>
 
         <div class="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden shadow">
@@ -101,33 +250,56 @@
                     <tr class="border-b border-slate-700/50 bg-slate-800/50">
                         <th class="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Module</th>
                         <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Findings</th>
+                        <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Mode</th>
                         <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
                         {% if active_tenant_id %}
                         <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-32">
-                            {% if is_platform_admin and tenants %}
+                            {% if user and user.role == 'admin' and tenants %}
                             {{ (tenants | selectattr('id', 'equalto', active_tenant_id) | list | first).name if tenants else '' }}
                             {% else %}
                             Enabled
                             {% endif %}
                         </th>
                         {% endif %}
-                        {% if is_platform_admin %}
+                        {% if user and user.role == 'admin' %}
                         <th class="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider w-20">Actions</th>
                         {% endif %}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-700/30">
-                    {% for mod in group.modules %}
+                    {% for mod in builtin_mods %}
                     <tr class="hover:bg-slate-800/30 transition-colors {% if mod.file_missing %}opacity-60 bg-amber-900/10{% elif not mod.enabled %}opacity-40{% endif %}">
                         <td class="px-4 py-3">
                             <div class="font-medium text-white flex items-center gap-2">
                                 {{ mod.label }}
+                                {% if mod.is_new %}
+                                <span class="inline-flex items-center text-xs px-2 py-0.5 bg-sky-900/40 text-sky-300 border border-sky-700/50 rounded font-semibold tracking-wide">New</span>
+                                {% endif %}
                                 {% if mod.file_missing %}
                                 <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-700/50 rounded font-semibold">
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
                                     File Missing — Re-Upload Required
                                 </span>
                                 {% endif %}
+                            {% if mod.custom %}
+                                {% if signing_status.disabled %}
+                                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-slate-800 text-slate-500 border border-slate-700 rounded" title="Signaturprüfung ist deaktiviert (MODULE_SIGNING_DISABLED=true)">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                    Signing disabled
+                                </span>
+                                {% elif mod.signature %}
+                                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 rounded"
+                                      title="Ed25519-Signatur hinterlegt: {{ mod.signature[:24] }}…">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                    Signiert
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-900/30 text-amber-400 border border-amber-700/40 rounded" title="Keine Signatur gespeichert — Modul wurde ohne Signatur installiert">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                                    Unsigniert
+                                </span>
+                                {% endif %}
+                            {% endif %}
                             </div>
                             <div class="text-xs text-slate-500 font-mono mt-0.5">{{ mod.name }}</div>
                             {% if mod.description %}
@@ -139,6 +311,19 @@
                             <span class="text-xs text-emerald-400">✓</span>
                             {% else %}
                             <span class="text-xs text-slate-600">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            {% if mod.passive %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 rounded" title="Passive — read-only, no active probing">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                Passive
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-rose-900/30 text-rose-400 border border-rose-700/40 rounded" title="Active — sends probes, may trigger IDS/WAF">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                Active
+                            </span>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-center">
@@ -170,7 +355,7 @@
                             {% endif %}
                         </td>
                         {% endif %}
-                        {% if is_platform_admin %}
+                        {% if user and user.role == 'admin' %}
                         <td class="px-4 py-3 text-center">
                             {% if mod.custom and mod.file_missing %}
                             <div class="flex items-center justify-center gap-2">
@@ -202,10 +387,74 @@
             </table>
         </div>
     </div>
+    {% endif %}
     {% endfor %}
 
+    <!-- Signing Status Panel -->
+    {% if user and user.role == 'admin' %}
+    <div class="bg-slate-800/40 border border-slate-700/40 rounded-xl p-5">
+        <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center
+                {% if signing_status.disabled %}bg-slate-700/50 border border-slate-600/40
+                {% elif signing_status.key_source == 'none' %}bg-amber-900/30 border border-amber-700/40
+                {% else %}bg-emerald-900/30 border border-emerald-700/40{% endif %}">
+                {% if signing_status.disabled %}
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                {% elif signing_status.key_source == 'none' %}
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                {% else %}
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                {% endif %}
+            </div>
+            <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-bold text-white mb-3">Module Signing</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <!-- Verification key -->
+                    <div class="bg-slate-900/60 rounded-lg p-3 border border-slate-700/40">
+                        <div class="text-slate-500 mb-1 uppercase tracking-wide font-semibold text-[10px]">Verifikationsschlüssel</div>
+                        {% if signing_status.disabled %}
+                        <span class="text-slate-400">Deaktiviert — <code class="text-slate-500">MODULE_SIGNING_DISABLED=true</code></span>
+                        {% elif signing_status.key_source == 'operator' %}
+                        <span class="inline-flex items-center gap-1.5 text-indigo-300 font-medium">
+                            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                            Operator-Schlüssel
+                        </span>
+                        <div class="text-slate-500 mt-1">Quelle: <code>MODULE_SIGNING_PUBLIC_KEY</code></div>
+                        {% elif signing_status.key_source == 'official' %}
+                        <span class="inline-flex items-center gap-1.5 text-emerald-300 font-medium">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            YADS Official Key
+                        </span>
+                        <div class="text-slate-500 mt-1">Hardcoded in <code>module_signing.py</code></div>
+                        {% else %}
+                        <span class="text-amber-400">Kein Schlüssel — unsignierte Module erlaubt</span>
+                        {% endif %}
+                    </div>
+                    <!-- Auto-signing -->
+                    <div class="bg-slate-900/60 rounded-lg p-3 border border-slate-700/40">
+                        <div class="text-slate-500 mb-1 uppercase tracking-wide font-semibold text-[10px]">Auto-Signing beim Upload</div>
+                        {% if signing_status.auto_sign %}
+                        <span class="inline-flex items-center gap-1.5 text-emerald-300 font-medium">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Aktiv
+                        </span>
+                        <div class="text-slate-500 mt-1">Privater Schlüssel: <code>{{ signing_status.key_path_name }}</code></div>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 text-slate-400">
+                            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            Inaktiv
+                        </span>
+                        <div class="text-slate-500 mt-1">Signatur muss manuell per <code>sign_module.py</code> erstellt werden</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Info: ZIP Format -->
-    {% if is_platform_admin %}
+    {% if user and user.role == 'admin' %}
     <div class="bg-slate-800/40 border border-slate-700/40 rounded-xl p-5">
         <h3 class="text-sm font-bold text-white mb-3">ZIP Package Format</h3>
         <p class="text-xs text-slate-400 mb-3">
@@ -234,7 +483,8 @@
   "requires_https": false,
   "default_on":    false,
   "finding_module": true,
-  "extractor":     "generic"             <span class="text-slate-500">// "generic" works for new modules</span>
+  "extractor":     "generic",            <span class="text-slate-500">// "generic" works for new modules</span>
+  "passive":       true                  <span class="text-slate-500">// true = read-only/safe, false = active probing (shown as badge in UI)</span>
 }</pre>
         </details>
     </div>
@@ -242,53 +492,277 @@
 
 </div>
 
-<!-- Upload Modal -->
-{% if is_platform_admin %}
-<div id="upload-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-    <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-bold text-white">Install Module from ZIP</h2>
-            <button onclick="document.getElementById('upload-modal').classList.add('hidden')"
-                    class="text-slate-400 hover:text-white">
+<!-- Install Modal (2-step) -->
+{% if user and user.role == 'admin' %}
+<div id="install-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700/60">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-white" id="modal-title">Add-On installieren</h2>
+                    <p class="text-xs text-slate-400" id="modal-step-label">Schritt 1 von 2 — ZIP auswählen</p>
+                </div>
+            </div>
+            <button onclick="closeInstallModal()" class="text-slate-500 hover:text-white transition-colors p-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
 
-        <form method="post" action="/scan-modules/upload" enctype="multipart/form-data" class="space-y-4">
-            {{ csrf_token() }}
-
-            <div>
-                <label class="block text-sm text-slate-300 mb-2">Module ZIP File</label>
-                <div class="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-indigo-500 transition-colors cursor-pointer"
-                     onclick="document.getElementById('zip-input').click()">
-                    <svg class="w-8 h-8 text-slate-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        <!-- Step 1: File Drop Zone -->
+        <div id="step-1" class="p-6 space-y-4">
+            <div id="drop-zone"
+                 class="relative border-2 border-dashed border-slate-600 rounded-xl p-10 text-center transition-all duration-200 cursor-pointer group hover:border-indigo-500 hover:bg-indigo-950/20"
+                 onclick="document.getElementById('zip-file-input').click()"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDrop(event)">
+                <div id="drop-icon" class="transition-transform duration-200 group-hover:scale-110">
+                    <svg class="w-12 h-12 text-slate-600 mx-auto mb-3 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                     </svg>
-                    <p class="text-sm text-slate-400">Click to select or drag &amp; drop</p>
-                    <p class="text-xs text-slate-500 mt-1" id="zip-filename">No file selected</p>
+                    <p class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">ZIP hier ablegen</p>
+                    <p class="text-xs text-slate-500 mt-1">oder klicken zum Auswählen</p>
                 </div>
-                <input id="zip-input" type="file" name="module_zip" accept=".zip" class="hidden"
-                       onchange="document.getElementById('zip-filename').textContent = this.files[0]?.name || 'No file selected'">
+                <div id="drop-active-overlay" class="hidden absolute inset-0 rounded-xl bg-indigo-900/30 border-2 border-indigo-500 flex items-center justify-center">
+                    <p class="text-indigo-300 font-semibold text-sm">Loslassen zum Laden…</p>
+                </div>
+            </div>
+            <input id="zip-file-input" type="file" accept=".zip" class="hidden" onchange="onFileSelected(this.files[0])">
+
+            <div id="step1-error" class="hidden bg-rose-900/30 border border-rose-700/50 rounded-lg px-4 py-3 text-sm text-rose-300"></div>
+
+            <div id="step1-loading" class="hidden flex items-center justify-center gap-3 py-3">
+                <svg class="w-5 h-5 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span class="text-sm text-slate-400">Manifest wird gelesen…</span>
             </div>
 
-            <div class="bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2 text-xs text-amber-300">
-                <strong>Security:</strong> Only install modules from trusted sources. Module code runs on the server with scanner privileges.
+            <p class="text-xs text-slate-600 text-center">Nur ZIP-Pakete aus vertrauenswürdigen Quellen installieren. Modul-Code läuft mit Scanner-Rechten auf dem Server.</p>
+        </div>
+
+        <!-- Step 2: Manifest Preview + Confirm -->
+        <div id="step-2" class="hidden p-6 space-y-4">
+            <!-- Module Info Card -->
+            <div class="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-base font-bold text-white truncate" id="prev-label"></p>
+                        <p class="text-xs text-slate-500 font-mono mt-0.5" id="prev-name"></p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span id="prev-passive-badge" class="text-xs px-2 py-0.5 rounded border"></span>
+                        <span class="text-xs px-2 py-0.5 bg-violet-900/30 text-violet-400 border border-violet-700/40 rounded">Add-On</span>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed" id="prev-description"></p>
+                <div class="grid grid-cols-3 gap-3 pt-1 border-t border-slate-700/40">
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-600 mb-0.5">Version</p>
+                        <p class="text-xs text-slate-300 font-mono" id="prev-version"></p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-600 mb-0.5">Autor</p>
+                        <p class="text-xs text-slate-300 truncate" id="prev-author"></p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-600 mb-0.5">Kategorie</p>
+                        <p class="text-xs text-slate-300" id="prev-category"></p>
+                    </div>
+                </div>
             </div>
 
-            <div class="flex gap-3">
-                <button type="submit"
-                        class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors">
-                    Install Module
+            <!-- Warnings -->
+            <div id="prev-warnings" class="hidden bg-amber-900/20 border border-amber-700/40 rounded-lg px-4 py-3 text-xs text-amber-300 space-y-1"></div>
+
+            <!-- File list -->
+            <details class="group">
+                <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-300 list-none flex items-center gap-1">
+                    <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    ZIP-Inhalt anzeigen
+                </summary>
+                <ul id="prev-files" class="mt-2 space-y-0.5 pl-4"></ul>
+            </details>
+
+            <!-- Security notice -->
+            <div class="bg-rose-950/30 border border-rose-800/40 rounded-lg px-4 py-3 flex items-start gap-2">
+                <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                <p class="text-xs text-rose-300">Modul-Code läuft direkt auf dem Server. Sicherheitsüberprüfung der Signatur erfolgt beim Installieren.</p>
+            </div>
+
+            <!-- Actual upload form (hidden, submitted by JS) -->
+            <form id="install-form" method="post" action="/scan-modules/upload" enctype="multipart/form-data" class="hidden">
+                {{ csrf_token() }}
+                <input type="file" id="install-form-file" name="module_zip">
+            </form>
+
+            <!-- Actions -->
+            <div class="flex gap-3 pt-1">
+                <button type="button" onclick="backToStep1()"
+                        class="px-4 py-2 bg-slate-700/60 hover:bg-slate-700 border border-slate-600/50 text-slate-300 text-sm rounded-lg transition-colors">
+                    ← Zurück
                 </button>
-                <button type="button"
-                        onclick="document.getElementById('upload-modal').classList.add('hidden')"
-                        class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded-lg transition-colors">
-                    Cancel
+                <button type="button" onclick="confirmInstall()"
+                        class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Jetzt installieren
                 </button>
             </div>
-        </form>
+        </div>
+
     </div>
 </div>
+
+<script>
+(function() {
+    let _pendingFile = null;
+
+    window.openInstallModal = function() {
+        resetModal();
+        document.getElementById('install-modal').classList.remove('hidden');
+    };
+    window.closeInstallModal = function() {
+        document.getElementById('install-modal').classList.add('hidden');
+        _pendingFile = null;
+    };
+    window.backToStep1 = function() {
+        document.getElementById('step-2').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+        document.getElementById('modal-step-label').textContent = 'Schritt 1 von 2 — ZIP auswählen';
+        document.getElementById('step1-error').classList.add('hidden');
+        document.getElementById('zip-file-input').value = '';
+    };
+
+    function resetModal() {
+        backToStep1();
+        _pendingFile = null;
+    }
+
+    // --- Drag & Drop ---
+    window.handleDragOver = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('drop-zone').classList.add('border-indigo-500', 'bg-indigo-950/30');
+        document.getElementById('drop-active-overlay').classList.remove('hidden');
+    };
+    window.handleDragLeave = function(e) {
+        e.preventDefault();
+        document.getElementById('drop-zone').classList.remove('border-indigo-500', 'bg-indigo-950/30');
+        document.getElementById('drop-active-overlay').classList.add('hidden');
+    };
+    window.handleDrop = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDragLeave(e);
+        const file = e.dataTransfer.files[0];
+        if (file) onFileSelected(file);
+    };
+
+    // --- File selected (click or drop) ---
+    window.onFileSelected = function(file) {
+        if (!file) return;
+        if (!file.name.endsWith('.zip')) {
+            showStep1Error('Nur ZIP-Dateien werden akzeptiert.');
+            return;
+        }
+        _pendingFile = file;
+        loadPreview(file);
+    };
+
+    function showStep1Error(msg) {
+        const el = document.getElementById('step1-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    // --- Fetch preview from server ---
+    function loadPreview(file) {
+        document.getElementById('step1-error').classList.add('hidden');
+        document.getElementById('step1-loading').classList.remove('hidden');
+
+        const fd = new FormData();
+        fd.append('module_zip', file, file.name);
+
+        const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+        const csrf = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+
+        fetch('/scan-modules/preview', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf },
+            body: fd,
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+        .then(({ ok, data }) => {
+            document.getElementById('step1-loading').classList.add('hidden');
+            if (!ok) {
+                showStep1Error(data.detail || 'Fehler beim Lesen des Manifests.');
+                return;
+            }
+            showStep2(data);
+        })
+        .catch(() => {
+            document.getElementById('step1-loading').classList.add('hidden');
+            showStep1Error('Netzwerkfehler — bitte erneut versuchen.');
+        });
+    }
+
+    function showStep2(manifest) {
+        // Populate fields
+        document.getElementById('prev-label').textContent = manifest.label;
+        document.getElementById('prev-name').textContent = manifest.module_name;
+        document.getElementById('prev-version').textContent = manifest.version || '—';
+        document.getElementById('prev-author').textContent = manifest.author || '—';
+        document.getElementById('prev-category').textContent = manifest.category || '—';
+        document.getElementById('prev-description').textContent = manifest.description || 'Keine Beschreibung.';
+
+        const badge = document.getElementById('prev-passive-badge');
+        if (manifest.passive) {
+            badge.textContent = 'Passiv';
+            badge.className = 'text-xs px-2 py-0.5 rounded border bg-emerald-900/30 text-emerald-400 border-emerald-700/40';
+        } else {
+            badge.textContent = 'Aktiv';
+            badge.className = 'text-xs px-2 py-0.5 rounded border bg-rose-900/30 text-rose-400 border-rose-700/40';
+        }
+
+        // Warnings
+        const warnBox = document.getElementById('prev-warnings');
+        if (manifest.warnings && manifest.warnings.length) {
+            warnBox.innerHTML = manifest.warnings.map(w => `<p>⚠ ${w}</p>`).join('');
+            warnBox.classList.remove('hidden');
+        } else {
+            warnBox.classList.add('hidden');
+        }
+
+        // File list
+        const fileList = document.getElementById('prev-files');
+        fileList.innerHTML = (manifest.files_in_zip || []).map(f =>
+            `<li class="text-xs font-mono text-slate-500">${f}</li>`
+        ).join('');
+
+        document.getElementById('step-1').classList.add('hidden');
+        document.getElementById('step-2').classList.remove('hidden');
+        document.getElementById('modal-step-label').textContent = 'Schritt 2 von 2 — Bestätigen';
+    }
+
+    // --- Actual install ---
+    window.confirmInstall = function() {
+        if (!_pendingFile) return;
+        // Inject file into the hidden form and submit
+        const dt = new DataTransfer();
+        dt.items.add(_pendingFile);
+        document.getElementById('install-form-file').files = dt.files;
+        document.getElementById('install-form').submit();
+    };
+
+    // Close on backdrop click
+    document.getElementById('install-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeInstallModal();
+    });
+})();
+</script>
 {% endif %}
 
 {% endblock %}

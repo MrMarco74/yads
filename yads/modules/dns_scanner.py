@@ -200,41 +200,60 @@ class SubdomainScanner(DNSRecordScanner):
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """Performs deep DNS analysis: Records + Subdomain Enumeration."""
         resolver = dns.resolver.Resolver()
-        resolver.timeout = 3.0 
-        
+        resolver.timeout = 3.0
+
         custom_ns = self._get_custom_nameservers()
-        if custom_ns: resolver.nameservers = custom_ns
+        if custom_ns:
+            resolver.nameservers = custom_ns
+            logger.info(f"[Subdomain] Using custom nameservers: {custom_ns}")
 
         # 1. Base Scan
+        logger.info(f"[Subdomain] Step 1/5: Scanning DNS records for {target}...")
         results = self._scan_records(target, resolver, logger)
         results.update({"subdomains": [], "reverse_dns": {}})
         wildcard_ips = self._detect_wildcard(target, resolver)
-        
+        if wildcard_ips:
+            logger.info(f"[Subdomain] Wildcard DNS detected — {len(wildcard_ips)} wildcard IP(s) will be filtered out")
+
         # 2. Enumeration Prep
         potential_full_domains = set()
         if self.use_ct_logs:
-            potential_full_domains.update(self._fetch_ct_logs(target))
+            logger.info(f"[Subdomain] Step 2/5: Fetching Certificate Transparency logs (crt.sh)...")
+            ct_domains = self._fetch_ct_logs(target)
+            potential_full_domains.update(ct_domains)
+            logger.info(f"[Subdomain] CT logs: {len(ct_domains)} candidate(s) found")
 
-        # CT Org Cross-Query: find other apex domains owned by same org
-        results["ct_related_domains"] = self._fetch_ct_related_domains(target)
-        
+            logger.info(f"[Subdomain] Step 3/5: CT org cross-query (related apex domains)...")
+            results["ct_related_domains"] = self._fetch_ct_related_domains(target)
+            logger.info(f"[Subdomain] CT org query: {len(results['ct_related_domains'])} related domain(s)")
+        else:
+            results["ct_related_domains"] = []
+
         wordlist_subs = self._load_subdomain_wordlist()
         for sub in wordlist_subs:
             potential_full_domains.add(target if sub == '@' else f"{sub}.{target}")
+        logger.info(f"[Subdomain] Step 4/5: Verifying {len(potential_full_domains)} candidate(s) via parallel DNS resolution...")
 
         # 3. Parallel Discovery
         results["subdomains"] = self._verify_subdomains_parallel(potential_full_domains, wildcard_ips, custom_ns, logger)
         results["subdomains"].sort(key=lambda x: x['subdomain'])
+        logger.info(f"[Subdomain] DNS verification complete — {len(results['subdomains'])} active subdomain(s) confirmed")
 
         # 4. Takeover Risks
         if "takeover_risks" not in results: results["takeover_risks"] = []
+        if results["subdomains"]:
+            logger.info(f"[Subdomain] Checking {len(results['subdomains'])} subdomain(s) for takeover risks...")
         results["takeover_risks"].extend(self._check_subdomain_takeovers_parallel(results["subdomains"], custom_ns, logger))
+        if results["takeover_risks"]:
+            logger.warning(f"[Subdomain] ⚠ {len(results['takeover_risks'])} potential takeover risk(s) detected!")
 
         # 5. Reverse DNS
         all_ips = set(results["records"].get('A', []))
         for sub in results["subdomains"]: all_ips.update(sub.get('ips', []))
+        logger.info(f"[Subdomain] Step 5/5: Reverse DNS lookup for {len(all_ips)} IP(s)...")
         results["reverse_dns"] = self._perform_reverse_dns(all_ips, resolver, logger)
 
+        logger.info(f"[Subdomain] Scan complete — {len(results['subdomains'])} subdomains, {len(results['takeover_risks'])} risks, {len(all_ips)} IPs")
         return results
 
     def _load_subdomain_wordlist(self) -> List[str]:
@@ -265,10 +284,14 @@ class SubdomainScanner(DNSRecordScanner):
             except dns.resolver.NoAnswer: return {"subdomain": d, "ips": []}
             except (dns.resolver.NXDOMAIN, Exception): return None
 
+        total = len(domains)
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             fut = {executor.submit(check, d): d for d in domains}
             for i, f in enumerate(concurrent.futures.as_completed(fut)):
-                if i % 10 == 0: check_stop_signal(self.db)
+                if i % 10 == 0:
+                    check_stop_signal(self.db)
+                if total > 20 and i % 25 == 0 and i > 0:
+                    logger.info(f"[Subdomain] DNS check progress: {i}/{total} ({int(i/total*100)}%) — {len(verified)} resolved so far")
                 val = f.result()
                 if val: verified.append(val)
         return verified

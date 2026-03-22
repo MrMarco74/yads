@@ -170,9 +170,14 @@
 </div>
 
 <script>
+function _csrfToken() {
+  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
 async function deleteSession(id, name) {
   if (!confirm(`Delete session "${name}" and all its candidates?`)) return;
-  const r = await fetch(`/api/discovery/sessions/${id}`, {method: 'DELETE'});
+  const r = await fetch(`/api/discovery/sessions/${id}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken()}});
   if (r.ok) {
     document.getElementById('sess-' + id)?.remove();
   } else {

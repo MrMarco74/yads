@@ -93,6 +93,11 @@
 </div>
 
 <script>
+function _csrfToken() {
+  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
 async function addEntry() {
   const pattern = document.getElementById('new-pattern').value.trim();
   const note = document.getElementById('new-note').value.trim();
@@ -100,7 +105,7 @@ async function addEntry() {
 
   const r = await fetch('/api/discovery/blocklist', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken()},
     body: JSON.stringify({pattern, note: note || null}),
   });
   if (r.ok) {
@@ -113,7 +118,7 @@ async function addEntry() {
 
 async function deleteEntry(id, pattern) {
   if (!confirm(`Remove block for "${pattern}"?`)) return;
-  const r = await fetch(`/api/discovery/blocklist/${id}`, {method: 'DELETE'});
+  const r = await fetch(`/api/discovery/blocklist/${id}`, {method: 'DELETE', headers: {'X-CSRF-Token': _csrfToken()}});
   if (r.ok) {
     document.getElementById('entry-' + id)?.remove();
     const cnt = document.querySelectorAll('[id^="entry-"]').length;
@@ -134,7 +139,7 @@ async function bulkImport() {
   for (const pattern of patterns) {
     const r = await fetch('/api/discovery/blocklist', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken()},
       body: JSON.stringify({pattern, note: 'bulk import'}),
     });
     if (r.ok) { const d = await r.json(); if (d.created) added++; else skipped++; }

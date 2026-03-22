@@ -1,0 +1,24 @@
+# Local source build overlay — used by the YADS Release Manager "Build Images" feature.
+# Adds build: sections so `docker compose build` actually builds from the local source tree.
+# Tags images to match docker-compose.yml so they are picked up on the next `docker compose up`.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.build-local.yml build --no-cache --pull
+#
+# yads-api  → Dockerfile  --target api      (API server, no scanner tools, ~600 MB)
+# yads-worker → Dockerfile.worker --target worker  (worker + scanner tools, pre-baked base)
+
+services:
+  yads-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-local}
+
+  yads-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      target: worker
+    image: registry.yads-security.com/yads/yads-worker:${YADS_VERSION:-local}

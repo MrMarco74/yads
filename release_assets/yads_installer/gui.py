@@ -489,8 +489,8 @@ class GlassInstaller(AcrylicWindow):
             (FIF.SETTING, "Admin"),
             (FIF.FINGERPRINT, "Verschlüsselung"),
             (FIF.TILES, "Modus"),
-            (FIF.DOWNLOAD, "Installation"),
             (FIF.SAVE, "Backup"),
+            (FIF.DOWNLOAD, "Installation"),
             (FIF.COMPLETED, "Abschluss"),
         ]
 
@@ -541,8 +541,8 @@ class GlassInstaller(AcrylicWindow):
         self.content_stack.addWidget(self.create_admin_step())
         self.content_stack.addWidget(self.create_encryption_step())
         self.content_stack.addWidget(self.create_mode_step())
-        self.content_stack.addWidget(self.create_install_step())
         self.content_stack.addWidget(self.create_backup_step())
+        self.content_stack.addWidget(self.create_install_step())
         self.content_stack.addWidget(self.create_summary_step())
 
         # 3. Bottom Navigation Bar

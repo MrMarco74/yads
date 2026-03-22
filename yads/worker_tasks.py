@@ -135,7 +135,11 @@ def calculate_security_trends():
 @celery_app.task(name="yads.worker.calculate_compliance_trends")
 def calculate_compliance_trends():
     """Calculates and stores daily compliance scores for each tenant and framework."""
-    from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+    try:
+        from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+    except ImportError:
+        logger.warning("[Worker] Optional module yads.modules.compliance_frameworks not found. Skipping trend calculation.")
+        return
     from sqlmodel import text
 
     logger.info("[Worker] Starting daily compliance trend calculation...")
