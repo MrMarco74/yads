@@ -760,7 +760,13 @@ class InstalledModule(SQLModel, table=True):
     installed_at: datetime = Field(default_factory=datetime.utcnow)
     installed_by: Optional[int] = Field(default=None, foreign_key="user.id")
     is_active: bool = Field(default=True)
+    passive: bool = Field(default=True)  # True = read-only/safe, False = active/intrusive
     setup_log: Optional[str] = Field(default=None, sa_column=Column(String))
+    # Module signing & integrity
+    signature: Optional[str] = Field(default=None, sa_column=Column(String))
+    # ^ Ed25519 signature over SHA-256(zip_bytes) supplied at upload time (audit trail)
+    file_hash: Optional[str] = Field(default=None, sa_column=Column(String))
+    # ^ SHA-256 of the installed .py file; re-verified on every startup
 
 
 class ScanProfile(SQLModel, table=True):

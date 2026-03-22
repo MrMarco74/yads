@@ -13,10 +13,21 @@ from yads.models import (
     User, Target, ScanResult, Tenant,
     ComplianceTrend, RemediationTask, ComplianceTargetStatus
 )
-from yads.modules.compliance import ComplianceScorer
-from yads.modules.compliance_frameworks import (
-    get_framework_scorer, get_all_frameworks, FRAMEWORKS
-)
+import logging
+logger = logging.getLogger(__name__)
+
+try:
+    from yads.modules.compliance import ComplianceScorer
+    from yads.modules.compliance_frameworks import (
+        get_framework_scorer, get_all_frameworks, FRAMEWORKS
+    )
+except ImportError:
+    # Logger not imported yet at the top, but we can use a basic one or def it later
+    # Actually, logger is not defined here yet.
+    ComplianceScorer = None
+    get_framework_scorer = lambda x: None
+    get_all_frameworks = lambda: {}
+    FRAMEWORKS = {}
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/compliance", tags=["compliance"])
@@ -482,7 +493,10 @@ async def export_compliance_pdf(
     user: User = Depends(get_current_user)
 ):
     """Export compliance report as PDF."""
-    from yads.modules.compliance_report_generator import generate_compliance_report
+    try:
+        from yads.modules.compliance_report_generator import generate_compliance_report
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Compliance Report Generator module not available.")
 
     if framework not in FRAMEWORKS:
         raise HTTPException(status_code=404, detail=f"Framework {framework} not found")

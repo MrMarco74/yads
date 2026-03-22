@@ -1,4 +1,5 @@
-fastapi
+fastapi<0.115.99
+starlette<1.0.0
 uvicorn
 httpx
 celery
@@ -9,7 +10,7 @@ pydantic-settings
 requests
 dnspython
 playwright
-jinja2
+jinja2<3.1.5
 python-multipart>=0.0.22
 aiofiles
 

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Tech Stack Analyzer{% endblock %}
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-white">Tech Stack Analyzer</h1>
+        <p class="text-sm text-slate-400 mt-1">Erkannte Technologien, Frameworks und Versionen — inkl. EOL/EOS-Warnungen.</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Targets gescannt</p>
+            <p class="text-3xl font-bold text-white">{{ stats.targets_scanned }}</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Technologien erkannt</p>
+            <p class="text-3xl font-bold text-indigo-400">{{ stats.total_techs }}</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
+            <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Findings</p>
+            <p class="text-3xl font-bold {% if stats.findings > 0 %}text-amber-400{% else %}text-emerald-400{% endif %}">{{ stats.findings }}</p>
+        </div>
+    </div>
+
+    {% if not entries %}
+    <div class="bg-slate-900 border border-dashed border-slate-700 rounded-xl p-12 text-center">
+        <svg class="w-10 h-10 text-slate-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <p class="text-slate-500 text-sm">Noch keine Tech-Stack-Scans vorhanden.</p>
+        <p class="text-slate-600 text-xs mt-1">Das Modul <code class="font-mono">tech_stack_analyzer</code> muss installiert und aktiviert sein.</p>
+    </div>
+    {% else %}
+
+    {% for entry in entries %}
+    <div class="bg-slate-900 border {% if entry.findings %}border-amber-800/40{% else %}border-slate-700/50{% endif %} rounded-xl overflow-hidden">
+        <!-- Target Header -->
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-800/40 border-b border-slate-700/40">
+            <div class="flex items-center gap-3">
+                <a href="/targets/{{ entry.target.id }}" class="text-sm font-semibold text-white hover:text-indigo-300 transition-colors">{{ entry.target.domain }}</a>
+                {% if entry.findings %}
+                <span class="text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-700/40 rounded font-semibold">{{ entry.findings | length }} Finding{{ 's' if entry.findings | length != 1 }}</span>
+                {% endif %}
+                {% if entry.technologies %}
+                <span class="text-xs px-2 py-0.5 bg-indigo-900/30 text-indigo-400 border border-indigo-700/30 rounded">{{ entry.technologies | length }} Tech{{ 's' if entry.technologies | length != 1 }}</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-xs text-slate-500">Score</span>
+                    <span class="text-xs font-bold {% if entry.score >= 80 %}text-emerald-400{% elif entry.score >= 50 %}text-amber-400{% else %}text-rose-400{% endif %}">{{ entry.score }}</span>
+                </div>
+                <span class="text-xs text-slate-500">{{ entry.scanned_at.strftime('%d.%m.%Y %H:%M') if entry.scanned_at else '—' }}</span>
+            </div>
+        </div>
+
+        <div class="p-5 space-y-4">
+            <!-- Findings -->
+            {% if entry.findings %}
+            <div class="space-y-2">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Findings</p>
+                {% for f in entry.findings %}
+                <div class="flex items-start gap-3 bg-amber-950/20 border border-amber-800/30 rounded-lg px-3 py-2">
+                    <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                    <div>
+                        <p class="text-sm text-amber-200 font-medium">{{ f.title if f.title else f }}</p>
+                        {% if f.description %}<p class="text-xs text-slate-400 mt-0.5">{{ f.description }}</p>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Technologies -->
+            {% if entry.technologies %}
+            <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Erkannte Technologien</p>
+                <div class="flex flex-wrap gap-2">
+                    {% for tech in entry.technologies %}
+                    <span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 bg-slate-800 border border-slate-700/50 rounded-lg text-slate-300">
+                        <span class="font-medium">{{ tech.name if tech.name else tech }}</span>
+                        {% if tech.version %}<span class="text-slate-500 font-mono">{{ tech.version }}</span>{% endif %}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -1811,7 +1811,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Generating...`;
 
         try {
-            const resp = await fetch('/api/analytics/ai-analysis/generate', { method: 'POST' });
+            const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+            const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+            const resp = await fetch('/api/analytics/ai-analysis/generate', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrfToken }
+            });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
                 alert('AI analysis failed: ' + (err.detail || resp.statusText));

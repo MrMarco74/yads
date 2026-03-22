@@ -24,6 +24,9 @@
     {
       "path": "../yads-website",
     },
+    {
+      "path": "../yads-addons",
+    },
   ],
   "settings": {
     "makefile.configureOnOpen": false,

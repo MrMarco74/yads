@@ -12,10 +12,18 @@ from yads.auth.deps import get_current_user_html, RoleChecker, get_current_activ
 from yads.models import User, Target, ScanResult, ModuleState, SecurityTrend, SystemConfig
 from yads.api.templating import templates
 from yads.api.utils.update_checker import UpdateService
-from yads.modules.compliance import ComplianceScorer
-from yads.core.scoring import calculate_target_score, get_grade
 
 logger = logging.getLogger(__name__)
+
+try:
+    from yads.modules.compliance import ComplianceScorer
+except ImportError:
+    logger.warning("Optional module yads.modules.compliance not found. Compliance features will be limited.")
+    class ComplianceScorer:
+        def calculate_score(self, *args, **kwargs):
+            return {"score": 0, "grade": "N/A", "passing_controls": 0, "failures": []}
+
+from yads.core.scoring import calculate_target_score, get_grade
 
 
 def _get_redis_queue_len(session, tenant_id) -> int:

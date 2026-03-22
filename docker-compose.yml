@@ -23,6 +23,10 @@ services:
     container_name: yads-api
     command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
+    volumes:
+      - ./yads:/app/yads
+      - ./scripts:/app/scripts
+      - ./yads_module_signing.key:/run/secrets/yads_module_signing.key:ro
     ports:
       # YADS_DIRECT_PORT=8000 when nginx is active (nginx handles external port).
       # YADS_DIRECT_PORT=API_PORT when no nginx (yads-api is directly reachable).
@@ -39,6 +43,7 @@ services:
       - YADS_ADMIN_PASS=${YADS_ADMIN_PASS}
       - SETUP_COMPLETE=${SETUP_COMPLETE:-true}
       - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
+      - MODULE_SIGNING_PRIVATE_KEY_PATH=/run/secrets/yads_module_signing.key
     depends_on:
       - db
       - redis
@@ -55,6 +60,9 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
+    volumes:
+      - ./yads:/app/yads
+      - ./scripts:/app/scripts
     depends_on:
       - db
       - redis

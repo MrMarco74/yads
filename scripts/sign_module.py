@@ -82,16 +82,23 @@ def cmd_sign(args: argparse.Namespace) -> None:
         print(f"ERROR: {zip_path} does not exist", file=sys.stderr)
         sys.exit(1)
 
+    zip_bytes = zip_path.read_bytes()
     key = _load_private_key(Path(args.key))
-    digest = hashlib.sha256(zip_path.read_bytes()).digest()
+    digest = hashlib.sha256(zip_bytes).digest()
     raw_sig = key.sign(digest)
     sig_b64 = base64.urlsafe_b64encode(raw_sig).rstrip(b"=").decode()
 
     print(f"Module : {zip_path}")
-    print(f"SHA-256: {hashlib.sha256(zip_path.read_bytes()).hexdigest()}")
+    print(f"SHA-256: {hashlib.sha256(zip_bytes).hexdigest()}")
     print()
     print("Signature (pass as 'signature' form field on upload):")
     print(sig_b64)
+
+    # Write .sig file if requested (useful in CI pipelines)
+    if args.out_sig:
+        sig_path = Path(args.out_sig)
+        sig_path.write_text(sig_b64)
+        print(f"\nSignature written to: {sig_path}")
 
 
 def cmd_verify(args: argparse.Namespace) -> None:
@@ -123,6 +130,8 @@ def main() -> None:
     sg.set_defaults(func=cmd_sign)
     sg.add_argument("zip", help="Path to module ZIP")
     sg.add_argument("--key", required=True, help="Path to Ed25519 private key (PEM)")
+    sg.add_argument("--out-sig", default=None, metavar="FILE",
+                    help="Write the base64 signature to FILE (e.g. my_module.sig) — useful for CI pipelines")
 
     vf = sub.add_parser("--verify", help="Verify a signature")
     vf.set_defaults(func=cmd_verify)

@@ -62,20 +62,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Legacy format fallback (old stub data) -->
-                {% elif wb.get('snapshots_found') %}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {% if wb.latest %}<div class="bg-gray-900/40 rounded p-3 text-center">
-                        <div class="text-xs text-gray-500">Latest snapshot</div>
-                        <div class="text-gray-200 text-sm">{{ wb.latest.timestamp[:4] }}-{{ wb.latest.timestamp[4:6] }}-{{ wb.latest.timestamp[6:8] if wb.latest.timestamp|length >= 8 else wb.latest.timestamp }}</div>
-                    </div>{% endif %}
-                    {% if wb.earliest %}<div class="bg-gray-900/40 rounded p-3 text-center">
-                        <div class="text-xs text-gray-500">First seen</div>
-                        <div class="text-gray-200 text-sm">{{ wb.earliest.timestamp[:4] }}-{{ wb.earliest.timestamp[4:6] }}-{{ wb.earliest.timestamp[6:8] if wb.earliest.timestamp|length >= 8 else wb.earliest.timestamp }}</div>
-                    </div>{% endif %}
-                </div>
-                {% endif %}
-
                 {% if wayback_result.log_content %}
                 <details class="mt-4 border border-gray-700/50 rounded-lg group">
                     <summary class="cursor-pointer p-3 bg-gray-900/50 font-semibold text-gray-400 hover:text-gray-200 flex items-center select-none text-xs">
@@ -88,6 +74,18 @@
                 </details>
                 {% endif %}
 
+                <!-- Legacy format fallback (old stub data) -->
+                {% elif wb.get('snapshots_found') %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% if wb.latest %}<div class="bg-gray-900/40 rounded p-3 text-center">
+                        <div class="text-xs text-gray-500">Latest snapshot</div>
+                        <div class="text-gray-200 text-sm">{{ wb.latest.timestamp[:4] }}-{{ wb.latest.timestamp[4:6] }}-{{ wb.latest.timestamp[6:8] if wb.latest.timestamp|length >= 8 else wb.latest.timestamp }}</div>
+                    </div>{% endif %}
+                    {% if wb.earliest %}<div class="bg-gray-900/40 rounded p-3 text-center">
+                        <div class="text-xs text-gray-500">First seen</div>
+                        <div class="text-gray-200 text-sm">{{ wb.earliest.timestamp[:4] }}-{{ wb.earliest.timestamp[4:6] }}-{{ wb.earliest.timestamp[6:8] if wb.earliest.timestamp|length >= 8 else wb.earliest.timestamp }}</div>
+                    </div>{% endif %}
+                </div>
                 {% else %}
                 <p class="text-gray-500 italic">No Wayback data available (Run Wayback Scanner).</p>
                 {% endif %}
