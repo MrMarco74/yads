@@ -1019,6 +1019,32 @@ async def worker_monitor_page(
     })
 
 
+@ui_router.post("/reset-stuck", response_class=JSONResponse)
+async def reset_stuck_targets_now(
+    request: Request,
+    user: User = Depends(PlatformAdminChecker()),
+):
+    """Immediately reset all targets stuck in 'running' state (no active Celery task)."""
+    from sqlmodel import Session, select, text as sql_text
+    from datetime import datetime, timedelta, timezone
+    from yads.database import engine
+    from yads.models import Target
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=45)
+    cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+
+    with Session(engine) as session:
+        result = session.execute(sql_text(
+            "UPDATE target SET scan_status='idle', scan_progress=NULL "
+            "WHERE scan_status = 'running' "
+            "AND created_at < :cutoff"
+        ), {"cutoff": cutoff_str})
+        session.commit()
+        reset_count = result.rowcount
+
+    return JSONResponse({"reset": reset_count, "cutoff_minutes": 45})
+
+
 @ui_router.get("/celery-nodes", response_class=HTMLResponse)
 async def celery_nodes_partial(
     request: Request,

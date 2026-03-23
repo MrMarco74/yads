@@ -13,18 +13,20 @@ import json
 import logging
 import socket
 import struct
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Annotated, Any, Dict, List, Optional
 
 import requests
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
 
+JSON_CONTENT_TYPE = "application/json"
+
 from yads.api.templating import templates
 from yads.auth.deps import RoleChecker
 from yads.database import get_session
-from yads.models import IntegrationConfig, ScanResult, Target, User
+from yads.models import IntegrationConfig, ScanResult, Target, User, SecurityFinding
 
 logger = logging.getLogger(__name__)
 
@@ -67,28 +69,35 @@ SEVERITY_TO_CEF = {"critical": 10, "high": 8, "medium": 5, "low": 3, "info": 1}
 SEVERITY_TO_ECS = {"critical": "critical", "high": "high", "medium": "medium", "low": "low", "info": "informational"}
 
 
-def _finding_to_cef(finding: Dict, target_domain: str, vendor: str = "YADS") -> str:
+def _finding_to_cef(finding: Dict, target_domain: str, vendor: str = "YADS", status: str = "open") -> str:
     """Format a finding as a CEF (Common Event Format) syslog line."""
     severity = finding.get("severity", "info")
     cef_sev = SEVERITY_TO_CEF.get(severity, 1)
     title = finding.get("title", "Security Finding").replace("|", "/").replace("\\", "/")
     desc = finding.get("description", "").replace("|", "/").replace("\\", "/")[:200]
-    now = datetime.utcnow().strftime("%b %d %H:%M:%S")
+    now = datetime.now(timezone.utc).strftime("%b %d %H:%M:%S")
+    
+    # Translate status to CEF outcome
+    outcome = status
+    if status in ("fixed", "false_positive"):
+        outcome = "resolved"
+    
     header = f"CEF:0|{vendor}|YADS|1.0|{severity.upper()}|{title}|{cef_sev}|"
-    ext = f"dhost={target_domain} msg={desc} outcome={severity}"
+    ext = f"dhost={target_domain} msg={desc} outcome={outcome} cs1Label=TriageStatus cs1={status}"
     return f"{now} {target_domain} {header}{ext}"
 
 
-def _finding_to_ecs(finding: Dict, target_domain: str) -> Dict:
+def _finding_to_ecs(finding: Dict, target_domain: str, status: str = "open") -> Dict:
     """Format a finding as an ECS (Elastic Common Schema) event."""
+    outcome = "success" if status in ("fixed", "false_positive") else "unknown"
     return {
-        "@timestamp": datetime.utcnow().isoformat() + "Z",
+        "@timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "event": {
             "kind": "alert",
             "category": ["vulnerability"],
             "type": ["info"],
             "severity": SEVERITY_TO_CEF.get(finding.get("severity", "info"), 1),
-            "outcome": "unknown",
+            "outcome": outcome,
         },
         "vulnerability": {
             "severity": SEVERITY_TO_ECS.get(finding.get("severity", "info"), "informational"),
@@ -97,7 +106,11 @@ def _finding_to_ecs(finding: Dict, target_domain: str) -> Dict:
         },
         "host": {"name": target_domain},
         "message": finding.get("title", ""),
-        "labels": {"source": "yads", "severity": finding.get("severity", "info")},
+        "labels": {
+            "source": "yads", 
+            "severity": finding.get("severity", "info"),
+            "status": status
+        },
     }
 
 
@@ -105,8 +118,8 @@ def _finding_to_ecs(finding: Dict, target_domain: str) -> Dict:
 # Integration push functions
 # ─────────────────────────────────────────
 
-def _push_to_jira(config: Dict, finding: Dict, target_domain: str) -> Optional[str]:
-    """Create a Jira issue from a finding. Returns issue key or None."""
+def _push_to_jira(config: Dict, finding: Dict, target_domain: str, status: str = "open", ticket_ref: str = None) -> Optional[str]:
+    """Create or update a Jira issue. Returns issue key."""
     base_url = config.get("base_url", "").rstrip("/")
     email = config.get("email", "")
     api_token = config.get("api_token", "")
@@ -116,6 +129,39 @@ def _push_to_jira(config: Dict, finding: Dict, target_domain: str) -> Optional[s
     if not all([base_url, email, api_token, project_key]):
         return None
 
+    auth = (email, api_token)
+    headers = {"Accept": JSON_CONTENT_TYPE, "Content-Type": JSON_CONTENT_TYPE}
+
+    # 1. Update existing ticket if ref provided
+    if ticket_ref:
+        try:
+            # Add a comment about the status update
+            comment_payload = {
+                "body": f"YADS Status Update: Finding is now '{status}'. Target: {target_domain}"
+            }
+            requests.post(
+                f"{base_url}/rest/api/3/issue/{ticket_ref}/comment",
+                json=comment_payload, auth=auth, headers=headers, timeout=TIMEOUT
+            )
+
+            # If closed, transition to "Done" (ID 4 is standard, but we'll try by name first)
+            if status in ("fixed", "false_positive"):
+                # Fetch available transitions
+                trans_resp = requests.get(f"{base_url}/rest/api/3/issue/{ticket_ref}/transitions", auth=auth, headers=headers, timeout=TIMEOUT)
+                if trans_resp.status_code == 200:
+                    transitions = trans_resp.json().get("transitions", [])
+                    done_id = next((t["id"] for t in transitions if t["name"].lower() in ("done", "closed", "resolved")), None)
+                    if done_id:
+                        requests.post(
+                            f"{base_url}/rest/api/3/issue/{ticket_ref}/transitions",
+                            json={"transition": {"id": done_id}}, auth=auth, headers=headers, timeout=TIMEOUT
+                        )
+            return ticket_ref
+        except Exception as e:
+            logger.error(f"Jira update error for {ticket_ref}: {e}")
+            return None
+
+    # 2. Create new ticket
     severity = finding.get("severity", "info")
     priority_map = {"critical": "Highest", "high": "High", "medium": "Medium", "low": "Low", "info": "Lowest"}
 
@@ -140,39 +186,46 @@ def _push_to_jira(config: Dict, finding: Dict, target_domain: str) -> Optional[s
     }
 
     try:
-        r = requests.post(
-            f"{base_url}/rest/api/3/issue",
-            json=payload,
-            auth=(email, api_token),
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
-            timeout=TIMEOUT,
-        )
+        r = requests.post(f"{base_url}/rest/api/3/issue", json=payload, auth=auth, headers=headers, timeout=TIMEOUT)
         if r.status_code in (200, 201):
             return r.json().get("key")
-        logger.warning(f"Jira create failed: {r.status_code} {r.text[:200]}")
     except Exception as e:
         logger.error(f"Jira push error: {e}")
     return None
 
 
-def _push_to_github(config: Dict, finding: Dict, target_domain: str) -> Optional[str]:
-    """Create a GitHub issue from a finding. Returns issue URL or None."""
+def _push_to_github(config: Dict, finding: Dict, target_domain: str, status: str = "open", ticket_ref: str = None) -> Optional[str]:
+    """Create or close a GitHub issue."""
     token = config.get("token", "")
-    repo = config.get("repo", "")  # "owner/repo"
+    repo = config.get("repo", "")
     labels = config.get("labels", ["security", "yads"])
 
     if not all([token, repo]):
         return None
 
-    severity = finding.get("severity", "info")
-    body = (
-        f"**Severity:** {severity}\n"
-        f"**Target:** {target_domain}\n"
-        f"**Source:** YADS Security Scanner\n\n"
-        f"---\n\n"
-        f"{finding.get('description', '')}"
-    )
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "YADS-Security-Scanner/1.0",
+    }
 
+    # 1. Update/Close existing issue
+    if ticket_ref:
+        try:
+            issue_id = ticket_ref.rstrip("/").split("/")[-1]
+            comment_url = f"https://api.github.com/repos/{repo}/issues/{issue_id}/comments"
+            requests.post(comment_url, json={"body": f"YADS Status Update: Finding is now '{status}'."}, headers=headers, timeout=TIMEOUT)
+
+            if status in ("fixed", "false_positive"):
+                requests.patch(f"https://api.github.com/repos/{repo}/issues/{issue_id}", json={"state": "closed"}, headers=headers, timeout=TIMEOUT)
+            return ticket_ref
+        except Exception as e:
+            logger.error(f"GitHub update error: {e}")
+            return None
+
+    # 2. Create new issue
+    severity = finding.get("severity", "info")
+    body = f"**Severity:** {severity}\n**Target:** {target_domain}\n\n{finding.get('description', '')}"
     payload = {
         "title": f"[YADS/{target_domain}] {finding.get('title', 'Security Finding')}",
         "body": body,
@@ -180,22 +233,27 @@ def _push_to_github(config: Dict, finding: Dict, target_domain: str) -> Optional
     }
 
     try:
-        r = requests.post(
-            f"https://api.github.com/repos/{repo}/issues",
-            json=payload,
-            headers={
-                "Authorization": f"token {token}",
-                "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "YADS-Security-Scanner/1.0",
-            },
-            timeout=TIMEOUT,
-        )
+        r = requests.post(f"https://api.github.com/repos/{repo}/issues", json=payload, headers=headers, timeout=TIMEOUT)
         if r.status_code == 201:
             return r.json().get("html_url")
-        logger.warning(f"GitHub issue create failed: {r.status_code} {r.text[:200]}")
     except Exception as e:
         logger.error(f"GitHub push error: {e}")
     return None
+
+
+def _push_to_servicenow(config: Dict, finding: Dict, target_domain: str, status: str = "open", ticket_ref: str = None) -> Optional[str]:
+    """Skeleton for ServiceNow integration (Table API)."""
+    instance_url = config.get("instance_url", "").rstrip("/")
+    user = config.get("user", "")
+    pwd = config.get("password", "")
+    _ = config.get("table", "incident")
+
+    if not all([instance_url, user, pwd]):
+        return None
+    
+    # Placeholder: Implementation logic for ServiceNow status sync goes here
+    logger.info(f"ServiceNow Push (Skeleton): {target_domain} {finding.get('title')} -> {status}")
+    return ticket_ref or "SN-PLACEHOLDER"
 
 
 def _push_to_siem_syslog(config: Dict, cef_line: str) -> bool:
@@ -302,7 +360,7 @@ async def save_integration(
 
     if existing:
         existing.config = config
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(timezone.utc)
         existing.is_active = True
         session.add(existing)
     else:
@@ -352,6 +410,15 @@ async def push_finding_to_integration(
     finding = body.get("finding", {})
     target_domain = body.get("target_domain", "unknown")
 
+    # Fetch SecurityFinding if hash available
+    fhash = finding.get("finding_hash")
+    sf = None
+    if fhash:
+        sf = session.exec(select(SecurityFinding).where(SecurityFinding.finding_hash == fhash)).first()
+
+    status = sf.status if sf else "open"
+    ticket_ref = sf.ticket_ref if sf else None
+
     ic = session.exec(
         select(IntegrationConfig).where(
             IntegrationConfig.tenant_id == user.tenant_id,
@@ -367,22 +434,34 @@ async def push_finding_to_integration(
     result = None
 
     if integration_type == "jira":
-        result = _push_to_jira(config, finding, target_domain)
+        result = _push_to_jira(config, finding, target_domain, status=status, ticket_ref=ticket_ref)
+        if result and sf:
+            sf.ticket_ref = result
+            session.add(sf)
+            session.commit()
         return {"success": bool(result), "issue_key": result}
 
     elif integration_type == "github":
-        result = _push_to_github(config, finding, target_domain)
+        result = _push_to_github(config, finding, target_domain, status=status, ticket_ref=ticket_ref)
+        if result and sf:
+            sf.ticket_ref = result
+            session.add(sf)
+            session.commit()
         return {"success": bool(result), "issue_url": result}
 
     elif integration_type == "siem_syslog":
-        cef = _finding_to_cef(finding, target_domain)
+        cef = _finding_to_cef(finding, target_domain, status=status)
         ok = _push_to_siem_syslog(config, cef)
         return {"success": ok, "cef_line": cef}
 
     elif integration_type == "siem_http":
-        ecs = _finding_to_ecs(finding, target_domain)
+        ecs = _finding_to_ecs(finding, target_domain, status=status)
         ok = _push_to_siem_http(config, ecs)
         return {"success": ok}
+
+    elif integration_type == "servicenow":
+        result = _push_to_servicenow(config, finding, target_domain, status=status, ticket_ref=ticket_ref)
+        return {"success": bool(result), "ticket_ref": result}
 
     raise HTTPException(status_code=400, detail="Unknown integration type")
 
@@ -407,12 +486,19 @@ async def export_cef(
         .order_by(ScanResult.created_at.desc())
     ).all()
 
+    # Get triage status mapping
+    sf_statement = select(SecurityFinding).where(SecurityFinding.target_id == target_id)
+    sf_rows = session.exec(sf_statement).all()
+    sf_status_map = {row.finding_hash: row.status for row in sf_rows}
+
     lines = []
     for sr in scan_results:
         data = sr.data or {}
         for finding in data.get("findings", []):
             if finding.get("severity") not in ("info",):
-                lines.append(_finding_to_cef(finding, target.domain))
+                fhash = finding.get("finding_hash")
+                status = sf_status_map.get(fhash, "open")
+                lines.append(_finding_to_cef(finding, target.domain, status=status))
 
     return PlainTextResponse(
         content="\n".join(lines),
@@ -440,12 +526,19 @@ async def export_ecs(
         .order_by(ScanResult.created_at.desc())
     ).all()
 
+    # Get triage status mapping
+    sf_statement = select(SecurityFinding).where(SecurityFinding.target_id == target_id)
+    sf_rows = session.exec(sf_statement).all()
+    sf_status_map = {row.finding_hash: row.status for row in sf_rows}
+
     events = []
     for sr in scan_results:
         data = sr.data or {}
         for finding in data.get("findings", []):
             if finding.get("severity") not in ("info",):
-                events.append(_finding_to_ecs(finding, target.domain))
+                fhash = finding.get("finding_hash")
+                status = sf_status_map.get(fhash, "open")
+                events.append(_finding_to_ecs(finding, target.domain, status=status))
 
     return JR(
         content=events,

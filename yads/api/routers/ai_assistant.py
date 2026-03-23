@@ -300,20 +300,36 @@ def _normalize_findings(module: str, data: Dict) -> List[Dict]:
                 out.append({"title": issue, "severity": "medium", "description": ""})
 
     else:
-        # Fallback: scan for any nested "findings" or "issues" key
-        for key in ("issues", "vulnerabilities", "alerts"):
+        # Fallback: scan common finding-list keys used by custom add-ons
+        for key in ("issues", "vulnerabilities", "alerts", "results", "detections", "risks"):
             items = data.get(key, [])
             if isinstance(items, list):
                 for item in items:
                     if isinstance(item, dict):
-                        title = item.get("title") or item.get("issue") or item.get("name") or key
+                        title = (
+                            item.get("title") or item.get("issue") or item.get("name")
+                            or item.get("templateID") or item.get("id") or key
+                        )
                         out.append({
                             "title": str(title),
                             "severity": item.get("severity", "info"),
-                            "description": item.get("description", ""),
+                            "description": (
+                                item.get("description") or item.get("detail")
+                                or item.get("message") or ""
+                            ),
                         })
                 if out:
                     return out
+
+        # Last resort: if the module data itself has a top-level severity, treat
+        # the whole result as a single finding (e.g. simple boolean-result modules)
+        if data.get("vulnerable") or data.get("exposed") or data.get("risk"):
+            sev = data.get("severity", "medium")
+            out.append({
+                "title": data.get("title") or data.get("issue") or module,
+                "severity": sev if isinstance(sev, str) else "medium",
+                "description": data.get("description") or data.get("detail") or "",
+            })
 
     return out
 
@@ -836,7 +852,7 @@ _NL_SEVERITY_WORDS = {
     "moderate": "medium", "low": "low", "info": "info",
 }
 
-_NL_MODULE_WORDS = {
+_NL_MODULE_WORDS_STATIC = {
     "ssl": "ssl_scanner", "tls": "ssl_scanner", "certificate": "ssl_scanner",
     "dns": "dns_scanner", "subdomain": "dns_scanner",
     "email": "email_security", "spf": "email_security", "dkim": "email_security",
@@ -850,6 +866,29 @@ _NL_MODULE_WORDS = {
     "cloud": "cloud_scanner", "s3": "cloud_scanner", "bucket": "cloud_scanner",
     "axfr": "axfr_scanner", "zone": "axfr_scanner",
 }
+
+
+def _get_nl_module_words() -> Dict[str, str]:
+    """Build keyword→module_name map from static list + all registered modules."""
+    from yads.core.module_registry import REGISTRY
+    words = dict(_NL_MODULE_WORDS_STATIC)
+    for name, defn in REGISTRY.items():
+        # module_name itself as keyword
+        words[name.lower()] = name
+        # each word in the label (EN + DE), skip short/common words
+        for label in (defn.label, getattr(defn, "label_de", "")):
+            if not label:
+                continue
+            for word in re.split(r"[\s\-_/]+", label.lower()):
+                if len(word) >= 4 and word not in ("scan", "scanner", "check", "monitor", "analyzer"):
+                    words.setdefault(word, name)
+    return words
+
+
+def _get_all_module_names() -> List[str]:
+    """Return sorted list of all registered module names."""
+    from yads.core.module_registry import REGISTRY
+    return sorted(REGISTRY.keys())
 
 
 def _rule_based_nl_parse(query: str, lang: str = "en") -> Tuple[Dict, str]:
@@ -870,7 +909,7 @@ def _rule_based_nl_parse(query: str, lang: str = "en") -> Tuple[Dict, str]:
             break
 
     # Module
-    for word, mod in _NL_MODULE_WORDS.items():
+    for word, mod in _get_nl_module_words().items():
         if word in q:
             filters["module"] = mod
             parts.append(f"module={mod}")
@@ -890,11 +929,11 @@ def _rule_based_nl_parse(query: str, lang: str = "en") -> Tuple[Dict, str]:
 
 
 def _ai_nl_parse(provider: str, api_key: str, model: str, query: str, lang: str = "en") -> Optional[Dict]:
+    module_list = ", ".join(_get_all_module_names())
     system = (
         "You are a security data analyst. Parse the user's natural language query into "
         "a JSON filter object with optional keys: severity (critical/high/medium/low/info), "
-        "module (e.g. ssl_scanner, dns_scanner, email_security, http_headers, cookie_scanner, "
-        "cors_scanner, nuclei_scanner, port_scanner, web_analyzer, axfr_scanner), "
+        f"module (one of: {module_list}), "
         "domain_contains (string). Return ONLY valid JSON, no explanation."
         + _lang_instruction(lang)
     )

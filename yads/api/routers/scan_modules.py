@@ -1,11 +1,14 @@
 """
-Scan Module Management (#60)
+Extension Hub (#60 — successor to scan_modules / Plugin Manager)
 
 Admin interface for:
   - Viewing all registered scanner modules
   - Enabling/disabling modules per tenant
-  - Installing new modules via ZIP upload (platform admin only)
-  - Removing custom-installed modules (platform admin only)
+  - Installing new add-ons via individual ZIP or bundle ZIP upload (platform admin only)
+  - Removing custom-installed add-ons (platform admin only)
+  - Browsing the add-on store catalog (online + air-gap/embedded fallback)
+  - Checking for updates against the catalog
+  - Enterprise-gated — CE users see the locked placeholder page
 """
 import json
 import os
@@ -16,53 +19,115 @@ import zipfile
 from datetime import datetime
 from typing import Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from yads.api.templating import templates
+from yads.core.license import license_manager
 from yads.core.module_signing import compute_file_hash, recheck_file_integrity, sign_zip, verify_module_signature
 from yads.auth.deps import PlatformAdminChecker, RoleChecker, get_current_user_html
 from yads.core.module_registry import CATEGORIES, REGISTRY, ModuleDef, get_module_labels
 from yads.database import get_session
-from yads.models import InstalledModule, Tenant, TenantModuleConfig, User
+from yads.models import InstalledModule, SystemConfig, Tenant, TenantModuleConfig, User
 
-router = APIRouter(prefix="/scan-modules", tags=["scan-modules"])
+router = APIRouter(prefix="/addons", tags=["addons"])
 
-_CUSTOM_MODULES_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "modules", "custom"
+from yads.core.custom_modules_loader import (
+    load_installed_modules_from_db,
+    _register_installed_module,
+    _get_custom_module_filepath,
+    _CUSTOM_MODULES_DIR
 )
 
 CAT_LABELS = {c["id"]: c["label"] for c in CATEGORIES}
 CAT_COLORS = {c["id"]: c["color"] for c in CATEGORIES}
 
+# ---------------------------------------------------------------------------
+# Hardcoded fallback catalog (shown when online fetch and cached catalog both fail)
+# ---------------------------------------------------------------------------
+_FALLBACK_CATALOG = [
+    {
+        "module_name": "cookie_consent_audit",
+        "label": "Cookie Consent Audit",
+        "label_de": "Cookie-Einwilligung Audit",
+        "description": "Detects pre-consent tracking, dark patterns, and GDPR consent violations using dynamic browser analysis.",
+        "category": "compliance",
+        "version": "1.0.0",
+        "author": "YADS Security",
+        "tags": ["GDPR", "Compliance", "Cookies"],
+        "download_url": "https://yads-security.com/files/modules/cookie_consent_audit.zip",
+    },
+    {
+        "module_name": "data_residency_check",
+        "label": "Data Residency Check",
+        "label_de": "Datenspeicherort-Prüfung",
+        "description": "Identifies third-party data flows that cross jurisdictional boundaries, mapping CDN and analytics endpoints to their geographic locations.",
+        "category": "compliance",
+        "version": "1.0.0",
+        "author": "YADS Security",
+        "tags": ["GDPR", "Data Residency", "Privacy"],
+        "download_url": "https://yads-security.com/files/modules/data_residency_check.zip",
+    },
+    {
+        "module_name": "kubernetes_exposure",
+        "label": "Kubernetes Exposure Scanner",
+        "label_de": "Kubernetes Exposition-Scanner",
+        "description": "Scans for exposed Kubernetes API servers, dashboards, and management interfaces accessible from the public internet.",
+        "category": "exposure",
+        "version": "1.0.0",
+        "author": "YADS Security",
+        "tags": ["Kubernetes", "Container", "Cloud"],
+        "download_url": "https://yads-security.com/files/modules/kubernetes_exposure.zip",
+    },
+    {
+        "module_name": "third_party_risk",
+        "label": "Third-Party Risk Monitor",
+        "label_de": "Drittanbieter-Risiko-Monitor",
+        "description": "Evaluates the security posture of third-party scripts and services loaded by target web applications.",
+        "category": "threat",
+        "version": "1.0.0",
+        "author": "YADS Security",
+        "tags": ["Supply Chain", "Third Party", "Risk"],
+        "download_url": "https://yads-security.com/files/modules/third_party_risk.zip",
+    },
+    {
+        "module_name": "mobile_app_monitor",
+        "label": "Mobile App Monitor",
+        "label_de": "Mobile-App-Monitor",
+        "description": "Discovers associated mobile applications (iOS/Android), checks app store metadata and detects leaked API endpoints in app bundles.",
+        "category": "recon",
+        "version": "1.0.0",
+        "author": "YADS Security",
+        "tags": ["Mobile", "iOS", "Android", "OSINT"],
+        "download_url": "https://yads-security.com/files/modules/mobile_app_monitor.zip",
+    },
+]
+
+_CATALOG_ONLINE_URL = "https://yads-security.com/files/modules/catalog.json"
+_CATALOG_DB_KEY = "addon_store_catalog"
 
 
+# ---------------------------------------------------------------------------
+# Enterprise check helper
+# ---------------------------------------------------------------------------
+def _is_enterprise(session: Session) -> bool:
+    lic = session.get(SystemConfig, "license_key")
+    if not lic or not lic.value:
+        return False
+    return license_manager.verify(lic.value) is not None
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 def _get_enabled_map(session: Session, tenant_id: int) -> Dict[str, bool]:
     """Return {module_name: enabled} for a tenant. Missing rows = True (enabled)."""
     rows = session.exec(
         select(TenantModuleConfig).where(TenantModuleConfig.tenant_id == tenant_id)
     ).all()
     return {r.module_name: r.enabled for r in rows}
-
-
-def _get_custom_module_filepath(im: InstalledModule) -> Optional[str]:
-    """Derive the physical file path from an InstalledModule's module_path.
-
-    module_path format: "yads.modules.custom.<stem>:<ClassName>"
-    Returns the expected file path, or None if the format is unexpected.
-    """
-    try:
-        pkg_part = im.module_path.split(":")[0]  # "yads.modules.custom.my_scanner"
-        parts = pkg_part.split(".")
-        # Reconstruct relative to _CUSTOM_MODULES_DIR
-        if len(parts) >= 4 and parts[0] == "yads" and parts[1] == "modules" and parts[2] == "custom":
-            filename = parts[3] + ".py"
-            return os.path.join(_CUSTOM_MODULES_DIR, filename)
-    except Exception:
-        pass
-    return None
 
 
 def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]:
@@ -100,8 +165,6 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
         file_missing = filepath is not None and not os.path.exists(filepath)
 
         # Skip intentionally deleted modules (inactive AND file not missing).
-        # Only show inactive modules when the file is missing (auto-deactivated
-        # by the startup health check), so the admin can re-upload.
         if not im.is_active and not file_missing:
             continue
 
@@ -130,33 +193,222 @@ def _build_module_rows(session: Session, tenant_id: Optional[int]) -> List[Dict]
     return rows
 
 
+def _fetch_catalog(session: Session) -> List[Dict]:
+    """Return catalog: try online → DB cache → hardcoded fallback."""
+    # 1. Try online
+    try:
+        resp = httpx.get(_CATALOG_ONLINE_URL, timeout=5.0, follow_redirects=True)
+        if resp.status_code == 200:
+            data = resp.json()
+            addons = data.get("addons", data) if isinstance(data, dict) else data
+            if isinstance(addons, list) and addons:
+                # Persist to DB so future page loads use the latest version
+                try:
+                    cached = session.get(SystemConfig, _CATALOG_DB_KEY)
+                    if cached:
+                        cached.value = json.dumps(addons)
+                    else:
+                        session.add(SystemConfig(key=_CATALOG_DB_KEY, value=json.dumps(addons)))
+                    session.commit()
+                except Exception:
+                    pass
+                return addons
+    except Exception:
+        pass
+
+    # 2. Try DB cache (from last bundle upload)
+    cached = session.get(SystemConfig, _CATALOG_DB_KEY)
+    if cached and cached.value:
+        try:
+            data = json.loads(cached.value)
+            addons = data.get("addons", data) if isinstance(data, dict) else data
+            if isinstance(addons, list) and addons:
+                return addons
+        except Exception:
+            pass
+
+    # 3. Hardcoded fallback
+    return _FALLBACK_CATALOG
+
+
+def _install_single_zip(
+    content: bytes,
+    signature: Optional[str],
+    user: User,
+    session: Session,
+    tmpdir: str,
+) -> Dict:
+    """
+    Install a single module ZIP. Returns a dict with install result info.
+    Raises HTTPException on validation errors.
+    """
+    if not signature:
+        signature = sign_zip(content)
+    verify_module_signature(content, signature)
+
+    zip_path = os.path.join(tmpdir, "upload.zip")
+    with open(zip_path, "wb") as f:
+        f.write(content)
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        resolved_tmp = os.path.realpath(tmpdir)
+        for member in zf.namelist():
+            member_path = os.path.realpath(os.path.join(tmpdir, member))
+            if not member_path.startswith(resolved_tmp + os.sep):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Malicious ZIP: path traversal in member '{member}'"
+                )
+        zf.extractall(tmpdir)
+
+    manifest_path = os.path.join(tmpdir, "module_manifest.json")
+    if not os.path.exists(manifest_path):
+        raise HTTPException(status_code=400, detail="module_manifest.json not found in ZIP")
+
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+
+    required_fields = ["module_name", "label", "module_file", "class_name"]
+    for field in required_fields:
+        if field not in manifest:
+            raise HTTPException(status_code=400, detail=f"Missing field in manifest: {field}")
+
+    module_name = manifest["module_name"]
+    _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+    if not _IDENT_RE.match(module_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid module_name '{module_name}': must be a valid Python identifier."
+        )
+    class_name = manifest["class_name"]
+    if not _IDENT_RE.match(class_name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid class_name '{class_name}': must be a valid Python identifier."
+        )
+
+    if module_name in REGISTRY:
+        raise HTTPException(status_code=409, detail=f"Module '{module_name}' already exists in registry")
+
+    existing_installed = session.exec(
+        select(InstalledModule).where(InstalledModule.module_name == module_name)
+    ).first()
+    is_update = existing_installed and existing_installed.is_active
+
+    # Reject ZIPs that contain executable setup scripts (RCE prevention)
+    for setup_file in ["setup.py", "setup.sh"]:
+        if os.path.exists(os.path.join(tmpdir, setup_file)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Module ZIP must not contain '{setup_file}'. "
+                       "Setup scripts are not executed for security reasons."
+            )
+
+    module_file = manifest["module_file"]
+    if (os.sep in module_file or "/" in module_file or "\\" in module_file
+            or not module_file.endswith(".py") or module_file.startswith(".")):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid module_file '{module_file}': must be a plain .py filename with no path separators."
+        )
+
+    src = os.path.join(tmpdir, module_file)
+    if not os.path.exists(src):
+        raise HTTPException(status_code=400, detail=f"Module file '{module_file}' not found in ZIP")
+
+    os.makedirs(_CUSTOM_MODULES_DIR, exist_ok=True)
+    dest = os.path.join(_CUSTOM_MODULES_DIR, module_file)
+    shutil.copy2(src, dest)
+
+    module_path = f"yads.modules.custom.{module_file.replace('.py', '')}:{manifest['class_name']}"
+
+    im = existing_installed or InstalledModule()
+    im.module_name = module_name
+    im.label = manifest.get("label", module_name)
+    im.label_de = manifest.get("label_de", manifest.get("label", module_name))
+    im.category = manifest.get("category", "active")
+    im.version = manifest.get("version", "1.0.0")
+    im.author = manifest.get("author", "")
+    im.description = manifest.get("description", "")
+    im.module_path = module_path
+    im.requires_http = manifest.get("requires_http", False)
+    im.requires_https = manifest.get("requires_https", False)
+    im.default_on = manifest.get("default_on", False)
+    im.finding_module = manifest.get("finding_module", True)
+    im.extractor = manifest.get("extractor", "generic")
+    im.passive = manifest.get("passive", True)
+    im.installed_at = datetime.utcnow()
+    im.installed_by = user.id
+    im.is_active = True
+    im.setup_log = None
+    im.signature = signature
+    im.file_hash = compute_file_hash(dest)
+
+    session.add(im)
+    session.commit()
+    session.refresh(im)
+
+    # Disable for all existing tenants by default
+    tenants_all = session.exec(select(Tenant)).all()
+    for _t in tenants_all:
+        _existing_cfg = session.exec(
+            select(TenantModuleConfig).where(
+                TenantModuleConfig.tenant_id == _t.id,
+                TenantModuleConfig.module_name == module_name,
+            )
+        ).first()
+        if not _existing_cfg:
+            session.add(TenantModuleConfig(tenant_id=_t.id, module_name=module_name, enabled=False))
+    session.commit()
+
+    _register_installed_module(im)
+
+    return {
+        "module_name": module_name,
+        "label": im.label,
+        "version": im.version,
+        "updated": is_update,
+    }
+
+
 # ---------------------------------------------------------------------------
-# GET /scan-modules/
+# GET /addons/ — main page
 # ---------------------------------------------------------------------------
 @router.get("/", response_class=HTMLResponse)
-async def scan_modules_view(
+async def addons_view(
     request: Request,
     session: Session = Depends(get_session),
     user: User = Depends(PlatformAdminChecker()),
-    tenant_id: Optional[int] = None,
-    category: Optional[str] = None,
 ):
-    # Route is behind PlatformAdminChecker — always true here
-    is_platform_admin = True
+    # Enterprise gate
+    enterprise = _is_enterprise(session)
+    if not enterprise:
+        catalog = _fetch_catalog(session)
+        return templates.TemplateResponse("addons_locked.html", {
+            "request": request,
+            "user": user,
+            "catalog": catalog,
+        })
 
-    # Tenant list (platform admin sees all)
-    if is_platform_admin:
-        tenants = session.exec(select(Tenant).order_by(Tenant.name)).all()
-        active_tenant_id = tenant_id or (tenants[0].id if tenants else None)
-    else:
-        tenants = []
-        active_tenant_id = user.tenant_id
+    modules = _build_module_rows(session, tenant_id=None)
 
-    modules = _build_module_rows(session, active_tenant_id)
-    if category:
-        modules = [m for m in modules if m["category"] == category]
+    # Catalog for store section
+    catalog = _fetch_catalog(session)
 
-    # Group by category in defined order
+    # Build update map: catalog_version by module_name
+    catalog_version_map = {a["module_name"]: a.get("version", "0.0.0") for a in catalog}
+
+    # Annotate installed custom modules with update_available
+    installed_custom = [m for m in modules if m.get("custom")]
+    for m in installed_custom:
+        cat_ver = catalog_version_map.get(m["name"])
+        if cat_ver and m.get("version") and _version_gt(cat_ver, m["version"]):
+            m["update_available"] = True
+            m["catalog_version"] = cat_ver
+        else:
+            m["update_available"] = False
+
+    # Group by category
     cat_order = [c["id"] for c in CATEGORIES]
     grouped: list = []
     for cat in CATEGORIES:
@@ -185,22 +437,21 @@ async def scan_modules_view(
         "key_path_name": os.path.basename(_s.MODULE_SIGNING_PRIVATE_KEY_PATH) if _s.MODULE_SIGNING_PRIVATE_KEY_PATH else None,
     }
 
-    return templates.TemplateResponse("scan_modules.html", {
+    return templates.TemplateResponse("addons.html", {
         "request": request,
         "user": user,
         "modules": modules,
-        "grouped_modules": grouped,
-        "tenants": tenants,
-        "active_tenant_id": active_tenant_id,
-        "selected_category": category,
         "categories": CATEGORIES,
-        "is_platform_admin": is_platform_admin,
+        "is_platform_admin": True,
         "signing_status": signing_status,
+        "catalog": catalog,
+        "is_enterprise": enterprise,
+        "signing_info": signing_status,
     })
 
 
 # ---------------------------------------------------------------------------
-# POST /scan-modules/toggle — enable/disable a module for a tenant
+# POST /addons/toggle — enable/disable a module for a tenant
 # ---------------------------------------------------------------------------
 @router.post("/toggle")
 async def toggle_module(
@@ -211,7 +462,6 @@ async def toggle_module(
     module_name: str = Form(...),
     enabled: bool = Form(...),
 ):
-
     existing = session.exec(
         select(TenantModuleConfig).where(
             TenantModuleConfig.tenant_id == tenant_id,
@@ -233,12 +483,12 @@ async def toggle_module(
         ))
     session.commit()
 
-    redirect_url = f"/scan-modules/?tenant_id={tenant_id}"
+    redirect_url = f"/addons/?tenant_id={tenant_id}"
     return RedirectResponse(redirect_url, status_code=303)
 
 
 # ---------------------------------------------------------------------------
-# POST /scan-modules/preview — parse manifest from ZIP, no install (platform admin)
+# POST /addons/preview — parse manifest from ZIP, no install (platform admin)
 # ---------------------------------------------------------------------------
 @router.post("/preview")
 async def preview_module(
@@ -251,8 +501,8 @@ async def preview_module(
         raise HTTPException(status_code=400, detail="Only ZIP files are accepted")
 
     content = await module_zip.read()
-    if len(content) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="ZIP file too large (max 20 MB)")
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="ZIP file too large (max 50 MB)")
 
     tmpdir = tempfile.mkdtemp(prefix="yads_preview_")
     try:
@@ -263,8 +513,24 @@ async def preview_module(
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 names = zf.namelist()
+
+                # --- Bundle detection ---
+                if "bundle_manifest.json" in names:
+                    with zf.open("bundle_manifest.json") as bm:
+                        bundle_manifest = json.load(bm)
+                    modules_list = bundle_manifest.get("modules", [])
+                    return JSONResponse({
+                        "is_bundle": True,
+                        "bundle_version": bundle_manifest.get("bundle_version", "1.0.0"),
+                        "yads_min_version": bundle_manifest.get("yads_min_version", ""),
+                        "modules": modules_list,
+                        "files_in_zip": names,
+                        "warnings": [],
+                    })
+
+                # --- Single module ---
                 if "module_manifest.json" not in names:
-                    raise HTTPException(status_code=400, detail="module_manifest.json not found in ZIP")
+                    raise HTTPException(status_code=400, detail="module_manifest.json not found in ZIP (and no bundle_manifest.json either)")
                 with zf.open("module_manifest.json") as mf:
                     manifest = json.load(mf)
         except zipfile.BadZipFile:
@@ -280,7 +546,6 @@ async def preview_module(
         if not _IDENT_RE.match(module_name):
             raise HTTPException(status_code=400, detail=f"Invalid module_name '{module_name}'")
 
-        # Check conflicts
         already_installed = module_name in REGISTRY
         existing_db = session.exec(
             select(InstalledModule).where(InstalledModule.module_name == module_name, InstalledModule.is_active == True)
@@ -293,6 +558,7 @@ async def preview_module(
             warnings.append(f"Module '{module_name}' is already installed (v{existing_db.version}). Re-uploading will replace it.")
 
         return JSONResponse({
+            "is_bundle": False,
             "module_name": module_name,
             "label": manifest.get("label", module_name),
             "label_de": manifest.get("label_de", ""),
@@ -315,35 +581,43 @@ async def preview_module(
 
 
 # ---------------------------------------------------------------------------
-# POST /scan-modules/upload — install new module from ZIP (platform admin)
+# Shared install helper — used by /upload and /{module_name}/update
 # ---------------------------------------------------------------------------
-@router.post("/upload")
-async def upload_module(
-    request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(PlatformAdminChecker()),
-    module_zip: UploadFile = File(...),
-    signature: Optional[str] = Form(None),
+async def _install_zip_bytes(
+    content: bytes,
+    filename: str,
+    session: Session,
+    user,
+    allow_update: bool = False,
+    signature: Optional[str] = None,
 ):
-    if not module_zip.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Only ZIP files are accepted")
-
     tmpdir = tempfile.mkdtemp(prefix="yads_module_")
     try:
         zip_path = os.path.join(tmpdir, "upload.zip")
-        content = await module_zip.read()
-
-        # Auto-sign if private key is configured and no signature was supplied
-        if not signature:
-            signature = sign_zip(content)
-
-        verify_module_signature(content, signature)
-
         with open(zip_path, "wb") as f:
             f.write(content)
 
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                names = zf.namelist()
+                is_bundle = "bundle_manifest.json" in names
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="Invalid ZIP file")
+
+        # ----------------------------------------------------------------
+        # BUNDLE path
+        # ----------------------------------------------------------------
+        if is_bundle:
+            return await _handle_bundle_upload(content, zip_path, tmpdir, user, session)
+
+        # ----------------------------------------------------------------
+        # SINGLE MODULE path
+        # ----------------------------------------------------------------
+        if not signature:
+            signature = sign_zip(content)
+        verify_module_signature(content, signature)
+
         with zipfile.ZipFile(zip_path, "r") as zf:
-            # Zip slip protection: reject members that escape tmpdir
             resolved_tmp = os.path.realpath(tmpdir)
             for member in zf.namelist():
                 member_path = os.path.realpath(os.path.join(tmpdir, member))
@@ -354,7 +628,6 @@ async def upload_module(
                     )
             zf.extractall(tmpdir)
 
-        # Read manifest
         manifest_path = os.path.join(tmpdir, "module_manifest.json")
         if not os.path.exists(manifest_path):
             raise HTTPException(status_code=400, detail="module_manifest.json not found in ZIP")
@@ -368,8 +641,6 @@ async def upload_module(
                 raise HTTPException(status_code=400, detail=f"Missing field in manifest: {field}")
 
         module_name = manifest["module_name"]
-
-        # Validate module_name and class_name are safe Python identifiers
         _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
         if not _IDENT_RE.match(module_name):
             raise HTTPException(
@@ -383,16 +654,15 @@ async def upload_module(
                 detail=f"Invalid class_name '{class_name}': must be a valid Python identifier."
             )
 
-        if module_name in REGISTRY:
+        if module_name in REGISTRY and not allow_update:
             raise HTTPException(status_code=409, detail=f"Module '{module_name}' already exists in registry")
 
         existing_installed = session.exec(
             select(InstalledModule).where(InstalledModule.module_name == module_name)
         ).first()
-        if existing_installed and existing_installed.is_active:
+        if existing_installed and existing_installed.is_active and not allow_update:
             raise HTTPException(status_code=409, detail=f"Module '{module_name}' is already installed")
 
-        # Reject ZIPs that contain executable setup scripts (RCE prevention)
         for setup_file in ["setup.py", "setup.sh"]:
             if os.path.exists(os.path.join(tmpdir, setup_file)):
                 raise HTTPException(
@@ -401,10 +671,7 @@ async def upload_module(
                            "Setup scripts are not executed for security reasons."
                 )
 
-        # Copy module file to custom modules dir
         module_file = manifest["module_file"]
-
-        # Prevent path traversal: module_file must be a plain filename ending in .py
         if (os.sep in module_file or "/" in module_file or "\\" in module_file
                 or not module_file.endswith(".py") or module_file.startswith(".")):
             raise HTTPException(
@@ -422,7 +689,6 @@ async def upload_module(
 
         module_path = f"yads.modules.custom.{module_file.replace('.py', '')}:{manifest['class_name']}"
 
-        # Register in DB
         im = existing_installed or InstalledModule()
         im.module_name = module_name
         im.label = manifest.get("label", module_name)
@@ -442,14 +708,13 @@ async def upload_module(
         im.installed_by = user.id
         im.is_active = True
         im.setup_log = None
-        im.signature = signature  # Ed25519 sig over ZIP (audit trail; None if unsigned)
-        im.file_hash = compute_file_hash(dest)  # SHA-256 of installed .py for runtime integrity
+        im.signature = signature
+        im.file_hash = compute_file_hash(dest)
 
         session.add(im)
         session.commit()
         session.refresh(im)
 
-        # Disable for all existing tenants by default — admin enables per tenant explicitly
         tenants_all = session.exec(select(Tenant)).all()
         for _t in tenants_all:
             _existing_cfg = session.exec(
@@ -462,17 +727,224 @@ async def upload_module(
                 session.add(TenantModuleConfig(tenant_id=_t.id, module_name=module_name, enabled=False))
         session.commit()
 
-        # Dynamically register in runtime registry
         _register_installed_module(im)
 
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    return RedirectResponse("/scan-modules/?installed=1", status_code=303)
+    return RedirectResponse("/addons/?installed=1", status_code=303)
 
 
 # ---------------------------------------------------------------------------
-# POST /scan-modules/{module_name}/delete — remove custom module (platform admin)
+# POST /addons/upload — install new add-on from ZIP or bundle (platform admin)
+# ---------------------------------------------------------------------------
+@router.post("/upload")
+async def upload_module(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+    module_zip: UploadFile = File(...),
+    signature: Optional[str] = Form(None),
+):
+    if not module_zip.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only ZIP files are accepted")
+    content = await module_zip.read()
+    return await _install_zip_bytes(content, module_zip.filename, session, user, allow_update=False, signature=signature)
+
+
+async def _handle_bundle_upload(
+    bundle_content: bytes,
+    zip_path: str,
+    tmpdir: str,
+    user: User,
+    session: Session,
+):
+    """Process a bundle ZIP: install each modules/*.zip, cache store_catalog.json."""
+    installed = []
+    errors = []
+
+    with zipfile.ZipFile(zip_path, "r") as outer_zf:
+        # Zip slip protection on outer bundle
+        resolved_tmp = os.path.realpath(tmpdir)
+        for member in outer_zf.namelist():
+            member_path = os.path.realpath(os.path.join(tmpdir, member))
+            if not member_path.startswith(resolved_tmp + os.sep):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Malicious bundle ZIP: path traversal in member '{member}'"
+                )
+
+        with outer_zf.open("bundle_manifest.json") as bm:
+            bundle_manifest = json.load(bm)
+
+        # Cache store_catalog.json if present
+        if "store_catalog.json" in outer_zf.namelist():
+            with outer_zf.open("store_catalog.json") as sc:
+                catalog_data = sc.read().decode("utf-8")
+            existing_cfg = session.get(SystemConfig, _CATALOG_DB_KEY)
+            if existing_cfg:
+                existing_cfg.value = catalog_data
+                session.add(existing_cfg)
+            else:
+                session.add(SystemConfig(key=_CATALOG_DB_KEY, value=catalog_data))
+            session.commit()
+
+        # Extract and install each module ZIP
+        module_entries = bundle_manifest.get("modules", [])
+        for entry in module_entries:
+            zip_file_path = entry.get("zip_file", "")
+            if not zip_file_path or zip_file_path not in outer_zf.namelist():
+                errors.append(f"Missing module zip in bundle: {zip_file_path}")
+                continue
+
+            mod_tmpdir = tempfile.mkdtemp(prefix="yads_bundle_mod_")
+            try:
+                # Extract inner zip
+                inner_zip_data = outer_zf.read(zip_file_path)
+                inner_zip_path = os.path.join(mod_tmpdir, "module.zip")
+                with open(inner_zip_path, "wb") as f:
+                    f.write(inner_zip_data)
+
+                # Check inner zip
+                try:
+                    with zipfile.ZipFile(inner_zip_path, "r") as inner_zf:
+                        inner_names = inner_zf.namelist()
+                        if "module_manifest.json" not in inner_names:
+                            errors.append(f"No module_manifest.json in {zip_file_path}")
+                            continue
+                        # Zip slip protection for inner zip
+                        resolved_mod_tmp = os.path.realpath(mod_tmpdir)
+                        for member in inner_names:
+                            mp = os.path.realpath(os.path.join(mod_tmpdir, member))
+                            if not mp.startswith(resolved_mod_tmp + os.sep):
+                                errors.append(f"Path traversal in inner zip {zip_file_path}: {member}")
+                                continue
+                        inner_zf.extractall(mod_tmpdir)
+                except zipfile.BadZipFile:
+                    errors.append(f"Invalid ZIP in bundle: {zip_file_path}")
+                    continue
+
+                # Sign and install
+                inner_sig = sign_zip(inner_zip_data)
+                try:
+                    verify_module_signature(inner_zip_data, inner_sig)
+                except Exception:
+                    # If signing is disabled/no key, proceed without sig check
+                    inner_sig = None
+
+                # Read manifest and install
+                mod_manifest_path = os.path.join(mod_tmpdir, "module_manifest.json")
+                with open(mod_manifest_path) as f:
+                    mod_manifest = json.load(f)
+
+                module_name = mod_manifest.get("module_name", "")
+                _IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+                if not module_name or not _IDENT_RE.match(module_name):
+                    errors.append(f"Invalid module_name in {zip_file_path}: '{module_name}'")
+                    continue
+
+                if module_name in REGISTRY:
+                    errors.append(f"Skipped '{module_name}': conflicts with built-in registry module")
+                    continue
+
+                module_file = mod_manifest.get("module_file", "")
+                if (not module_file or os.sep in module_file or "/" in module_file
+                        or not module_file.endswith(".py") or module_file.startswith(".")):
+                    errors.append(f"Invalid module_file in {zip_file_path}: '{module_file}'")
+                    continue
+
+                src = os.path.join(mod_tmpdir, module_file)
+                if not os.path.exists(src):
+                    errors.append(f"Module file '{module_file}' not found in {zip_file_path}")
+                    continue
+
+                # Check for setup scripts
+                bad = False
+                for setup_file in ["setup.py", "setup.sh"]:
+                    if os.path.exists(os.path.join(mod_tmpdir, setup_file)):
+                        errors.append(f"Rejected {zip_file_path}: contains '{setup_file}'")
+                        bad = True
+                        break
+                if bad:
+                    continue
+
+                os.makedirs(_CUSTOM_MODULES_DIR, exist_ok=True)
+                dest = os.path.join(_CUSTOM_MODULES_DIR, module_file)
+                shutil.copy2(src, dest)
+
+                module_path = f"yads.modules.custom.{module_file.replace('.py', '')}:{mod_manifest['class_name']}"
+
+                existing_installed = session.exec(
+                    select(InstalledModule).where(InstalledModule.module_name == module_name)
+                ).first()
+                is_update = existing_installed and existing_installed.is_active
+
+                im = existing_installed or InstalledModule()
+                im.module_name = module_name
+                im.label = mod_manifest.get("label", module_name)
+                im.label_de = mod_manifest.get("label_de", mod_manifest.get("label", module_name))
+                im.category = mod_manifest.get("category", "active")
+                im.version = mod_manifest.get("version", "1.0.0")
+                im.author = mod_manifest.get("author", "")
+                im.description = mod_manifest.get("description", "")
+                im.module_path = module_path
+                im.requires_http = mod_manifest.get("requires_http", False)
+                im.requires_https = mod_manifest.get("requires_https", False)
+                im.default_on = mod_manifest.get("default_on", False)
+                im.finding_module = mod_manifest.get("finding_module", True)
+                im.extractor = mod_manifest.get("extractor", "generic")
+                im.passive = mod_manifest.get("passive", True)
+                im.installed_at = datetime.utcnow()
+                im.installed_by = user.id
+                im.is_active = True
+                im.setup_log = None
+                im.signature = inner_sig
+                im.file_hash = compute_file_hash(dest)
+
+                session.add(im)
+                session.commit()
+                session.refresh(im)
+
+                tenants_all = session.exec(select(Tenant)).all()
+                for _t in tenants_all:
+                    _existing_cfg = session.exec(
+                        select(TenantModuleConfig).where(
+                            TenantModuleConfig.tenant_id == _t.id,
+                            TenantModuleConfig.module_name == module_name,
+                        )
+                    ).first()
+                    if not _existing_cfg:
+                        session.add(TenantModuleConfig(tenant_id=_t.id, module_name=module_name, enabled=False))
+                session.commit()
+
+                _register_installed_module(im)
+
+                installed.append({
+                    "module_name": module_name,
+                    "label": im.label,
+                    "version": im.version,
+                    "updated": is_update,
+                })
+            except HTTPException:
+                errors.append(f"Failed to install {zip_file_path}")
+            except Exception as exc:
+                errors.append(f"Error installing {zip_file_path}: {str(exc)[:120]}")
+            finally:
+                shutil.rmtree(mod_tmpdir, ignore_errors=True)
+
+    # Return a JSON summary for bundles (client shows it)
+    return JSONResponse({
+        "bundle": True,
+        "bundle_version": bundle_manifest.get("bundle_version", ""),
+        "installed": installed,
+        "errors": errors,
+        "total_installed": len(installed),
+        "total_errors": len(errors),
+    })
+
+
+# ---------------------------------------------------------------------------
+# POST /addons/{module_name}/delete — remove custom add-on (platform admin)
 # ---------------------------------------------------------------------------
 @router.post("/{module_name}/delete")
 async def delete_module(
@@ -491,11 +963,9 @@ async def delete_module(
     im.is_active = False
     session.add(im)
 
-    # Remove from runtime registry if present
     if module_name in REGISTRY:
         del REGISTRY[module_name]
 
-    # Delete TenantModuleConfig rows
     configs = session.exec(
         select(TenantModuleConfig).where(TenantModuleConfig.module_name == module_name)
     ).all()
@@ -503,68 +973,172 @@ async def delete_module(
         session.delete(cfg)
 
     session.commit()
-    return RedirectResponse("/scan-modules/", status_code=303)
+    return RedirectResponse("/addons/", status_code=303)
 
 
 # ---------------------------------------------------------------------------
-# Helper: Register an InstalledModule in the runtime REGISTRY
+# POST /addons/{module_name}/update — download latest from catalog & re-install
 # ---------------------------------------------------------------------------
-def _register_installed_module(im: InstalledModule) -> None:
-    """Add an installed module to the in-process REGISTRY dict."""
-    defn = ModuleDef(
-        name=im.module_name,
-        label=im.label,
-        label_de=im.label_de or im.label,
-        category=im.category,
-        module_path=im.module_path,
-        worker_note=f"Running {im.label}...",
-        requires_http=im.requires_http,
-        requires_https=im.requires_https,
-        default_on=im.default_on,
-        finding_module=im.finding_module,
-        extractor=im.extractor,
-        passive=getattr(im, "passive", True),
+@router.post("/{module_name}/update")
+async def update_module(
+    module_name: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+):
+    catalog = _fetch_catalog(session)
+    entry = next((a for a in catalog if a["module_name"] == module_name), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Module not found in catalog")
+    download_url = entry.get("download_url")
+    if not download_url:
+        raise HTTPException(status_code=400, detail="No download URL in catalog for this module")
+
+    try:
+        import httpx as _httpx
+        with _httpx.Client(timeout=30, follow_redirects=True) as client:
+            resp = client.get(download_url)
+            resp.raise_for_status()
+            zip_bytes = resp.content
+
+            # Try to fetch the accompanying .sig file (YADS official signature)
+            sig_url = download_url.rsplit(".zip", 1)[0] + ".sig"
+            catalog_signature: Optional[str] = None
+            try:
+                sig_resp = client.get(sig_url)
+                if sig_resp.status_code == 200:
+                    catalog_signature = sig_resp.text.strip()
+            except Exception:
+                pass  # No sig file — fall back to auto-sign
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Download fehlgeschlagen: {e}")
+
+    return await _install_zip_bytes(
+        zip_bytes, f"{module_name}.zip", session, user,
+        allow_update=True, signature=catalog_signature,
     )
-    REGISTRY[im.module_name] = defn
 
 
-def load_installed_modules_from_db(session: Session) -> None:
-    """Called at startup to register custom modules into the runtime REGISTRY.
+# ---------------------------------------------------------------------------
+# POST /addons/update-all — update every installed module that has a newer
+#                           version in the catalog
+# ---------------------------------------------------------------------------
+@router.post("/update-all")
+async def update_all_modules(
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+):
+    catalog = _fetch_catalog(session)
+    catalog_map = {a["module_name"]: a for a in catalog}
 
-    Performs a filesystem health check for each active InstalledModule:
-      - If the physical .py file exists: register normally.
-      - If the file is missing (e.g. Docker image wiped without volume):
-        deactivate the DB record and log a warning instead of crashing on import.
-    """
-    import logging
-    logger = logging.getLogger("yads.scan_modules")
+    installed = session.exec(select(InstalledModule).where(InstalledModule.is_active == True)).all()
 
-    for im in session.exec(select(InstalledModule).where(InstalledModule.is_active == True)).all():
-        if im.module_name in REGISTRY:
-            continue
+    updated, skipped, errors = [], [], []
 
-        # Verify the physical module file still exists on disk
-        filepath = _get_custom_module_filepath(im)
-        if filepath and not os.path.exists(filepath):
-            logger.warning(
-                "Custom module '%s' is registered in DB but physical file is missing (%s). "
-                "Deactivating to prevent import crash. Re-upload via Plugin Manager to restore.",
-                im.module_name, filepath,
-            )
-            im.is_active = False
-            session.add(im)
-            session.commit()
-            continue
+    import httpx as _httpx
+    with _httpx.Client(timeout=30, follow_redirects=True) as client:
+        for im in installed:
+            entry = catalog_map.get(im.module_name)
+            if not entry:
+                skipped.append(im.module_name)
+                continue
+            if not _version_gt(entry.get("version", "0.0.0"), im.version):
+                skipped.append(im.module_name)
+                continue
 
-        # Re-verify file integrity against stored SHA-256 hash
-        if filepath and not recheck_file_integrity(filepath, im.file_hash, im.module_name):
-            logger.critical(
-                "Deactivating module '%s' due to integrity violation.",
-                im.module_name,
-            )
-            im.is_active = False
-            session.add(im)
-            session.commit()
-            continue
+            download_url = entry.get("download_url")
+            if not download_url:
+                errors.append({"module_name": im.module_name, "error": "No download URL in catalog"})
+                continue
 
-        _register_installed_module(im)
+            try:
+                resp = client.get(download_url)
+                resp.raise_for_status()
+                zip_bytes = resp.content
+
+                sig_url = download_url.rsplit(".zip", 1)[0] + ".sig"
+                catalog_signature: Optional[str] = None
+                try:
+                    sig_resp = client.get(sig_url)
+                    if sig_resp.status_code == 200:
+                        catalog_signature = sig_resp.text.strip()
+                except Exception:
+                    pass
+
+                result = await _install_zip_bytes(
+                    zip_bytes, f"{im.module_name}.zip", session, user,
+                    allow_update=True, signature=catalog_signature,
+                )
+                updated.append({
+                    "module_name": im.module_name,
+                    "label": im.label,
+                    "from_version": im.version,
+                    "to_version": entry.get("version"),
+                })
+            except HTTPException as e:
+                errors.append({"module_name": im.module_name, "error": e.detail})
+            except Exception as e:
+                errors.append({"module_name": im.module_name, "error": str(e)[:120]})
+
+    return JSONResponse({
+        "updated": updated,
+        "skipped_count": len(skipped),
+        "errors": errors,
+        "total_updated": len(updated),
+    })
+
+
+# ---------------------------------------------------------------------------
+# GET /addons/catalog — return store catalog JSON
+# ---------------------------------------------------------------------------
+@router.get("/catalog")
+async def get_catalog(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+):
+    catalog = _fetch_catalog(session)
+    return JSONResponse({"addons": catalog, "count": len(catalog)})
+
+
+# ---------------------------------------------------------------------------
+# POST /addons/check-updates — compare installed vs catalog
+# ---------------------------------------------------------------------------
+@router.post("/check-updates")
+async def check_updates(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(PlatformAdminChecker()),
+):
+    catalog = _fetch_catalog(session)
+    catalog_map = {a["module_name"]: a.get("version", "0.0.0") for a in catalog}
+
+    installed = session.exec(select(InstalledModule).where(InstalledModule.is_active == True)).all()
+
+    results = []
+    for im in installed:
+        latest = catalog_map.get(im.module_name)
+        if latest:
+            results.append({
+                "module_name": im.module_name,
+                "label": im.label,
+                "installed_version": im.version,
+                "latest_version": latest,
+                "update_available": _version_gt(latest, im.version),
+            })
+
+    return JSONResponse({"updates": results, "checked": len(results)})
+
+
+# ---------------------------------------------------------------------------
+# Version comparison helper
+# ---------------------------------------------------------------------------
+def _version_gt(a: str, b: str) -> bool:
+    """Return True if version a > version b (simple semver comparison)."""
+    try:
+        def _parts(v):
+            return [int(x) for x in re.split(r'[.\-]', v) if x.isdigit()]
+        return _parts(a) > _parts(b)
+    except Exception:
+        return False

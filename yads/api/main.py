@@ -293,7 +293,7 @@ async def lifespan(app: FastAPI):
 
             # --- Load custom-installed modules into runtime registry ---
             try:
-                from yads.api.routers.scan_modules import load_installed_modules_from_db
+                from yads.core.custom_modules_loader import load_installed_modules_from_db
                 with Session(engine) as _s:
                     load_installed_modules_from_db(_s)
                 logger.info("Custom scan modules loaded from DB")
@@ -506,6 +506,11 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, updates, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
+
+@app.get("/scan-modules", response_class=RedirectResponse)
+@app.get("/scan-modules/", response_class=RedirectResponse)
+async def scan_modules_redirect():
+    return RedirectResponse(url="/addons/", status_code=301)
 
 app.include_router(analytics.router)
 app.include_router(analytics.ui_router)

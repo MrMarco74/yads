@@ -23,7 +23,11 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_cloud_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None):
+def _get_cloud_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None, status_filter=None):
+    from yads.utils.findings import FindingStatusFilter
+    if not status_filter:
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+
     # 1. Fetch relevant targets
     targets_query = select(Target)
     if user.tenant_id:
@@ -55,7 +59,6 @@ def _get_cloud_data(session: Session, user: User, for_export: bool = False, date
     results = session.exec(statement).all()
     
     # Dedup: Keep latest per target
-    # Wait, usually multiple assets per target. We need latest RESULT (which contains list of assets)
     latest_results = {}
     for r in results:
         if r.target_id not in latest_results:
@@ -75,6 +78,11 @@ def _get_cloud_data(session: Session, user: User, for_export: bool = False, date
         assets = res.data.get("assets", [])
         for asset in assets:
             # {provider, bucket_name, url, status, status_code}
+            bucket_name = asset.get("bucket_name")
+            
+            # Filter triaged findings
+            if status_filter.is_ignored(target.domain, "cloud_scanner", bucket_name):
+                continue
             
             # Formatting status for stats
             status_lower = asset.get("status", "").lower()
@@ -89,7 +97,7 @@ def _get_cloud_data(session: Session, user: User, for_export: bool = False, date
                 "target_id": t_id,
                 "domain": target.domain,
                 "provider": asset.get("provider"),
-                "bucket_name": asset.get("bucket_name"),
+                "bucket_name": bucket_name,
                 "url": asset.get("url"),
                 "status": asset.get("status"),
                 "detected_at": res.scanned_at

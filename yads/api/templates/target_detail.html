@@ -33,4 +33,123 @@
     {% include "target_detail/_change_history.html" %}
     {% include "target_detail/_modal_http_traffic.html" %}
 </div>
+
+<!-- Rescan Toast Container -->
+<div id="rescan-toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<script>
+(function() {
+    const TARGET_ID = {{ target.id }};
+    const CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? '';
+
+    // Map: card h2 text (partial match) → module_name(s)
+    const CARD_MODULE_MAP = [
+        { match: 'DNS Analysis',              modules: ['dns_scanner'] },
+        { match: 'Vulnerability Report',      modules: ['web_analyzer'] },
+        { match: 'Web Technology',            modules: ['web_analyzer'] },
+        { match: 'SSL',                       modules: ['ssl_scanner'] },
+        { match: 'OSINT',                     modules: ['osint_scanner'] },
+        { match: 'Brand',                     modules: ['typosquat_scanner'] },
+        { match: 'Wayback',                   modules: ['wayback_machine'] },
+        { match: 'Crawler',                   modules: ['crawler'] },
+        { match: 'Discovery',                 modules: ['discovery_scanner'] },
+        { match: 'Visual',                    modules: ['visual_osint'] },
+        { match: 'Infrastructure',            modules: ['infrastructure_scanner'] },
+        { match: 'Email',                     modules: ['email_scanner'] },
+        { match: 'Headers',                   modules: ['headers_scanner'] },
+        { match: 'Threat',                    modules: ['threat_intel_scanner'] },
+        { match: 'Exposure',                  modules: ['exposure_scanner'] },
+        { match: 'Port',                      modules: ['port_scanner'] },
+        { match: 'Nuclei',                    modules: ['nuclei_scanner'] },
+        { match: 'Cloud',                     modules: ['cloud_scanner'] },
+    ];
+
+    function injectRescanButtons() {
+        document.querySelectorAll('h2').forEach(h2 => {
+            const text = h2.textContent.trim();
+            const entry = CARD_MODULE_MAP.find(e => text.includes(e.match));
+            if (!entry || h2.dataset.rescanInjected) return;
+            h2.dataset.rescanInjected = '1';
+            const module = entry.modules[0];
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.title = 'Modul neu scannen';
+            btn.dataset.module = module;
+            btn.className = 'rescan-btn ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-blue-400 px-2 py-1 rounded border border-gray-700 hover:border-blue-500 transition-colors';
+            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Rescan`;
+            btn.addEventListener('click', () => triggerRescan(module, btn));
+
+            const headerRow = h2.closest('.flex');
+            if (headerRow) headerRow.appendChild(btn);
+        });
+    }
+
+    function showToast(msg, type) {
+        const colors = {
+            success: 'bg-green-700 border-green-500 text-green-100',
+            warn:    'bg-amber-700 border-amber-500 text-amber-100',
+            info:    'bg-blue-700 border-blue-500 text-blue-100',
+            error:   'bg-red-700 border-red-500 text-red-100',
+        };
+        const t = document.createElement('div');
+        t.className = `pointer-events-auto max-w-sm w-full px-4 py-3 rounded-lg border shadow-lg text-sm flex items-start gap-2 ${colors[type] || colors.info}`;
+        t.innerHTML = `<span class="flex-1">${msg}</span><button class="opacity-60 hover:opacity-100 text-lg leading-none" onclick="this.parentElement.remove()">×</button>`;
+        document.getElementById('rescan-toast-container').appendChild(t);
+        setTimeout(() => t.remove(), 8000);
+    }
+
+    function triggerRescan(moduleName, btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" class="opacity-75"/></svg>Scanning…`;
+
+        fetch(`/targets/${TARGET_ID}/rescan-module`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF},
+            body: JSON.stringify({module_name: moduleName}),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) { resetBtn(btn); showToast('Fehler beim Starten des Rescans.', 'error'); return; }
+            pollRescan(moduleName, data.old_hash || '', data.pre_scan_time || '', btn);
+        })
+        .catch(() => { resetBtn(btn); showToast('Verbindungsfehler.', 'error'); });
+    }
+
+    function pollRescan(moduleName, oldHash, preScanTime, btn, attempts = 0) {
+        if (attempts > 60) { resetBtn(btn); showToast('Rescan-Timeout – bitte Seite neu laden.', 'warn'); return; }
+        const url = `/targets/${TARGET_ID}/rescan-module/status?module_name=${encodeURIComponent(moduleName)}&old_hash=${encodeURIComponent(oldHash)}&pre_scan_time=${encodeURIComponent(preScanTime)}`;
+        setTimeout(() => {
+            fetch(url, {headers: {'X-CSRF-Token': CSRF}})
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'pending') {
+                    pollRescan(moduleName, oldHash, preScanTime, btn, attempts + 1);
+                    return;
+                }
+                resetBtn(btn);
+                if (data.skipped) {
+                    showToast(`Modul <em>${moduleName}</em> übersprungen – kein HTTP/HTTPS-Zugang zum Ziel.`, 'warn');
+                } else if (data.resolved) {
+                    showToast(`<strong>Finding behoben!</strong> Das Modul <em>${moduleName}</em> zeigt weniger Findings als zuvor. Seite wird neu geladen…`, 'success');
+                    setTimeout(() => location.reload(), 3000);
+                } else if (data.changed) {
+                    showToast(`<strong>Änderungen erkannt</strong> in <em>${moduleName}</em>. Seite wird neu geladen…`, 'info');
+                    setTimeout(() => location.reload(), 2500);
+                } else {
+                    showToast(`<strong>Keine Änderung</strong> – Finding in <em>${moduleName}</em> weiterhin vorhanden.`, 'warn');
+                }
+            })
+            .catch(() => { resetBtn(btn); showToast('Fehler beim Prüfen des Rescan-Status.', 'error'); });
+        }, 3000);
+    }
+
+    function resetBtn(btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Rescan`;
+    }
+
+    document.addEventListener('DOMContentLoaded', injectRescanButtons);
+})();
+</script>
 {% endblock %}

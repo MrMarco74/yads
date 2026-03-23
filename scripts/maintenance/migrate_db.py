@@ -979,6 +979,121 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # Tenant SLA columns (BSI defaults)
+        print(">> Adding finding SLA columns to tenant table...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS sla_critical INTEGER NOT NULL DEFAULT 7;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS sla_high     INTEGER NOT NULL DEFAULT 30;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS sla_medium   INTEGER NOT NULL DEFAULT 90;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS sla_low      INTEGER NOT NULL DEFAULT 180;"))
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS sla_info     INTEGER;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # SecurityFinding table
+        print(">> Creating securityfinding table...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS securityfinding (
+                    id              SERIAL PRIMARY KEY,
+                    yf_id           VARCHAR NOT NULL UNIQUE,
+                    finding_hash    VARCHAR NOT NULL UNIQUE,
+                    tenant_id       INTEGER REFERENCES tenant(id) ON DELETE SET NULL,
+                    target_id       INTEGER REFERENCES target(id) ON DELETE SET NULL,
+                    domain          VARCHAR NOT NULL,
+                    module          VARCHAR NOT NULL,
+                    issue           TEXT NOT NULL,
+                    severity        VARCHAR NOT NULL,
+                    first_found     TIMESTAMP NOT NULL DEFAULT NOW(),
+                    last_seen       TIMESTAMP NOT NULL DEFAULT NOW(),
+                    closing_date    TIMESTAMP,
+                    due_date        DATE,
+                    status          VARCHAR NOT NULL DEFAULT 'open',
+                    status_note     TEXT,
+                    status_updated_at TIMESTAMP,
+                    status_updated_by VARCHAR,
+                    assigned_to     VARCHAR,
+                    ticket_ref      VARCHAR,
+                    reopened_count  INTEGER NOT NULL DEFAULT 0
+                );
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_securityfinding_tenant_id    ON securityfinding (tenant_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_securityfinding_target_id    ON securityfinding (target_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_securityfinding_domain       ON securityfinding (domain);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_securityfinding_status       ON securityfinding (status);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_securityfinding_first_found  ON securityfinding (first_found);"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating securityfinding table: {e}")
+
+        # Migrate existing finding_statuses + yf_map from SystemConfig into SecurityFinding
+        print(">> Migrating existing findings from SystemConfig to SecurityFinding...")
+        try:
+            import json as _json
+            yf_map_row = conn.execute(text("SELECT value FROM systemconfig WHERE key = 'finding_yf_map'")).fetchone()
+            yf_map = _json.loads(yf_map_row[0]) if yf_map_row and yf_map_row[0] else {}
+
+            counter_row = conn.execute(text("SELECT value FROM systemconfig WHERE key = 'finding_yf_counter'")).fetchone()
+            counter = int(counter_row[0]) if counter_row and counter_row[0] else 0
+
+            # Gather all tenant status blobs
+            status_rows = conn.execute(text(
+                "SELECT key, value FROM systemconfig WHERE key LIKE 'finding_statuses:%'"
+            )).fetchall()
+
+            migrated = 0
+            for key, value in status_rows:
+                tenant_part = key.split(":", 1)[1]
+                tenant_id = None if tenant_part == "global" else int(tenant_part)
+                statuses = _json.loads(value) if value else {}
+                for fhash, st in statuses.items():
+                    existing = conn.execute(text(
+                        "SELECT id FROM securityfinding WHERE finding_hash = :h"
+                    ), {"h": fhash}).fetchone()
+                    if existing:
+                        continue
+                    yf_id = yf_map.get(fhash)
+                    if not yf_id:
+                        counter += 1
+                        yf_id = f"YF-{counter:06d}"
+                    status_val = st.get("status", "open")
+                    closing_date = None
+                    if status_val in ("fixed", "false_positive") and st.get("updated_at"):
+                        closing_date = st["updated_at"]
+                    conn.execute(text("""
+                        INSERT INTO securityfinding
+                            (yf_id, finding_hash, tenant_id, domain, module, issue, severity,
+                             status, status_note, status_updated_at, status_updated_by, closing_date)
+                        VALUES
+                            (:yf_id, :fhash, :tenant_id, '', '', '', 'unknown',
+                             :status, :note, :updated_at, :updated_by, :closing_date)
+                        ON CONFLICT (finding_hash) DO NOTHING
+                    """), {
+                        "yf_id": yf_id, "fhash": fhash, "tenant_id": tenant_id,
+                        "status": status_val,
+                        "note": st.get("note", ""),
+                        "updated_at": st.get("updated_at"),
+                        "updated_by": st.get("updated_by"),
+                        "closing_date": closing_date,
+                    })
+                    migrated += 1
+
+            # Update counter
+            if counter > 0:
+                conn.execute(text("""
+                    INSERT INTO systemconfig (key, value) VALUES ('finding_yf_counter', :v)
+                    ON CONFLICT (key) DO UPDATE SET value = :v
+                """), {"v": str(counter)})
+            conn.commit()
+            print(f"   Migrated {migrated} findings.")
+        except Exception as e:
+            print(f"   Migration error (non-fatal): {e}")
+            try: conn.rollback()
+            except: pass
+
         print("\nMigration Complete!")
 
 

@@ -86,7 +86,11 @@ def _grab_banner(host: str, port: int, timeout: float = 3.0) -> Optional[str]:
     """Connect to port and return up to 1024 bytes as string, or None on failure."""
     probe = PORT_PROBES.get(port)
     if isinstance(probe, bytes) and b"%s" in probe:
-        probe = probe.replace(b"%s", host.encode("idna", errors="ignore"))
+        try:
+            host_bytes = host.encode("idna")
+        except (UnicodeError, UnicodeDecodeError):
+            host_bytes = host.encode("ascii", errors="ignore")
+        probe = probe.replace(b"%s", host_bytes)
 
     use_tls = port in (443, 8443)
     try:

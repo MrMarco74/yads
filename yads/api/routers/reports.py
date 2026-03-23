@@ -156,7 +156,9 @@ async def export_scan_pdf(target_id: int, session: Session = Depends(get_session
     latest_results = list(latest_results_map.values())
     
     # Generate PDF
-    pdf_bytes = generate_report(target.domain, latest_results)
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    pdf_bytes = generate_report(target.domain, latest_results, status_filter=status_filter)
     
     filename = f"report_{target.domain}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     
@@ -345,6 +347,9 @@ async def export_all_zip(session: Session = Depends(get_session), user: User = D
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M")
     buf = _io.BytesIO()
 
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
 
         # --- 1. Target List ---
@@ -377,19 +382,19 @@ async def export_all_zip(session: Session = Depends(get_session), user: User = D
         zf.writestr(f"cert_timeline_{ts}.pdf", generate_pdf(cert_export, "Certificate Timeline Report", "cert_timeline_report").body)
 
         # --- 6. Cloud Assets ---
-        cloud_items, _ = _get_cloud_data(session, user, for_export=True)
+        cloud_items, _ = _get_cloud_data(session, user, for_export=True, status_filter=status_filter)
         cloud_export = [{"Domain": i["domain"], "Provider": i["provider"], "Bucket Name": i["bucket_name"], "Status": i["status"], "URL": i["url"]} for i in cloud_items]
         zf.writestr(f"cloud_assets_{ts}.xlsx", generate_excel(cloud_export, "cloud_assets_report").body)
         zf.writestr(f"cloud_assets_{ts}.pdf", generate_pdf(cloud_export, "Cloud Assets Report", "cloud_assets_report").body)
 
         # --- 7. Attack Surface Reduction ---
-        asr_items, _ = _get_asr_data(session, user, for_export=True)
+        asr_items, _ = _get_asr_data(session, user, for_export=True, status_filter=status_filter)
         asr_export = [{"Domain": i["domain"], "Issue Type": i["type"], "Details": i["issue"], "Recommendation": i["recommendation"], "Severity": i["severity"].upper()} for i in asr_items]
         zf.writestr(f"attack_surface_{ts}.xlsx", generate_excel(asr_export, "asr_report").body)
         zf.writestr(f"attack_surface_{ts}.pdf", generate_pdf(asr_export, "Attack Surface Reduction Report", "asr_report").body)
 
         # --- 8. Sensitive Data / Secrets ---
-        secrets_findings, _ = _get_secrets_data(session, user, for_export=True)
+        secrets_findings, _ = _get_secrets_data(session, user, for_export=True, status_filter=status_filter)
         secrets_export = []
         for f in secrets_findings.get("credentials", []):
             secrets_export.append({"Type": "Credential", "Name": f["name"], "Domain": f["target_domain"], "Severity": "High", "Scanner": f["scanner"]})
@@ -399,7 +404,7 @@ async def export_all_zip(session: Session = Depends(get_session), user: User = D
         zf.writestr(f"sensitive_data_{ts}.pdf", generate_pdf(secrets_export, "Sensitive Data Report", "secrets_audit_report").body)
 
         # --- 9. Broken Link Hijacking ---
-        hijacking_items = _get_hijacking_data(session, user)
+        hijacking_items = _get_hijacking_data(session, user, status_filter=status_filter)
         hijacking_export = [{"Target Domain": i["target_domain"], "Broken Link": i["broken_link"], "Detected At": i["detected_at"]} for i in hijacking_items]
         zf.writestr(f"broken_link_hijacking_{ts}.xlsx", generate_excel(hijacking_export, "broken_link_hijacking_report").body)
         zf.writestr(f"broken_link_hijacking_{ts}.pdf", generate_pdf(hijacking_export, "Broken Link Hijacking Report", "broken_link_hijacking_report").body)
@@ -440,7 +445,7 @@ async def export_all_zip(session: Session = Depends(get_session), user: User = D
         zf.writestr(f"infrastructure_executive_{ts}.pdf", bytes(infra_pdf))
 
         # --- 11. External Links PDF ---
-        scope_count, ext_links_list, ext_tenant_name = _get_external_links_data(session, user)
+        scope_count, ext_links_list, ext_tenant_name = _get_external_links_data(session, user, status_filter=status_filter)
         ext_pdf = generate_external_links_report(scope_count, ext_links_list, ext_tenant_name)
         zf.writestr(f"external_links_{ts}.pdf", bytes(ext_pdf))
 

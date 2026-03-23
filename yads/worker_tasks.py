@@ -24,7 +24,7 @@ from yads.database import engine
 from yads.models import (
     ScanResult, Target, SystemConfig, Tenant,
     SecurityTrend, ComplianceTrend, ComplianceTargetStatus,
-    SecurityAuditLog, SystemAlertLog, HTTPTraffic
+    SecurityAuditLog, SystemAlertLog, HTTPTraffic, IntegrationConfig, SecurityFinding
 )
 from yads.config import settings
 from yads.core.splunk_logger import splunk_logger
@@ -136,9 +136,12 @@ def calculate_security_trends():
 def calculate_compliance_trends():
     """Calculates and stores daily compliance scores for each tenant and framework."""
     try:
-        from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+        try:
+            from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+        except ImportError:
+            from yads.modules.custom.compliance_frameworks import FRAMEWORKS, get_framework_scorer
     except ImportError:
-        logger.warning("[Worker] Optional module yads.modules.compliance_frameworks not found. Skipping trend calculation.")
+        logger.warning("[Worker] Optional module compliance_frameworks not found. Skipping trend calculation.")
         return
     from sqlmodel import text
 
@@ -292,7 +295,7 @@ def reset_stuck_targets():
         result = db.execute(sql_text(
             "UPDATE target SET scan_status='idle' "
             "WHERE scan_status = 'running' "
-            "AND (last_scan IS NULL OR last_scan < :cutoff)"
+            "AND created_at < :cutoff"
         ), {"cutoff": cutoff_str})
         db.commit()
         stuck = result.rowcount
@@ -450,6 +453,35 @@ def run_all_scans(
         except:
             return False
 
+    def check_web(host):
+        """More robust web availability check.
+        Returns (has_http, has_https).
+        TCP port check first (fast); HTTP HEAD request as fallback for each protocol.
+        """
+        has_https = check_port(host, 443, timeout=3)
+        has_http = check_port(host, 80, timeout=3)
+        # Fallback: actual HTTP request if TCP check was inconclusive
+        if not has_https:
+            try:
+                import urllib.request, ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                req = urllib.request.Request(f"https://{host}", method="HEAD")
+                with urllib.request.urlopen(req, timeout=4, context=ctx):
+                    has_https = True
+            except Exception:
+                pass
+        if not has_http:
+            try:
+                import urllib.request
+                req = urllib.request.Request(f"http://{host}", method="HEAD")
+                with urllib.request.urlopen(req, timeout=4):
+                    has_http = True
+            except Exception:
+                pass
+        return has_http, has_https
+
     # Setup Redis Logging (with distributed support)
     from yads.core.redis_logger import (
         DistributedRedisLogHandler, RedisLogHandler,
@@ -544,11 +576,14 @@ def run_all_scans(
             # Pre-check web availability
             has_http = False
             has_https = False
-            web_modules = ["web_analyzer", "visual_osint", "ssl_scanner", "nuclei_scanner", "crawler", "content_discovery"]
-            if any(x in scan_types for x in web_modules):
-                logger.info(f"[Worker] Pre-checking web ports for {domain}...")
-                has_http = check_port(domain, 80)
-                has_https = check_port(domain, 443)
+            from yads.core.module_registry import get_simple_dispatch_modules as _get_sdm
+            _needs_web = (
+                any(x in scan_types for x in ["web_analyzer", "visual_osint", "ssl_scanner", "nuclei_scanner", "crawler", "content_discovery"])
+                or any(m.requires_http or m.requires_https for m in _get_sdm() if m.name in scan_types)
+            )
+            if _needs_web:
+                logger.info(f"[Worker] Pre-checking web availability for {domain}...")
+                has_http, has_https = check_web(domain)
                 logger.info(f"[Worker] Web Pre-check: HTTP={has_http}, HTTPS={has_https}")
 
             # 1. Subdomain Scanner
@@ -1147,7 +1182,10 @@ def run_all_scans(
 
             # Post-Scan Compliance Recalculation
             try:
-                from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+                try:
+                    from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+                except ImportError:
+                    from yads.modules.custom.compliance_frameworks import FRAMEWORKS, get_framework_scorer
                 from sqlmodel import text as sql_text
 
                 logger.info(f"[Worker] Recalculating compliance status for {domain}...")
@@ -1535,3 +1573,48 @@ def run_osint_enrichment(self, target_id: int, target_domain: str, tenant_id: in
             logger.error(f"[OSINT Worker] Failed to send webhook: {webhook_e}")
             
     logger.info(f"[OSINT Worker] Finished enrichment for {target_domain}")
+
+@celery_app.task(name="yads.worker.sync_external_integrations")
+def sync_external_integrations():
+    """
+    Periodic task to sync findings with external ticketing systems (Jira, GitHub).
+    Focuses on closed/fixed findings that have a ticket_ref but may not have been updated.
+    """
+    from yads.api.routers.integrations import _push_to_jira, _push_to_github, _push_to_siem_syslog, _push_to_siem_http, _finding_to_cef, _finding_to_ecs
+    
+    with Session(engine) as session:
+        # We look for all SecurityFindings with a ticket_ref and a closed status
+        findings = session.exec(
+            select(SecurityFinding).where(
+                SecurityFinding.ticket_ref != None,
+                SecurityFinding.status.in_(["fixed", "false_positive"])
+            )
+        ).all()
+        
+        if not findings:
+            return
+            
+        for sf in findings:
+            ic_configs = session.exec(
+                select(IntegrationConfig).where(
+                    IntegrationConfig.tenant_id == sf.tenant_id,
+                    IntegrationConfig.is_active == True
+                )
+            ).all()
+            
+            for ic in ic_configs:
+                config = ic.config or {}
+                finding_stub = {"title": sf.issue, "description": sf.issue, "severity": sf.severity}
+                
+                if ic.integration_type == "jira":
+                    _push_to_jira(config, finding_stub, sf.domain, status=sf.status, ticket_ref=sf.ticket_ref)
+                elif ic.integration_type == "github":
+                    _push_to_github(config, finding_stub, sf.domain, status=sf.status, ticket_ref=sf.ticket_ref)
+                elif ic.integration_type == "siem_syslog":
+                    cef = _finding_to_cef(finding_stub, sf.domain, status=sf.status)
+                    _push_to_siem_syslog(config, cef)
+                elif ic.integration_type == "siem_http":
+                    ecs = _finding_to_ecs(finding_stub, sf.domain, status=sf.status)
+                    _push_to_siem_http(config, ecs)
+
+        logger.info(f"[Sync Worker] Processed {len(findings)} findings for external sync.")

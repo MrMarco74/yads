@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+.venv/
+venv/
+.env
+.env.*
+
+# Logs & Temp
+*.log
+*.tmp
+*.bak
+*.pid
+
+# Git
+.git/
+
+# Node (falls vorhanden)
+node_modules/
+
+# Releases & Builds
+release_assets/
+dist/
+build/
+
+# Vendor (externe JS/CSS-Libs)
+yads/api/static/vendor/
+*.min.js
+*.min.css
+
+# Secrets & Certs
+*.key
+*.pem
+*.crt
+*.p12
+
+# Datenbank-Dumps
+*.sql
+*.dump
+*.db
+*.sqlite
+celerybeat-schedule

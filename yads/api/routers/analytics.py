@@ -11,6 +11,7 @@ from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
 from yads.utils.license_deps import require_feature
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
+from yads.utils.findings import FindingStatusFilter
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 ui_router = APIRouter(prefix="/analytics")
@@ -63,9 +64,8 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
             "geo_stats": {}
         }
 
-    # 2. Results
+    # 2. Results — fetch ALL modules so custom add-ons are included
     results_query = select(ScanResult).where(
-        ScanResult.module_name.in_(['infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner', 'dns_scanner', 'subdomain_scanner', 'port_scanner']),
         ScanResult.target_id.in_(target_ids)
     )
 
@@ -108,6 +108,7 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
     service_distribution_stats = {"HTTP Only": 0, "HTTPS Only": 0, "Both": 0, "None": 0}
     
     seen_results = set()
+    status_filter = FindingStatusFilter(session, user.tenant_id)
     
     for res in results:
         # Access ORM attributes
@@ -146,6 +147,7 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
             elif "cloudflare" in provider.lower(): provider = "Cloudflare"
             elif "hetzner" in provider.lower(): provider = "Hetzner"
             
+            provider = str(provider)
             cloud_providers[provider] = cloud_providers.get(provider, 0) + 1
             
             ip = data.get("ip")
@@ -164,12 +166,14 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
             city = geoip.get("city") or "Unknown"
 
             if country != "Unknown":
+                country = str(country)
                 countries[country] = countries.get(country, 0) + 1
                 
                 # Data structure: {Country: {City: {count: N, lat: X, lon: Y}}}
                 if country not in geo_stats:
                     geo_stats[country] = {}
                 
+                city = str(city)
                 if city not in geo_stats[country]:
                      # Initialize
                      geo_stats[country][city] = {
@@ -185,17 +189,19 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
             # Status Codes
             code = str(data.get("status_code", 0))
             if code != "0":
+                code = str(code)
                 status_codes[code] = status_codes.get(code, 0) + 1
             
             # Tech Stack
             techs = data.get("tech_stack", [])
             for tech in techs:
+                tech = str(tech)
                 tech_stack[tech] = tech_stack.get(tech, 0) + 1
                 
             server = (data.get("http_headers") or {}).get("Server")
             if server:
                 # server often has version "Apache/2.4.41", sanitize to "Apache"
-                srv_name = server.split('/')[0]
+                srv_name = str(server.split('/')[0])
                 tech_stack[srv_name] = tech_stack.get(srv_name, 0) + 1
             
             tech_details.append({
@@ -229,10 +235,11 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
                 })
                 
                 # Stats
-                vuln_stats[severity.lower()] += 1
+                if not status_filter.is_ignored(t_name, mod, cve.get("id")):
+                    vuln_stats[severity.lower()] += 1
                 
                 # Risk Feed (Only High/Crit)
-                if severity in ["CRITICAL", "HIGH"]:
+                if severity in ["CRITICAL", "HIGH"] and not status_filter.is_ignored(t_name, mod, cve.get("id")):
                     risk_feed.append({
                         "severity": severity.title(),
                         "type": "CVE",
@@ -251,6 +258,10 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
                     "desc": f"Exposed tokens/keys in {t_name}",
                     "target_id": tid
                 })
+            
+            # Filter generic findings too if they are part of web_analyzer (e.g. security headers via generic?)
+            # Actually web_analyzer has specific fields. 
+            pass
         
         # --- DNS & Subdomain Scanners ---
         elif mod in ['dns_scanner', 'subdomain_scanner']:
@@ -273,6 +284,74 @@ def _get_infrastructure_data(session: Session, user: User, date_from: datetime =
             else:
                 service_distribution_stats["None"] += 1
     
+    # Generic finding aggregation for custom/add-on modules not handled above
+    # We use a separate loop but it MUST also respect deduplication to avoid
+    # counting historical findings that were fixed in subsequent scans.
+    _KNOWN_INFRA_MODULES = {
+        'infrastructure_scanner', 'web_analyzer', 'tld_scanner', 'cve_scanner',
+        'dns_scanner', 'subdomain_scanner', 'port_scanner',
+    }
+    
+    # We don't Reset seen_results! We want to skip results already processed
+    # in the main loop above (if any fell through).
+    
+    for res in results:
+        tid = res.target_id
+        mod = res.module_name
+        
+        if mod in _KNOWN_INFRA_MODULES:
+            continue  # Already processed above
+            
+        # DEDUPLICATION: Only process the latest ScanResult for each (target, module) 
+        # that wasn't already handled in the first loop.
+        if (tid, mod) in seen_results:
+            continue
+        seen_results.add((tid, mod))
+        if not res.data:
+            continue
+        data = res.data
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception:
+                continue
+        t_name = target_map.get(res.target_id) or f"Target #{res.target_id}"
+        # Try common finding key patterns
+        for key in ("findings", "issues", "vulnerabilities", "alerts", "results"):
+            items = data.get(key, [])
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                sev = (item.get("severity") or "info").lower()
+                if sev in vuln_stats:
+                    vuln_stats[sev] += 1
+                title = str(
+                    item.get("title") or item.get("issue") or item.get("name")
+                    or item.get("templateID") or res.module_name
+                )
+                if sev in ("critical", "high"):
+                    risk_feed.append({
+                        "severity": str(sev).capitalize(),
+                        "type": res.module_name,
+                        "title": title,
+                        "desc": item.get("description") or item.get("detail") or "",
+                        "target": t_name,
+                        "target_id": res.target_id,
+                    })
+            if status_filter.is_ignored(t_name, res.module_name, title):
+                # If the main finding is ignored, remove it from stats if it was added
+                sev = str((item.get("severity") or "info")).lower()
+                if sev in vuln_stats and vuln_stats[sev] > 0:
+                     vuln_stats[sev] -= 1
+                # Remove from risk_feed if it was just added
+                if risk_feed and risk_feed[-1]["title"] == title and risk_feed[-1]["target_id"] == res.target_id:
+                    risk_feed.pop()
+            
+            if items:
+                break  # Only process the first matching key
+
     # Sort Risk Feed by Severity
     severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
     risk_feed.sort(key=lambda x: severity_order.get(x["severity"], 99))
@@ -402,6 +481,9 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
     nuclei_findings = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "targets": []}
     port_exposure = []
 
+    # Initialize Finding Status Filter
+    status_filter = FindingStatusFilter(session, user.tenant_id)
+
     seen_results = set()
 
     for res in results:
@@ -459,12 +541,13 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
             # Buckets
             for bucket in data.get("buckets", []):
                 if bucket.get("status") == "Public":
-                    open_buckets.append({
-                        "target": t_name,
-                        "url": bucket.get("url"),
-                        "code": bucket.get("code")
-                    })
-            # Reputation
+                    if not status_filter.is_ignored(t_name, mod, bucket.get("url")):
+                        open_buckets.append({
+                            "target": t_name,
+                            "url": bucket.get("url"),
+                            "code": bucket.get("code")
+                        })
+            # Reputation (Reputation issues are usually not "triagable" in the findings list in the same way, but let's check)
             rep = data.get("reputation", [])
             if rep:
                  reputation_issues.append({
@@ -481,16 +564,14 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                     "target": t_name,
                     "target_id": tid,
                     "count": len(secrets),
-                    "secrets": secrets # list of {type, value, snippet}
+                    "secrets": [s for s in secrets if not status_filter.is_ignored(t_name, mod, s.get("type"))]
                 })
             
-            # Vulnerabilities (Already in infra stats but also needed here for the dedicated table?)
-            # The frontend calls security-risks for "features-vuln-container" table?
-            # Checking analytics.html: 
-            #   renderSecurityCharts -> data.vulnerabilities (line 570)
-            # So yes, we need to supply vulnerabilities here too.
+            # Vulnerabilities 
             cves = data.get("cves", [])
             for cve in cves:
+                 if status_filter.is_ignored(t_name, mod, cve.get("id")):
+                     continue
                  severity = "LOW"
                  try: 
                     score = float(cve.get("cvss", 0))
@@ -536,6 +617,12 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
                 nuclei_findings["medium"] += sev_counts["medium"]
                 nuclei_findings["low"] += sev_counts["low"]
                 nuclei_findings["info"] += sev_counts.get("info", 0)
+                
+                # Check for ignored findings in Nuclei
+                relevant_findings = [f for f in findings if not status_filter.is_ignored(t_name, mod, f.get("name") or f.get("template_id"))]
+                if not relevant_findings:
+                    continue # All findings for this target/module are ignored
+
                 if sev_counts["critical"] or sev_counts["high"]:
                     nuclei_findings["targets"].append({
                         "target": t_name,
@@ -573,7 +660,7 @@ async def get_security_risks(session: Session = Depends(get_session), user: User
         "port_exposure": port_exposure,
     }
 
-def _get_hijacking_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None) -> List[Dict[str, Any]]:
+def _get_hijacking_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None, status_filter=None) -> List[Dict[str, Any]]:
     """
     Fetches targets with broken external links (potential hijacking).
     Rewritten for stability and robust error handling.
@@ -581,7 +668,11 @@ def _get_hijacking_data(session: Session, user: User, date_from: datetime = None
     Args:
         date_from: Optional start datetime for filtering scan results
         date_to: Optional end datetime for filtering scan results
+        status_filter: Optional FindingStatusFilter to exclude triaged findings
     """
+    from yads.utils.findings import FindingStatusFilter
+    if not status_filter:
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
     # 1. Scope Resolution
     stmt = select(Target)
     if user.tenant_id:
@@ -802,7 +893,8 @@ async def get_hijacking_stats(
     preset: Optional[str] = Query("all")
 ):
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
-    return _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt)
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    return _get_hijacking_data(session, user, date_from=from_dt, date_to=to_dt, status_filter=status_filter)
 
 @router.get("/tech-radar")
 async def get_tech_radar_stats(
@@ -836,15 +928,14 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
     if not targets:
         return {"error": "No targets found"}
 
-    scored_targets = []
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
 
     for t in targets:
         score = 0
         reasons = []
 
         # Get latest results
-        # Optimization: Fetch all results for these targets in one go? 
-        # Keeping original logic for low risk migration, but adding safety.
         results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
         
         # Subdomains (+1 each)
@@ -881,9 +972,11 @@ async def get_best_entrypoint(session: Session = Depends(get_session), user: Use
         ssl = next((r for r in results if r.module_name == 'ssl_scanner'), None)
         if ssl and ssl.data:
             if ssl.data.get("error") or ssl.data.get("expired"): 
-                points = 3
-                score += points
-                reasons.append(f"+{points} from SSL configuration issues")
+                issue_text = "Expired" if ssl.data.get("expired") else "Configuration error"
+                if not status_filter.is_ignored(t.domain, "ssl_scanner", issue_text):
+                    points = 3
+                    score += points
+                    reasons.append(f"+{points} from SSL configuration issues")
 
         if score > 0:
             scored_targets.append({
@@ -1011,11 +1104,15 @@ async def view_tech_radar(
     })
 
 
-def _get_external_links_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None):
+def _get_external_links_data(session: Session, user: User, date_from: datetime = None, date_to: datetime = None, status_filter=None):
     """
-    Helper to fetch and process external links data for given user context.
-    Returns: (scope_count, final_list, tenant_name)
-
+    Unified logic for external links analytics.
+    Returns: (scope_count, ext_links_list, tenant_name)
+    """
+    from yads.utils.findings import FindingStatusFilter
+    if not status_filter:
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    """
     Args:
         date_from: Optional start datetime for filtering scan results
         date_to: Optional end datetime for filtering scan results
@@ -1137,6 +1234,9 @@ def _get_external_links_data(session: Session, user: User, date_from: datetime =
         for domain, link_type in found_domains:
             domain = domain.lower()
             if not is_internal(domain):
+                if status_filter.is_ignored(t_domain, mod, domain):
+                    # print(f"[DEBUG_EXT_LINKS] Filtering out ignored external link: {domain} from {t_domain} (module: {mod})")
+                    continue
                 if domain not in external_links:
                     external_links[domain] = {
                         "domain": domain,
@@ -1204,7 +1304,9 @@ async def get_external_links_rows(
     """
     try:
         from_dt, to_dt = parse_date_range(date_from, date_to, preset)
-        scope_count, final_list, _ = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
+        from yads.utils.findings import FindingStatusFilter
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+        scope_count, final_list, _ = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt, status_filter=status_filter)
 
         return templates.TemplateResponse("_external_links_rows.html", {
             "request": request,
@@ -1240,7 +1342,9 @@ async def export_external_links(
     from yads.modules.report_generator import generate_external_links_report
 
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
-    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt, status_filter=status_filter)
 
     pdf_bytes = generate_external_links_report(scope_count, final_list, tenant_name)
 
@@ -1460,7 +1564,9 @@ async def export_external_links_csv(
     import io
 
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
-    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt)
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    scope_count, final_list, tenant_name = _get_external_links_data(session, user, date_from=from_dt, date_to=to_dt, status_filter=status_filter)
     
     # Generate CSV
     output = io.StringIO()
@@ -1568,7 +1674,9 @@ async def export_infrastructure_pdf(
         data.setdefault("reputation_issues", [])
         data.setdefault("open_buckets", [])
         data.setdefault("secrets_leaks", [])
-    data["hijacking_items"] = _get_hijacking_data(session, user)
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    data["hijacking_items"] = _get_hijacking_data(session, user, status_filter=status_filter)
 
     tenant_name = "Global"
     if user.tenant_id:
@@ -1677,7 +1785,9 @@ async def generate_ai_analysis(
         })
     except Exception:
         pass
-    data["hijacking_items"] = _get_hijacking_data(session, user)
+    from yads.utils.findings import FindingStatusFilter
+    status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+    data["hijacking_items"] = _get_hijacking_data(session, user, status_filter=status_filter)
 
     llm_config = load_llm_config(session, tenant_id=user.tenant_id)
     result = await get_report_analysis(data, llm_config)
