@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import Optional
+import csv
 import io
+import math
+from datetime import date, datetime, timezone
 
 from typing import List
 from yads.database import get_session
-from yads.models import User, Tenant, Webhook, TenantScanConfig
+from yads.models import User, Tenant, Webhook, TenantScanConfig, SecurityFinding, Target
 from yads.auth.deps import RoleChecker, get_current_user
 from yads.core.module_registry import REGISTRY
 from yads.config import settings
@@ -103,6 +106,12 @@ async def update_tenant_settings(
     llm_api_url: Optional[str] = Form(None),
     llm_api_key: Optional[str] = Form(None),
     llm_model: Optional[str] = Form(None),
+    # SLA Settings
+    sla_critical: Optional[int] = Form(None),
+    sla_high: Optional[int] = Form(None),
+    sla_medium: Optional[int] = Form(None),
+    sla_low: Optional[int] = Form(None),
+    sla_info: Optional[int] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
 ):
@@ -148,6 +157,14 @@ async def update_tenant_settings(
     tenant.llm_api_url = llm_api_url if llm_api_url and llm_api_url.strip() else None
     tenant.llm_api_key = llm_api_key if llm_api_key and llm_api_key.strip() else None
     tenant.llm_model = llm_model if llm_model and llm_model.strip() else None
+
+    # Finding SLA
+    if sla_critical is not None: tenant.sla_critical = sla_critical
+    if sla_high is not None: tenant.sla_high = sla_high
+    if sla_medium is not None: tenant.sla_medium = sla_medium
+    if sla_low is not None: tenant.sla_low = sla_low
+    # Allow clearing sla_info
+    tenant.sla_info = sla_info if sla_info is not None else None
 
     # Report Branding Settings
     tenant.report_logo_url = report_logo_url if report_logo_url and report_logo_url.strip() else None
@@ -473,3 +490,186 @@ async def import_config_apply(
   </a>
 </div>
 ''')
+
+
+# ─── Findings Management ──────────────────────────────────────────────────────
+
+_SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_SORT_COLS = {
+    "severity": SecurityFinding.severity,
+    "yf_id": SecurityFinding.yf_id,
+    "domain": SecurityFinding.domain,
+    "module": SecurityFinding.module,
+    "status": SecurityFinding.status,
+    "first_found": SecurityFinding.first_found,
+    "last_seen": SecurityFinding.last_seen,
+    "due_date": SecurityFinding.due_date,
+    "assigned_to": SecurityFinding.assigned_to,
+}
+
+PER_PAGE = 50
+
+
+@router.get("/findings", response_class=HTMLResponse)
+async def tenant_findings_page(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"])),
+    page: int = 1,
+    sort: str = "severity",
+    order: str = "asc",
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    module: Optional[str] = None,
+    domain: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    overdue: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    q = select(SecurityFinding).where(SecurityFinding.tenant_id == user.tenant_id)
+
+    if severity:
+        q = q.where(SecurityFinding.severity == severity)
+    if status:
+        q = q.where(SecurityFinding.status == status)
+    if module:
+        q = q.where(SecurityFinding.module == module)
+    if domain:
+        q = q.where(SecurityFinding.domain.ilike(f"%{domain}%"))
+    if assigned_to:
+        q = q.where(SecurityFinding.assigned_to.ilike(f"%{assigned_to}%"))
+    if overdue == "1":
+        q = q.where(SecurityFinding.due_date < date.today(), SecurityFinding.status == "open")
+    if date_from:
+        try:
+            q = q.where(SecurityFinding.first_found >= datetime.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            q = q.where(SecurityFinding.first_found <= datetime.fromisoformat(date_to + "T23:59:59"))
+        except ValueError:
+            pass
+
+    # Count for pagination
+    count_q = select(func.count()).select_from(q.subquery())
+    total = session.exec(count_q).one()
+    total_pages = max(1, math.ceil(total / PER_PAGE))
+    page = max(1, min(page, total_pages))
+
+    # Sort
+    sort_col = _SORT_COLS.get(sort, SecurityFinding.severity)
+    if sort == "severity":
+        # Custom severity order via CASE — approximate with string sort fallback
+        from sqlalchemy import case as sa_case
+        sev_case = sa_case(
+            {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4},
+            value=SecurityFinding.severity,
+            else_=99,
+        )
+        q = q.order_by(sev_case if order == "asc" else sev_case.desc())
+    elif order == "desc":
+        q = q.order_by(sort_col.desc())
+    else:
+        q = q.order_by(sort_col.asc())
+
+    q = q.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
+    findings = session.exec(q).all()
+
+    # Distinct modules for filter dropdown
+    mods_q = select(SecurityFinding.module).where(
+        SecurityFinding.tenant_id == user.tenant_id
+    ).distinct()
+    modules = sorted(r for r in session.exec(mods_q).all() if r)
+
+    today = date.today()
+    rows = []
+    for sf in findings:
+        rows.append({
+            "sf": sf,
+            "due_overdue": bool(sf.due_date and sf.due_date < today and sf.status == "open"),
+        })
+
+    return templates.TemplateResponse("tenant_findings.html", {
+        "request": request,
+        "user": user,
+        "rows": rows,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "per_page": PER_PAGE,
+        "sort": sort,
+        "order": order,
+        "filter_severity": severity or "",
+        "filter_status": status or "",
+        "filter_module": module or "",
+        "filter_domain": domain or "",
+        "filter_assigned_to": assigned_to or "",
+        "filter_overdue": overdue or "",
+        "filter_date_from": date_from or "",
+        "filter_date_to": date_to or "",
+        "modules": modules,
+    })
+
+
+@router.get("/findings/export")
+async def export_findings_csv(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"])),
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    module: Optional[str] = None,
+    domain: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    overdue: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    q = select(SecurityFinding).where(SecurityFinding.tenant_id == user.tenant_id)
+    if severity:
+        q = q.where(SecurityFinding.severity == severity)
+    if status:
+        q = q.where(SecurityFinding.status == status)
+    if module:
+        q = q.where(SecurityFinding.module == module)
+    if domain:
+        q = q.where(SecurityFinding.domain.ilike(f"%{domain}%"))
+    if assigned_to:
+        q = q.where(SecurityFinding.assigned_to.ilike(f"%{assigned_to}%"))
+    if overdue == "1":
+        q = q.where(SecurityFinding.due_date < date.today(), SecurityFinding.status == "open")
+    if date_from:
+        try:
+            q = q.where(SecurityFinding.first_found >= datetime.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            q = q.where(SecurityFinding.first_found <= datetime.fromisoformat(date_to + "T23:59:59"))
+        except ValueError:
+            pass
+
+    findings = session.exec(q.order_by(SecurityFinding.severity)).all()
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["YF-ID", "Domain", "Module", "Issue", "Severity", "Status",
+                "First Found", "Last Seen", "Due Date", "Assigned To",
+                "Ticket Ref", "Note", "Reopened Count"])
+    for sf in findings:
+        w.writerow([
+            sf.yf_id, sf.domain, sf.module, sf.issue, sf.severity, sf.status,
+            sf.first_found.strftime("%Y-%m-%d") if sf.first_found else "",
+            sf.last_seen.strftime("%Y-%m-%d") if sf.last_seen else "",
+            sf.due_date.strftime("%Y-%m-%d") if sf.due_date else "",
+            sf.assigned_to or "", sf.ticket_ref or "",
+            sf.status_note or "", sf.reopened_count,
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=findings_export.csv"},
+    )

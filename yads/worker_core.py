@@ -60,6 +60,10 @@ celery_app.conf.beat_schedule = {
         'task': 'yads.worker.reset_stuck_targets',
         'schedule': 5 * 60.0,  # every 5 minutes
     },
+    'external-integration-sync': {
+        'task': 'yads.worker.sync_external_integrations',
+        'schedule': 15 * 60.0, # every 15 minutes
+    },
 }
 
 from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked
@@ -87,6 +91,15 @@ def on_worker_ready(sender=None, **kwargs):
                 logger.warning(f"[Worker] startup: Reset {len(stuck)} stuck target(s) to idle")
     except Exception as e:
         logger.error(f"[Worker] Failed to reset stuck targets on startup: {e}")
+
+    # ── Load custom-installed modules into runtime registry ────────────────
+    try:
+        from yads.core.custom_modules_loader import load_installed_modules_from_db
+        from yads.database import engine
+        with Session(engine) as _s:
+            load_installed_modules_from_db(_s)
+    except Exception as e:
+        logger.error(f"[Worker] Failed to load custom modules on startup: {e}")
 
     # ── Queue pause check ─────────────────────────────────────────────────
     try:

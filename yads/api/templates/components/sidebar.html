@@ -22,675 +22,263 @@
     </div>
 
     <!-- Navigation -->
-    <div class="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+    <div class="flex-1 overflow-y-auto py-5 space-y-4">
         
-        <!-- Section: Overview -->
-        <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2">{{ _('nav.overview') }}</p>
-            <ul class="space-y-1">
-                <li>
-                    <a href="/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/' %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.dashboard') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/analytics" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/analytics' %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.analytics') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/analytics/external-links" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/external-links' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.external_links') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/analytics/dead-links" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/dead-links' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.732 17H6a2 2 0 01-2-2V9a2 2 0 012-2h4.553M16 16v-3m0 0v-3l-3 6m3-6l3 6m-3-6c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.dead_links') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/analytics/hijacking" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/hijacking' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.hijacking') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/analytics/tech-radar" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/analytics/tech-radar' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.tech_radar') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/attack-surface/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/attack-surface' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.attack_surface') }}</span>
-                    </a>
-                </li>
-            </ul>
+        <!-- Dashboard Base -->
+        <div class="px-3">
+            <a href="/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/' %}bg-slate-800 text-white shadow-sm ring-1 ring-cyan-500/50{% endif %}">
+                <svg class="w-4 h-4 mr-3 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span class="text-sm font-medium">{{ _('nav.dashboard') }}</span>
+            </a>
         </div>
 
-        <hr class="border-slate-700/50 my-2">
+        <div class="border-t border-slate-800/60 my-2 mx-3"></div>
 
-        <!-- Section: Intelligence & Recon -->
-        <details class="group" {% if '/osint' in request.path or '/global-map' in request.path or '/discovery' in request.path or '/attack-path' in request.path or '/ai-assistant' in request.path %}open{% endif %}>
-            <summary class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2 cursor-pointer hover:text-slate-300">
-                <span>Intelligence & Recon</span>
-                <svg class="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </summary>
-            <ul class="space-y-1">
-                <!-- Brand Monitoring (Moved from Operations) -->
-                <li>
-                    {% set osint_active = 'osint' in request.path and 'global-map' not in request.path %}
-                    {% set osint_locked = not (user and (user.role == 'admin' or (user.tenant and user.tenant.osint_enabled))) %}
-                    <a href="/osint" class="flex items-center p-2 rounded-lg group transition-colors 
-                        {% if osint_locked %}text-slate-600 hover:bg-slate-800/50 cursor-pointer{% elif osint_active %}bg-slate-800 text-white{% else %}text-slate-300 hover:bg-slate-800{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Brand Monitoring</span>
-                        {% if osint_locked %}<span class="ml-auto text-[10px] text-slate-600">Locked</span>{% endif %}
-                    </a>
-                </li>
-                <!-- Global Intel Map (NEW) -->
-                <li>
-                    <a href="/osint/global-map" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/osint/global-map' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Global Intel Map</span>
-                        <span class="ml-auto text-[9px] bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                    </a>
-                </li>
-                <!-- Infrastructure Discovery (Moved from Overview) -->
-                <li>
-                    <a href="/discovery" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/discovery' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Infrastructure Discovery</span>
-                    </a>
-                </li>
-                <!-- Attack Path Visualizer (Promoted from Reports) -->
-                <li>
-                    <a href="/attack-path" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/attack-path' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-red-500 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Attack Path Visualizer</span>
-                    </a>
-                </li>
-                <!-- AI Assistant (Moved from Operations) -->
-                <li>
-                    <a href="/ai-assistant" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/ai-assistant' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-violet-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">AI Intelligence</span>
-                    </a>
-                </li>
-            </ul>
-        </details>
-
-        <hr class="border-slate-700/50 my-2">
-
-        <!-- Section: Operations -->
-        <details class="group" {% if '/targets' in request.path or '/queue' in request.path or '/workers' in request.path or '/system/health' in request.path or '/system/alerts' in request.path or '/schedules' in request.path or '/reports' in request.path or '/compliance' in request.path or '/ports' in request.path or '/email-security' in request.path or '/secrets' in request.path or '/tech-drift' in request.path or '/cert-timeline' in request.path or '/asr' in request.path or '/cloud-assets' in request.path or '/pqc' in request.path or '/security-findings' in request.path or '/waf-analysis' in request.path or '/scanner-import' in request.path or '/executive-report' in request.path or 'network-graph' in request.path or '/leak-monitor' in request.path or '/tech-stack' in request.path or '/whois-history' in request.path %}open{% endif %}>
-            <summary class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2 cursor-pointer hover:text-slate-300">
-                <span>{{ _('nav.operations') }}</span>
-                <svg class="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-            </summary>
+        <!-- 🎯 RECON (Discovery) -->
+        <div class="px-3">
+            <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m-9 9a9 9 0 019-9"></path></svg> RECON</p>
             <ul class="space-y-1">
                 <li>
-                    <a href="/targets/table" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/targets/table' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.targets') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/targets/graph" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/targets/graph' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.single_target_graph') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/visualizations/network-graph" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if 'network-graph' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.spiderweb') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/queue" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/queue' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.scan_queue') }}</span>
-                    </a>
-                </li>
-                {% if user and user.role == 'admin' %}
-                <li>
-                    <a href="/system/health" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/system/health' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Operations Center</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/workers" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/workers' or request.path.startswith('/workers/') %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.workers') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/system/alerts" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/system/alerts' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">System-Alerts</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/discovery/blocklist" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/discovery/blocklist' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Discovery Blocklist</span>
-                    </a>
-                </li>
-                {% endif %}
-                <li>
-                    <a href="/schedules" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/schedules' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.schedules') }}</span>
-                    </a>
-                </li>
-                <!-- Reports Dropdown -->
-                <li>
-                    <details class="group" {% if '/reports' in request.path or '/compliance' in request.path or '/ports' in request.path or '/email-security' in request.path or '/secrets' in request.path or '/tech-drift' in request.path or '/cert-timeline' in request.path or '/asr' in request.path or '/cloud-assets' in request.path or '/pqc' in request.path or '/security-findings' in request.path or '/waf-analysis' in request.path or '/scanner-import' in request.path or '/executive-report' in request.path or '/attack-path' in request.path or '/ai-assistant' in request.path %}open{% endif %}>
-                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium flex-1">{{ _('nav.reports') }}</span>
-                            <svg class="w-4 h-4 text-slate-500 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                            </svg>
+                    <details class="group" {% if '/targets' in request.path or '/discovery' in request.path or '/attack-surface' in request.path or '/osint' in request.path or '/cloud-assets' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Asset Intelligence</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </summary>
-                        <ul class="pl-2 mt-1 space-y-1">
-                            <!-- Custom Reports Section -->
-                            <li class="!mt-0 !mb-2">
-                                <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold px-2">{{ _('nav.report_builder') }}</span>
-                            </li>
-                            <li>
-                                <a href="/reports" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if request.path == '/reports' %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    <span class="text-xs font-medium">{{ _('nav.customized_reports') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/reports/templates" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/reports/templates' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"></path></svg>
-                                    <span class="text-xs font-medium">{{ _('nav.templates') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/reports/builder" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/reports/builder' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                    <span class="text-xs font-medium">{{ _('nav.new_report') }}</span>
-                                    <span class="ml-auto text-[9px] bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                                </a>
-                            </li>
-                            <!-- System Reports Section -->
-                            <li class="!mt-3 !mb-2">
-                                <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold px-2">{{ _('nav.system_reports') }}</span>
-                            </li>
-                             <li>
-                                <a href="/compliance" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/compliance' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.compliance') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/ports" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/ports' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.port_exposure') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/email-security" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/email-security' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.email_security') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/security-findings" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/security-findings' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.security_findings') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/waf-analysis" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/waf-analysis' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">WAF / IDS / IPS</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/secrets" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/secrets' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.sensitive_data') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/tech-drift" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/tech-drift' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.tech_drift') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/cert-timeline" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cert-timeline' in request.path and not '/inventory' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.cert_timeline') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/cert-timeline/inventory" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cert-timeline/inventory' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.ssl_inventory') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/pqc" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/pqc' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3 h-3 mr-1.5 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                                    <span class="text-xs font-medium">{{ _('nav.pqc_readiness') }}</span>
-                                    <span class="ml-auto text-[9px] bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/asr" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/asr' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.cleanup_list') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/cloud-assets" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/cloud-assets' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.cloud_assets') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/reports/traffic" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/reports/traffic' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.http_traffic') }}</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/reports/archived" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/reports/archived' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <span class="text-xs font-medium">{{ _('nav.archived_targets') }}</span>
-                                </a>
-                            </li>
-                            <li class="!mt-3 !mb-2">
-                                <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold px-2">Importer</span>
-                            </li>
-                            <li>
-                                <a href="/scanner-import" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/scanner-import' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                    <span class="text-xs font-medium">Scanner Import</span>
-                                </a>
-                            </li>
-                            <!-- Add-On Reports Section -->
-                            <li class="!mt-3 !mb-2">
-                                <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold px-2">Add-On Reports</span>
-                            </li>
-                            <li>
-                                <a href="/leak-monitor" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/leak-monitor' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                                    <span class="text-xs font-medium">Leak Monitor</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/tech-stack" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/tech-stack' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                    <span class="text-xs font-medium">Tech Stack</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/whois-history" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/whois-history' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                    <span class="text-xs font-medium">WHOIS History</span>
-                                </a>
-                            </li>
-                            <!-- Intelligence Section -->
-                            <li class="!mt-3 !mb-2">
-                                <span class="text-[10px] uppercase tracking-wider text-slate-600 font-semibold px-2">Intelligence</span>
-                            </li>
-                            <li>
-                                <a href="/executive-report" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/executive-report' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                                    <span class="text-xs font-medium">Executive Report</span>
-                                    <span class="ml-auto text-[9px] bg-sky-600/20 text-sky-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/ai-assistant" class="flex items-center p-2 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors {% if '/ai-assistant' in request.path %}text-white bg-slate-800{% endif %}">
-                                    <svg class="w-3.5 h-3.5 mr-2 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                                    <span class="text-xs font-medium">AI Assistant</span>
-                                    <span class="ml-auto text-[9px] bg-violet-600/20 text-violet-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                                </a>
-                            </li>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/discovery" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/discovery' in request.path and 'blocklist' not in request.path %}text-cyan-400 font-semibold{% endif %}">Discovery Core</a></li>
+                            <li><a href="/targets/table" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/targets/table' in request.path %}text-cyan-400 font-semibold{% endif %}">Manage Targets</a></li>
+                            <li><a href="/attack-surface/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/attack-surface' in request.path %}text-cyan-400 font-semibold{% endif %}">Attack Surface</a></li>
+                            <li><a href="/cloud-assets" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cloud-assets' in request.path %}text-cyan-400 font-semibold{% endif %}">Cloud Assets</a></li>
+                            <li><a href="/osint" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/osint' in request.path %}text-cyan-400 font-semibold{% endif %}">OSINT & Brand</a></li>
+                            <li><a href="/discovery/blocklist" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/blocklist' in request.path %}text-cyan-400 font-semibold{% endif %}">Blocklist</a></li>
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details class="group" {% if '/pqc' in request.path or '/cert-timeline' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-violet-400 group-hover:text-violet-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Cryptography</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/pqc" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/pqc' in request.path %}text-cyan-400 font-semibold{% endif %}">PQC Readiness</a></li>
+                            <li><a href="/cert-timeline/inventory" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/inventory' in request.path %}text-cyan-400 font-semibold{% endif %}">SSL Inventory</a></li>
+                            <li><a href="/cert-timeline" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cert-timeline' in request.path and '/inventory' not in request.path %}text-cyan-400 font-semibold{% endif %}">Cert Timeline</a></li>
                         </ul>
                     </details>
                 </li>
             </ul>
-        </details>
-
-        <hr class="border-slate-700/50 my-2">
-
-        <!-- Section: Support -->
-        <details class="group" {% if '/changelog' in request.path or '/help' in request.path or '/about' in request.path %}open{% endif %}>
-             <summary class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2 cursor-pointer hover:text-slate-300">
-                <span>{{ _('nav.support') }}</span>
-                <svg class="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-             </summary>
-             <ul class="space-y-1">
-                 <li>
-                    <a href="/changes/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/changes' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.recent_changes') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/scan-compare/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/scan-compare' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.scan_compare') }}</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="https://yads-security.com/bom.html" target="_blank" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.software_bom') }}</span>
-                        <svg class="w-3 h-3 ml-1 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                    </a>
-                </li>
-                 <li>
-                    <a href="https://yads-security.com/bom.html#cbom" target="_blank" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.crypto_bom') }}</span>
-                        <svg class="w-3 h-3 ml-1 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                    </a>
-                </li>
-                <li>
-                    <a href="https://yads-security.com/docs.html" target="_blank" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.documentation') }}</span>
-                        <svg class="w-3 h-3 ml-1 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                    </a>
-                </li>
-                <li>
-                    <a href="/help/about" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/help/about' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Über YADS</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/help/support-tickets" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/help/support-tickets' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Support Tickets</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/help/bug-report" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/help/bug-report' in request.path %}bg-slate-800 text-white{% endif %}">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">Bug melden</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="https://yads-security.com/roadmap.html" target="_blank" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors">
-                        <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                        </svg>
-                        <span class="ml-3 text-sm font-medium">{{ _('nav.roadmap') }}</span>
-                        <svg class="w-3 h-3 ml-1 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                    </a>
-                </li>
-             </ul>
-        </details>
-
-        <!-- Section: Users & Tenant -->
-        {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
-        <div class="pt-4 mt-4 border-t border-slate-800">
-             <details class="group" {% if '/users' in request.path or '/tenant-settings' in request.path or '/scan-profiles' in request.path or '/integrations' in request.path or '/developer' in request.path or request.path == '/tags' %}open{% endif %}>
-                 <summary class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2 cursor-pointer hover:text-slate-300">
-                    <span>{{ _('nav.users_tenant') }}</span>
-                    <svg class="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                 </summary>
-                 <ul class="space-y-1">
-                    <li>
-                        <a href="/users" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/users' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.users') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/tenant-settings" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/tenant-settings' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.tenant_settings') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/scan-profiles" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/scan-profiles' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Scan Profiles</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/developer" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/developer' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Developer Portal</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/integrations" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/integrations' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Integrations</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/tags" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if request.path == '/tags' %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Asset Tags</span>
-                        </a>
-                    </li>
-                 </ul>
-             </details>
         </div>
-        {% endif %}
 
-        <!-- Section: System (Admin Only) -->
-        {% if user and user.role == 'admin' %}
-        <div class="pt-4 mt-4 border-t border-slate-800">
-             <details class="group" {% if '/tenants' in request.path or '/settings' in request.path or '/license' in request.path or '/logs' in request.path or '/notifications' in request.path or '/portfolio' in request.path or '/scan-modules' in request.path %}open{% endif %}>
-                 <summary class="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 mb-2 cursor-pointer hover:text-slate-300">
-                    <span>{{ _('nav.system') }}</span>
-                    <svg class="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                 </summary>
-                 <ul class="space-y-1">
-                    <li>
-                        <a href="/license" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/license' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-amber-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">License</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/settings" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/settings' in request.path and not 'tenant-settings' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.system_settings') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/portfolio" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/portfolio' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Portfolio View</span>
-                            <span class="ml-auto text-[9px] bg-sky-600/20 text-sky-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/tenants" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/tenants' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.tenants') }}</span>
-                        </a>
-                    </li>
-                     <li>
-                        <a href="/logs" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/logs' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.logs') }}</span>
-                        </a>
-                    </li>
-                     <li>
-                        <a href="/notifications/admin" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/notifications/admin' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.notifications') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/storage" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/storage' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">{{ _('nav.storage_analytics') }}</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/scan-modules/" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 group transition-colors {% if '/scan-modules' in request.path %}bg-slate-800 text-white{% endif %}">
-                            <svg class="w-5 h-5 text-slate-400 transition duration-75 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-                            </svg>
-                            <span class="ml-3 text-sm font-medium">Plugin Manager</span>
-                        </a>
-                    </li>
-                 </ul>
-             </details>
+        <div class="border-t border-slate-800/60 my-2 mx-3"></div>
+
+        <!-- 🧨 OPERATIONS (Attack) -->
+        <div class="px-3">
+            <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> OPERATIONS</p>
+            <ul class="space-y-1">
+                <li>
+                    <details class="group" {% if '/queue' in request.path or '/scan-profiles' in request.path or 'network-graph' in request.path or '/schedules' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Active Campaigns</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/queue" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/queue' in request.path %}text-cyan-400 font-semibold{% endif %}">Active Queue & Jobs</a></li>
+                            <li><a href="/scan-profiles" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/scan-profiles' in request.path %}text-cyan-400 font-semibold{% endif %}">Scan Profiles</a></li>
+                            <li><a href="/schedules" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/schedules' in request.path %}text-cyan-400 font-semibold{% endif %}">Scheduling</a></li>
+                            <li><a href="/visualizations/network-graph" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if 'network-graph' in request.path %}text-cyan-400 font-semibold{% endif %}">Network Spiderweb</a></li>
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details class="group" {% if '/attack-path' in request.path or '/waf-analysis' in request.path or '/email-security' in request.path or '/ports' in request.path or '/targets/graph' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-red-500 group-hover:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Vulnerability Profiling</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/attack-path" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/attack-path' in request.path %}text-cyan-400 font-semibold{% endif %}">Attack Path Visualizer</a></li>
+                            <li><a href="/ports" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/ports' in request.path %}text-cyan-400 font-semibold{% endif %}">Port Exposure</a></li>
+                            <li><a href="/waf-analysis" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/waf-analysis' in request.path %}text-cyan-400 font-semibold{% endif %}">WAF / IDS / IPS</a></li>
+                            <li><a href="/email-security" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/email-security' in request.path %}text-cyan-400 font-semibold{% endif %}">Email Security</a></li>
+                            <li><a href="/targets/graph" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/targets/graph' in request.path %}text-cyan-400 font-semibold{% endif %}">Single Target Graph</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
         </div>
-        {% endif %}
+
+        <div class="border-t border-slate-800/60 my-2 mx-3"></div>
+
+        <!-- 🛡️ AUDIT (Analytics) -->
+        <div class="px-3">
+            <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg> AUDIT</p>
+            <ul class="space-y-1">
+                <li>
+                    <details class="group" {% if '/security-findings' in request.path or '/tenant-settings/findings' in request.path or '/secrets' in request.path or '/asr' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Core Findings</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/security-findings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/security-findings' in request.path %}text-cyan-400 font-semibold{% endif %}">Unified Findings</a></li>
+                            <li><a href="/secrets" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/secrets' in request.path %}text-cyan-400 font-semibold{% endif %}">Exposed Secrets</a></li>
+                            <li><a href="/asr" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/asr' in request.path %}text-cyan-400 font-semibold{% endif %}">Cleanup Recommendations</a></li>
+                            {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
+                            <li><a href="/tenant-settings/findings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenant-settings/findings' in request.path %}text-cyan-400 font-semibold{% endif %}">Finding Management</a></li>
+                            {% endif %}
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details class="group" {% if '/compliance' in request.path or '/executive-report' in request.path or '/leak-monitor' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Frameworks</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/compliance" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/compliance' in request.path %}text-cyan-400 font-semibold{% endif %}">Compliance DB</a></li>
+                            <li><a href="/executive-report" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/executive-report' in request.path %}text-cyan-400 font-semibold{% endif %}">Executive Report</a></li>
+                            <li><a href="/leak-monitor" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/leak-monitor' in request.path %}text-cyan-400 font-semibold{% endif %}">Leak Monitor</a></li>
+                        </ul>
+                    </details>
+                </li>
+                <li>
+                    <details class="group" {% if '/analytics' in request.path or '/reports' in request.path or '/tech-drift' in request.path or '/whois-history' in request.path or '/tech-stack' in request.path or '/scan-compare' in request.path or '/ai-assistant' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Analytics & Reports</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/reports" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/reports' %}text-cyan-400 font-semibold{% endif %}">Report Hub</a></li>
+                            <li><a href="/reports/builder" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/builder' in request.path %}text-cyan-400 font-semibold{% endif %}">Report Builder</a></li>
+                            <li><a href="/analytics" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/analytics' %}text-cyan-400 font-semibold{% endif %}">Analytics</a></li>
+                            <li><a href="/ai-assistant" class="block py-1.5 text-[13px] text-violet-400 opacity-90 hover:text-violet-300 hover:opacity-100 {% if '/ai-assistant' in request.path %}text-violet-400 font-semibold{% endif %}">AI Intelligence</a></li>
+                            
+                            <li class="pt-1"><span class="text-[9px] uppercase tracking-wider text-slate-600 font-bold block pb-1">Historical</span></li>
+                            <li><a href="/scan-compare/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/scan-compare' in request.path %}text-cyan-400 font-semibold{% endif %}">Scan Compare</a></li>
+                            <li><a href="/tech-drift" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tech-drift' in request.path %}text-cyan-400 font-semibold{% endif %}">Tech Radar Drift</a></li>
+                            <li><a href="/tech-stack" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tech-stack' in request.path %}text-cyan-400 font-semibold{% endif %}">Tech Stack Report</a></li>
+                            <li><a href="/whois-history" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/whois-history' in request.path %}text-cyan-400 font-semibold{% endif %}">WHOIS History</a></li>
+                        </ul>
+                    </details>
+                </li>
+            </ul>
+        </div>
+
+        <div class="border-t border-slate-800/60 my-2 mx-3"></div>
+
+        <!-- 🛠️ MANAGE -->
+        <div class="px-3 pb-6">
+            <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg> MANAGE</p>
+            <ul class="space-y-1">
+                <li>
+                    <details class="group" {% if '/addons' in request.path or '/integrations' in request.path or '/scanner-import' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-emerald-400 opacity-90 group-hover:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Add-on Ecosystem</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/addons/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/addons' in request.path %}text-cyan-400 font-semibold{% endif %}">Extension Hub</a></li>
+                            <li><a href="/integrations" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/integrations' in request.path %}text-cyan-400 font-semibold{% endif %}">Integrations</a></li>
+                            <li><a href="/scanner-import" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/scanner-import' in request.path %}text-cyan-400 font-semibold{% endif %}">Scanner Import</a></li>
+                        </ul>
+                    </details>
+                </li>
+                {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
+                <li>
+                    <details class="group" {% if '/users' in request.path or '/tenant-settings' in request.path or '/settings' in request.path or '/license' in request.path or '/tenants' in request.path or '/tags' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Settings & Users</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            {% if user and user.role == 'admin' %}
+                            <li><a href="/settings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/settings' %}text-cyan-400 font-semibold{% endif %}">System Settings</a></li>
+                            <li><a href="/tenants" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenants' in request.path %}text-cyan-400 font-semibold{% endif %}">Tenants & Limits</a></li>
+                            <li><a href="/license" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/license' in request.path %}text-cyan-400 font-semibold{% endif %}">License Status</a></li>
+                            {% endif %}
+                            <li><a href="/tenant-settings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenant-settings' in request.path and '/findings' not in request.path %}text-cyan-400 font-semibold{% endif %}">Tenant Preferences</a></li>
+                            <li><a href="/users" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/users' %}text-cyan-400 font-semibold{% endif %}">Users</a></li>
+                            <li><a href="/tags" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/tags' %}text-cyan-400 font-semibold{% endif %}">Global Tags</a></li>
+                        </ul>
+                    </details>
+                </li>
+                {% endif %}
+                {% if user and user.role == 'admin' %}
+                <li>
+                    <details class="group" {% if '/system/health' in request.path or '/workers' in request.path or '/logs' in request.path or '/storage' in request.path or '/notifications/admin' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Infrastructure Ops</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/system/health" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/system/health' in request.path %}text-cyan-400 font-semibold{% endif %}">Operations Center</a></li>
+                            <li><a href="/workers" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/workers' in request.path %}text-cyan-400 font-semibold{% endif %}">Worker Nodes</a></li>
+                            <li><a href="/logs" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/logs' in request.path %}text-cyan-400 font-semibold{% endif %}">Unified Logs</a></li>
+                            <li><a href="/storage" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/storage' in request.path %}text-cyan-400 font-semibold{% endif %}">Storage</a></li>
+                            <li><a href="/notifications/admin" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/notifications' in request.path %}text-cyan-400 font-semibold{% endif %}">Notifications</a></li>
+                        </ul>
+                    </details>
+                </li>
+                {% endif %}
+
+                <!-- Help & Support Inline -->
+                <li class="pt-2 pb-1">
+                    <span class="text-[9px] uppercase tracking-wider text-slate-600 font-bold block pb-1 px-2">Support</span>
+                </li>
+                <li><a href="https://yads-security.com/docs.html" target="_blank" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Documentation ↗</a></li>
+                <li><a href="/changes/" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Recent Changes</a></li>
+                <li><a href="/help/support-tickets" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Support Tickets</a></li>
+            </ul>
+        </div>
     </div>
 
     <!-- User Profile (Bottom - Sticky) -->
-    <div class="p-4 border-t border-slate-800 bg-slate-900 mt-auto">
+    <div class="p-4 border-t border-slate-800 bg-[#0b0f19] mt-auto">
          {% if user %}
-         <a href="/profile" class="flex items-center gap-3 p-2 -m-2 rounded-lg hover:bg-slate-800 transition-colors group">
-             <div class="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white group-hover:bg-indigo-600 transition-colors">
+         <div class="flex items-center gap-3 p-2 -m-2 rounded-lg group">
+             <div class="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-cyan-400">
                  {{ user.username[:2].upper() }}
              </div>
              <div class="flex-1 min-w-0">
-                 <p class="text-xs font-medium text-white truncate">{{ user.username }}</p>
-                 <p class="text-[10px] text-slate-500 truncate group-hover:text-indigo-300">{{ user.role }}</p>
+                 <p class="text-xs font-semibold text-slate-200 truncate">{{ user.username }}</p>
+                 <a href="/profile" class="text-[10px] text-cyan-500 hover:text-cyan-400 truncate hover:underline">Edit Profile</a>
              </div>
-             <div class="text-slate-400 group-hover:text-white">
-                  <!-- Gear icon for profile -->
-                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                 </svg>
-             </div>
-         </a>
-         <!-- Language Quick-Toggle -->
-         <div class="mt-2 flex items-center justify-center gap-1 border-t border-slate-800 pt-2">
-             <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">{{ _('common.language') if _('common.language') != 'common.language' else 'Lang' }}:</span>
-             <form method="post" action="/profile/language" class="inline">
-                 {{ csrf_token() }}
-
-                 <input type="hidden" name="language" value="en">
-                 <button type="submit" class="text-[10px] font-bold px-2 py-0.5 rounded transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'en' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">EN</button>
-             </form>
-             <form method="post" action="/profile/language" class="inline">
-                 {{ csrf_token() }}
-
-                 <input type="hidden" name="language" value="de">
-                 <button type="submit" class="text-[10px] font-bold px-2 py-0.5 rounded transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'de' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">DE</button>
-             </form>
+             <a href="/logout" title="Sign Out" class="text-slate-500 hover:text-red-400 transition-colors p-1.5">
+                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+             </a>
          </div>
-         <div class="mt-1 text-center">
-             <a href="/logout" class="block w-full text-[10px] text-slate-500 hover:text-red-400 uppercase tracking-wider font-semibold">{{ _('common.sign_out') }}</a>
+         <div class="mt-3 flex items-center justify-between border-t border-slate-800/80 pt-3">
+             <span class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Language</span>
+             <div class="flex border border-slate-800 rounded bg-slate-900 overflow-hidden">
+                 <form method="post" action="/profile/language" class="inline m-0">
+                     {{ csrf_token() }}
+                     <input type="hidden" name="language" value="en">
+                     <button type="submit" class="text-[10px] font-bold px-2 py-1 hover:bg-slate-800 transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'en' %}text-cyan-400 bg-slate-800{% else %}text-slate-500{% endif %}">EN</button>
+                 </form>
+                 <form method="post" action="/profile/language" class="inline m-0 border-l border-slate-800">
+                     {{ csrf_token() }}
+                     <input type="hidden" name="language" value="de">
+                     <button type="submit" class="text-[10px] font-bold px-2 py-1 hover:bg-slate-800 transition-colors {% if request.cookies.get('yads_lang', user.language if user else 'en') == 'de' %}text-cyan-400 bg-slate-800{% else %}text-slate-500{% endif %}">DE</button>
+                 </form>
+             </div>
          </div>
          {% else %}
          <div class="mt-2 text-center">
-             <a href="/login" class="block w-full text-[10px] text-slate-500 hover:text-indigo-400 uppercase tracking-wider font-semibold">{{ _('common.sign_in') }}</a>
+             <a href="/login" class="block w-full text-[10px] text-slate-500 hover:text-cyan-400 uppercase tracking-wider font-semibold">{{ _('common.sign_in') }}</a>
          </div>
          {% endif %}
     </div>

@@ -17,6 +17,15 @@
                     {{ worker_mode | upper }}
                 </span>
             </div>
+            <!-- Reset Stuck Targets -->
+            <button id="reset-stuck-btn" onclick="resetStuckTargets()"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-300 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-700/40 rounded-lg transition-colors"
+                    title="Targets die als 'running' feststecken auf 'idle' zurücksetzen">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+                Stuck Targets zurücksetzen
+            </button>
             <a href="/workers" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors" title="Refresh">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -405,5 +414,41 @@
     document.getElementById('worker-config-modal').addEventListener('click', function(e) {
         if (e.target === this) this.classList.add('hidden');
     });
+
+    window.resetStuckTargets = function() {
+        const btn = document.getElementById('reset-stuck-btn');
+        const stuck = {{ stats.total_running_tasks | default(0) }};
+
+        if (!confirm(
+            `Alle Targets zurücksetzen, die seit mehr als 45 Minuten als „running" feststecken?\n\n` +
+            `Aktuell ${stuck} Target(s) im Status „running".\n\n` +
+            `Targets die tatsächlich laufen werden NICHT zurückgesetzt (< 45 Min. alt).`
+        )) return;
+
+        const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+        const csrf = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Wird zurückgesetzt…`;
+
+        fetch('/workers/reset-stuck', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.reset === 0) {
+                alert('Keine feststeckenden Targets gefunden (> 45 Min.).');
+            } else {
+                alert(`✓ ${data.reset} Target(s) auf „idle" zurückgesetzt.`);
+                window.location.reload();
+            }
+        })
+        .catch(() => alert('Fehler beim Zurücksetzen.'))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg> Stuck Targets zurücksetzen`;
+        });
+    };
 </script>
 {% endblock %}

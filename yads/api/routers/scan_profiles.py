@@ -43,6 +43,7 @@ BUILTIN_PROFILES = [
             "dns_scanner", "ssl_scanner", "web_analyzer", "security_headers",
             "cors_scanner", "csp_scanner", "email_security", "tls_deep_scanner",
             "waf_detector", "login_scanner", "cookie_analyzer",
+            "javascript_supply_chain", "cookie_consent_audit", "third_party_risk",
         ],
         "icon": "🔍",
         "color": "blue",
@@ -62,6 +63,7 @@ BUILTIN_PROFILES = [
         "scan_types": [
             "dns_scanner", "dns_history_scanner", "ct_monitor", "asn_scanner",
             "typosquat_scanner", "email_harvester", "mobile_app_discovery",
+            "brand_monitor", "mobile_app_monitor",
         ],
         "icon": "🔭",
         "color": "emerald",
@@ -73,6 +75,7 @@ BUILTIN_PROFILES = [
         "scan_types": [
             "threat_intel", "phishing_scanner", "leaked_credentials",
             "password_spray_mapper", "subdomain_takeover", "email_harvester",
+            "exposed_admin_panel", "cicd_exposure", "kubernetes_exposure",
         ],
         "icon": "🚨",
         "color": "rose",
@@ -84,6 +87,7 @@ BUILTIN_PROFILES = [
         "scan_types": [
             "api_security_scanner", "graphql_scanner", "websocket_scanner",
             "login_scanner", "cors_scanner", "waf_detector",
+            "mobile_app_monitor",
         ],
         "icon": "🔌",
         "color": "amber",

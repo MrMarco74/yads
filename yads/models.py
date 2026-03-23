@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -77,6 +77,13 @@ class Tenant(SQLModel, table=True):
     llm_api_url: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     llm_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     llm_model: Optional[str] = Field(default=None)
+
+    # Finding SLA (days until due_date, BSI defaults)
+    sla_critical: int = Field(default=7)
+    sla_high: int = Field(default=30)
+    sla_medium: int = Field(default=90)
+    sla_low: int = Field(default=180)
+    sla_info: Optional[int] = Field(default=None)  # None = no deadline
 
     # Report Branding Settings
     report_logo_url: Optional[str] = Field(default=None)  # URL or base64 data URI
@@ -828,3 +835,38 @@ class SystemAlertLog(SQLModel, table=True):
     fired_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     resolved_at: Optional[datetime] = Field(default=None)
     notified: bool = Field(default=False)         # webhook already sent
+
+
+class SecurityFinding(SQLModel, table=True):
+    """
+    Persistent record for each unique security finding (domain|module|issue).
+    Created on first detection, updated on every subsequent scan.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # Identity
+    yf_id: str = Field(index=True, unique=True)          # e.g. "YF-000042"
+    finding_hash: str = Field(index=True, unique=True)   # SHA256[:16] of domain|module|issue
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenant.id", index=True)
+    target_id: Optional[int] = Field(default=None, foreign_key="target.id", index=True)
+    domain: str = Field(index=True)
+    module: str
+    issue: str
+    severity: str  # critical | high | medium | low | info
+
+    # Lifecycle
+    first_found: datetime = Field(default_factory=datetime.utcnow, index=True)
+    last_seen: datetime = Field(default_factory=datetime.utcnow)
+    closing_date: Optional[datetime] = Field(default=None)
+    due_date: Optional[date] = Field(default=None)
+
+    # Triage
+    status: str = Field(default="open", index=True)  # open | acknowledged | false_positive | fixed
+    status_note: Optional[str] = Field(default=None)
+    status_updated_at: Optional[datetime] = Field(default=None)
+    status_updated_by: Optional[str] = Field(default=None)
+    assigned_to: Optional[str] = Field(default=None)
+    ticket_ref: Optional[str] = Field(default=None)
+
+    # Recurrence tracking
+    reopened_count: int = Field(default=0)

@@ -23,7 +23,11 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_secrets_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None):
+def _get_secrets_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None, status_filter=None):
+    from yads.utils.findings import FindingStatusFilter
+    if not status_filter:
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
+
     # 1. Fetch relevant targets
     targets_query = select(Target)
     if user.tenant_id:
@@ -42,6 +46,9 @@ def _get_secrets_data(session: Session, user: User, for_export: bool = False, da
             "pii": 0,
             "targets_affected": 0
         }
+
+    # Initialize Finding Status Filter
+    # status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None) # This line is now redundant
 
     # 2. Fetch Nuclei & WebAnalyzer results
     statement = select(ScanResult).where(
@@ -97,9 +104,14 @@ def _get_secrets_data(session: Session, user: User, for_export: bool = False, da
                 name_addr = f.get("name", "").lower()
                 tid = f.get("template_id", "").lower()
                 severity = f.get("severity", "").lower()
+                finding_name = f.get("name")
+
+                # Filter triaged findings
+                if status_filter.is_ignored(target.domain, "nuclei_scanner", finding_name):
+                    continue
 
                 item = {
-                    "name": f.get("name"),
+                    "name": finding_name,
                     "target_id": t_id,
                     "target_domain": target.domain,
                     "location": f.get("matched_at"),
@@ -129,8 +141,14 @@ def _get_secrets_data(session: Session, user: User, for_export: bool = False, da
             secrets = res.data.get("secrets", [])
             for s in secrets:
                 # {type, value, snippet}
+                secret_type = s.get("type")
+                
+                # Filter triaged findings
+                if status_filter.is_ignored(target.domain, "web_analyzer", secret_type):
+                    continue
+
                 item = {
-                    "name": s.get("type"),
+                    "name": secret_type,
                     "target_id": t_id,
                     "target_domain": target.domain,
                     "location": f"http://{target.domain}", # Web Analyzer usually scans root

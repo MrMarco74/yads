@@ -536,6 +536,123 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     _audit_scan_trigger(session, user, [target.domain], selected_types, "single_scan", request)
 
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
+
+
+@router.post("/targets/{target_id}/rescan-module")
+async def rescan_module(
+    target_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Trigger a single-module rescan and return the pre-scan hash for later comparison."""
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    module_name = ""
+    content_type = request.headers.get("Content-Type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+        module_name = body.get("module_name", "").strip()
+    else:
+        # Fallback for standard HTML forms
+        form_data = await request.form()
+        module_name = form_data.get("module_name", "").strip()
+
+    from yads.core.module_registry import REGISTRY
+    if module_name not in REGISTRY:
+        raise HTTPException(status_code=400, detail=f"Unknown module: {module_name}")
+
+    # Record current hash + timestamp before scan starts
+    ms = session.exec(select(ModuleState).where(ModuleState.target_id == target_id, ModuleState.module_name == module_name)).first()
+    old_hash = ms.last_result_hash if ms else None
+    pre_scan_time = datetime.now(timezone.utc).isoformat()
+
+    celery_app.send_task(
+        "yads.worker.run_all_scans",
+        args=[target.id, target.domain, [module_name], user.tenant_id],
+        priority=getattr(target, "scan_priority", 5),
+    )
+    target.scan_status = "queued"
+    session.add(target)
+    session.commit()
+
+    if "application/json" not in content_type:
+        return RedirectResponse(url=_safe_redirect(request.headers.get("Referer"), f"/targets/{target_id}"), status_code=303)
+
+    return JSONResponse({"ok": True, "old_hash": old_hash, "pre_scan_time": pre_scan_time})
+
+
+@router.get("/targets/{target_id}/rescan-module/status")
+async def rescan_module_status(
+    target_id: int,
+    module_name: str,
+    old_hash: str = "",
+    pre_scan_time: str = "",
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Poll rescan completion and compare findings."""
+    target = session.exec(select(Target).where(Target.id == target_id, Target.tenant_id == user.tenant_id)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    # Still running?
+    if target.scan_status in ("queued", "running"):
+        return JSONResponse({"status": "pending"})
+
+    # Check if ModuleState was updated after the scan was triggered
+    ms = session.exec(select(ModuleState).where(ModuleState.target_id == target_id, ModuleState.module_name == module_name)).first()
+    if not ms:
+        return JSONResponse({"status": "done", "changed": False, "resolved": False})
+
+    try:
+        pre_dt = datetime.fromisoformat(pre_scan_time.replace("Z", "+00:00")) if pre_scan_time else None
+        last_dt = ms.last_scanned_at
+        if last_dt.tzinfo is None:
+            from datetime import timezone as _tz
+            last_dt = last_dt.replace(tzinfo=_tz.utc)
+        scanned_after_trigger = pre_dt is None or last_dt > pre_dt
+    except Exception:
+        scanned_after_trigger = True
+
+    if not scanned_after_trigger:
+        # Scan finished (target idle) but module was never updated → module was skipped (e.g. no HTTP)
+        if target.scan_status == "idle":
+            return JSONResponse({"status": "done", "changed": False, "resolved": False, "skipped": True})
+        return JSONResponse({"status": "pending"})
+
+    new_hash = ms.last_result_hash
+    changed = old_hash and new_hash != old_hash
+    # "resolved" heuristic: hash changed AND newest ScanResult has fewer findings than the previous one
+    resolved = False
+    if changed:
+        results = session.exec(
+            select(ScanResult)
+            .where(ScanResult.target_id == target_id, ScanResult.module_name == module_name)
+            .order_by(ScanResult.scanned_at.desc())
+            .limit(2)
+        ).all()
+        if len(results) >= 2:
+            def _count_findings(r):
+                d = r.data or {}
+                for key in ("findings", "issues", "vulnerabilities", "cves", "alerts", "results"):
+                    v = d.get(key)
+                    if isinstance(v, list):
+                        return len(v)
+                return -1
+            old_count = _count_findings(results[1])
+            new_count = _count_findings(results[0])
+            if old_count > 0 and new_count < old_count:
+                resolved = True
+        elif len(results) == 1:
+            # First ever result after rescan — treat change as "new data"
+            resolved = False
+
+    return JSONResponse({"status": "done", "changed": bool(changed), "resolved": resolved})
+
+
 @router.post("/targets/add", response_class=HTMLResponse)
 async def ui_add_target(request: Request, domain: str = Form(...), session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "scanner"]))):
     """HTMX endpoint to add a target"""
