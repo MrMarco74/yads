@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # This file is used ONLY for building and pushing the release images to the registry.

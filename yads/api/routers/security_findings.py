@@ -18,13 +18,14 @@ from sqlmodel import Session, select
 from yads.api.templating import templates
 from yads.auth.deps import get_current_user_html
 from yads.database import get_session
-from yads.models import ScanResult, SystemConfig, Target, User
+from yads.models import ScanResult, SystemConfig, Target, Tenant, User, SecurityFinding
+from yads.utils.findings import get_finding_hash
 
 router = APIRouter(prefix="/security-findings", tags=["analytics"])
 
 # Derived from module registry — no manual list needed
 from yads.core.module_registry import get_finding_modules, get_module
-FINDING_MODULES = get_finding_modules()
+FINDING_MODULES = sorted(get_finding_modules())
 
 # Key prefix used in SystemConfig for finding status storage
 _STATUS_KEY = "finding_statuses"
@@ -57,8 +58,92 @@ def _save_statuses(session: Session, tenant_id: Optional[int], statuses: Dict[st
 
 def _finding_hash(domain: str, module: str, issue: str) -> str:
     """Deterministic hash for a finding used as status map key."""
-    raw = f"{domain}|{module}|{issue}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return get_finding_hash(domain, module, issue)
+
+
+# ─── YF-ID / SecurityFinding helpers ─────────────────────────────────────────
+
+_YF_COUNTER_KEY = "finding_yf_counter"
+
+_BSI_SLA_DAYS = {"critical": 7, "high": 30, "medium": 90, "low": 180, "info": None}
+
+
+def _get_sla_days(tenant: Optional["Tenant"], severity: str) -> Optional[int]:
+    """Return SLA days for a severity, using tenant overrides or BSI defaults."""
+    if tenant:
+        return getattr(tenant, f"sla_{severity}", _BSI_SLA_DAYS.get(severity))
+    return _BSI_SLA_DAYS.get(severity)
+
+
+def _upsert_findings(
+    session: Session,
+    findings_data: List[Dict],
+    tenant_id: Optional[int],
+    tenant: Optional["Tenant"],
+) -> Dict[str, "SecurityFinding"]:
+    """
+    Upsert SecurityFinding rows for all findings in findings_data.
+    Creates new rows (with YF-ID + due_date) or updates last_seen.
+    Returns dict mapping finding_hash → SecurityFinding.
+    """
+    if not findings_data:
+        return {}
+
+    hashes = [f["finding_hash"] for f in findings_data]
+    existing_rows = session.exec(
+        select(SecurityFinding).where(SecurityFinding.finding_hash.in_(hashes))
+    ).all()
+    existing_map: Dict[str, SecurityFinding] = {r.finding_hash: r for r in existing_rows}
+
+    # Load counter for new IDs
+    counter_cfg = session.get(SystemConfig, _YF_COUNTER_KEY)
+    counter = int(counter_cfg.value) if counter_cfg and counter_cfg.value else 0
+
+    now = datetime.now(timezone.utc)
+    changed = False
+
+    for f in findings_data:
+        fhash = f["finding_hash"]
+        if fhash in existing_map:
+            row = existing_map[fhash]
+            row.last_seen = now
+            session.add(row)
+        else:
+            counter += 1
+            sla_days = _get_sla_days(tenant, f.get("severity", "info"))
+            due = date.fromisoformat(now.date().isoformat())
+            from datetime import timedelta
+            due_date = (now + timedelta(days=sla_days)).date() if sla_days else None
+            row = SecurityFinding(
+                yf_id=f"YF-{counter:06d}",
+                finding_hash=fhash,
+                tenant_id=tenant_id,
+                target_id=f.get("target_id"),
+                domain=f.get("domain", ""),
+                module=f.get("module", ""),
+                issue=f.get("issue", ""),
+                severity=f.get("severity", "info"),
+                first_found=now,
+                last_seen=now,
+                due_date=due_date,
+                status="open",
+            )
+            session.add(row)
+            existing_map[fhash] = row
+            changed = True
+
+    if changed:
+        if counter_cfg:
+            counter_cfg.value = str(counter)
+            session.add(counter_cfg)
+        else:
+            session.add(SystemConfig(key=_YF_COUNTER_KEY, value=str(counter)))
+
+    session.commit()
+    # Refresh to get DB-assigned IDs
+    for row in existing_map.values():
+        session.refresh(row)
+    return existing_map
 
 
 # ─── Data helpers ─────────────────────────────────────────────────────────────
@@ -205,63 +290,74 @@ async def security_findings_overview(
     status_filter: Optional[str] = None,
 ):
     target_map = _get_tenant_targets(session, user)
-    statuses = _load_statuses(session, user.tenant_id)
+    tenant = session.get(Tenant, user.tenant_id) if user.tenant_id else None
 
     if not target_map:
         return templates.TemplateResponse("security_findings.html", {
-            "request": request,
-            "user": user,
-            "target_findings": [],
-            "summary": {"total": 0, "targets_with_findings": 0},
-            "module_filter": module_filter,
-            "severity_filter": severity_filter,
-            "status_filter": status_filter,
-            "finding_modules": FINDING_MODULES,
-            "statuses": statuses,
+            "request": request, "user": user,
+            "target_findings": [], "summary": {"total": 0, "targets_with_findings": 0},
+            "module_filter": module_filter, "severity_filter": severity_filter,
+            "status_filter": status_filter, "finding_modules": FINDING_MODULES,
         })
 
     target_ids = tuple(target_map.keys())
     latest = _fetch_latest_results(session, target_ids)
 
-    target_findings = []
-    for tid, target in sorted(target_map.items(), key=lambda x: x[1].domain):
-        all_findings = []
-        modules_scanned = []
-
+    # Collect all raw findings first (for bulk upsert)
+    raw_findings: List[Dict] = []
+    for tid, target in target_map.items():
         for module in FINDING_MODULES:
-            if module_filter and module != module_filter:
-                continue
             result = latest.get((tid, module))
             if result and result.data:
-                findings = _extract_findings(module, result.data)
-                if severity_filter:
-                    findings = [f for f in findings if f["severity"] == severity_filter]
-
-                # Annotate each finding with its hash and status
-                enriched = []
-                for f in findings:
+                for f in _extract_findings(module, result.data):
                     fhash = _finding_hash(target.domain, module, f["issue"])
-                    st = statuses.get(fhash, {})
-                    fstatus = st.get("status", "open")
-                    if status_filter and fstatus != status_filter:
-                        continue
-                    enriched.append({
-                        **f,
-                        "module": module,
-                        "finding_hash": fhash,
-                        "status": fstatus,
-                        "status_note": st.get("note", ""),
-                        "status_updated_at": st.get("updated_at", ""),
+                    raw_findings.append({
+                        **f, "module": module, "finding_hash": fhash,
+                        "domain": target.domain, "target_id": tid,
                         "scanned_at": result.scanned_at.isoformat() if result.scanned_at else "",
                     })
 
-                if enriched:
-                    all_findings.extend(enriched)
-                    modules_scanned.append({
-                        "module": module,
-                        "scanned_at": result.scanned_at,
-                        "finding_count": len(enriched),
-                    })
+    # Upsert all findings → creates YF-IDs + due_dates, updates last_seen
+    sf_map = _upsert_findings(session, raw_findings, user.tenant_id, tenant)
+
+    # Build display structure with filters applied
+    target_findings = []
+    for tid, target in sorted(target_map.items(), key=lambda x: x[1].domain):
+        all_findings = []
+        modules_scanned: Dict[str, Dict] = {}
+
+        for rf in raw_findings:
+            if rf["target_id"] != tid:
+                continue
+            if module_filter and rf["module"] != module_filter:
+                continue
+            if severity_filter and rf.get("severity") != severity_filter:
+                continue
+
+            sf = sf_map.get(rf["finding_hash"])
+            if not sf:
+                continue
+            if status_filter and sf.status != status_filter:
+                continue
+
+            all_findings.append({
+                **rf,
+                "yf_id": sf.yf_id,
+                "status": sf.status,
+                "status_note": sf.status_note or "",
+                "status_updated_at": sf.status_updated_at.isoformat() if sf.status_updated_at else "",
+                "assigned_to": sf.assigned_to or "",
+                "ticket_ref": sf.ticket_ref or "",
+                "first_found": sf.first_found.strftime("%Y-%m-%d") if sf.first_found else "",
+                "last_seen": sf.last_seen.strftime("%Y-%m-%d") if sf.last_seen else "",
+                "due_date": sf.due_date.strftime("%Y-%m-%d") if sf.due_date else "",
+                "due_overdue": sf.due_date and sf.due_date < date.today() and sf.status == "open",
+                "reopened_count": sf.reopened_count,
+            })
+            mod = rf["module"]
+            if mod not in modules_scanned:
+                modules_scanned[mod] = {"module": mod, "scanned_at": rf["scanned_at"], "finding_count": 0}
+            modules_scanned[mod]["finding_count"] += 1
 
         if all_findings or not (module_filter or severity_filter or status_filter):
             sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -269,26 +365,20 @@ async def security_findings_overview(
             target_findings.append({
                 "target": target,
                 "findings": all_findings,
-                "modules_scanned": modules_scanned,
+                "modules_scanned": list(modules_scanned.values()),
                 "highest_severity": all_findings[0]["severity"] if all_findings else None,
             })
 
-    # Sort: targets with critical/high findings first
     sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, None: 99}
     target_findings.sort(key=lambda x: sev_order.get(x["highest_severity"], 99))
 
     summary = _build_summary(target_findings)
 
     return templates.TemplateResponse("security_findings.html", {
-        "request": request,
-        "user": user,
-        "target_findings": target_findings,
-        "summary": summary,
-        "module_filter": module_filter,
-        "severity_filter": severity_filter,
-        "status_filter": status_filter,
-        "finding_modules": FINDING_MODULES,
-        "statuses": statuses,
+        "request": request, "user": user,
+        "target_findings": target_findings, "summary": summary,
+        "module_filter": module_filter, "severity_filter": severity_filter,
+        "status_filter": status_filter, "finding_modules": FINDING_MODULES,
     })
 
 
@@ -308,20 +398,46 @@ async def update_finding_status(
     note = body.get("note", "")
 
     valid_statuses = {"open", "acknowledged", "false_positive", "fixed"}
+    from fastapi import HTTPException
     if status not in valid_statuses:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(valid_statuses)}")
 
-    statuses = _load_statuses(session, user.tenant_id)
-    statuses[finding_hash] = {
-        "status": status,
-        "note": note,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "updated_by": user.username,
-    }
-    _save_statuses(session, user.tenant_id, statuses)
+    sf = session.exec(select(SecurityFinding).where(SecurityFinding.finding_hash == finding_hash)).first()
+    if not sf:
+        raise HTTPException(status_code=404, detail="Finding not found")
 
-    return {"finding_hash": finding_hash, "status": status}
+    now = datetime.now(timezone.utc)
+    prev_status = sf.status
+
+    # Track reopens: was closed, now re-opened
+    if prev_status in ("fixed", "false_positive") and status == "open":
+        sf.reopened_count += 1
+        sf.closing_date = None
+
+    # Set closing date when resolving
+    if status in ("fixed", "false_positive") and prev_status not in ("fixed", "false_positive"):
+        sf.closing_date = now
+
+    sf.status = status
+    sf.status_note = note
+    sf.status_updated_at = now
+    sf.status_updated_by = user.username
+
+    # Optional fields from body
+    if "assigned_to" in body:
+        sf.assigned_to = body["assigned_to"] or None
+    if "ticket_ref" in body:
+        sf.ticket_ref = body["ticket_ref"] or None
+    if "due_date" in body and body["due_date"]:
+        try:
+            sf.due_date = date.fromisoformat(body["due_date"])
+        except ValueError:
+            pass
+
+    session.add(sf)
+    session.commit()
+
+    return {"finding_hash": finding_hash, "yf_id": sf.yf_id, "status": status}
 
 
 @router.get("/api/findings/export")

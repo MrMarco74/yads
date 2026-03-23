@@ -37,18 +37,18 @@ class LeakMonitor(BaseScannerModule):
         # 1. Get Tenant Context & API Key
         # We need to find the tenant for this target.
         # Since run_scan provides 'target' string, we query DB for the Target object.
-        if not self.db_session:
+        if not self.db:
             self.logger.error("No DB session available. Cannot retrieve Tenant API Key.")
             results["error"] = "DB Session Missing"
             return results
 
-        target_obj = self.db_session.exec(select(Target).where(Target.domain == target)).first()
+        target_obj = self.db.exec(select(Target).where(Target.domain == target)).first()
         if not target_obj or not target_obj.tenant_id:
             self.logger.warning(f"Target {target} not found or not linked to tenant.")
             results["error"] = "Target/Tenant not found"
             return results
-            
-        tenant = self.db_session.get(Tenant, target_obj.tenant_id)
+
+        tenant = self.db.get(Tenant, target_obj.tenant_id)
         if not tenant or not tenant.hibp_api_key:
             self.logger.info("No HIBP API Key configured for tenant. Skipping scan.")
             results["status"] = "skipped_no_key"

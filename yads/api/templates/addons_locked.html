@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Extension Hub — Enterprise{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto px-4 py-12 space-y-8">
+
+    <!-- Lock Banner -->
+    <div class="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-8 text-center space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-slate-700/50 border border-slate-600/40 flex items-center justify-center mx-auto">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+        </div>
+
+        <div>
+            <h1 class="text-2xl font-bold text-white">Extension Hub</h1>
+            <p class="text-base text-amber-400 font-semibold mt-1">Enterprise Edition erforderlich</p>
+        </div>
+
+        <p class="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+            Diese Funktion ist nur in der Enterprise Edition verfügbar. Mit dem Extension Hub können
+            spezialisierte Scanner-Module installiert, verwaltet und über den integrierten Extension Hub bezogen werden.
+        </p>
+
+        <!-- Feature highlights -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left mt-4">
+            <div class="flex items-start gap-3 bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                <svg class="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <div>
+                    <p class="text-xs font-semibold text-slate-200">ZIP-Upload</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Einzelne Add-ons oder Bundles mit mehreren Modulen hochladen</p>
+                </div>
+            </div>
+            <div class="flex items-start gap-3 bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                <svg class="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <div>
+                    <p class="text-xs font-semibold text-slate-200">Extension Hub</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Zertifizierte YADS-Add-ons aus dem Online- oder Air-Gap-Katalog installieren</p>
+                </div>
+            </div>
+            <div class="flex items-start gap-3 bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                <svg class="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <div>
+                    <p class="text-xs font-semibold text-slate-200">Signaturverifizierung</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Alle Add-ons werden mit Ed25519 signiert und geprüft</p>
+                </div>
+            </div>
+            <div class="flex items-start gap-3 bg-slate-900/60 rounded-xl p-3 border border-slate-700/40">
+                <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <div>
+                    <p class="text-xs font-semibold text-slate-200">Update-Prüfung</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Installierte Add-ons automatisch mit dem Katalog abgleichen</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTA -->
+        <div class="pt-2">
+            <a href="https://yads-security.com/pricing"
+               target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                Jetzt upgraden — yads-security.com/pricing
+            </a>
+        </div>
+    </div>
+
+    <!-- Teaser: Available Add-ons -->
+    {% if catalog %}
+    <div class="space-y-3">
+        <h2 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            Verfügbare Add-ons ({{ catalog | length }})
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for addon in catalog %}
+            <div class="bg-slate-900/60 border border-slate-700/30 rounded-xl p-4 flex items-start gap-3 opacity-75">
+                <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <p class="text-sm font-semibold text-slate-300">{{ addon.label }}</p>
+                        <span class="text-xs px-1.5 py-0.5 bg-slate-700/50 text-slate-500 rounded border border-slate-700">{{ addon.category }}</span>
+                    </div>
+                    <p class="text-xs text-slate-600 font-mono mt-0.5">{{ addon.module_name }}</p>
+                    <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ addon.description }}</p>
+                </div>
+                <div class="flex-shrink-0">
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="text-xs text-slate-600 text-center">
+            Alle Add-ons erfordern eine aktive Enterprise-Lizenz zur Installation.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

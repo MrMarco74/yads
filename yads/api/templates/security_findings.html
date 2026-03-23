@@ -4,28 +4,47 @@
 
     <!-- Status Update Modal -->
     <div id="statusModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 shadow-2xl">
-            <h2 class="text-base font-semibold text-white mb-4">Update Finding Status</h2>
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-semibold text-white">Finding bearbeiten</h2>
+                <span id="modalYfId" class="text-xs font-mono text-indigo-400"></span>
+            </div>
             <input type="hidden" id="modalFindingHash">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1.5">Status</label>
-                    <select id="modalStatus" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                        <option value="open">Open</option>
-                        <option value="acknowledged">Acknowledged</option>
-                        <option value="false_positive">False Positive</option>
-                        <option value="fixed">Fixed</option>
-                    </select>
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Status</label>
+                        <select id="modalStatus" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="open">Open</option>
+                            <option value="acknowledged">Acknowledged</option>
+                            <option value="false_positive">False Positive</option>
+                            <option value="fixed">Fixed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Fällig bis <span class="text-slate-600">(due date)</span></label>
+                        <input type="date" id="modalDueDate" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Zuständig</label>
+                        <input type="text" id="modalAssignedTo" placeholder="Username oder Team" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Ticket-Referenz</label>
+                        <input type="text" id="modalTicketRef" placeholder="JIRA-123 / SN-456" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1.5">Note <span class="text-slate-600">(optional)</span></label>
-                    <textarea id="modalNote" rows="3" placeholder="Add context, ticket number, etc."
+                    <label class="block text-xs text-slate-400 mb-1">Notiz <span class="text-slate-600">(optional)</span></label>
+                    <textarea id="modalNote" rows="2" placeholder="Kontext, Ticketnummer, Workaround…"
                               class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
                 </div>
             </div>
-            <div class="flex gap-3 mt-5 justify-end">
-                <button onclick="closeStatusModal()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Cancel</button>
-                <button onclick="saveStatus()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Save</button>
+            <div class="flex gap-3 mt-4 justify-end">
+                <button onclick="closeStatusModal()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Abbrechen</button>
+                <button onclick="saveStatus()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Speichern</button>
             </div>
         </div>
     </div>
@@ -61,7 +80,9 @@
                     <option value="fixed" {% if status_filter == 'fixed' %}selected{% endif %}>Fixed</option>
                 </select>
                 {% if module_filter or severity_filter or status_filter %}
-                <a href="/security-findings/" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">Clear</a>
+                <a href="/security-findings/" class="px-3 py-2 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg">Alle anzeigen</a>
+                {% else %}
+                <a href="?status_filter=open" class="px-3 py-2 text-xs text-emerald-400 hover:text-white border border-emerald-800 hover:border-emerald-500 rounded-lg">Nur offene</a>
                 {% endif %}
             </form>
             <!-- CSV Export button -->
@@ -144,9 +165,23 @@
                     <!-- Issue text -->
                     <div class="flex-1 min-w-0">
                         <p class="text-xs text-slate-200">{{ f.issue }}</p>
-                        {% if f.status_note %}
-                        <p class="text-[10px] text-slate-500 mt-0.5 italic">Note: {{ f.status_note }}</p>
-                        {% endif %}
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+                            {% if f.yf_id %}
+                            <button onclick="navigator.clipboard.writeText('{{ f.yf_id }}').then(()=>this.textContent='Copied!').catch(()=>{}); setTimeout(()=>this.textContent='{{ f.yf_id }}',1200)"
+                                    class="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
+                                    title="Klicken zum Kopieren">{{ f.yf_id }}</button>
+                            {% endif %}
+                            {% if f.first_found %}<span class="text-[10px] text-slate-500">Erstmals: {{ f.first_found }}</span>{% endif %}
+                            {% if f.last_seen %}<span class="text-[10px] text-slate-500">Zuletzt: {{ f.last_seen }}</span>{% endif %}
+                            {% if f.due_date %}
+                            <span class="text-[10px] font-medium {% if f.due_overdue %}text-red-400{% else %}text-amber-400{% endif %}">
+                                Fällig: {{ f.due_date }}{% if f.due_overdue %} ⚠{% endif %}
+                            </span>
+                            {% endif %}
+                            {% if f.assigned_to %}<span class="text-[10px] text-slate-400">→ {{ f.assigned_to }}</span>{% endif %}
+                            {% if f.ticket_ref %}<span class="text-[10px] text-slate-400 font-mono">{{ f.ticket_ref }}</span>{% endif %}
+                            {% if f.status_note %}<span class="text-[10px] text-slate-500 italic">{{ f.status_note }}</span>{% endif %}
+                        </div>
                     </div>
                     <!-- Module label -->
                     <span class="shrink-0 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded">{{ f.module.replace('_scanner','').replace('_',' ') }}</span>
@@ -159,8 +194,21 @@
                         {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
                         {% if f.status == 'false_positive' %}FP{% else %}{{ f.status|replace('_', ' ')|title }}{% endif %}
                     </span>
+                    <!-- Rescan button -->
+                    <button onclick="triggerFindingRescan(this, {{ entry.target.id }}, '{{ f.module }}')"
+                            class="shrink-0 text-[10px] text-slate-500 hover:text-blue-400 border border-slate-700 hover:border-blue-600 px-1.5 py-0.5 rounded transition-colors"
+                            title="Modul neu scannen">
+                        <svg class="inline w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Rescan
+                    </button>
                     <!-- Update Status button -->
-                    <button onclick="openStatusModal('{{ f.finding_hash }}', '{{ f.status }}', {{ f.status_note | tojson }})"
+                    <button onclick="openStatusModal(this)"
+                            data-hash="{{ f.finding_hash }}"
+                            data-status="{{ f.status }}"
+                            data-note="{{ f.status_note | e }}"
+                            data-due="{{ f.due_date or '' }}"
+                            data-assigned="{{ f.assigned_to | e if f.assigned_to else '' }}"
+                            data-ticket="{{ f.ticket_ref | e if f.ticket_ref else '' }}"
+                            data-yfid="{{ f.yf_id or '' }}"
                             class="shrink-0 text-[10px] text-slate-500 hover:text-indigo-400 border border-slate-700 hover:border-indigo-600 px-1.5 py-0.5 rounded transition-colors"
                             title="Update status">
                         Edit
@@ -191,11 +239,22 @@
 
 </div>
 
+<!-- Rescan Toast Container -->
+<div id="sf-toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
 <script>
-function openStatusModal(findingHash, currentStatus, currentNote) {
-    document.getElementById('modalFindingHash').value = findingHash;
-    document.getElementById('modalStatus').value = currentStatus || 'open';
-    document.getElementById('modalNote').value = currentNote || '';
+const _CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? '';
+
+// ── Status Modal ──────────────────────────────────────────────────────────────
+function openStatusModal(btn) {
+    const d = btn.dataset;
+    document.getElementById('modalFindingHash').value = d.hash;
+    document.getElementById('modalStatus').value = d.status || 'open';
+    document.getElementById('modalNote').value = d.note || '';
+    document.getElementById('modalDueDate').value = d.due || '';
+    document.getElementById('modalAssignedTo').value = d.assigned || '';
+    document.getElementById('modalTicketRef').value = d.ticket || '';
+    document.getElementById('modalYfId').textContent = d.yfid || '';
     document.getElementById('statusModal').classList.remove('hidden');
 }
 
@@ -207,28 +266,93 @@ async function saveStatus() {
     const hash = document.getElementById('modalFindingHash').value;
     const status = document.getElementById('modalStatus').value;
     const note = document.getElementById('modalNote').value;
-
+    const due_date = document.getElementById('modalDueDate').value || null;
+    const assigned_to = document.getElementById('modalAssignedTo').value || null;
+    const ticket_ref = document.getElementById('modalTicketRef').value || null;
     try {
         const res = await fetch(`/security-findings/api/findings/${hash}/status`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ status, note })
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _CSRF},
+            body: JSON.stringify({ status, note, due_date, assigned_to, ticket_ref })
         });
         if (res.ok) {
             closeStatusModal();
-            window.location.reload();
+            // After marking as resolved/irrelevant → switch to "open only" view so finding disappears
+            const resolvedStatuses = ['fixed', 'false_positive'];
+            if (resolvedStatuses.includes(status)) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('status_filter', 'open');
+                window.location.href = url.toString();
+            } else {
+                window.location.reload();
+            }
         } else {
-            const d = await res.json();
-            alert('Error: ' + (d.detail || 'Unknown error'));
+            const text = await res.text();
+            sfShowToast('Fehler beim Speichern: ' + (res.status === 403 ? 'CSRF-Fehler (Seite neu laden)' : text.substring(0, 80)), 'error');
         }
-    } catch (e) {
-        alert('Request failed: ' + e.message);
-    }
+    } catch (e) { sfShowToast('Verbindungsfehler: ' + e.message, 'error'); }
 }
 
-// Close modal on backdrop click
 document.getElementById('statusModal').addEventListener('click', function(e) {
     if (e.target === this) closeStatusModal();
 });
+
+// ── Rescan ────────────────────────────────────────────────────────────────────
+function sfShowToast(msg, type) {
+    const colors = {success:'bg-green-700 border-green-500 text-green-100', warn:'bg-amber-700 border-amber-500 text-amber-100', info:'bg-blue-700 border-blue-500 text-blue-100', error:'bg-red-700 border-red-500 text-red-100'};
+    const t = document.createElement('div');
+    t.className = `pointer-events-auto max-w-sm w-full px-4 py-3 rounded-lg border shadow-lg text-sm flex items-start gap-2 ${colors[type]||colors.info}`;
+    t.innerHTML = `<span class="flex-1">${msg}</span><button class="opacity-60 hover:opacity-100 text-lg leading-none" onclick="this.parentElement.remove()">×</button>`;
+    document.getElementById('sf-toast-container').appendChild(t);
+    setTimeout(() => t.remove(), 8000);
+}
+
+function triggerFindingRescan(btn, targetId, moduleName) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="inline w-2.5 h-2.5 mr-0.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" class="opacity-75"/></svg>…';
+
+    fetch(`/targets/${targetId}/rescan-module`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _CSRF},
+        body: JSON.stringify({module_name: moduleName}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) { resetRescanBtn(btn); sfShowToast('Fehler beim Starten des Rescans.', 'error'); return; }
+        sfShowToast(`Rescan für <em>${moduleName}</em> gestartet…`, 'info');
+        pollFindingRescan(btn, targetId, moduleName, data.old_hash || '', data.pre_scan_time || '');
+    })
+    .catch(() => { resetRescanBtn(btn); sfShowToast('Verbindungsfehler.', 'error'); });
+}
+
+function pollFindingRescan(btn, targetId, moduleName, oldHash, preScanTime, attempts = 0) {
+    if (attempts > 60) { resetRescanBtn(btn); sfShowToast('Rescan-Timeout.', 'warn'); return; }
+    const url = `/targets/${targetId}/rescan-module/status?module_name=${encodeURIComponent(moduleName)}&old_hash=${encodeURIComponent(oldHash)}&pre_scan_time=${encodeURIComponent(preScanTime)}`;
+    setTimeout(() => {
+        fetch(url, {headers: {'X-CSRF-Token': _CSRF}})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'pending') { pollFindingRescan(btn, targetId, moduleName, oldHash, preScanTime, attempts + 1); return; }
+            resetRescanBtn(btn);
+            if (data.skipped) {
+                sfShowToast(`Modul <em>${moduleName}</em> übersprungen – kein HTTP/HTTPS-Zugang zum Ziel.`, 'warn');
+            } else if (data.resolved) {
+                sfShowToast(`<strong>Finding behoben!</strong> <em>${moduleName}</em> zeigt weniger Findings. Seite wird neu geladen…`, 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else if (data.changed) {
+                sfShowToast(`<strong>Änderungen erkannt</strong> in <em>${moduleName}</em>. Seite wird neu geladen…`, 'info');
+                setTimeout(() => location.reload(), 2500);
+            } else {
+                sfShowToast(`<strong>Keine Änderung</strong> – Finding in <em>${moduleName}</em> weiterhin vorhanden.`, 'warn');
+            }
+        })
+        .catch(() => { resetRescanBtn(btn); sfShowToast('Fehler beim Prüfen des Rescan-Status.', 'error'); });
+    }, 3000);
+}
+
+function resetRescanBtn(btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="inline w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Rescan';
+}
 </script>
 {% endblock %}

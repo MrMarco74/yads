@@ -6,7 +6,7 @@ System Metrics & Resource-Check Endpoints
 /api/system/resource-check — Inline validation warnings for worker config modal
 """
 
-from typing import Optional
+from typing import Optional, Annotated
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from yads.api.templating import templates
@@ -16,6 +16,8 @@ from yads.models import User
 
 router = APIRouter(prefix="/api/system", tags=["system-metrics"])
 ui_router = APIRouter(tags=["system-ui"])
+ 
+_SCAN_ERRORS_BADGE = 'id="scan-errors-badge"'
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 _RAM_PER_TASK_GB   = 0.5   # conservative estimate: 512 MB per concurrent scan
@@ -82,7 +84,7 @@ _EMPTY_WIDGET = (
 @router.get("/metrics", response_class=HTMLResponse)
 async def system_metrics_fragment(
     request: Request,
-    user: Optional[User] = Depends(get_current_user_html_optional),
+    user: Annotated[Optional[User], Depends(get_current_user_html_optional)],
 ):
     """
     HTMX fragment: live CPU / RAM / network stats for the topbar.
@@ -163,7 +165,7 @@ async def system_metrics_fragment(
 @router.get("/scan-errors", response_class=HTMLResponse)
 async def scan_errors_fragment(
     request: Request,
-    user: User = Depends(get_current_user_html),
+    user: Annotated[User, Depends(get_current_user_html)],
 ):
     """
     HTMX fragment: scan error badge for the topbar.
@@ -190,7 +192,6 @@ async def scan_errors_fragment(
             '</div>'
         )
 
-    total_errors = sum(e.get("count", 1) for e in errors)
     affected = len(errors)
     label = f"{affected} Scan{'s' if affected > 1 else ''} fehlgeschlagen"
 
@@ -212,7 +213,7 @@ async def scan_errors_fragment(
         </a>'''
 
     return HTMLResponse(f'''
-<div id="scan-errors-badge"
+<div {_SCAN_ERRORS_BADGE}
      hx-get="/api/system/scan-errors" hx-trigger="every 30s" hx-swap="outerHTML"
      class="relative"
      x-data="{{ open: false }}">
@@ -246,7 +247,7 @@ async def scan_errors_fragment(
 @router.post("/scan-errors/dismiss", response_class=HTMLResponse)
 async def dismiss_scan_errors(
     request: Request,
-    user: User = Depends(get_current_user_html),
+    user: Annotated[User, Depends(get_current_user_html)],
 ):
     """Dismiss all scan error notifications for the current tenant."""
     from yads.core.watcher import clear_scan_errors_for_tenant
@@ -264,7 +265,7 @@ async def dismiss_scan_errors(
 @router.get("/bug-report", response_class=HTMLResponse)
 async def bug_report_fragment(
     request: Request,
-    user: User = Depends(get_current_user_html),
+    user: Annotated[User, Depends(get_current_user_html)],
 ):
     """
     HTMX fragment: auto-populated bug report text for /help/bug-report.
@@ -313,20 +314,20 @@ async def bug_report_fragment(
     ua = request.headers.get("user-agent", "unknown")[:120]
 
     lines = [
-        f"=== YADS Bug Report ===",
-        f"",
+        "=== YADS Bug Report ===",
+        "",
         f"Version   : {settings.VERSION}",
         f"Datum     : {now}",
         f"Tenant    : {tenant_name}",
         f"Benutzer  : {user.username}",
         f"Browser   : {ua}",
-        f"",
-        f"--- Fehlerbeschreibung ---",
-        f"[Bitte hier beschreiben, was passiert ist]",
-        f"",
-        f"--- Betroffene URL / Seite ---",
-        f"[z.B. https://prod.../targets/42]",
-        f"",
+        "",
+        "--- Fehlerbeschreibung ---",
+        "[Bitte hier beschreiben, was passiert ist]",
+        "",
+        "--- Betroffene URL / Seite ---",
+        "[z.B. https://prod.../targets/42]",
+        "",
     ]
     if error_lines:
         lines += ["--- Letzte Scan-Fehler (automatisch) ---"] + error_lines + [""]
@@ -411,10 +412,10 @@ function copyBugReport() {{
 
 @router.get("/resource-check", response_class=HTMLResponse)
 async def resource_check(
-    node_id: str = Query(...),
-    tasks: int    = Query(..., ge=1, le=500),
-    net_mbps: float = Query(..., ge=0),
-    user: User = Depends(PlatformAdminChecker()),
+    user: Annotated[User, Depends(PlatformAdminChecker())],
+    node_id: Annotated[str, Query(...)],
+    tasks: Annotated[int, Query(..., ge=1, le=500)],
+    net_mbps: Annotated[float, Query(..., ge=0)],
 ):
     """
     Inline resource validation for the worker config modal.
@@ -533,7 +534,7 @@ async def resource_check(
 @router.get("/alerts", response_class=HTMLResponse)
 async def system_alerts_fragment(
     request: Request,
-    user: User = Depends(PlatformAdminChecker()),
+    user: Annotated[User, Depends(PlatformAdminChecker())],
 ):
     """
     HTMX fragment: alert banner for the topbar.
@@ -593,8 +594,11 @@ async def system_alerts_fragment(
        class="absolute right-0 top-full mt-2 w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-3 space-y-0">
     <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Aktive System-Alerts</p>
     {items_html}
-    <a href="/system/alerts" class="block mt-3 text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+    <a href="/system/alerts" class="block mt-2 text-center text-xs text-slate-400 hover:text-slate-200 transition-colors">
       Alert-Verlauf anzeigen →
+    </a>
+    <a href="/help/bug-report" class="block mt-1 text-center text-xs text-red-400 hover:text-red-300 transition-colors">
+      Bug melden (Auto-Fill) →
     </a>
   </div>
 </div>
@@ -614,7 +618,7 @@ async def system_alerts_page(
     from yads.models import SystemAlertLog
     from yads.core import watcher
 
-    since = datetime.utcnow() - timedelta(days=7)
+    since = datetime.now(timezone.utc) - timedelta(days=7)
     with Session(engine) as session:
         logs = session.exec(
             select(SystemAlertLog)
@@ -638,10 +642,10 @@ async def system_alerts_page(
 @router.post("/alerts/{alert_id}/resolve", response_class=HTMLResponse)
 async def resolve_alert(
     alert_id: int,
-    user: User = Depends(PlatformAdminChecker()),
+    user: Annotated[User, Depends(PlatformAdminChecker())],
 ):
     """Manually mark a SystemAlertLog entry as resolved."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from sqlmodel import Session
     from yads.database import engine
     from yads.models import SystemAlertLog
@@ -651,7 +655,7 @@ async def resolve_alert(
         if not log:
             return HTMLResponse('<span class="text-red-400 text-xs">Not found</span>', status_code=404)
         if not log.resolved_at:
-            log.resolved_at = datetime.utcnow()
+            log.resolved_at = datetime.now(timezone.utc)
             session.add(log)
             session.commit()
     return HTMLResponse('<span class="text-emerald-400 text-xs">✓ resolved</span>')
@@ -709,7 +713,7 @@ def _svc_card(icon_svg: str, name: str, status: str, detail: str, link: str) -> 
 @router.get("/health-summary", response_class=HTMLResponse)
 async def health_summary_fragment(
     request: Request,
-    user: User = Depends(PlatformAdminChecker()),
+    user: Annotated[User, Depends(PlatformAdminChecker())],
 ):
     """
     HTMX fragment: full Operations Center live content.
@@ -787,7 +791,10 @@ async def health_summary_fragment(
         alerts_html = f'''
 <div class="space-y-2">
   {rows}
-  <a href="/system/alerts" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors pt-1">Vollständiger Alert-Verlauf →</a>
+  <div class="flex items-center justify-center gap-4 pt-1">
+    <a href="/system/alerts" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Vollständiger Alert-Verlauf →</a>
+    <a href="/help/bug-report" class="text-xs text-red-400 hover:text-red-300 transition-colors">Bug melden →</a>
+  </div>
 </div>'''
 
     # ── Workers ────────────────────────────────────────────────────────────────
@@ -877,7 +884,8 @@ async def health_summary_fragment(
     else:
         metrics_html = '<span class="text-xs text-slate-600 italic">Metriken werden gesammelt…</span>'
 
-    now_str = datetime.utcnow().strftime("%H:%M:%S UTC")
+    from datetime import timezone
+    now_str = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
     n_err  = len(errors)
     n_warn = len(warnings)
     overall = "ok" if not alerts else ("error" if errors else "warning")
@@ -947,7 +955,7 @@ async def health_summary_fragment(
 @ui_router.get("/system/health", response_class=HTMLResponse)
 async def system_health_page(
     request: Request,
-    user: User = Depends(PlatformAdminChecker()),
+    user: Annotated[User, Depends(PlatformAdminChecker())],
 ):
     return templates.TemplateResponse("system_health.html", {
         "request": request,

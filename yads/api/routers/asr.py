@@ -22,20 +22,10 @@ def get_all_tenants():
         return session.exec(select(Tenant).order_by(Tenant.name)).all()
 templates.env.globals['get_available_tenants'] = get_all_tenants
 
-def _get_asr_data(session: Session, user: User, for_export: bool = False):
-    # 1. Fetch relevant targets
-    targets_query = select(Target)
-    if user.tenant_id:
-        targets_query = targets_query.where(Target.tenant_id == user.tenant_id)
-    elif user.role != "admin":
-        targets_query = targets_query.where(Target.tenant_id == None)
-        
-    targets = session.exec(targets_query).all()
-    target_ids = tuple(t.id for t in targets)
-    target_map = {t.id: t for t in targets}
-    
-    if not targets:
-        return [], {"dead_endpoints": 0, "unconfigured": 0, "expired_certs": 0, "total_cleanup": 0}
+def _get_asr_data(session: Session, user: User, for_export: bool = False, status_filter=None):
+    from yads.utils.findings import FindingStatusFilter
+    if not status_filter:
+        status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
 
     # 2. Fetch Latest Results for WebAnalyzer & SSL
     statement = select(ScanResult).where(
@@ -80,30 +70,34 @@ def _get_asr_data(session: Session, user: User, for_export: bool = False):
             # Check Status Code
             status = web_res.data.get("status_code")
             if status in [404, 500, 502, 503]:
-                items.append({
-                    "target_id": t_id,
-                    "domain": target.domain,
-                    "type": "Dead Endpoint",
-                    "issue": f"HTTP {status} Response",
-                    "recommendation": "Decommission DNS record if service is retired.",
-                    "severity": "low", 
-                    "detected_at": web_res.scanned_at
-                })
-                stats["dead_endpoints"] += 1
+                issue_text = f"HTTP {status} Response"
+                if not status_filter.is_ignored(target.domain, "web_analyzer", issue_text):
+                    items.append({
+                        "target_id": t_id,
+                        "domain": target.domain,
+                        "type": "Dead Endpoint",
+                        "issue": issue_text,
+                        "recommendation": "Decommission DNS record if service is retired.",
+                        "severity": "low", 
+                        "detected_at": web_res.scanned_at
+                    })
+                    stats["dead_endpoints"] += 1
                 
             # Check Default Page
             title = web_res.data.get("title", "")
             if title and any(dt.lower() in title.lower() for dt in DEFAULT_TITLES):
-                items.append({
-                    "target_id": t_id,
-                    "domain": target.domain,
-                    "type": "Unconfigured Server",
-                    "issue": f"Default Page: '{title}'",
-                    "recommendation": "Remove default page or decommission server.",
-                    "severity": "medium", 
-                    "detected_at": web_res.scanned_at
-                })
-                stats["unconfigured"] += 1
+                issue_text = f"Default Page: '{title}'"
+                if not status_filter.is_ignored(target.domain, "web_analyzer", issue_text):
+                    items.append({
+                        "target_id": t_id,
+                        "domain": target.domain,
+                        "type": "Unconfigured Server",
+                        "issue": issue_text,
+                        "recommendation": "Remove default page or decommission server.",
+                        "severity": "medium", 
+                        "detected_at": web_res.scanned_at
+                    })
+                    stats["unconfigured"] += 1
 
         # --- SSL Scanner Check ---
         ssl_res = latest.get((t_id, "ssl_scanner"))
@@ -113,16 +107,18 @@ def _get_asr_data(session: Session, user: User, for_export: bool = False):
                 try:
                     expiry = dateutil.parser.parse(not_after).replace(tzinfo=None)
                     if expiry < datetime.now():
-                        items.append({
-                            "target_id": t_id,
-                            "domain": target.domain,
-                            "type": "Expired Certificate",
-                            "issue": f"Expired on {expiry.strftime('%Y-%m-%d')}",
-                            "recommendation": "Renew certificate or decommission asset.",
-                            "severity": "high", 
-                            "detected_at": ssl_res.scanned_at
-                        })
-                        stats["expired_certs"] += 1
+                        issue_text = f"Expired on {expiry.strftime('%Y-%m-%d')}"
+                        if not status_filter.is_ignored(target.domain, "ssl_scanner", issue_text):
+                            items.append({
+                                "target_id": t_id,
+                                "domain": target.domain,
+                                "type": "Expired Certificate",
+                                "issue": issue_text,
+                                "recommendation": "Renew certificate or decommission asset.",
+                                "severity": "high", 
+                                "detected_at": ssl_res.scanned_at
+                            })
+                            stats["expired_certs"] += 1
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).warning(f"Error checking SSL expiry for {target.domain}: {e}")

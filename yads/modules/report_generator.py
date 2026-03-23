@@ -24,9 +24,10 @@ def get_data(result):
     return None
 
 class PDFReport(FPDF):
-    def __init__(self, target: str):
+    def __init__(self, target: str, status_filter=None):
         super().__init__()
         self.target = target
+        self.status_filter = status_filter
         self.set_auto_page_break(auto=True, margin=15)
         self.add_page()
 
@@ -154,6 +155,11 @@ class PDFReport(FPDF):
 
         # Vulnerabilities (CVEs)
         cves = data.get("cves", [])
+        if cves and self.status_filter:
+            # Filter CVEs
+            domain = self.target if hasattr(self, 'target') else ""
+            cves = [c for c in cves if not self.status_filter.is_ignored(domain, "web_analyzer", c['id'])]
+
         if cves:
             self.set_font('helvetica', 'B', 12)
             self.set_text_color(200, 0, 0)
@@ -837,42 +843,63 @@ class PDFReport(FPDF):
             mod = res.module_name
             data = get_data(res) or {}
             sev_default, desc_default = MODULE_SEVERITIES.get(mod, ("INFO", mod))
+            domain = self.target if hasattr(self, 'target') else ""
 
             # Per-module critical check
             if mod == "axfr_scanner" and data.get("vulnerable"):
-                all_findings.append(("CRITICAL", mod, "Zone transfer is publicly accessible"))
+                issue = "Zone transfer is publicly accessible"
+                if not self.status_filter or not self.status_filter.is_ignored(domain, mod, issue):
+                    all_findings.append(("CRITICAL", mod, issue))
             elif mod == "subdomain_takeover_scanner":
                 vulns = data.get("vulnerable", [])
-                if vulns:
-                    all_findings.append(("CRITICAL", mod, f"{len(vulns)} subdomain(s) vulnerable to takeover"))
+                for v in vulns:
+                    sub = v.get("subdomain")
+                    if not self.status_filter or not self.status_filter.is_ignored(domain, mod, sub):
+                        all_findings.append(("CRITICAL", mod, f"Takeover risk: {sub}"))
             elif mod == "git_exposure_scanner":
                 exposed = data.get("exposed_paths", [])
-                if exposed:
-                    all_findings.append(("HIGH", mod, f"{len(exposed)} sensitive path(s) exposed"))
+                for p in exposed:
+                    path = p.get("path")
+                    if not self.status_filter or not self.status_filter.is_ignored(domain, mod, path):
+                        all_findings.append(("HIGH", mod, f"Exposed: {path}"))
             elif mod == "js_secrets_scanner":
                 secrets = data.get("secrets", [])
-                if secrets:
-                    all_findings.append(("HIGH", mod, f"{len(secrets)} secret(s) found in JS files"))
+                for s in secrets:
+                    stype = s.get("type")
+                    if not self.status_filter or not self.status_filter.is_ignored(domain, mod, stype):
+                        all_findings.append(("HIGH", mod, f"Secret: {stype}"))
             elif mod == "cors_scanner" and data.get("vulnerable"):
-                all_findings.append(("HIGH", mod, "CORS misconfiguration detected"))
+                issue = "CORS misconfiguration detected"
+                if not self.status_filter or not self.status_filter.is_ignored(domain, mod, issue):
+                    all_findings.append(("HIGH", mod, issue))
             elif mod == "cert_mismatch_scanner" and not data.get("valid", True):
-                all_findings.append(("HIGH", mod, "TLS certificate/domain mismatch"))
+                issue = "TLS certificate/domain mismatch"
+                if not self.status_filter or not self.status_filter.is_ignored(domain, mod, issue):
+                    all_findings.append(("HIGH", mod, issue))
             elif mod == "http_headers":
                 missing = data.get("missing_headers", [])
-                if missing:
-                    all_findings.append(("MEDIUM", mod, f"Missing headers: {', '.join(missing[:4])}"))
+                filtered_missing = [m for m in missing if not self.status_filter or not self.status_filter.is_ignored(domain, mod, m)]
+                if filtered_missing:
+                    all_findings.append(("MEDIUM", mod, f"Missing: {', '.join(filtered_missing[:4])}"))
             elif mod == "cookie_scanner":
-                insecure = data.get("insecure_count", 0)
-                if insecure:
-                    all_findings.append(("MEDIUM", mod, f"{insecure} insecure cookie(s)"))
+                cookies = data.get("cookies", [])
+                insecure_filtered = 0
+                for c in cookies:
+                    if not c.get("secure") or not c.get("httponly"):
+                        if not self.status_filter or not self.status_filter.is_ignored(domain, mod, c.get("name")):
+                            insecure_filtered += 1
+                if insecure_filtered:
+                    all_findings.append(("MEDIUM", mod, f"{insecure_filtered} insecure cookie(s)"))
             elif mod == "email_security":
                 issues = data.get("issues", [])
-                if issues:
-                    all_findings.append(("MEDIUM", mod, f"{len(issues)} email security issue(s)"))
+                filtered_issues = [i for i in issues if not self.status_filter or not self.status_filter.is_ignored(domain, mod, i)]
+                if filtered_issues:
+                    all_findings.append(("MEDIUM", mod, f"{len(filtered_issues)} security issue(s)"))
             elif mod == "threat_intel_scanner":
                 level = data.get("threat_level", "none")
                 if level and level.lower() not in ("none", "clean", "-"):
-                    all_findings.append(("HIGH" if level.lower() in ("high","critical") else "MEDIUM", mod, f"Threat level: {level}"))
+                    if not self.status_filter or not self.status_filter.is_ignored(domain, mod, level):
+                        all_findings.append(("HIGH" if level.lower() in ("high","critical") else "MEDIUM", mod, f"Threat: {level}"))
 
         if not all_findings:
             self.set_font("helvetica", "I", 10)
@@ -898,8 +925,8 @@ class PDFReport(FPDF):
         self.ln()
 
 
-def generate_report(target_domain: str, scan_results: Dict[str, Any]) -> bytes:
-    pdf = PDFReport(target_domain)
+def generate_report(target_domain: str, scan_results: Dict[str, Any], status_filter=None) -> bytes:
+    pdf = PDFReport(target_domain, status_filter=status_filter)
 
     # Security findings summary (aggregated, placed first)
     pdf.add_security_findings_summary(scan_results)

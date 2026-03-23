@@ -59,6 +59,39 @@
                 </div>
             </div>
 
+            <!-- Finding SLA Settings -->
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2" id="finding-slas">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Finding SLAs (Tage bis Fälligkeit)
+                </h3>
+                <p class="text-sm text-gray-400 mb-6">
+                    Legen Sie fest, nach wie vielen Tagen ein Finding den Status "Überfällig" erreicht. (Standard nach BSI).
+                </p>
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-red-500 mb-2 uppercase tracking-wide">Critical</label>
+                        <input type="number" name="sla_critical" value="{{ tenant.sla_critical or 7 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-orange-400 mb-2 uppercase tracking-wide">High</label>
+                        <input type="number" name="sla_high" value="{{ tenant.sla_high or 30 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-yellow-400 mb-2 uppercase tracking-wide">Medium</label>
+                        <input type="number" name="sla_medium" value="{{ tenant.sla_medium or 90 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide">Low</label>
+                        <input type="number" name="sla_low" value="{{ tenant.sla_low or 180 }}" min="1" max="1000" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Info</label>
+                        <input type="number" name="sla_info" value="{{ tenant.sla_info or '' }}" min="1" max="1000" placeholder="Optional" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-gray-500 font-mono placeholder-gray-600">
+                    </div>
+                </div>
+            </div>
+
             <!-- Google Search Integration -->
             <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
                 <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">

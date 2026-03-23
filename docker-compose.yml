@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # --- Reverse Proxy (Optional, profile: nginx) ---
   nginx:
@@ -44,9 +42,17 @@ services:
       - SETUP_COMPLETE=${SETUP_COMPLETE:-true}
       - DISABLE_HTTPS_ONLY=${DISABLE_HTTPS_ONLY:-false}
       - MODULE_SIGNING_PRIVATE_KEY_PATH=/run/secrets/yads_module_signing.key
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - yads-net
 
@@ -64,8 +70,12 @@ services:
       - ./yads:/app/yads
       - ./scripts:/app/scripts
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      yads-api:
+        condition: service_healthy
     networks:
       - yads-net
 
@@ -80,6 +90,12 @@ services:
       - POSTGRES_DB=yads
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yads} -d yads"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - yads-net
 
@@ -90,6 +106,12 @@ services:
     restart: always
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
     networks:
       - yads-net
 

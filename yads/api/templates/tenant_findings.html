@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── helpers ─────────────────────────────────────────────────────────────── #}
+{% macro sort_url(col) %}
+  {% set next_order = 'desc' if (sort == col and order == 'asc') else 'asc' %}
+  ?page=1&sort={{ col }}&order={{ next_order }}&severity={{ filter_severity }}&status={{ filter_status }}&module={{ filter_module }}&domain={{ filter_domain }}&assigned_to={{ filter_assigned_to }}&overdue={{ filter_overdue }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}
+{%- endmacro %}
+
+{% macro sort_icon(col) %}
+  {% if sort == col %}
+    {% if order == 'asc' %}↑{% else %}↓{% endif %}
+  {% else %}
+    <span class="opacity-30">↕</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro page_url(p) %}
+  ?page={{ p }}&sort={{ sort }}&order={{ order }}&severity={{ filter_severity }}&status={{ filter_status }}&module={{ filter_module }}&domain={{ filter_domain }}&assigned_to={{ filter_assigned_to }}&overdue={{ filter_overdue }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}
+{%- endmacro %}
+
+{% macro export_url() %}
+  /tenant-settings/findings/export?severity={{ filter_severity }}&status={{ filter_status }}&module={{ filter_module }}&domain={{ filter_domain }}&assigned_to={{ filter_assigned_to }}&overdue={{ filter_overdue }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}
+{%- endmacro %}
+
+<div class="space-y-4">
+
+  {# ── Edit Modal ────────────────────────────────────────────────────────── #}
+  <div id="tfModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-white">Finding bearbeiten</h2>
+        <span id="tfModalYfId" class="text-xs font-mono text-indigo-400"></span>
+      </div>
+      <input type="hidden" id="tfHash">
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="tfStatus" class="block text-xs text-slate-400 mb-1">Status</label>
+            <select id="tfStatus" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option value="open">Open</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="false_positive">False Positive</option>
+              <option value="fixed">Fixed</option>
+            </select>
+          </div>
+          <div>
+            <label for="tfDueDate" class="block text-xs text-slate-400 mb-1">Fällig bis</label>
+            <input type="date" id="tfDueDate" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="tfAssignedTo" class="block text-xs text-slate-400 mb-1">Zuständig</label>
+            <input type="text" id="tfAssignedTo" placeholder="Username oder Team" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label for="tfTicketRef" class="block text-xs text-slate-400 mb-1">Ticket-Referenz</label>
+            <input type="text" id="tfTicketRef" placeholder="JIRA-123 / SN-456" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label for="tfNote" class="block text-xs text-slate-400 mb-1">Notiz <span class="text-slate-600">(optional)</span></label>
+          <textarea id="tfNote" rows="2" placeholder="Kontext, Workaround…" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-4 justify-end">
+        <button onclick="tfCloseModal()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Abbrechen</button>
+        <button onclick="tfSave()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  {# ── Bulk-Action Bar (hidden until selection) ────────────────────────── #}
+  <div id="tfBulkBar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+    <span id="tfBulkCount" class="text-sm font-medium text-white"></span>
+    <div class="h-4 w-px bg-slate-600"></div>
+    <select id="tfBulkStatus" class="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded-lg px-2 py-1.5">
+      <option value="">Status setzen…</option>
+      <option value="open">Open</option>
+      <option value="acknowledged">Acknowledged</option>
+      <option value="false_positive">False Positive</option>
+      <option value="fixed">Fixed</option>
+    </select>
+    <button onclick="tfBulkApply()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg">Anwenden</button>
+    <button onclick="tfClearSelection()" class="px-3 py-1.5 text-slate-400 hover:text-white border border-slate-600 text-xs rounded-lg">Auswahl aufheben</button>
+  </div>
+
+  {# ── Header ──────────────────────────────────────────────────────────── #}
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-white">Findings verwalten</h1>
+      <p class="text-slate-400 text-sm mt-0.5">{{ total }} Finding{{ 's' if total != 1 else '' }} gesamt{{ ' (gefiltert)' if (filter_severity or filter_status or filter_module or filter_domain or filter_assigned_to or filter_overdue or filter_date_from or filter_date_to) else '' }}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ export_url() }}"
+         class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium rounded-lg border border-slate-700 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Export CSV
+      </a>
+      <a href="/security-findings/" class="inline-flex items-center gap-1.5 px-3 py-2 text-slate-400 hover:text-white text-xs border border-slate-700 rounded-lg transition-colors">
+        Überblick →
+      </a>
+    </div>
+  </div>
+
+  {# ── Filter Bar ──────────────────────────────────────────────────────── #}
+  <form method="GET" class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-2 items-end">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="order" value="{{ order }}">
+    <input type="hidden" name="page" value="1">
+
+    <div class="flex flex-col gap-1">
+      <label for="filter_severity" class="text-[10px] text-slate-500 uppercase tracking-wide">Schwere</label>
+      <select id="filter_severity" name="severity" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+        <option value="">Alle</option>
+        <option value="critical" {% if filter_severity=='critical' %}selected{% endif %}>Critical</option>
+        <option value="high" {% if filter_severity=='high' %}selected{% endif %}>High</option>
+        <option value="medium" {% if filter_severity=='medium' %}selected{% endif %}>Medium</option>
+        <option value="low" {% if filter_severity=='low' %}selected{% endif %}>Low</option>
+        <option value="info" {% if filter_severity=='info' %}selected{% endif %}>Info</option>
+      </select>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label for="filter_status" class="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+      <select id="filter_status" name="status" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+        <option value="">Alle</option>
+        <option value="open" {% if filter_status=='open' %}selected{% endif %}>Open</option>
+        <option value="acknowledged" {% if filter_status=='acknowledged' %}selected{% endif %}>Acknowledged</option>
+        <option value="false_positive" {% if filter_status=='false_positive' %}selected{% endif %}>False Positive</option>
+        <option value="fixed" {% if filter_status=='fixed' %}selected{% endif %}>Fixed</option>
+      </select>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label for="filter_module" class="text-[10px] text-slate-500 uppercase tracking-wide">Modul</label>
+      <select id="filter_module" name="module" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+        <option value="">Alle</option>
+        {% for m in modules %}
+        <option value="{{ m }}" {% if filter_module==m %}selected{% endif %}>{{ m.replace('_',' ').title() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label for="filter_domain" class="text-[10px] text-slate-500 uppercase tracking-wide">Domain</label>
+      <input type="text" id="filter_domain" name="domain" value="{{ filter_domain }}" placeholder="example.com"
+             class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 w-36 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label for="filter_assigned_to" class="text-[10px] text-slate-500 uppercase tracking-wide">Zuständig</label>
+      <input type="text" id="filter_assigned_to" name="assigned_to" value="{{ filter_assigned_to }}" placeholder="Name / Team"
+             class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 w-28 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-[10px] text-slate-500 uppercase tracking-wide">Erstmals von</label>
+      <input type="date" name="date_from" value="{{ filter_date_from }}"
+             class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-[10px] text-slate-500 uppercase tracking-wide">bis</label>
+      <input type="date" name="date_to" value="{{ filter_date_to }}"
+             class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-[10px] text-slate-500 uppercase tracking-wide">Überfällig</label>
+      <label class="flex items-center gap-1.5 h-[30px] cursor-pointer">
+        <input type="checkbox" name="overdue" value="1" {% if filter_overdue=='1' %}checked{% endif %}
+               class="rounded border-slate-600 bg-slate-800 text-red-500 focus:ring-red-500">
+        <span class="text-xs text-slate-400">Nur überfällige</span>
+      </label>
+    </div>
+
+    <div class="flex gap-2 items-end ml-auto">
+      <button type="submit" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg">Filtern</button>
+      {% if filter_severity or filter_status or filter_module or filter_domain or filter_assigned_to or filter_overdue or filter_date_from or filter_date_to %}
+      <a href="?sort={{ sort }}&order={{ order }}" class="px-3 py-1.5 text-slate-400 hover:text-white border border-slate-700 text-xs rounded-lg">Zurücksetzen</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {# ── Table ───────────────────────────────────────────────────────────── #}
+  {% if rows %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-slate-800 bg-slate-800/50 text-slate-400 uppercase tracking-wide text-[10px]">
+            <th class="px-3 py-2.5 text-left w-8">
+              <input type="checkbox" id="tfSelectAll" class="rounded border-slate-600 bg-slate-800 text-indigo-500" onclick="tfToggleAll(this)">
+            </th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('yf_id') }}" class="hover:text-white">YF-ID {{ sort_icon('yf_id') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('domain') }}" class="hover:text-white">Domain {{ sort_icon('domain') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('module') }}" class="hover:text-white">Modul {{ sort_icon('module') }}</a></th>
+            <th class="px-3 py-2.5 text-left max-w-xs">Issue</th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('severity') }}" class="hover:text-white">Schwere {{ sort_icon('severity') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('status') }}" class="hover:text-white">Status {{ sort_icon('status') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('first_found') }}" class="hover:text-white">Erstmals {{ sort_icon('first_found') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('last_seen') }}" class="hover:text-white">Zuletzt {{ sort_icon('last_seen') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('due_date') }}" class="hover:text-white">Fällig {{ sort_icon('due_date') }}</a></th>
+            <th class="px-3 py-2.5 text-left"><a href="{{ sort_url('assigned_to') }}" class="hover:text-white">Zuständig {{ sort_icon('assigned_to') }}</a></th>
+            <th class="px-3 py-2.5 text-left">Ticket</th>
+            <th class="px-3 py-2.5 text-center">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/60">
+          {% for row in rows %}
+          {% set sf = row.sf %}
+          <tr class="hover:bg-slate-800/30 transition-colors" data-hash="{{ sf.finding_hash }}">
+            <td class="px-3 py-2">
+              <input type="checkbox" class="tf-cb rounded border-slate-600 bg-slate-800 text-indigo-500" value="{{ sf.finding_hash }}" onchange="tfUpdateBulkBar()">
+            </td>
+            <td class="px-3 py-2">
+              <button onclick="navigator.clipboard.writeText('{{ sf.yf_id }}').then(()=>this.textContent='✓').catch(()=>{}); setTimeout(()=>this.textContent='{{ sf.yf_id }}',1200)"
+                      class="font-mono text-indigo-400 hover:text-indigo-300" title="Kopieren">{{ sf.yf_id }}</button>
+            </td>
+            <td class="px-3 py-2">
+              <a href="/targets/{{ sf.target_id }}" class="text-slate-300 hover:text-indigo-300 font-mono">{{ sf.domain }}</a>
+            </td>
+            <td class="px-3 py-2 text-slate-400 font-mono">{{ sf.module.replace('_scanner','').replace('_',' ') }}</td>
+            <td class="px-3 py-2 max-w-xs">
+              <p class="text-slate-200 truncate" title="{{ sf.issue }}">{{ sf.issue }}</p>
+              {% if sf.status_note %}
+              <p class="text-slate-500 italic truncate text-[10px]">{{ sf.status_note }}</p>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
+                {% if sf.severity == 'critical' %}bg-red-900/60 text-red-200 border border-red-700/50
+                {% elif sf.severity == 'high' %}bg-orange-900/60 text-orange-200 border border-orange-700/50
+                {% elif sf.severity == 'medium' %}bg-amber-900/60 text-amber-200 border border-amber-700/50
+                {% elif sf.severity == 'low' %}bg-blue-900/60 text-blue-200 border border-blue-700/50
+                {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">{{ sf.severity }}</span>
+            </td>
+            <td class="px-3 py-2">
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold
+                {% if sf.status == 'open' %}bg-slate-800 text-slate-300 border border-slate-700
+                {% elif sf.status == 'acknowledged' %}bg-blue-900/50 text-blue-300 border border-blue-700/50
+                {% elif sf.status == 'false_positive' %}bg-slate-800 text-slate-500 border border-slate-700 line-through
+                {% elif sf.status == 'fixed' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700/50
+                {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                {% if sf.status == 'false_positive' %}FP{% else %}{{ sf.status|replace('_',' ')|title }}{% endif %}
+              </span>
+            </td>
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">{{ sf.first_found.strftime('%Y-%m-%d') if sf.first_found else '—' }}</td>
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">{{ sf.last_seen.strftime('%Y-%m-%d') if sf.last_seen else '—' }}</td>
+            <td class="px-3 py-2 whitespace-nowrap">
+              {% if sf.due_date %}
+              <span class="font-medium {% if row.due_overdue %}text-red-400{% else %}text-amber-400{% endif %}">
+                {{ sf.due_date.strftime('%Y-%m-%d') }}{% if row.due_overdue %} ⚠{% endif %}
+              </span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-3 py-2 text-slate-400">{{ sf.assigned_to or '—' }}</td>
+            <td class="px-3 py-2 font-mono text-slate-400">{{ sf.ticket_ref or '—' }}</td>
+            <td class="px-3 py-2 text-center">
+              <div class="flex flex-col gap-1 items-center">
+                <button
+                  onclick="tfOpenModal(this)"
+                  data-hash="{{ sf.finding_hash }}"
+                  data-status="{{ sf.status }}"
+                  data-note="{{ sf.status_note | e if sf.status_note else '' }}"
+                  data-due="{{ sf.due_date.strftime('%Y-%m-%d') if sf.due_date else '' }}"
+                  data-assigned="{{ sf.assigned_to | e if sf.assigned_to else '' }}"
+                  data-ticket="{{ sf.ticket_ref | e if sf.ticket_ref else '' }}"
+                  data-yfid="{{ sf.yf_id }}"
+                  class="w-full px-2 py-1 text-[10px] text-slate-500 hover:text-indigo-400 border border-slate-700 hover:border-indigo-600 rounded transition-colors">
+                  Edit
+                </button>
+                <form action="/targets/{{ sf.target_id }}/rescan-module" method="POST" class="w-full">
+                  {{ csrf_token() }}
+                  <input type="hidden" name="module_name" value="{{ sf.module_name }}">
+                  <button type="submit" class="w-full px-2 py-1 text-[10px] text-slate-500 hover:text-cyan-400 border border-slate-700 hover:border-cyan-600 rounded transition-colors" title="Retest this finding by running the scanner module again">
+                    ReScan
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Pagination ──────────────────────────────────────────────────────── #}
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-between text-xs text-slate-400">
+    <span>Seite {{ page }} von {{ total_pages }} &mdash; {{ total }} Einträge</span>
+    <div class="flex gap-1">
+      {% if page > 1 %}
+      <a href="{{ page_url(page - 1) }}" class="px-3 py-1.5 border border-slate-700 rounded-lg hover:text-white hover:border-slate-500">← Zurück</a>
+      {% endif %}
+      {# Show up to 7 page links around current #}
+      {% for p in range([1, page-3]|max, [total_pages+1, page+4]|min) %}
+      <a href="{{ page_url(p) }}" class="px-3 py-1.5 border rounded-lg {% if p == page %}bg-indigo-700 border-indigo-600 text-white{% else %}border-slate-700 hover:text-white hover:border-slate-500{% endif %}">{{ p }}</a>
+      {% endfor %}
+      {% if page < total_pages %}
+      <a href="{{ page_url(page + 1) }}" class="px-3 py-1.5 border border-slate-700 rounded-lg hover:text-white hover:border-slate-500">Weiter →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+    <svg class="w-12 h-12 text-emerald-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <p class="text-white font-semibold">Keine Findings gefunden.</p>
+    <p class="text-slate-400 text-sm mt-1">
+      {% if filter_severity or filter_status or filter_module or filter_domain or filter_assigned_to or filter_overdue %}
+      Filtereinstellungen anpassen oder <a href="?sort={{ sort }}&order={{ order }}" class="text-indigo-400 hover:text-indigo-300 underline">zurücksetzen</a>.
+      {% else %}
+      Noch keine Findings vorhanden — führe zuerst Scans aus.
+      {% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Toast Container ──────────────────────────────────────────────────────── #}
+<div id="tf-toasts" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<script>
+const _CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? '';
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function tfToast(msg, type) {
+  const colors = {success:'bg-green-700 border-green-500 text-green-100', warn:'bg-amber-700 border-amber-500 text-amber-100', info:'bg-blue-700 border-blue-500 text-blue-100', error:'bg-red-700 border-red-500 text-red-100'};
+  const t = document.createElement('div');
+  t.className = `pointer-events-auto max-w-sm w-full px-4 py-3 rounded-lg border shadow-lg text-sm flex items-start gap-2 ${colors[type]||colors.info}`;
+  t.innerHTML = `<span class="flex-1">${msg}</span><button class="opacity-60 hover:opacity-100 text-lg leading-none" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById('tf-toasts').appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+
+// ── Edit Modal ─────────────────────────────────────────────────────────────
+function tfOpenModal(btn) {
+  const d = btn.dataset;
+  document.getElementById('tfHash').value = d.hash;
+  document.getElementById('tfStatus').value = d.status || 'open';
+  document.getElementById('tfNote').value = d.note || '';
+  document.getElementById('tfDueDate').value = d.due || '';
+  document.getElementById('tfAssignedTo').value = d.assigned || '';
+  document.getElementById('tfTicketRef').value = d.ticket || '';
+  document.getElementById('tfModalYfId').textContent = d.yfid || '';
+  document.getElementById('tfModal').classList.remove('hidden');
+}
+
+function tfCloseModal() {
+  document.getElementById('tfModal').classList.add('hidden');
+}
+
+document.getElementById('tfModal').addEventListener('click', function(e) {
+  if (e.target === this) tfCloseModal();
+});
+
+async function tfSave() {
+  const hash = document.getElementById('tfHash').value;
+  const status = document.getElementById('tfStatus').value;
+  const note = document.getElementById('tfNote').value;
+  const due_date = document.getElementById('tfDueDate').value || null;
+  const assigned_to = document.getElementById('tfAssignedTo').value || null;
+  const ticket_ref = document.getElementById('tfTicketRef').value || null;
+
+  try {
+    const res = await fetch(`/security-findings/api/findings/${hash}/status`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _CSRF},
+      body: JSON.stringify({status, note, due_date, assigned_to, ticket_ref}),
+    });
+    if (res.ok) {
+      tfCloseModal();
+      tfToast('Gespeichert.', 'success');
+      // Update row in-place
+      const row = document.querySelector(`tr[data-hash="${hash}"]`);
+      if (row) {
+        // Reload page after short delay so DB changes are visible
+        setTimeout(() => location.reload(), 800);
+      }
+    } else {
+      const txt = await res.text();
+      tfToast('Fehler: ' + (res.status === 403 ? 'CSRF (Seite neu laden)' : txt.substring(0,80)), 'error');
+    }
+  } catch(e) { tfToast('Verbindungsfehler: ' + e.message, 'error'); }
+}
+
+// ── Bulk Selection ─────────────────────────────────────────────────────────
+function tfToggleAll(master) {
+  document.querySelectorAll('.tf-cb').forEach(cb => cb.checked = master.checked);
+  tfUpdateBulkBar();
+}
+
+function tfUpdateBulkBar() {
+  const checked = [...document.querySelectorAll('.tf-cb:checked')];
+  const bar = document.getElementById('tfBulkBar');
+  if (checked.length > 0) {
+    document.getElementById('tfBulkCount').textContent = `${checked.length} ausgewählt`;
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function tfClearSelection() {
+  document.querySelectorAll('.tf-cb').forEach(cb => cb.checked = false);
+  document.getElementById('tfSelectAll').checked = false;
+  tfUpdateBulkBar();
+}
+
+async function tfBulkApply() {
+  const status = document.getElementById('tfBulkStatus').value;
+  if (!status) { tfToast('Bitte einen Status auswählen.', 'warn'); return; }
+  const hashes = [...document.querySelectorAll('.tf-cb:checked')].map(cb => cb.value);
+  if (!hashes.length) return;
+
+  let ok = 0, fail = 0;
+  for (const hash of hashes) {
+    try {
+      const res = await fetch(`/security-findings/api/findings/${hash}/status`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _CSRF},
+        body: JSON.stringify({status}),
+      });
+      if (res.ok) ok++; else fail++;
+    } catch { fail++; }
+  }
+
+  if (ok > 0) tfToast(`${ok} Finding${ok>1?'s':''} aktualisiert.`, 'success');
+  if (fail > 0) tfToast(`${fail} Fehler beim Aktualisieren.`, 'error');
+  tfClearSelection();
+  setTimeout(() => location.reload(), 1000);
+}
+</script>
+{% endblock %}
