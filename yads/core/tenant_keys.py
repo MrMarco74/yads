@@ -23,12 +23,16 @@ def get_tenant_api_key(
     tenant_id: Optional[int],
     key_name: str,
     legacy_attr: Optional[str] = None,
-    settings_attr: Optional[str] = None,
+    settings_fallback: Optional[str] = None,
+    settings_attr: Optional[str] = None,  # legacy alias — use settings_fallback
 ) -> Optional[str]:
     """
     Look up an API key for a tenant.
     Falls back to legacy Tenant attribute, then global env var.
     """
+    # Support old callers using settings_attr= kwarg
+    if settings_attr and not settings_fallback:
+        settings_fallback = settings_attr
     if tenant_id:
         row = session.exec(
             select(TenantApiKey).where(
@@ -49,9 +53,9 @@ def get_tenant_api_key(
                 return val
 
     # Global fallback: env var
-    if settings_attr:
+    if settings_fallback:
         from yads.config import settings
-        return getattr(settings, settings_attr, None)
+        return getattr(settings, settings_fallback, None)
 
     return None
 
