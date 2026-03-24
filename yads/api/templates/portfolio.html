@@ -188,9 +188,9 @@
     // ---------------------------------------------------------------------------
     function planBadge(plan) {
         const colors = {
-            'Enterprise': 'text-purple-300 bg-purple-500/10 border-purple-500/30',
-            'Pro':        'text-blue-300 bg-blue-500/10 border-blue-500/30',
-            'Standard':   'text-gray-300 bg-gray-700 border-gray-600',
+            'Professional': 'text-purple-300 bg-purple-500/10 border-purple-500/30',
+            'Pro':          'text-blue-300 bg-blue-500/10 border-blue-500/30',
+            'Standard':     'text-gray-300 bg-gray-700 border-gray-600',
         };
         const cls = colors[plan] || 'text-gray-300 bg-gray-700 border-gray-600';
         return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}">${plan}</span>`;

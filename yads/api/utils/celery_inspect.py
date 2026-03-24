@@ -15,7 +15,7 @@ def get_celery_worker_nodes() -> List[Dict[str, Any]]:
         from celery import Celery
         from yads.config import settings
 
-        celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        celery_app = Celery("yads_inspector", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
         i = celery_app.control.inspect(timeout=3.0)
         if i is None:
             return []

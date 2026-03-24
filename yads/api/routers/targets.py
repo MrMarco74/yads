@@ -109,15 +109,35 @@ async def bulk_scan_targets(
 
     logger.info(f"Bulk Scan Request. Target Count: {len(target_ids)}. Final: {final_types}")
 
+    # Throttle: cap total queued tasks at 50 to avoid flooding the broker.
+    # Targets that are already 'queued' count against the cap.
+    already_queued = session.exec(
+        select(func.count(Target.id)).where(
+            Target.tenant_id == user.tenant_id,
+            Target.scan_status == "queued",
+        )
+    ).first() or 0
+    max_new = max(0, 50 - already_queued)
+
     count = 0
+    skipped = 0
     for tid_str in target_ids:
+        if count >= max_new:
+            skipped += len(target_ids) - target_ids.index(tid_str)
+            break
         if _queue_single_bulk_target(session, user, tid_str, final_types):
             count += 1
+        else:
+            skipped += 1
 
     session.commit()
     _audit_scan_trigger(session, user, list(target_ids)[:50], final_types, "bulk_scan", request)
 
-    return RedirectResponse(url=f"/targets/table?msg=Queued+{count}+scans", status_code=303)
+    if skipped:
+        msg = f"Queued+{count}+scans+(+{skipped}+skipped,+queue+cap+reached)"
+    else:
+        msg = f"Queued+{count}+scans"
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 
 def _get_final_scan_types(selected_types: List[str]) -> List[str]:
@@ -387,6 +407,7 @@ def _perform_bulk_delete_from_db(session: Session, target_ids: List[int]):
     session.execute(text("DELETE FROM remediationtask WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM scanschedule WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM workertask WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM securityfinding WHERE target_id = ANY(:ids)"), params)
     session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM target WHERE id = ANY(:ids)"), params)
 

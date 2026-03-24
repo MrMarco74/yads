@@ -22,12 +22,14 @@ try:
         get_framework_scorer, get_all_frameworks, FRAMEWORKS
     )
 except ImportError:
-    # Logger not imported yet at the top, but we can use a basic one or def it later
-    # Actually, logger is not defined here yet.
     ComplianceScorer = None
-    get_framework_scorer = lambda x: None
+    def get_framework_scorer(x):
+        raise HTTPException(status_code=501, detail="Compliance Frameworks add-on is not installed.")
     get_all_frameworks = lambda: {}
     FRAMEWORKS = {}
+    _compliance_available = False
+else:
+    _compliance_available = True
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
 router = APIRouter(prefix="/compliance", tags=["compliance"])
@@ -644,6 +646,12 @@ async def compliance_dashboard(
     preset: Optional[str] = Query("all")
 ):
     """Enhanced compliance dashboard with multi-framework support."""
+    if not _compliance_available:
+        return templates.TemplateResponse("addons_locked.html", {
+            "request": request,
+            "user": user,
+            "catalog": [],
+        })
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
     date_range_display = get_date_range_display(from_dt, to_dt, preset)
 

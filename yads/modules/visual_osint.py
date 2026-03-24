@@ -120,27 +120,32 @@ class VisualOSINT(BaseScannerModule):
                     headless=True,
                     args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
                 )
-                context = browser.new_context(viewport={'width': 1280, 'height': 800})
-                page = context.new_page()
+                try:
+                    context = browser.new_context(viewport={'width': 1280, 'height': 800})
+                    page = context.new_page()
 
-                captured = False
-                for scheme in ("https", "http"):
-                    url = f"{scheme}://{target}"
-                    self.logger.info(f"Trying {url} ...")
+                    captured = False
+                    for scheme in ("https", "http"):
+                        url = f"{scheme}://{target}"
+                        self.logger.info(f"Trying {url} ...")
+                        try:
+                            page.goto(url, timeout=15000, wait_until="load")
+                            captured = True
+                            break
+                        except Exception as e:
+                            self.logger.warning(f"{scheme.upper()} failed: {e}")
+
+                    if not captured:
+                        return False
+
+                    page.screenshot(path=output_path, full_page=True)
+                    return True
+                finally:
                     try:
-                        page.goto(url, timeout=15000, wait_until="load")
-                        captured = True
-                        break
-                    except Exception as e:
-                        self.logger.warning(f"{scheme.upper()} failed: {e}")
-
-                if not captured:
+                        context.close()
+                    except Exception:
+                        pass
                     browser.close()
-                    return False
-
-                page.screenshot(path=output_path, full_page=True)
-                browser.close()
-                return True
 
         except Exception as e:
             self.logger.error(f"Playwright error: {e}")

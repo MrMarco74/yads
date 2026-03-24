@@ -6,11 +6,11 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, Request, Query, HTTPException, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from sqlmodel import Session, select, func, text
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from yads.database import get_session
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_active_user
-from yads.models import User, Target, ScanResult, ModuleState
+from yads.models import User, Target, ScanResult, ModuleState, SecurityFinding, ChangeEvent
 from yads.api.templating import templates
 
 from urllib.parse import urlparse
@@ -516,19 +516,58 @@ async def get_network_graph(
                  risk_map[domain_node_id]["is_compromised"] = risk_map[domain_node_id]["is_compromised"] or is_compromised
                  risk_map[domain_node_id]["reasons"].extend(reasons)
 
+    # Pre-calculate SecurityFinding severity/count per target domain
+    SEVERITY_ORDER = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+    finding_map = {}  # domain -> {"highest_severity": str, "finding_count": int}
+    change_map = set()  # domains with a ChangeEvent in the last 7 days
+
+    if target_ids:
+        raw_findings = session.exec(
+            select(SecurityFinding.target_id, SecurityFinding.severity).where(
+                SecurityFinding.target_id.in_(target_ids),
+                SecurityFinding.status.in_(["open", "acknowledged"]),
+            )
+        ).all()
+        for f_tid, f_sev in raw_findings:
+            if f_tid not in target_map:
+                continue
+            dom = target_map[f_tid]
+            if dom not in finding_map:
+                finding_map[dom] = {"highest_severity": "info", "finding_count": 0}
+            finding_map[dom]["finding_count"] += 1
+            if SEVERITY_ORDER.get(f_sev, 0) > SEVERITY_ORDER.get(finding_map[dom]["highest_severity"], 0):
+                finding_map[dom]["highest_severity"] = f_sev
+
+        change_cutoff = datetime.utcnow() - timedelta(days=7)
+        changed_tids = session.exec(
+            select(ScanResult.target_id).join(
+                ChangeEvent, ChangeEvent.scan_result_id == ScanResult.id
+            ).where(
+                ScanResult.target_id.in_(target_ids),
+                ChangeEvent.created_at >= change_cutoff,
+            ).distinct()
+        ).all()
+        for c_tid in changed_tids:
+            if c_tid in target_map:
+                change_map.add(target_map[c_tid])
+
     # 2. Build Nodes for Targets
     for t_id in target_ids:
         domain = target_map[t_id]
         t_risk = get_risk(domain)
         
+        t_findings = finding_map.get(domain, {})
         nodes[domain] = {
             "data": {
                 "id": domain,
                 "label": domain,
                 "type": "domain",
-                "risk_score": t_risk["risk_score"], 
+                "risk_score": t_risk["risk_score"],
                 "compromised": t_risk["is_compromised"],
-                "risk_reasons": ", ".join(list(set(t_risk["reasons"])))
+                "risk_reasons": ", ".join(list(set(t_risk["reasons"]))),
+                "highest_severity": t_findings.get("highest_severity", ""),
+                "finding_count": t_findings.get("finding_count", 0),
+                "has_changes": domain in change_map,
             }
         }
     
@@ -1082,14 +1121,67 @@ async def render_network_graph_image(
 
     logger.info(f"[GraphRender] Processing {len(targets)} targets...")
 
+    # --- Security findings per domain ---
+    _SEV_ORDER = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+    _SEV_COLORS = {
+        "critical": "#ef4444",
+        "high":     "#f97316",
+        "medium":   "#eab308",
+        "low":      "#3b82f6",
+        "info":     "#6366f1",
+        "":         "#4f46e5",
+    }
+    finding_map: dict = {}  # domain -> {"highest_severity": str, "finding_count": int}
+    if target_ids:
+        raw_findings = session.exec(
+            select(SecurityFinding.target_id, SecurityFinding.severity).where(
+                SecurityFinding.target_id.in_(target_ids),
+                SecurityFinding.status.in_(["open", "acknowledged"]),
+            )
+        ).all()
+        for tid, sev in raw_findings:
+            domain = target_map.get(tid)
+            if not domain:
+                continue
+            entry = finding_map.setdefault(domain, {"highest_severity": "", "finding_count": 0})
+            entry["finding_count"] += 1
+            if _SEV_ORDER.get(sev, -1) > _SEV_ORDER.get(entry["highest_severity"], -1):
+                entry["highest_severity"] = sev
+
+    # --- Changed-recently domains (ChangeEvent last 7 days) ---
+    change_cutoff = datetime.utcnow() - timedelta(days=7)
+    change_domains: set = set()
+    if target_ids:
+        changed_tids = session.exec(
+            select(ScanResult.target_id).join(
+                ChangeEvent, ChangeEvent.scan_result_id == ScanResult.id
+            ).where(
+                ScanResult.target_id.in_(target_ids),
+                ChangeEvent.created_at >= change_cutoff,
+            ).distinct()
+        ).all()
+        change_domains = {target_map[tid] for tid in changed_tids if tid in target_map}
+
     # Build NetworkX graph
     G = nx.DiGraph()
 
     # Add target nodes with full labels
     for t in targets:
-        # User requested full names, so we disable truncation
-        display_label = t.domain 
-        G.add_node(t.domain, type='domain', label=t.domain, display_label=display_label)
+        finfo = finding_map.get(t.domain, {})
+        fc    = finfo.get("finding_count", 0)
+        hsev  = finfo.get("highest_severity", "")
+        changed = t.domain in change_domains
+        # Append finding count + change indicator to label
+        suffix = ""
+        if fc > 0:
+            suffix += f" [{fc}]"
+        if changed:
+            suffix += " ◆"
+        display_label = t.domain + suffix
+        G.add_node(
+            t.domain, type='domain', label=t.domain, display_label=display_label,
+            highest_severity=hsev, finding_count=fc, has_changes=changed,
+        )
     
     # Fetch scan results for edges
     if target_ids:
@@ -1154,31 +1246,45 @@ async def render_network_graph_image(
     else:
         pos = nx.spring_layout(G, seed=42)
     
-    # Color nodes by type
+    # Color nodes by type; domain nodes use severity color
+    node_list = list(G.nodes())
     colors = []
-    sizes = []
-    for node in G.nodes():
-        ntype = G.nodes[node].get('type', 'unknown')
+    sizes  = []
+    changed_nodes = []
+    for node in node_list:
+        nd    = G.nodes[node]
+        ntype = nd.get('type', 'unknown')
         if ntype == 'domain':
-            colors.append('#4f46e5')  # Indigo
-            sizes.append(100)
+            hsev = nd.get('highest_severity', '')
+            colors.append(_SEV_COLORS.get(hsev, _SEV_COLORS['']))
+            sizes.append(300)
+            if nd.get('has_changes'):
+                changed_nodes.append(node)
         elif ntype == 'subdomain':
             colors.append('#0ea5e9')  # Cyan
-            sizes.append(30)
+            sizes.append(60)
         elif ntype == 'ip':
             colors.append('#10b981')  # Emerald
-            sizes.append(50)
+            sizes.append(100)
         elif ntype == 'redirect':
             colors.append('#8b5cf6')  # Purple
-            sizes.append(40)
+            sizes.append(80)
         else:
             colors.append('#64748b')  # Slate
-            sizes.append(20)
-    
+            sizes.append(40)
+
     logger.info(f"[GraphRender] Drawing graph...")
 
+    # Draw changed-recently halo (purple ring behind the node)
+    if changed_nodes:
+        nx.draw_networkx_nodes(
+            G, pos, nodelist=changed_nodes,
+            node_color='#a78bfa', node_size=[sizes[node_list.index(n)] * 2 for n in changed_nodes],
+            ax=ax, alpha=0.4,
+        )
+
     # Draw nodes
-    nx.draw_networkx_nodes(G, pos, node_color=colors, node_size=sizes, ax=ax, alpha=0.9)
+    nx.draw_networkx_nodes(G, pos, nodelist=node_list, node_color=colors, node_size=sizes, ax=ax, alpha=0.9)
 
     # Draw edges
     nx.draw_networkx_edges(G, pos, edge_color='#475569', alpha=0.3, arrows=True, ax=ax, arrowsize=5)
@@ -1238,15 +1344,22 @@ async def render_network_graph_image(
     info_text = f"YADS Network Graph | {datetime.now().strftime('%Y-%m-%d %H:%M')} | {node_count} nodes, {G.number_of_edges()} edges"
     fig.text(0.02, 0.02, info_text, fontsize=10, color='#64748b', ha='left')
 
-    # Add legend for node types
-    from matplotlib.patches import Patch
+    # Add legend for node types + severities
+    from matplotlib.patches import Patch, Circle
+    from matplotlib.lines import Line2D
     legend_elements = [
-        Patch(facecolor='#4f46e5', label='Domain'),
+        Patch(facecolor='#4f46e5', label='Domain (no findings)'),
         Patch(facecolor='#0ea5e9', label='Subdomain'),
         Patch(facecolor='#10b981', label='IP Address'),
-        Patch(facecolor='#8b5cf6', label='Redirect')
+        Patch(facecolor='#8b5cf6', label='Redirect'),
+        Patch(facecolor='#ef4444', label='Domain – Critical'),
+        Patch(facecolor='#f97316', label='Domain – High'),
+        Patch(facecolor='#eab308', label='Domain – Medium'),
+        Patch(facecolor='#3b82f6', label='Domain – Low'),
+        Patch(facecolor='#a78bfa', alpha=0.4, label='Changed recently (◆)'),
+        Line2D([0], [0], marker='', color='none', label='[N] = finding count'),
     ]
-    ax.legend(handles=legend_elements, loc='upper right', framealpha=0.8, facecolor='#1e293b', edgecolor='#475569', labelcolor='#94a3b8')
+    ax.legend(handles=legend_elements, loc='upper right', framealpha=0.85, facecolor='#1e293b', edgecolor='#475569', labelcolor='#94a3b8', fontsize=8)
     
     # Save to buffer
     buf = BytesIO()

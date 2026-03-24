@@ -1,4 +1,30 @@
 <div id="queue-widget" class="flex items-center gap-2" hx-target="this" hx-swap="outerHTML">
+    {% set _lic = get_license_status() %}
+    {% if _lic and _lic.max_targets %}
+        {% set _pct = _lic.pct_used | default(0) %}
+        {% if _pct >= 100 %}
+            {% set _quota_color = "text-red-400 border-red-500/30 bg-red-500/10" %}
+            {% set _bar_color = "bg-red-500" %}
+        {% elif _pct >= 80 %}
+            {% set _quota_color = "text-amber-400 border-amber-500/30 bg-amber-500/10" %}
+            {% set _bar_color = "bg-amber-400" %}
+        {% else %}
+            {% set _quota_color = "text-slate-400 border-slate-700/50 bg-slate-900/50" %}
+            {% set _bar_color = "bg-cyan-500" %}
+        {% endif %}
+    <!-- Domain Quota -->
+    <a href="/targets" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border {{ _quota_color }} hover:opacity-80 transition-opacity"
+       title="Domains: {{ _lic.target_count }} / {{ _lic.max_targets }} used ({{ _pct | round(1) }}%)">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+        </svg>
+        <span class="text-[11px] font-mono font-bold">{{ _lic.target_count }}<span class="font-normal opacity-60">/{{ _lic.max_targets }}</span></span>
+        <!-- Mini progress bar -->
+        <div class="w-12 h-1 bg-slate-700 rounded-full overflow-hidden">
+            <div class="{{ _bar_color }} h-full rounded-full transition-all" style="width: {{ [_pct, 100] | min }}%"></div>
+        </div>
+    </a>
+    {% endif %}
 
     <!-- Active Scans + Queue Size -->
     <a href="/queue" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700/50 bg-slate-900/50 hover:bg-slate-800 transition-colors text-slate-400 hover:text-white" title="View Queue">
