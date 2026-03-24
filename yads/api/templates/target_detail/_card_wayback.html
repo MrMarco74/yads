@@ -75,7 +75,7 @@
                 {% endif %}
 
                 <!-- Legacy format fallback (old stub data) -->
-                {% elif wb.get('snapshots_found') %}
+                {% elif wb and wb.get('snapshots_found') %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% if wb.latest %}<div class="bg-gray-900/40 rounded p-3 text-center">
                         <div class="text-xs text-gray-500">Latest snapshot</div>

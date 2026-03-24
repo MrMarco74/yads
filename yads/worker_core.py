@@ -19,19 +19,26 @@ logger = configure_logging("yads-worker")
 _worker_client = None
 
 # Initialize Celery
-celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+# broker=RabbitMQ (durable, ACK-based), backend=Valkey (result/log cache only)
+celery_app = Celery("yads_worker", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
 celery_app.conf.worker_hijack_root_logger = False
 celery_app.conf.task_time_limit = 3600       # hard kill after 60 min
 celery_app.conf.task_soft_time_limit = 3480  # soft signal after 58 min (allows graceful cleanup)
 celery_app.conf.timezone = 'UTC'
+# Reliable delivery: tasks are ACK'd only after successful completion.
+# If a worker dies mid-task, RabbitMQ re-queues the message automatically.
+celery_app.conf.task_acks_late = True
+celery_app.conf.task_reject_on_worker_lost = True
 
 # ── Queue routing ─────────────────────────────────────────────────────────────
 # Tasks on the 'discovery' queue are only consumed by workers that explicitly
 # listen to it (via -Q celery,discovery).  Standard scan tasks stay on 'celery'.
-from kombu import Queue as _Queue
+from kombu import Queue as _Queue, Exchange as _Exchange
+_default_exchange = _Exchange("celery", type="direct", durable=True)
+_discovery_exchange = _Exchange("discovery", type="direct", durable=True)
 celery_app.conf.task_queues = (
-    _Queue("celery"),
-    _Queue("discovery"),
+    _Queue("celery",    _default_exchange,   routing_key="celery",    durable=True),
+    _Queue("discovery", _discovery_exchange, routing_key="discovery", durable=True),
 )
 celery_app.conf.task_routes = {
     "yads.worker.run_discovery_scan":      {"queue": "discovery"},
@@ -77,18 +84,21 @@ def on_worker_ready(sender=None, **kwargs):
     """
     logger.info("[Worker] Signal: Worker Ready. Checking Queue State...")
 
-    # ── Crash recovery: reset orphaned running targets ────────────────────
+    # ── Crash recovery: reset orphaned running/queued targets ─────────────
     try:
         from yads.database import engine
         with Session(engine) as session:
-            stuck = session.exec(select(Target).where(Target.scan_status == "running")).all()
+            stuck = session.exec(
+                select(Target).where(Target.scan_status.in_(["running", "queued"]))
+            ).all()
             if stuck:
                 for t in stuck:
                     t.scan_status = "idle"
+                    t.queued_at = None
                     t.scan_progress = "Reset on worker startup (previous run was interrupted)"
                     session.add(t)
                 session.commit()
-                logger.warning(f"[Worker] startup: Reset {len(stuck)} stuck target(s) to idle")
+                logger.warning(f"[Worker] startup: Reset {len(stuck)} stuck target(s) to idle (running + queued)")
     except Exception as e:
         logger.error(f"[Worker] Failed to reset stuck targets on startup: {e}")
 

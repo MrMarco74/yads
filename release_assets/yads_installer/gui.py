@@ -272,6 +272,8 @@ class InstallationManager(QObject):
                                     existing['POSTGRES_PASSWORD'] = v
                                 elif k in ['REDIS_PASSWORD', 'REDIS_PASS']:
                                     existing['REDIS_PASSWORD'] = v
+                                elif k in ['RABBITMQ_PASSWORD', 'RABBITMQ_PASS']:
+                                    existing['RABBITMQ_PASSWORD'] = v
                                 elif k in ['SECRET_KEY']:
                                     existing['SECRET_KEY'] = v
                                 elif k in ['SIGNING_KEY']:
@@ -293,6 +295,7 @@ class InstallationManager(QObject):
         self.secrets = {
             'POSTGRES_PASSWORD': existing.get('POSTGRES_PASSWORD', secrets.token_urlsafe(16)),
             'REDIS_PASSWORD': existing.get('REDIS_PASSWORD', secrets.token_urlsafe(16)),
+            'RABBITMQ_PASSWORD': existing.get('RABBITMQ_PASSWORD', secrets.token_urlsafe(16)),
             'SECRET_KEY': existing.get('SECRET_KEY', secrets.token_urlsafe(32)),
             'SIGNING_KEY': existing.get('SIGNING_KEY', secrets.token_urlsafe(32)),
             'REFRESH_SECRET': existing.get('REFRESH_SECRET', secrets.token_urlsafe(32)),
@@ -964,6 +967,7 @@ class GlassInstaller(AcrylicWindow):
         secrets_to_show = [
             ("PostgreSQL Passwort", "POSTGRES_PASSWORD"),
             ("Redis Passwort", "REDIS_PASSWORD"),
+            ("RabbitMQ Passwort", "RABBITMQ_PASSWORD"),
             ("Admin Passwort", "admin_pass"),
             ("Verschlüsselungs-Key", "YADS_ENCRYPTION_KEY"),
             ("Secret Key (API)", "SECRET_KEY")
