@@ -104,10 +104,13 @@ def run_scheduler_loop(celery_app):
 
     Pass 1: Fire due per-target ScanSchedule entries.
     Pass 2: Fire per-tenant TenantScanConfig auto-sweeps.
+    Pass 3: Reset stuck targets (every 5 min, replaces celery beat).
 
     Both passes respect GLOBAL_MAX_CONCURRENT_SCANS and per-tenant limits.
     """
     logger.info("Scheduler Service Started.")
+
+    _last_stuck_check = datetime.utcnow() - timedelta(minutes=6)  # fire on first tick
 
     while True:
         try:
@@ -219,6 +222,15 @@ def run_scheduler_loop(celery_app):
                         f"[AutoScan] Tenant {config.tenant_id}: queued {queued} target(s). "
                         f"Next run: {config.next_auto_run_at}"
                     )
+
+                # ── Pass 3: Reset stuck targets (replaces celery beat) ───
+                if (datetime.utcnow() - _last_stuck_check).total_seconds() >= 300:
+                    _last_stuck_check = datetime.utcnow()
+                    try:
+                        from yads.worker_tasks import reset_stuck_targets
+                        reset_stuck_targets()
+                    except Exception as _e:
+                        logger.warning(f"[Scheduler] reset_stuck_targets failed: {_e}")
 
         except Exception as e:
             logger.error(f"Scheduler Loop Error: {e}")

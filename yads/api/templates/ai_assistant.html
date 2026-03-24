@@ -56,14 +56,14 @@
                 class="flex items-center gap-2 px-1 pb-3 text-sm font-medium border-b-2 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 Finding Explanation
-                <span class="text-[9px] font-bold bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Enterprise</span>
+                <span class="text-[9px] font-bold bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Pro</span>
             </button>
             <button @click="activeTab = 'exec'"
                 :class="activeTab === 'exec' ? 'border-violet-500 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600'"
                 class="flex items-center gap-2 px-1 pb-3 text-sm font-medium border-b-2 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Executive Summary
-                <span class="text-[9px] font-bold bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Enterprise</span>
+                <span class="text-[9px] font-bold bg-amber-600/30 text-amber-300 px-1.5 py-0.5 rounded uppercase tracking-wider">Pro</span>
             </button>
         </nav>
     </div>
@@ -521,7 +521,7 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- TAB 4: Finding Explanation (Enterprise)                              -->
+    <!-- TAB 4: Finding Explanation (Pro)                              -->
     <!-- ================================================================== -->
     <div x-show="activeTab === 'explain'" x-transition>
         {% if not has_ai_insights %}
@@ -532,12 +532,12 @@
                     <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                 </div>
                 <div>
-                    <p class="text-white font-semibold text-base">Enterprise Feature</p>
+                    <p class="text-white font-semibold text-base">Pro Feature</p>
                     <p class="text-slate-400 text-sm mt-1 max-w-md">Finding Explanation uses AI to describe what each security finding means, what attackers can do with it, and how to fix it — using only anonymised finding types (no hostnames or raw data sent).</p>
                 </div>
                 <a href="/settings/license" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    Upgrade to Enterprise
+                    Upgrade to Professional
                 </a>
             </div>
             <!-- Blurred preview (decorative) -->
@@ -698,7 +698,7 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- TAB 5: Executive Summary (Enterprise)                               -->
+    <!-- TAB 5: Executive Summary (Pro)                               -->
     <!-- ================================================================== -->
     <div x-show="activeTab === 'exec'" x-transition>
         {% if not has_ai_insights %}
@@ -709,12 +709,12 @@
                     <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                 </div>
                 <div>
-                    <p class="text-white font-semibold text-base">Enterprise Feature</p>
+                    <p class="text-white font-semibold text-base">Pro Feature</p>
                     <p class="text-slate-400 text-sm mt-1 max-w-md">Executive Summary generates a management-ready security assessment paragraph from your scan results. Only aggregated scores and finding counts are sent to AI — never hostnames, IPs, or raw scan data.</p>
                 </div>
                 <a href="/settings/license" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    Upgrade to Enterprise
+                    Upgrade to Professional
                 </a>
             </div>
             <div class="blur-sm pointer-events-none opacity-40 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -892,6 +892,10 @@ function aiAssistant() {
     return {
         activeTab: 'prioritize',
 
+        csrf() {
+            return document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? '';
+        },
+
         prio: {
             targetId: '',
             loading: false,
@@ -964,7 +968,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch('/api/ai/prioritize-findings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({ target_id: parseInt(this.prio.targetId) }),
                 });
                 if (!resp.ok) {
@@ -996,7 +1000,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch('/api/ai/prioritize-findings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({ target_id: parseInt(targetId) }),
                 });
                 if (resp.ok) {
@@ -1025,7 +1029,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch('/api/ai/remediate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({
                         finding_title: this.rem.title,
                         finding_description: this.rem.description,
@@ -1108,7 +1112,7 @@ function aiAssistant() {
         },
 
         // ----------------------------------------------------------------
-        // Finding Explanation (Enterprise)
+        // Finding Explanation (Pro)
         // ----------------------------------------------------------------
         async explainLoadFindings(event) {
             const targetId = event.target.value;
@@ -1117,7 +1121,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch('/api/ai/prioritize-findings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({ target_id: parseInt(targetId) }),
                 });
                 if (resp.ok) {
@@ -1145,7 +1149,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch('/api/ai/explain-finding', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({
                         finding_type: this.exp.findingType,
                         severity: this.exp.severity,
@@ -1165,7 +1169,7 @@ function aiAssistant() {
         },
 
         // ----------------------------------------------------------------
-        // Executive Summary (Enterprise)
+        // Executive Summary (Pro)
         // ----------------------------------------------------------------
         async execSummary() {
             if (!this.exec.targetId) return;
@@ -1176,7 +1180,7 @@ function aiAssistant() {
             try {
                 const resp = await fetch(`/api/ai/executive-summary/${this.exec.targetId}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrf() },
                     body: JSON.stringify({ target_id: parseInt(this.exec.targetId) }),
                 });
                 if (!resp.ok) {

@@ -227,8 +227,8 @@
 
             <!-- Right: Context Controls -->
             <div class="flex items-center gap-4">
-                <!-- Queue Widget (Polls every 30s) -->
-                <div hx-get="/queue/widget" hx-trigger="load, every 30s" hx-swap="outerHTML"></div>
+                <!-- Queue Widget (Polls every 5s) -->
+                <div hx-get="/queue/widget" hx-trigger="load, every 5s" hx-swap="outerHTML"></div>
 
                 <!-- System Alerts Banner (platform admin only, polls every 30s) -->
                 {% if user and user.role == 'admin' %}
@@ -451,7 +451,7 @@
         <!-- Footer -->
         <footer class="border-t border-slate-800 py-6 mt-auto">
             <div class="flex justify-between items-center px-4 sm:px-6 text-xs text-slate-600">
-                <p>&copy; 2025 YADS Enterprise Security.</p>
+                <p>&copy; 2025 YADS Security.</p>
                 <div class="flex gap-4">
                     <span class="font-mono text-slate-700">v{{ settings.VERSION }}</span>
                     <span>{{ now_utc }}</span>

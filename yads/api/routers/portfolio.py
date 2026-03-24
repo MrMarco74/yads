@@ -165,7 +165,7 @@ def _compute_tenant_stats(
 
     # Determine plan label from osint_enabled / quota
     if tenant.osint_enabled and tenant.osint_quota_max > 0:
-        plan = "Enterprise"
+        plan = "Professional"
     elif tenant.osint_enabled:
         plan = "Pro"
     else:

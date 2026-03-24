@@ -52,7 +52,7 @@ async def add_tenant(request: Request, name: str = Form(...), session: Session =
     
     license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
     if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
-        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Professional+License", status_code=303)
 
     try:
         tenant = Tenant(name=name)
@@ -78,7 +78,7 @@ async def update_tenant(
     
     license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
     if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
-        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Professional+License", status_code=303)
 
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
@@ -106,7 +106,7 @@ async def update_tenant_users(
     
     license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
     if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
-        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Professional+License", status_code=303)
 
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
@@ -132,7 +132,7 @@ async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(g
     
     license_key = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
     if not license_key or not license_manager.has_feature(license_key.value, "tenants"):
-        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Enterprise+License", status_code=303)
+        return RedirectResponse(url="/tenants?error=Feature+Locked:+Tenant+Management+requires+Professional+License", status_code=303)
 
     tenant = session.get(Tenant, tenant_id)
     if not tenant:
