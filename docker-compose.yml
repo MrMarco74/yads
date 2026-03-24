@@ -34,6 +34,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-yads}:${POSTGRES_PASSWORD}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
+      - BROKER_URL=amqp://yads:yads@rabbitmq:5672//
       - LOG_DIR=/app/logs
       - SECRET_KEY=${SECRET_KEY}
       - LICENSE_KEY=${LICENSE_KEY}
@@ -53,6 +54,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - yads-net
 
@@ -64,6 +67,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-yads}:${POSTGRES_PASSWORD}@db:5432/yads
       - REDIS_URL=redis://redis:6379/0
+      - BROKER_URL=amqp://yads:yads@rabbitmq:5672//
       - CHROME_BIN=/usr/bin/google-chrome
       - LOG_DIR=/app/logs
     volumes:
@@ -74,8 +78,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       yads-api:
         condition: service_healthy
+    networks:
+      - yads-net
+
+  # --- Message Broker ---
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: yads-rabbitmq
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=yads
+      - RABBITMQ_DEFAULT_PASS=yads
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"  # Management UI (optional, bind only locally)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - yads-net
 
@@ -118,6 +145,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
 
 networks:
   yads-net:

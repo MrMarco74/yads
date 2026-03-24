@@ -30,7 +30,8 @@ def generate_report_signing_keypair():
 
 
 def sign_license(private_key_b64, customer, max_targets, expiry_days=365,
-                 customer_id=None, report_signing_private=None, report_signing_public=None):
+                 customer_id=None, report_signing_private=None, report_signing_public=None,
+                 domains=None):
     # Load Private Key
     try:
         private_bytes = base64.b64decode(private_key_b64)
@@ -61,6 +62,8 @@ def sign_license(private_key_b64, customer, max_targets, expiry_days=365,
         "iat": int(time.time()),
         "report_signing_key": report_signing_private,
     }
+    if domains:
+        payload["domains"] = sorted(set(domains))
 
     payload_json = json.dumps(payload, sort_keys=True).encode('utf-8')
     payload_b64 = base64.urlsafe_b64encode(payload_json).decode('utf-8').rstrip('=')
@@ -83,6 +86,8 @@ def sign_license(private_key_b64, customer, max_targets, expiry_days=365,
     print(f"Store this in the License Manager / Support Portal:")
     print(f"customer_id  : {customer_id}")
     print(f"public_key   : {report_signing_public}")
+    if domains:
+        print(f"\n[+] Embedded {len(payload['domains'])} allowed domains in license payload.")
 
     return license_key, customer_id, report_signing_public
 
@@ -94,7 +99,16 @@ if __name__ == "__main__":
     parser.add_argument("--limit", required=True, type=int, help="Max Targets")
     parser.add_argument("--days", type=int, default=365, help="Validity in days")
     parser.add_argument("--customer-id", default=None, help="Existing customer UUID (optional)")
+    parser.add_argument("--domains-file", default=None,
+                        help="Path to a text file with one domain per line to embed as allowed domains")
 
     args = parser.parse_args()
+
+    domains = None
+    if args.domains_file:
+        with open(args.domains_file) as f:
+            domains = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        print(f"[+] Loaded {len(domains)} domains from {args.domains_file}")
+
     sign_license(args.key, args.customer, args.limit, args.days,
-                 customer_id=args.customer_id)
+                 customer_id=args.customer_id, domains=domains)

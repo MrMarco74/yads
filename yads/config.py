@@ -7,7 +7,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "2.5.6"
+    VERSION: str = "2.6.0"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 
@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     
     # Redis / Celery
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    # Celery broker URL — defaults to RabbitMQ; falls back to REDIS_URL if not set
+    BROKER_URL: str = os.getenv("BROKER_URL", "amqp://yads:yads@rabbitmq:5672//")
     
     # Scanner Configs
     AUTO_QUEUE_SUBDOMAINS: bool = False

@@ -62,12 +62,22 @@ async def tenant_settings_page(
 
     # Reload tenant from DB to confirm fresh data
     tenant = session.get(Tenant, user.tenant_id)
-    
+
     webhooks = session.exec(select(Webhook).where(Webhook.tenant_id == user.tenant_id)).all()
     scan_config = session.exec(
         select(TenantScanConfig).where(TenantScanConfig.tenant_id == user.tenant_id)
     ).first()
     all_scan_types = sorted(REGISTRY.keys())
+
+    # Dynamic API key specs from all registered modules
+    from yads.core.tenant_keys import get_all_api_key_specs, load_tenant_api_keys
+    all_specs = get_all_api_key_specs()
+    current_keys = load_tenant_api_keys(session, user.tenant_id)
+    # Build list of (spec, current_value, is_set)
+    module_api_keys = [
+        {"spec": spec, "value": current_keys.get(spec.name, ""), "is_set": bool(current_keys.get(spec.name))}
+        for spec in all_specs
+    ]
 
     return templates.TemplateResponse("tenant_settings.html", {
         "request": request,
@@ -76,6 +86,7 @@ async def tenant_settings_page(
         "user": user,
         "scan_config": scan_config,
         "all_scan_types": all_scan_types,
+        "module_api_keys": module_api_keys,
     })
 
 
@@ -133,10 +144,23 @@ async def update_tenant_settings(
     tenant.github_token = github_token if github_token and github_token.strip() else None
     tenant.twitter_bearer_token = twitter_bearer_token if twitter_bearer_token and twitter_bearer_token.strip() else None
 
-    # Advanced OSINT API Keys (v1.16.0)
+    # Advanced OSINT API Keys (v1.16.0) — also sync to TenantApiKey table
     tenant.shodan_api_key = shodan_api_key if shodan_api_key and shodan_api_key.strip() else None
     tenant.censys_api_key = censys_api_key if censys_api_key and censys_api_key.strip() else None
     tenant.virustotal_api_key = virustotal_api_key if virustotal_api_key and virustotal_api_key.strip() else None
+
+    # Dynamic API keys from module specs (form fields named "apikey_<key_name>")
+    from yads.core.tenant_keys import get_all_api_key_specs, set_tenant_api_key
+    form_data = await request.form()
+    for spec in get_all_api_key_specs():
+        field_name = f"apikey_{spec.name}"
+        raw = form_data.get(field_name)
+        if raw is not None:  # field was submitted
+            val = str(raw).strip() or None
+            set_tenant_api_key(session, user.tenant_id, spec.name, val)
+            # Also sync to legacy Tenant attr if it exists
+            if spec.legacy_tenant_attr and hasattr(tenant, spec.legacy_tenant_attr):
+                setattr(tenant, spec.legacy_tenant_attr, val)
 
     # Session Timeout Validation
     if session_timeout_minutes is not None:
@@ -484,12 +508,27 @@ async def import_config_apply(
     <li>{summary["profiles_imported"]} Scan-Profil(e) importiert</li>
     <li>{summary["module_overrides_imported"]} Modul-Override(s) importiert</li>
     {"<li>Scan-Automation importiert</li>" if summary["scan_config_imported"] else ""}
+    {f'<li>{summary["dynamic_api_keys_imported"]} API-Schlüssel importiert</li>' if summary.get("dynamic_api_keys_imported") else ""}
   </ul>
+  {_missing_addon_warning(summary.get("missing_addon_keys", []))}
   <a href="/tenant-settings" class="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline">
     Einstellungen neu laden →
   </a>
 </div>
 ''')
+
+
+def _missing_addon_warning(missing: list) -> str:
+    if not missing:
+        return ""
+    keys = ", ".join(f"<code>{k}</code>" for k in missing)
+    return (
+        f'<div class="mt-3 p-2 bg-amber-900/30 border border-amber-700/40 rounded text-amber-300 text-xs">'
+        f'<strong>Hinweis:</strong> Die folgenden API-Schlüssel wurden importiert, aber die zugehörigen '
+        f'Add-ons sind aktuell nicht installiert: {keys}. '
+        f'Die Keys werden gespeichert und aktiviert sobald die Add-ons nachinstalliert werden.'
+        f'</div>'
+    )
 
 
 # ─── Findings Management ──────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ from yads.api.utils.update_checker import UpdateService
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
 from celery import Celery
 from yads.config import settings
-celery_app = Celery('yads_worker', broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+celery_app = Celery('yads_worker', broker=settings.BROKER_URL, backend=settings.REDIS_URL)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1159,7 +1159,7 @@ async def view_license(request: Request, session: Session = Depends(get_session)
 @router.post("/license/save-key")
 async def save_license_key(
     request: Request,
-    license_key: str = Form(default="", max_length=2048),
+    license_key: str = Form(default="", max_length=131072),
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin"]))
 ):

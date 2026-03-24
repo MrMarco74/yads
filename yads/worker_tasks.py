@@ -271,38 +271,46 @@ def send_daily_digests():
 @celery_app.task(name="yads.worker.reset_stuck_targets")
 def reset_stuck_targets():
     """
-    Reset only genuinely stuck 'running' targets — i.e. scans that started more
-    than 45 minutes ago and never finished (worker crash).
+    Reset genuinely stuck targets back to 'idle':
+    - 'running' targets with no update for > 45 min (worker crash)
+    - 'queued' targets with queued_at > 60 min ago (task lost from broker — e.g. broker restart)
 
-    We intentionally do NOT reset 'queued' targets here because:
-    - Queued targets legitimately sit in the Redis queue waiting for a worker slot.
-    - Mass-resetting them causes the header widget to show 0/0 even when the queue
-      is full, and re-scanning them would create duplicate Celery tasks.
-
-    Startup seeding resets ALL queued/running once on boot (safe because Redis is
-    just starting too). This periodic task only handles post-crash hangers.
+    We use queued_at (not created_at) so legitimately busy queues are not touched.
+    A task that hasn't been picked up after 60 minutes is either lost or the queue
+    was purged — safe to reset so the user can re-trigger the scan.
     """
     from sqlmodel import text as sql_text
     from datetime import datetime, timedelta, timezone
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=45)
-    # Use ISO-8601 string — works for both TEXT and TIMESTAMP columns
-    cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+    running_cutoff = datetime.now(timezone.utc) - timedelta(minutes=45)
+    queued_cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
+    running_cutoff_str = running_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+    queued_cutoff_str = queued_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
 
     with Session(engine) as db:
-        # Only reset 'running' targets whose last_scan timestamp predates the cutoff.
-        # 'queued' targets are legitimately waiting in Celery — leave them alone.
-        result = db.execute(sql_text(
-            "UPDATE target SET scan_status='idle' "
+        # Reset stuck 'running' targets (worker crash)
+        r1 = db.execute(sql_text(
+            "UPDATE target SET scan_status='idle', queued_at=NULL "
             "WHERE scan_status = 'running' "
-            "AND created_at < :cutoff"
-        ), {"cutoff": cutoff_str})
+            "AND (queued_at IS NULL OR queued_at < :cutoff)"
+        ), {"cutoff": running_cutoff_str})
+
+        # Reset orphaned 'queued' targets (task lost from broker)
+        r2 = db.execute(sql_text(
+            "UPDATE target SET scan_status='idle', queued_at=NULL "
+            "WHERE scan_status = 'queued' "
+            "AND queued_at IS NOT NULL "
+            "AND queued_at < :cutoff"
+        ), {"cutoff": queued_cutoff_str})
+
         db.commit()
-        stuck = result.rowcount
-        if stuck:
-            logger.warning(f"[StuckCleaner] Reset {stuck} stuck running target(s) → idle (> 45 min)")
-        else:
-            logger.debug("[StuckCleaner] No stuck running targets found")
+
+        if r1.rowcount:
+            logger.warning(f"[StuckCleaner] Reset {r1.rowcount} stuck running target(s) → idle (> 45 min)")
+        if r2.rowcount:
+            logger.warning(f"[StuckCleaner] Reset {r2.rowcount} orphaned queued target(s) → idle (queued_at > 60 min)")
+        if not r1.rowcount and not r2.rowcount:
+            logger.debug("[StuckCleaner] No stuck targets found")
 
 
 # ── Data Retention ────────────────────────────────────────────────────────────
@@ -394,7 +402,7 @@ def _trigger_support_portal_cleanup():
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────
 
-@celery_app.task(name="yads.worker.run_all_scans", bind=True)
+@celery_app.task(name="yads.worker.run_all_scans", bind=True, acks_late=True, reject_on_worker_lost=True)
 def run_all_scans(
     self,
     target_id: int,
@@ -553,6 +561,7 @@ def run_all_scans(
 
                 target.scan_status = "running"
                 target.scan_progress = "Initializing scan..."
+                target.queued_at = None  # clear: task is now being processed
                 parent_tenant_id = target.tenant_id
                 session.add(target)
                 session.commit()
@@ -1333,7 +1342,7 @@ def run_all_scans(
 
 # ── Discovery Tasks ────────────────────────────────────────────────────────────
 
-@celery_app.task(name="yads.worker.run_discovery_scan", queue="discovery")
+@celery_app.task(name="yads.worker.run_discovery_scan", queue="discovery", acks_late=True, reject_on_worker_lost=True)
 def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int):
     """
     Run a discovery-scoped scan on a single target as part of a DiscoverySession.
@@ -1516,7 +1525,7 @@ def _upsert_candidate(
     ))
 
 
-@celery_app.task(name="yads.worker.start_discovery_session", queue="discovery")
+@celery_app.task(name="yads.worker.start_discovery_session", queue="discovery", acks_late=True, reject_on_worker_lost=True)
 def start_discovery_session(session_id: int):
     """Entry-point task that starts a DiscoveryOrchestrator session."""
     from yads.core.discovery_orchestrator import DiscoveryOrchestrator
@@ -1524,7 +1533,7 @@ def start_discovery_session(session_id: int):
     orchestrator.start()
 
 
-@celery_app.task(name="yads.worker.run_osint_enrichment", bind=True)
+@celery_app.task(name="yads.worker.run_osint_enrichment", bind=True, acks_late=True, reject_on_worker_lost=True)
 def run_osint_enrichment(self, target_id: int, target_domain: str, tenant_id: int):
     """
     High-priority dedicated task for refreshing all OSINT modules for a single Target.

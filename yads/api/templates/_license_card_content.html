@@ -2,8 +2,8 @@
 <div id="license-card-content" class="space-y-4 relative z-10">
     <div class="relative">
         <label class="block text-xs font-medium text-gray-400 mb-1">License Key (Signed)</label>
-        <textarea name="license_key" rows="3" id="license-key-input"
-                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-[10px] focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono leading-tight resize-none"
+        <textarea name="license_key" rows="5" id="license-key-input"
+                class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-[10px] focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono leading-tight resize-y"
                 placeholder="eyJ... (Paste your license key here)">{{ license_key }}</textarea>
         
         <button type="button" 
@@ -33,7 +33,17 @@
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-1">
                 <p class="text-[10px] text-gray-400">Target Limit: <span class="text-gray-200">{{ license_limit }}</span></p>
                 {% if license_data and license_data.get('domains') %}
-                <p class="text-[10px] text-gray-400">Allowed Domains: <span class="text-gray-200">{{ license_data.get('domains')|join(', ') }}</span></p>
+                {% set domains = license_data.get('domains') %}
+                <p class="text-[10px] text-gray-400">Allowed Domains:
+                    <span class="text-gray-200">{{ domains|length }} domains</span>
+                    {% if domains|length <= 20 %}
+                    — <span class="text-gray-300">{{ domains|join(', ') }}</span>
+                    {% else %}
+                    <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden');this.textContent=this.nextElementSibling.classList.contains('hidden')?'▶ anzeigen':'▼ ausblenden'"
+                            class="ml-1 text-indigo-400 hover:text-indigo-300">▶ anzeigen</button>
+                    <div class="hidden mt-1 max-h-40 overflow-y-auto bg-gray-900 rounded p-2 text-[10px] text-gray-300 font-mono leading-relaxed">{{ domains|join('<br>')|safe }}</div>
+                    {% endif %}
+                </p>
                 {% endif %}
             </div>
             

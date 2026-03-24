@@ -1094,6 +1094,33 @@ def migrate():
             try: conn.rollback()
             except: pass
 
+        # ── TenantApiKey table ────────────────────────────────────────────
+        print(">> Creating tenant_api_key table...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tenant_api_key (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+                    key_name VARCHAR NOT NULL,
+                    value TEXT,
+                    CONSTRAINT uq_tenant_api_key UNIQUE (tenant_id, key_name)
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_api_key_tenant_id ON tenant_api_key(tenant_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_api_key_key_name  ON tenant_api_key(key_name)"))
+            conn.commit()
+        except Exception as e:
+            print(f"   Error creating tenant_api_key table: {e}")
+
+        # queued_at: timestamp for stuck-queue detection
+        print(">> Adding queued_at column to target table...")
+        try:
+            conn.execute(text("ALTER TABLE target ADD COLUMN IF NOT EXISTS queued_at TIMESTAMP;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

@@ -102,6 +102,16 @@ def export_tenant_config(tenant_id: int, password: str, session: Session) -> byt
         ).all()
     ]
 
+    # ── Dynamic API keys (TenantApiKey table) ─────────────────────────────────
+    from yads.models import TenantApiKey as _TenantApiKey
+    dynamic_api_keys = {
+        row.key_name: row.value
+        for row in session.exec(
+            select(_TenantApiKey).where(_TenantApiKey.tenant_id == tenant_id)
+        ).all()
+        if row.value
+    }
+
     config = {
         "format_version": FORMAT_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
@@ -111,6 +121,7 @@ def export_tenant_config(tenant_id: int, password: str, session: Session) -> byt
         "scan_config": scan_config_data,
         "scan_profiles": profiles,
         "module_overrides": module_overrides,
+        "dynamic_api_keys": dynamic_api_keys,
     }
 
     config_bytes = json.dumps(config, indent=2, default=str).encode("utf-8")
@@ -130,6 +141,7 @@ def export_tenant_config(tenant_id: int, password: str, session: Session) -> byt
             "scan_profiles": len(profiles),
             "module_overrides": len(module_overrides),
             "has_scan_config": scan_config_data is not None,
+            "dynamic_api_keys": len(dynamic_api_keys),
         },
     }
 
@@ -332,6 +344,19 @@ def apply_config(config: dict, tenant_id: int, session: Session) -> dict:
             enabled=m.get("enabled", True),
         ))
 
+    # ── Dynamic API keys (TenantApiKey table) ─────────────────────────────────
+    dynamic_keys = config.get("dynamic_api_keys", {})
+    if dynamic_keys:
+        from yads.core.tenant_keys import set_tenant_api_key, get_all_api_key_specs
+        known_specs = {s.name for s in get_all_api_key_specs()}
+        missing_addons = []
+        for key_name, value in dynamic_keys.items():
+            set_tenant_api_key(session, tenant_id, key_name, value)
+            if key_name not in known_specs:
+                missing_addons.append(key_name)
+    else:
+        missing_addons = []
+
     session.commit()
 
     return {
@@ -339,4 +364,6 @@ def apply_config(config: dict, tenant_id: int, session: Session) -> dict:
         "profiles_imported": len(config.get("scan_profiles", [])),
         "module_overrides_imported": len(config.get("module_overrides", [])),
         "scan_config_imported": sc_data is not None,
+        "dynamic_api_keys_imported": len(dynamic_keys),
+        "missing_addon_keys": missing_addons,  # keys whose modules are not installed
     }

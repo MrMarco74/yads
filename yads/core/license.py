@@ -100,8 +100,10 @@ class LicenseVerifier:
         from yads.core.community_edition import get_ce_state
         from sqlmodel import select, func
 
-        # 1. Total Target Count
-        target_count = session.exec(select(func.count()).select_from(Target)).one()
+        # 1. Active Target Count (archived/blocked targets do not count against the license)
+        target_count = session.exec(
+            select(func.count()).select_from(Target).where(Target.is_archived == False)
+        ).one()
 
         # 2. Check Commercial License
         license_conf = session.get(SystemConfig, "license_key")

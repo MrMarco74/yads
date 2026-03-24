@@ -841,7 +841,7 @@
                     <!-- Page Size Selector -->
                     <div class="flex items-center gap-2 text-sm text-slate-400">
                         <span>Show:</span>
-                        <select onchange="window.location.href='?page=1&limit='+this.value" class="bg-slate-900 border border-slate-700 text-white text-xs rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
+                        <select onchange="navigatePage(1, this.value)" class="bg-slate-900 border border-slate-700 text-white text-xs rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500">
                             <option value="10" {% if pagination.limit == 10 %}selected{% endif %}>10</option>
                             <option value="20" {% if pagination.limit == 20 %}selected{% endif %}>20</option>
                             <option value="50" {% if pagination.limit == 50 %}selected{% endif %}>50</option>
@@ -856,7 +856,7 @@
                 
                 <div class="flex gap-2">
                     {% if pagination.page > 1 %}
-                        <a href="?page={{ pagination.page - 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
+                        <a href="javascript:void(0)" onclick="navigatePage({{ pagination.page - 1 }})" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
                             {{ _('common.previous') }}
                         </a>
                     {% else %}
@@ -864,9 +864,9 @@
                             {{ _('common.previous') }}
                         </button>
                     {% endif %}
-                    
+
                     {% if pagination.page < pagination.total_pages %}
-                        <a href="?page={{ pagination.page + 1 }}&limit={{ pagination.limit }}" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
+                        <a href="javascript:void(0)" onclick="navigatePage({{ pagination.page + 1 }})" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg border border-slate-700 transition-colors">
                             {{ _('common.next') }}
                         </a>
                     {% else %}
@@ -932,6 +932,32 @@
         }
     });
     
+    // Pagination: preserve all active filter params when changing page/limit
+    function navigatePage(page, limit) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', page);
+        if (limit !== undefined) params.set('limit', limit);
+        window.location.search = params.toString();
+    }
+
+    // Debounced domain filter: auto-submit 400ms after last keystroke (server-side, full dataset)
+    (function() {
+        let debounceTimer;
+        const topInput = document.querySelector('#filter-form input[name="filter_domain"]');
+        const colInput = document.querySelector('.column-filter[data-param="filter_domain"]');
+
+        function onDomainInput(val) {
+            // Keep both inputs in sync so submitFilter() picks up the value
+            if (topInput) topInput.value = val;
+            if (colInput) colInput.value = val;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(submitFilter, 400);
+        }
+
+        if (topInput) topInput.addEventListener('input', e => onDomainInput(e.target.value));
+        if (colInput) colInput.addEventListener('input', e => onDomainInput(e.target.value));
+    })();
+
     // Filter Logic with Scan Option Persistence
     function submitFilter() {
         const filterForm = document.getElementById('filter-form');

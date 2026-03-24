@@ -214,7 +214,7 @@ async def queue_celery_live(
     worker_nodes = get_celery_worker_nodes()
     active_tasks, reserved_tasks, scheduled_tasks = [], [], []
     try:
-        celery_app = Celery("yads_inspector", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        celery_app = Celery("yads_inspector", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
         i = celery_app.control.inspect(timeout=5.0)
         if i:
             active_raw    = i.active()    or {}
@@ -321,7 +321,7 @@ async def control_queue(
         session.add(conf)
 
     # Connect to Celery for Control
-    celery_app = Celery("yads_control", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+    celery_app = Celery("yads_control", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
 
     if action == "pause":
         conf.value = "false"
@@ -423,7 +423,7 @@ async def cancel_single_task(
     from yads.models import Target
 
     try:
-        celery_app = Celery("yads_cancel", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        celery_app = Celery("yads_cancel", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
         r = redis_client
 
         task_found = False
@@ -573,7 +573,7 @@ async def purge_queue(
     import base64
     
     try:
-        celery_app = Celery("yads_purge", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        celery_app = Celery("yads_purge", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
         r = redis_client
         
         # 1. Selectively remove from Redis queue (only tenant's tasks)

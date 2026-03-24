@@ -86,7 +86,7 @@ def _get_scan_categories_for_user(session: Session, user: User, prefix: str):
 
 from celery import Celery
 from yads.config import settings
-celery_app = Celery('yads_worker', broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+celery_app = Celery('yads_worker', broker=settings.BROKER_URL, backend=settings.REDIS_URL)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -157,6 +157,7 @@ def _queue_single_bulk_target(session: Session, user: User, tid_str: str, scan_t
             priority=getattr(target, "scan_priority", 5),
         )
         target.scan_status = "queued"
+        target.queued_at = datetime.utcnow()
         session.add(target)
         return True
     except Exception as e:
@@ -282,10 +283,12 @@ def _is_duplicate_target(session: Session, user: User, domain: str) -> bool:
 
 
 def _check_import_license_limit(session: Session, current_batch_count: int) -> bool:
-    """Check if adding another target exceeds license limits."""
+    """Check if adding another target exceeds license limits. Archived targets are excluded."""
     from yads.core.community_edition import get_ce_state, check_can_add_target
     from yads.core.license import license_manager
-    total = session.exec(select(func.count()).select_from(Target)).one() + current_batch_count
+    total = session.exec(
+        select(func.count()).select_from(Target).where(Target.is_archived == False)
+    ).one() + current_batch_count
     ce = get_ce_state(session)
     if ce["edition"] == "community":
         ok, _ = check_can_add_target(session, total)
@@ -530,9 +533,10 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
 
     # 2. Update status in DB on SUCCESS
     target.scan_status = "queued"
+    target.queued_at = datetime.utcnow()
     session.add(target)
     session.commit()
-    
+
     _audit_scan_trigger(session, user, [target.domain], selected_types, "single_scan", request)
 
     return RedirectResponse(url=f"/targets/{target_id}", status_code=303)
@@ -575,6 +579,7 @@ async def rescan_module(
         priority=getattr(target, "scan_priority", 5),
     )
     target.scan_status = "queued"
+    target.queued_at = datetime.utcnow()
     session.add(target)
     session.commit()
 
@@ -876,33 +881,14 @@ async def view_target_table(
         query = query.where(Target.is_archived == True)
     # else filter_archived == "yes" -> show all
     
-    # -- Filter: Domain (Wildcard) --
+    # -- Filter: Domain --
+    # With * wildcard: *.de → %.de (ilike). Without *: exact match.
     if filter_domain:
         clean_filter = filter_domain.strip()
         if '*' in clean_filter:
-            # Shell-style wildcard: * -> SQL %
             sql_pattern = clean_filter.replace('*', '%')
             query = query.where(Target.domain.ilike(sql_pattern))
         else:
-            # Strict match if no wildcard provided? 
-            # Or standard contains? 
-            # Given explicit "using * as wildcard" request, we default to exact match if no * finds, 
-            # BUT usually search bars are "contains". 
-            # Let's do exact match here to honor the distinction, or maybe simple substring?
-            # User request: "filter domains using * as wildcard"
-            # It implies "*" is the mechanism.
-            # I'll implement: Treat as exact string unless * is present. 
-            # Actually, let's treat it as "starts with" or partial?
-            # Safe bet: default to partial match (contains) is usually what users want if they don't know wildcards.
-            # BUT if they specifically asked for * wildcard, maybe they want to be precise.
-            # I will use ILIKE logic: if no * is present, I will treat it as a straight ILIKE match (exact). 
-            # Users can add *name* to do contains.
-            # Wait, that might be annoying.
-            # Compromise: I'll blindly replace * with % and run ILIKE. 
-            # If they don't use *, it's an exact match. 
-            # If they want contains, they type *foo*.
-            # User explicitly requested strict behavior: "Only example-client.de without anything else"
-            # So if no wildcard is used, we enforce STRICT equality.
             query = query.where(func.lower(Target.domain) == clean_filter.lower())
     
     # -- Filter: Last Scan Time --

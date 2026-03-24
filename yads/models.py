@@ -2,7 +2,7 @@ from datetime import datetime, date
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, String, Text
+from sqlalchemy import Column, String, Text, UniqueConstraint
 
 
 import sqlalchemy as sa
@@ -68,6 +68,8 @@ class Tenant(SQLModel, table=True):
     shodan_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     censys_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     virustotal_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    abuseipdb_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
+    otx_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     
     # Session Management
     session_timeout_minutes: int = Field(default=60) # Default 1 hour
@@ -116,8 +118,9 @@ class Target(SQLModel, table=True):
     is_active: bool = Field(default=True)
     
     # Status Tracking
-    scan_status: str = Field(default="idle") # idle, running, failed
+    scan_status: str = Field(default="idle") # idle, queued, running, failed
     scan_progress: Optional[str] = Field(default=None) # e.g. "Running DNS Scanner..."
+    queued_at: Optional[datetime] = Field(default=None)  # set when dispatched, cleared when worker picks up
     
     # Archiving (for DNS cleanup)
     is_archived: bool = Field(default=False, index=True)
@@ -870,3 +873,18 @@ class SecurityFinding(SQLModel, table=True):
 
     # Recurrence tracking
     reopened_count: int = Field(default=0)
+
+
+class TenantApiKey(SQLModel, table=True):
+    """
+    Dynamic per-tenant API key storage.
+    Replaces hardcoded Tenant model fields for add-on/module BYOK keys.
+    Encrypted at rest via EncryptedString.
+    """
+    __tablename__ = "tenant_api_key"
+    __table_args__ = (UniqueConstraint("tenant_id", "key_name", name="uq_tenant_api_key"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    key_name: str = Field(index=True)
+    value: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
