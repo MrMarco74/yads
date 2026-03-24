@@ -13,6 +13,7 @@ POST /api/discovery/sessions/{id}/candidates/{cid}/reject → manual reject
 """
 
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request
@@ -352,6 +353,12 @@ async def api_block_domain(
     if len(parts) < 2:
         raise HTTPException(status_code=400, detail="Cannot block a TLD-level domain")
     parent = ".".join(parts[1:])
+    # Refuse to block bare TLDs (e.g. *.de, *.com) — parent must contain at least one dot
+    if "." not in parent:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Blocking *.{parent} would block an entire TLD. Block a specific domain instead."
+        )
     pattern = f"*.{parent}"
 
     # Idempotent: skip if already blocked for this tenant
@@ -446,6 +453,55 @@ async def api_delete_blocklist_entry(
     db.delete(entry)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.get("/api/discovery/blocklist/check-targets/data", dependencies=[Depends(manager_only)])
+async def api_check_targets_data(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+):
+    """Return targets + patterns so the client can match locally and show progress."""
+    patterns = db.exec(
+        select(DiscoveryDomainBlocklist)
+        .where(DiscoveryDomainBlocklist.tenant_id == current_user.tenant_id)
+    ).all()
+
+    targets = db.exec(
+        select(Target).where(
+            Target.tenant_id == current_user.tenant_id,
+            Target.is_archived == False,
+        )
+    ).all()
+
+    return {
+        "targets": [{"id": t.id, "domain": t.domain} for t in targets],
+        "patterns": [e.pattern for e in patterns],
+    }
+
+
+@router.post("/api/discovery/blocklist/archive-matched", dependencies=[Depends(manager_only)])
+async def api_archive_matched_targets(
+    db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_html),
+    payload: dict = Body(...),
+):
+    """Archive a list of targets by ID (must belong to the current tenant)."""
+    target_ids = payload.get("target_ids", [])
+    if not target_ids:
+        raise HTTPException(status_code=400, detail="target_ids required")
+
+    archived = 0
+    for tid in target_ids:
+        target = db.get(Target, tid)
+        if target and target.tenant_id == current_user.tenant_id and not target.is_archived:
+            target.is_archived = True
+            target.archived_at = datetime.utcnow()
+            target.archived_reason = "blocklist_match"
+            db.add(target)
+            archived += 1
+
+    db.commit()
+    return {"status": "ok", "archived": archived}
 
 
 def _archive_discovery_target(db: Session, domain: str, session_id: int) -> None:

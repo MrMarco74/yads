@@ -105,7 +105,7 @@
         <button onclick="filterCandidates('{{ tab_status }}')"
                 id="tab-{{ tab_status }}"
                 class="px-3 py-1 rounded-md transition-colors font-medium
-                       {% if tab_status == 'pending' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">
+                       {% if tab_status == 'all' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">
           {{ tab_status|capitalize }}
         </button>
         {% endfor %}
@@ -239,7 +239,7 @@ function toggleBlocklist() {
   localStorage.setItem(_BLOCKLIST_KEY, open ? '1' : '0');
 }
 
-// Restore state on load
+// Restore blocklist open/close state on load
 (function() {
   const saved = localStorage.getItem(_BLOCKLIST_KEY);
   const body = document.getElementById('blocklist-body');
@@ -251,6 +251,12 @@ function toggleBlocklist() {
     body.classList.remove('hidden');
     chevron.style.transform = 'rotate(0deg)';
   }
+})();
+
+// Restore active filter tab (persists across reloads caused by actions)
+(function() {
+  const saved = sessionStorage.getItem('discovery_filter_' + SESSION_ID);
+  filterCandidates(saved || 'all');
 })();
 
 function filterCandidates(status) {
@@ -266,7 +272,7 @@ function filterCandidates(status) {
     activeTab.classList.remove('text-slate-400');
     activeTab.classList.add('bg-blue-600', 'text-white');
   }
-  // Clear selection when switching tabs
+  sessionStorage.setItem('discovery_filter_' + SESSION_ID, status);
   clearSelection();
 }
 
@@ -391,6 +397,9 @@ async function blockDomain(candidateId, pattern) {
   if (r.ok) {
     const data = await r.json();
     _removeRowsByPattern(data.pattern);
+  } else {
+    const err = await r.json().catch(() => ({}));
+    alert(err.detail || 'Blocklist-Eintrag konnte nicht erstellt werden.');
   }
 }
 

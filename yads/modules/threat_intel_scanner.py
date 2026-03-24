@@ -15,8 +15,9 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from yads.core.base import BaseScannerModule
+from yads.core.base import BaseScannerModule, ApiKeySpec
 from yads.core.api_rate_limiter import get_api_rate_limiter
+from yads.core.tenant_keys import get_tenant_api_key
 from yads.config import settings
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,33 @@ REQUEST_TIMEOUT = 15
 class ThreatIntelScanner(BaseScannerModule):
     """Query AbuseIPDB, OTX AlienVault, and VirusTotal for threat intel."""
 
+    api_key_specs = [
+        ApiKeySpec(
+            name="abuseipdb_api_key",
+            label="AbuseIPDB API Key",
+            description="IP reputation scores and abuse reports.",
+            placeholder="7478e314...",
+            help_url="https://www.abuseipdb.com/account/api",
+            settings_fallback="ABUSEIPDB_API_KEY",
+        ),
+        ApiKeySpec(
+            name="otx_api_key",
+            label="OTX AlienVault API Key",
+            description="Threat intelligence pulses and malware indicators.",
+            placeholder="c8ef23e2...",
+            help_url="https://otx.alienvault.com/api/v1/",
+            settings_fallback="OTX_API_KEY",
+        ),
+        ApiKeySpec(
+            name="virustotal_api_key",
+            label="VirusTotal API Key",
+            description="URL, domain and IP reputation verdicts.",
+            placeholder="6fecf29a...",
+            help_url="https://www.virustotal.com/gui/my-apikey",
+            settings_fallback="VIRUSTOTAL_API_KEY",
+        ),
+    ]
+
     @property
     def module_name(self) -> str:
         return "threat_intel"
@@ -35,8 +63,13 @@ class ThreatIntelScanner(BaseScannerModule):
     # Public entry point
     # ------------------------------------------------------------------
 
-    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
         domain = target.lower().strip().removeprefix("https://").removeprefix("http://").split("/")[0]
+
+        # Resolve API keys: TenantApiKey table → env var fallback
+        abuseipdb_key = get_tenant_api_key(self.db, tenant_id, "abuseipdb_api_key", settings_fallback="ABUSEIPDB_API_KEY")
+        otx_key = get_tenant_api_key(self.db, tenant_id, "otx_api_key", settings_fallback="OTX_API_KEY")
+        vt_key = get_tenant_api_key(self.db, tenant_id, "virustotal_api_key", settings_fallback="VIRUSTOTAL_API_KEY")
 
         result: Dict[str, Any] = {
             "domain": domain,
@@ -58,20 +91,20 @@ class ThreatIntelScanner(BaseScannerModule):
 
         sources = []
 
-        if settings.ABUSEIPDB_API_KEY and ip:
-            result["abuseipdb"] = self._query_abuseipdb(ip)
+        if abuseipdb_key and ip:
+            result["abuseipdb"] = self._query_abuseipdb(ip, abuseipdb_key)
             sources.append("abuseipdb")
-        elif not settings.ABUSEIPDB_API_KEY:
+        elif not abuseipdb_key:
             logger.info("[ThreatIntel] No AbuseIPDB key — skipping")
 
-        if settings.OTX_API_KEY:
-            result["otx"] = self._query_otx(domain, ip)
+        if otx_key:
+            result["otx"] = self._query_otx(domain, ip, otx_key)
             sources.append("otx")
         else:
             logger.info("[ThreatIntel] No OTX key — skipping")
 
-        if settings.VIRUSTOTAL_API_KEY:
-            result["virustotal"] = self._query_virustotal(domain)
+        if vt_key:
+            result["virustotal"] = self._query_virustotal(domain, vt_key)
             sources.append("virustotal")
         else:
             logger.info("[ThreatIntel] No VirusTotal key — skipping")
@@ -95,7 +128,7 @@ class ThreatIntelScanner(BaseScannerModule):
     # AbuseIPDB
     # ------------------------------------------------------------------
 
-    def _query_abuseipdb(self, ip: str) -> Dict[str, Any]:
+    def _query_abuseipdb(self, ip: str, api_key: str) -> Dict[str, Any]:
         limiter = get_api_rate_limiter()
         if not limiter.acquire("abuseipdb", timeout=10.0):
             logger.warning("[ThreatIntel] AbuseIPDB rate limit exceeded, skipping")
@@ -103,7 +136,7 @@ class ThreatIntelScanner(BaseScannerModule):
         try:
             resp = requests.get(
                 "https://api.abuseipdb.com/api/v2/check",
-                headers={"Key": settings.ABUSEIPDB_API_KEY, "Accept": "application/json"},
+                headers={"Key": api_key, "Accept": "application/json"},
                 params={"ipAddress": ip, "maxAgeInDays": 90, "verbose": True},
                 timeout=REQUEST_TIMEOUT,
             )
@@ -153,10 +186,10 @@ class ThreatIntelScanner(BaseScannerModule):
     # OTX AlienVault
     # ------------------------------------------------------------------
 
-    def _query_otx(self, domain: str, ip: Optional[str]) -> Dict[str, Any]:
+    def _query_otx(self, domain: str, ip: Optional[str], api_key: str) -> Dict[str, Any]:
         limiter = get_api_rate_limiter()
         results = {}
-        headers = {"X-OTX-API-KEY": settings.OTX_API_KEY}
+        headers = {"X-OTX-API-KEY": api_key}
 
         # Domain lookup
         if not limiter.acquire("otx", timeout=10.0):
@@ -224,13 +257,13 @@ class ThreatIntelScanner(BaseScannerModule):
     # VirusTotal
     # ------------------------------------------------------------------
 
-    def _query_virustotal(self, domain: str) -> Dict[str, Any]:
+    def _query_virustotal(self, domain: str, api_key: str) -> Dict[str, Any]:
         limiter = get_api_rate_limiter()
         if not limiter.acquire("virustotal", timeout=10.0):
             logger.warning("[ThreatIntel] VirusTotal rate limit exceeded, skipping")
             return {"error": "Rate limit exceeded", "status": "rate_limited"}
 
-        headers = {"x-apikey": settings.VIRUSTOTAL_API_KEY}
+        headers = {"x-apikey": api_key}
 
         try:
             resp = requests.get(

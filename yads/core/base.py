@@ -1,10 +1,27 @@
 import abc
 import hashlib
 import json
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 from yads.models import ModuleState, ScanResult, Target, ChangeEvent
+
+
+@dataclass
+class ApiKeySpec:
+    """
+    Declares an API key required by a scanner module.
+    Used by the tenant settings UI to render key input fields dynamically.
+    """
+    name: str                          # e.g. "shodan_api_key"
+    label: str                         # e.g. "Shodan API Key"
+    description: str = ""              # shown in UI
+    placeholder: str = ""              # input placeholder
+    help_url: str = ""                 # link to get the key
+    required: bool = False             # warn if missing
+    settings_fallback: Optional[str] = None   # global env var name (e.g. "SHODAN_API_KEY")
+    legacy_tenant_attr: Optional[str] = None  # old Tenant model attr (e.g. "nuclei_api_key")
 
 def sanitize_null_bytes(value):
     """
@@ -26,7 +43,10 @@ class BaseScannerModule(abc.ABC):
     Abstract base class for all scanner modules.
     Implements the core 'State' and 'Hashing' logic.
     """
-    
+
+    # Declare API keys required by this module. UI renders these dynamically.
+    api_key_specs: ClassVar[List[ApiKeySpec]] = []
+
     def __init__(self, db_session):
         self.db = db_session
 

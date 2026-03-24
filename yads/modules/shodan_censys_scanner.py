@@ -17,8 +17,9 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from yads.core.base import BaseScannerModule
+from yads.core.base import BaseScannerModule, ApiKeySpec
 from yads.core.api_rate_limiter import get_api_rate_limiter
+from yads.core.tenant_keys import get_tenant_api_key
 from yads.config import settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,25 @@ class ShodanCensysScanner(BaseScannerModule):
 
     REQUEST_TIMEOUT = 15
 
+    api_key_specs = [
+        ApiKeySpec(
+            name="shodan_api_key",
+            label="Shodan API Key",
+            description="Port scanning, banner grabbing and CVE lookup via Shodan.",
+            placeholder="wQcGl4ih...",
+            help_url="https://account.shodan.io/",
+            settings_fallback="SHODAN_API_KEY",
+        ),
+        ApiKeySpec(
+            name="censys_api_key",
+            label="Censys API Key",
+            description="Host and certificate intelligence from Censys.",
+            placeholder="censys_dT1aJPod...",
+            help_url="https://search.censys.io/account/api",
+            settings_fallback="CENSYS_API_ID",
+        ),
+    ]
+
     @property
     def module_name(self) -> str:
         return "shodan_censys"
@@ -54,8 +74,11 @@ class ShodanCensysScanner(BaseScannerModule):
     # Public entry point
     # ------------------------------------------------------------------
 
-    def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
+    def run_scan(self, target: str, target_id: Optional[int] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
         domain = target.lower().strip().removeprefix("https://").removeprefix("http://").split("/")[0]
+
+        shodan_key = get_tenant_api_key(self.db, tenant_id, "shodan_api_key", settings_fallback="SHODAN_API_KEY")
+        censys_key = get_tenant_api_key(self.db, tenant_id, "censys_api_key", settings_fallback="CENSYS_API_ID")
 
         result: Dict[str, Any] = {
             "domain": domain,
@@ -85,14 +108,14 @@ class ShodanCensysScanner(BaseScannerModule):
         logger.info(f"[ShodanCensys] Resolved {domain} → {ip}")
 
         # 2. Shodan enrichment
-        if settings.SHODAN_API_KEY:
-            result["shodan"] = self._query_shodan(ip, domain)
+        if shodan_key:
+            result["shodan"] = self._query_shodan(ip, domain, shodan_key)
         else:
             logger.info("[ShodanCensys] No Shodan API key — skipping Shodan lookup")
 
         # 3. Censys enrichment
-        if settings.CENSYS_API_ID:
-            result["censys"] = self._query_censys(ip)
+        if censys_key:
+            result["censys"] = self._query_censys(ip, censys_key)
         else:
             logger.info("[ShodanCensys] No Censys API key — skipping Censys lookup")
 
@@ -116,7 +139,7 @@ class ShodanCensysScanner(BaseScannerModule):
     # Shodan
     # ------------------------------------------------------------------
 
-    def _query_shodan(self, ip: str, domain: str) -> Dict[str, Any]:
+    def _query_shodan(self, ip: str, domain: str, api_key: str) -> Dict[str, Any]:
         """Fetch host data from Shodan API."""
         limiter = get_api_rate_limiter()
         if not limiter.acquire("shodan", timeout=10.0):
@@ -125,7 +148,7 @@ class ShodanCensysScanner(BaseScannerModule):
         try:
             resp = requests.get(
                 self.SHODAN_HOST_URL.format(ip=ip),
-                params={"key": settings.SHODAN_API_KEY},
+                params={"key": api_key},
                 timeout=self.REQUEST_TIMEOUT,
             )
             if resp.status_code == 404:
@@ -193,16 +216,22 @@ class ShodanCensysScanner(BaseScannerModule):
     # Censys
     # ------------------------------------------------------------------
 
-    def _query_censys(self, ip: str) -> Dict[str, Any]:
-        """Fetch host data from Censys v2 API."""
+    def _query_censys(self, ip: str, api_key: str) -> Dict[str, Any]:
+        """Fetch host data from Censys v2 API. api_key may be 'id:secret' or just the key."""
         limiter = get_api_rate_limiter()
         if not limiter.acquire("censys", timeout=10.0):
             logger.warning("[ShodanCensys] Censys rate limit exceeded, skipping")
             return {"error": "Rate limit exceeded", "status": "rate_limited"}
+        # Support "id:secret" format or legacy separate CENSYS_API_SECRET env var
+        if ":" in api_key:
+            censys_id, censys_secret = api_key.split(":", 1)
+        else:
+            censys_id = api_key
+            censys_secret = settings.CENSYS_API_SECRET or ""
         try:
             resp = requests.get(
                 self.CENSYS_HOST_URL.format(ip=ip),
-                auth=(settings.CENSYS_API_ID, settings.CENSYS_API_SECRET or ""),
+                auth=(censys_id, censys_secret),
                 timeout=self.REQUEST_TIMEOUT,
             )
             if resp.status_code == 404:
