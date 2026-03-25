@@ -7,13 +7,13 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "2.6.0"
+    VERSION: str = "2.6.5"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:yads_dev_local@db:5432/yads")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://yads:***@db:5432/yads")
     POSTGRES_PASSWORD: Optional[str] = None
     POSTGRES_USER: Optional[str] = None
     POSTGRES_DB: Optional[str] = None
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Redis / Celery
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     # Celery broker URL — defaults to RabbitMQ; falls back to REDIS_URL if not set
-    BROKER_URL: str = os.getenv("BROKER_URL", "amqp://yads:yads@rabbitmq:5672//")
+    BROKER_URL: str = os.getenv("BROKER_URL", "amqp://yads:***@rabbitmq:5672//")
     
     # Scanner Configs
     AUTO_QUEUE_SUBDOMAINS: bool = False
@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     OIDC_PUBLIC_URL: str = os.getenv("OIDC_PUBLIC_URL", "http://localhost:8080")
     OIDC_REALM: str = os.getenv("OIDC_REALM", "frischkorn")
     OIDC_CLIENT_ID: str = os.getenv("OIDC_CLIENT_ID", "yads")
-    OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "frischkorn-yads-secret")
+    OIDC_CLIENT_SECRET: str = os.getenv("OIDC_CLIENT_SECRET", "***")
     OIDC_REDIRECT_URI: str = os.getenv("OIDC_REDIRECT_URI", "http://localhost:8085/auth/oidc/callback")
 
     # Prometheus Metrics
