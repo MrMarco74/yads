@@ -1,32 +1,35 @@
 {
   "folders": [
     {
-      "path": ".",
+      "path": "."
     },
     {
-      "path": "../yads-common",
+      "path": "../yads-common"
     },
     {
-      "path": "../yads-infra",
+      "path": "../yads-infra"
     },
     {
-      "path": "../yads-kubernetes",
+      "path": "../yads-kubernetes"
     },
     {
-      "path": "../yads-support-portal",
+      "path": "../yads-support-portal"
     },
     {
-      "path": "../yads-testing",
+      "path": "../yads-testing"
     },
     {
-      "path": "../yads-tools",
+      "path": "../yads-tools"
     },
     {
-      "path": "../yads-website",
+      "path": "../yads-website"
     },
     {
-      "path": "../yads-addons",
+      "path": "../yads-addons"
     },
+    {
+      "path": "../yads-screenshots"
+    }
   ],
   "settings": {
     "makefile.configureOnOpen": false,
