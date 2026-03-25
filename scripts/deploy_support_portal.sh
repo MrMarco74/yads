@@ -20,15 +20,15 @@ set -euo pipefail
 
 # --- Constants ---------------------------------------------------------------
 REMOTE_HOST="root@prod.example.com"
-STACK_NAME="yads"
-REMOTE_DEPLOY_DIR="~/deploy/yads"
-COMPOSE_FILE="docker-compose.swarm.yml"
+STACK_NAME="support"                              # own stack, separate from yads
+REMOTE_COMPOSE_FILE="/opt/support-portal/docker-compose.yml"
 NGINX_SERVICE="reverse-proxy-stack_reverse-proxy"
 SUPPORT_IMAGE="registry.yads-security.com/yads-support:latest"
 SUPPORT_IMAGE_ARCHIVE="yads_support_deploy.tgz"
 SUPPORT_KEY_PATH="support/keys/dev_x25519_private.key"
+ADMIN_SIGNING_KEY_PATH="yads-support-portal/keys/admin_ed25519_private.key"  # Ed25519 private key for admin API signing
 DOMAIN="support.yads-security.com"
-ADMIN_PUBLIC_KEY="lvbmCRtPXZ5Z6IDym34PyM+T6b/vh20AlZEOlIx6NgY="
+ADMIN_PUBLIC_KEY="hZ3VxaNompB+FzUpMULeE7+yyeaVs3O5SFPoucqpS00="
 
 # --- Colors ------------------------------------------------------------------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -261,35 +261,35 @@ success "Image loaded on PROD."
 echo ""
 
 # =============================================================================
-# 7. Transfer compose file + update .env
+# 7. Transfer compose file + update env vars
 # =============================================================================
-info "Uploading docker-compose.swarm.yml..."
-run "scp '$COMPOSE_FILE' '$REMOTE_HOST:$REMOTE_DEPLOY_DIR/'"
+info "Uploading support portal docker-compose.yml..."
+run "scp 'yads-support-portal/docker-compose.yml' '$REMOTE_HOST:$REMOTE_COMPOSE_FILE'"
 
-info "Updating remote .env with support portal variables..."
+info "Updating support portal docker-compose.yml with environment variables..."
+# Updates (or inserts) a value in the support portal's docker-compose.yml environment section.
+# This ensures the values survive future `docker stack deploy` redeployments.
 set_env_var() {
     local key="$1"
     local val="$2"
-    rssh "cd $REMOTE_DEPLOY_DIR && \
-        if grep -q '^${key}=' .env 2>/dev/null; then \
-            sed -i 's|^${key}=.*|${key}=${val}|' .env; \
+    rssh "if grep -q '      - ${key}=' '$REMOTE_COMPOSE_FILE' 2>/dev/null; then \
+            sed -i 's|      - ${key}=.*|      - ${key}=${val}|' '$REMOTE_COMPOSE_FILE'; \
         else \
-            echo '${key}=${val}' >> .env; \
+            sed -i '/^    environment:/a\\      - ${key}=${val}' '$REMOTE_COMPOSE_FILE'; \
         fi"
 }
 
-set_env_var "SUPPORT_ADMIN_TOKEN" "$ADMIN_TOKEN"
-set_env_var "SUPPORT_ADMIN_IP_ALLOWLIST" "$ADMIN_IP_ALLOWLIST"
-set_env_var "SUPPORT_ADMIN_PUBLIC_KEY" "$ADMIN_PUBLIC_KEY"
-success ".env updated."
+set_env_var "ADMIN_TOKEN" "$ADMIN_TOKEN"
+set_env_var "ADMIN_IP_ALLOWLIST" "$ADMIN_IP_ALLOWLIST"
+set_env_var "ADMIN_PUBLIC_KEY" "$ADMIN_PUBLIC_KEY"
+success "docker-compose.yml updated."
 echo ""
 
 # =============================================================================
 # 8. Stack deploy
 # =============================================================================
 info "Deploying stack..."
-rssh "cd $REMOTE_DEPLOY_DIR && set -a && [ -f .env ] && source .env; set +a && \
-    docker stack deploy -c $COMPOSE_FILE $STACK_NAME"
+rssh "docker stack deploy -c $REMOTE_COMPOSE_FILE $STACK_NAME"
 success "Stack deployed."
 echo ""
 
