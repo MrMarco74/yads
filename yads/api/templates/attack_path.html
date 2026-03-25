@@ -8,8 +8,40 @@
             <h1 class="text-2xl font-bold text-white">Attack Path Visualizer</h1>
             <p class="text-slate-400 text-sm mt-1">Graph-based view of potential attack chains across assets, services, and findings.</p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+
+            <!-- Mode Toggle -->
+            <div class="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
+                <button
+                    @click="setMode('single')"
+                    :class="graphMode === 'single' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'"
+                    class="px-3 py-2 transition-colors font-medium"
+                >Single Target</button>
+                <button
+                    @click="setMode('tenant')"
+                    :class="graphMode === 'tenant' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'"
+                    class="px-3 py-2 transition-colors font-medium border-l border-slate-700"
+                >All Targets</button>
+            </div>
+
+            <!-- Overlay Toggles -->
+            <button
+                @click="toggleOverlay('killChain')"
+                :class="overlayKillChain ? 'bg-violet-600 text-white border-violet-500' : 'bg-slate-900 text-slate-400 hover:text-white border-slate-700'"
+                class="text-xs px-3 py-2 rounded-lg border transition-colors font-medium"
+                title="Color nodes by ATT&CK phase"
+            >Kill Chain</button>
+
+            <button
+                @click="toggleOverlay('entryPoints')"
+                :class="overlayEntryPoints ? 'bg-orange-600 text-white border-orange-500' : 'bg-slate-900 text-slate-400 hover:text-white border-slate-700'"
+                class="text-xs px-3 py-2 rounded-lg border transition-colors font-medium"
+                title="Dim nodes not reachable from entry points"
+            >Entry Points</button>
+
+            <!-- Target Dropdown (single mode only) -->
             <select
+                x-show="graphMode === 'single'"
                 x-model="selectedTargetId"
                 @change="loadGraph()"
                 class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-[220px]"
@@ -19,6 +51,8 @@
                 <option value="{{ t.id }}">{{ t.domain }}</option>
                 {% endfor %}
             </select>
+
+            <!-- Reset Zoom -->
             <button
                 @click="resetZoom()"
                 x-show="graphLoaded"
@@ -33,7 +67,7 @@
         </div>
     </div>
 
-    <!-- Loading / Empty States -->
+    <!-- Loading -->
     <div x-show="loading" class="flex items-center justify-center py-24">
         <div class="flex flex-col items-center gap-3 text-slate-500">
             <svg class="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
@@ -44,7 +78,9 @@
         </div>
     </div>
 
-    <div x-show="!selectedTargetId && !loading" class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+    <!-- Empty state: single mode, no target selected -->
+    <div x-show="graphMode === 'single' && !selectedTargetId && !loading && !graphLoaded"
+         class="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
         <svg class="w-12 h-12 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -52,12 +88,13 @@
         <p class="text-slate-400 text-sm">Select a target to visualize its attack paths.</p>
     </div>
 
+    <!-- Error -->
     <div x-show="error" class="bg-red-950 border border-red-800 rounded-xl p-4 text-red-300 text-sm" x-text="error"></div>
 
     <!-- Main Layout -->
     <div x-show="graphLoaded && !loading" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
 
-        <!-- Left Panel: Summary Stats -->
+        <!-- Left Panel -->
         <div class="xl:col-span-1 space-y-4">
 
             <!-- KPI Cards -->
@@ -97,8 +134,8 @@
                 </div>
             </div>
 
-            <!-- Legend -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <!-- Legend: Node Types (default) -->
+            <div x-show="!overlayKillChain" class="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Node Types</p>
                 <div class="space-y-2 text-xs">
                     <div class="flex items-center gap-2">
@@ -135,6 +172,47 @@
                 </ul>
             </div>
 
+            <!-- Legend: Kill Chain (ATT&CK phases) -->
+            <div x-show="overlayKillChain" class="bg-slate-900 border border-violet-800/40 rounded-xl p-4">
+                <p class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-3">Kill Chain (ATT&CK)</p>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block shrink-0" style="background:#6366f1"></span>
+                        <span class="text-slate-300">Reconnaissance</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block shrink-0" style="background:#f97316"></span>
+                        <span class="text-slate-300">Initial Access</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block shrink-0" style="background:#ef4444"></span>
+                        <span class="text-slate-300">Execution</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block shrink-0" style="background:#ec4899"></span>
+                        <span class="text-slate-300">Credential Access</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block shrink-0" style="background:#dc2626"></span>
+                        <span class="text-slate-300">Impact</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-slate-500 inline-block shrink-0"></span>
+                        <span class="text-slate-300">Unknown phase</span>
+                    </div>
+                </div>
+                <div x-show="overlayEntryPoints" class="mt-3 pt-3 border-t border-slate-800 text-xs text-orange-400">
+                    <span class="font-semibold">Entry Points filter active</span><br>
+                    <span class="text-slate-500">Dimmed nodes are not reachable from external entry points.</span>
+                </div>
+            </div>
+
+            <!-- Entry Points hint (no kill chain) -->
+            <div x-show="overlayEntryPoints && !overlayKillChain" class="bg-slate-900 border border-orange-800/40 rounded-xl p-4 text-xs">
+                <p class="text-orange-400 font-semibold mb-1">Entry Points Filter Active</p>
+                <p class="text-slate-500">Dimmed nodes are not reachable from externally exposed entry points (open ports, public buckets).</p>
+            </div>
+
             <!-- Top Attack Paths -->
             <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 <div class="px-4 py-3 border-b border-slate-800">
@@ -157,7 +235,7 @@
                                 ></span>
                                 <div class="min-w-0">
                                     <p class="text-xs text-slate-200 truncate" x-text="path.label"></p>
-                                    <p class="text-[10px] text-slate-500" x-text="(path.metadata && path.metadata.module) ? path.metadata.module.replace('_', ' ') : path.type"></p>
+                                    <p class="text-[10px] text-slate-500" x-text="(path.metadata && path.metadata.module) ? path.metadata.module.replace(/_/g, ' ') : path.type"></p>
                                 </div>
                                 <span class="ml-auto shrink-0 text-xs font-bold" :class="riskTextClass(path.risk)" x-text="path.risk"></span>
                             </div>
@@ -171,8 +249,15 @@
         <!-- Center: D3 Graph -->
         <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col" style="height: calc(100vh - 160px); min-height: 500px; position: relative;">
             <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
-                <h2 class="text-sm font-semibold text-white">Attack Graph</h2>
+                <div class="flex items-center gap-3">
+                    <h2 class="text-sm font-semibold text-white">Attack Graph</h2>
+                    <template x-if="graphMode === 'tenant'">
+                        <span class="text-xs bg-indigo-900/50 text-indigo-400 border border-indigo-800/50 rounded px-2 py-0.5">All Targets</span>
+                    </template>
+                </div>
                 <div class="flex items-center gap-3 text-xs text-slate-500">
+                    <span x-show="overlayKillChain" class="text-violet-400 font-medium">Kill Chain</span>
+                    <span x-show="overlayEntryPoints" class="text-orange-400 font-medium">Entry Points</span>
                     <span x-text="`${nodes.length} nodes`"></span>
                     <span x-text="`· ${edges.length} edges`"></span>
                 </div>
@@ -182,7 +267,7 @@
             </div>
         </div>
 
-        <!-- Right Panel: Node Details -->
+        <!-- Right Panel: Node Details + Filters -->
         <div class="xl:col-span-1 space-y-4">
 
             <!-- Selected Node Details -->
@@ -209,6 +294,22 @@
                             <p class="font-bold mt-0.5" :class="selectedNode && riskTextClass(selectedNode.risk)" x-text="selectedNode && selectedNode.risk"></p>
                         </div>
                     </div>
+
+                    <!-- ATT&CK Phase -->
+                    <template x-if="selectedNode && selectedNode.att_phase">
+                        <div class="bg-slate-800 rounded-lg p-2 text-xs">
+                            <p class="text-slate-500">ATT&CK Phase</p>
+                            <p class="font-medium mt-0.5" :style="`color: ${phaseColor(selectedNode.att_phase)}`"
+                               x-text="phaseLabel(selectedNode.att_phase)"></p>
+                        </div>
+                    </template>
+
+                    <!-- Entry point badge -->
+                    <template x-if="selectedNode && selectedNode.is_entry_point">
+                        <div class="bg-orange-950/50 border border-orange-800/40 rounded-lg p-2 text-xs text-orange-400 font-medium">
+                            External Entry Point
+                        </div>
+                    </template>
 
                     <!-- Finding-specific fields -->
                     <template x-if="selectedNode && selectedNode.type === 'finding'">
@@ -329,13 +430,17 @@
 
 </div>
 
-<!-- HTMX and D3.js from local vendor paths -->
 <script src="/static/vendor/htmx.1.9.10.min.js"></script>
 <script src="/static/vendor/d3.v7.min.js"></script>
 
 <script>
 function attackPathApp() {
     return {
+        // Mode & overlays
+        graphMode: 'single',
+        overlayKillChain: false,
+        overlayEntryPoints: false,
+
         // State
         selectedTargetId: '',
         loading: false,
@@ -365,12 +470,50 @@ function attackPathApp() {
         _zoom: null,
         _g: null,
 
-        init() {
-            // Nothing needed on init — user selects target
+        // ATT&CK phase colors
+        _phaseColors: {
+            recon: '#6366f1',
+            initial_access: '#f97316',
+            execution: '#ef4444',
+            credential_access: '#ec4899',
+            lateral_movement: '#8b5cf6',
+            impact: '#dc2626',
+        },
+        _phaseLabels: {
+            recon: 'Reconnaissance',
+            initial_access: 'Initial Access',
+            execution: 'Execution',
+            credential_access: 'Credential Access',
+            lateral_movement: 'Lateral Movement',
+            impact: 'Impact',
+        },
+
+        init() {},
+
+        setMode(mode) {
+            this.graphMode = mode;
+            this.error = null;
+            if (mode === 'tenant') {
+                this.selectedTargetId = '';
+                this.loadGraph();
+            } else {
+                this.graphLoaded = false;
+                this.nodes = [];
+                this.edges = [];
+                this.summary = {};
+                this.topPaths = [];
+                this.selectedNode = null;
+            }
+        },
+
+        toggleOverlay(name) {
+            if (name === 'killChain') this.overlayKillChain = !this.overlayKillChain;
+            if (name === 'entryPoints') this.overlayEntryPoints = !this.overlayEntryPoints;
+            if (this._simulation) this.renderGraph();
         },
 
         async loadGraph() {
-            if (!this.selectedTargetId) return;
+            if (this.graphMode === 'single' && !this.selectedTargetId) return;
 
             this.loading = true;
             this.error = null;
@@ -378,8 +521,12 @@ function attackPathApp() {
             this.selectedNode = null;
             this.connectedNodes = [];
 
+            const url = this.graphMode === 'tenant'
+                ? '/api/attack-path/tenant'
+                : `/api/attack-path/${this.selectedTargetId}`;
+
             try {
-                const resp = await fetch(`/api/attack-path/${this.selectedTargetId}`);
+                const resp = await fetch(url);
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
                     throw new Error(err.detail || 'Failed to load graph data');
@@ -394,7 +541,6 @@ function attackPathApp() {
                     .slice(0, 15);
                 this.graphLoaded = true;
 
-                // Render after DOM update + browser layout pass
                 await this.$nextTick();
                 requestAnimationFrame(() => requestAnimationFrame(() => this.renderGraph()));
             } catch (e) {
@@ -423,14 +569,54 @@ function attackPathApp() {
             return this.edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
         },
 
+        // BFS from all entry_point nodes (bidirectional)
+        _computeReachable(nodes, edges) {
+            const entryIds = new Set(nodes.filter(n => n.is_entry_point).map(n => n.id));
+            if (entryIds.size === 0) return new Set(nodes.map(n => n.id));
+
+            const adj = {};
+            edges.forEach(e => {
+                const s = typeof e.source === 'object' ? e.source.id : e.source;
+                const t = typeof e.target === 'object' ? e.target.id : e.target;
+                if (!adj[s]) adj[s] = [];
+                if (!adj[t]) adj[t] = [];
+                adj[s].push(t);
+                adj[t].push(s);
+            });
+
+            const visited = new Set(entryIds);
+            const queue = [...entryIds];
+            while (queue.length > 0) {
+                const curr = queue.shift();
+                (adj[curr] || []).forEach(nb => {
+                    if (!visited.has(nb)) {
+                        visited.add(nb);
+                        queue.push(nb);
+                    }
+                });
+            }
+            return visited;
+        },
+
+        phaseColor(phase) {
+            return this._phaseColors[phase] || '#64748b';
+        },
+
+        phaseLabel(phase) {
+            return this._phaseLabels[phase] || phase;
+        },
+
         nodeColor(node) {
-            if (node.type === 'target') return '#3b82f6';     // blue-500
-            if (node.type === 'port') return '#6b7280';       // gray-500
-            if (node.type === 'service') return '#eab308';    // yellow-500
+            if (this.overlayKillChain && node.att_phase) {
+                return this._phaseColors[node.att_phase] || '#64748b';
+            }
+            if (node.type === 'target') return '#3b82f6';
+            if (node.type === 'port') return '#6b7280';
+            if (node.type === 'service') return '#eab308';
             if (node.type === 'finding') {
-                if (node.risk >= 8) return '#ef4444';         // red-500
-                if (node.risk >= 5) return '#f97316';         // orange-500
-                return '#ca8a04';                             // yellow-600
+                if (node.risk >= 8) return '#ef4444';
+                if (node.risk >= 5) return '#f97316';
+                return '#ca8a04';
             }
             return '#8b5cf6';
         },
@@ -439,7 +625,7 @@ function attackPathApp() {
             if (node.type === 'target') return 18;
             if (node.type === 'service') return 12;
             if (node.type === 'finding') return Math.max(8, node.risk * 1.5);
-            return 9; // port
+            return 9;
         },
 
         nodeColorClass(node) {
@@ -481,8 +667,6 @@ function attackPathApp() {
             const node = this.nodes.find(n => n.id === nodeId);
             if (!node) return;
             this.selectNode(node);
-
-            // Pan to node in graph
             if (this._svg && this._g && node.x !== undefined) {
                 const container = document.getElementById('graph-container');
                 const w = container.clientWidth;
@@ -496,7 +680,6 @@ function attackPathApp() {
 
         selectNode(node) {
             this.selectedNode = node;
-            // Find connected nodes
             const connIds = new Set();
             this.edges.forEach(e => {
                 const src = typeof e.source === 'object' ? e.source.id : e.source;
@@ -505,8 +688,6 @@ function attackPathApp() {
                 if (tgt === node.id) connIds.add(src);
             });
             this.connectedNodes = this.nodes.filter(n => connIds.has(n.id));
-
-            // Update visual highlight
             if (this._g) {
                 this._g.selectAll('circle')
                     .attr('stroke', d => d.id === node.id ? '#ffffff' : 'rgba(0,0,0,0.3)')
@@ -525,7 +706,6 @@ function attackPathApp() {
             const svgEl = document.getElementById('attack-graph-svg');
             if (!container || !svgEl) return;
 
-            // Clear previous
             d3.select(svgEl).selectAll('*').remove();
             if (this._simulation) this._simulation.stop();
 
@@ -536,23 +716,23 @@ function attackPathApp() {
             const visibleIds = new Set(visibleNodes.map(n => n.id));
             const visibleEdges = this.filteredEdges(visibleIds);
 
-            // Deep copy to avoid mutating source data
             const nodesData = visibleNodes.map(n => ({ ...n }));
             const edgesData = visibleEdges.map(e => ({ ...e }));
+
+            // Pre-compute reachability BEFORE simulation mutates edge objects
+            const reachable = this.overlayEntryPoints
+                ? this._computeReachable(nodesData, edgesData)
+                : null;
 
             const svg = d3.select(svgEl)
                 .attr('viewBox', `0 0 ${width} ${height}`)
                 .attr('width', width)
                 .attr('height', height);
-
             this._svg = svg;
 
-            // Zoom/pan
             const zoom = d3.zoom()
-                .scaleExtent([0.15, 4])
-                .on('zoom', (event) => {
-                    g.attr('transform', event.transform);
-                });
+                .scaleExtent([0.1, 4])
+                .on('zoom', (event) => g.attr('transform', event.transform));
             svg.call(zoom);
             this._zoom = zoom;
 
@@ -561,19 +741,17 @@ function attackPathApp() {
 
             // Arrow markers
             const defs = svg.append('defs');
-            const markerTypes = [
+            [
                 { id: 'arrow-normal', color: '#475569' },
                 { id: 'arrow-critical', color: '#ef4444' },
                 { id: 'arrow-high', color: '#f97316' },
-            ];
-            markerTypes.forEach(m => {
+                { id: 'arrow-pivot', color: '#6366f1' },
+            ].forEach(m => {
                 defs.append('marker')
                     .attr('id', m.id)
                     .attr('viewBox', '0 -5 10 10')
-                    .attr('refX', 20)
-                    .attr('refY', 0)
-                    .attr('markerWidth', 6)
-                    .attr('markerHeight', 6)
+                    .attr('refX', 20).attr('refY', 0)
+                    .attr('markerWidth', 6).attr('markerHeight', 6)
                     .attr('orient', 'auto')
                     .append('path')
                     .attr('d', 'M0,-5L10,0L0,5')
@@ -583,35 +761,34 @@ function attackPathApp() {
             // Edges
             const edgeGroup = g.append('g').attr('class', 'edges');
             const link = edgeGroup.selectAll('g.link')
-                .data(edgesData)
-                .join('g')
-                .attr('class', 'link');
+                .data(edgesData).join('g').attr('class', 'link');
 
             const path = link.append('line')
                 .attr('stroke', d => {
-                    // Color edge by target node risk
-                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
-                    if (!tgtNode) return '#334155';
-                    if (tgtNode.risk >= 8) return 'rgba(239,68,68,0.5)';
-                    if (tgtNode.risk >= 5) return 'rgba(249,115,22,0.4)';
+                    if (d.type === 'pivot') return 'rgba(99,102,241,0.6)';
+                    if (d.type === 'subdomain') return 'rgba(99,102,241,0.4)';
+                    const tgt = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    if (!tgt) return '#334155';
+                    if (tgt.risk >= 8) return 'rgba(239,68,68,0.5)';
+                    if (tgt.risk >= 5) return 'rgba(249,115,22,0.4)';
                     return 'rgba(71,85,105,0.5)';
                 })
                 .attr('stroke-width', d => {
-                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
-                    if (!tgtNode) return 1;
-                    return tgtNode.risk >= 8 ? 2 : 1;
+                    if (d.type === 'pivot') return 2;
+                    const tgt = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    return (!tgt || tgt.risk < 8) ? 1 : 2;
                 })
+                .attr('stroke-dasharray', d => (d.type === 'subdomain') ? '4 3' : null)
                 .attr('marker-end', d => {
-                    const tgtNode = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
-                    if (!tgtNode) return 'url(#arrow-normal)';
-                    if (tgtNode.risk >= 8) return 'url(#arrow-critical)';
-                    if (tgtNode.risk >= 5) return 'url(#arrow-high)';
+                    if (d.type === 'pivot' || d.type === 'subdomain') return 'url(#arrow-pivot)';
+                    const tgt = nodesData.find(n => n.id === (typeof d.target === 'object' ? d.target.id : d.target));
+                    if (!tgt) return 'url(#arrow-normal)';
+                    if (tgt.risk >= 8) return 'url(#arrow-critical)';
+                    if (tgt.risk >= 5) return 'url(#arrow-high)';
                     return 'url(#arrow-normal)';
                 });
 
-            // Edge labels (only on hover group hover)
             const edgeLabel = link.append('text')
-                .attr('class', 'edge-label')
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '9px')
                 .attr('fill', '#475569')
@@ -621,33 +798,32 @@ function attackPathApp() {
             // Nodes
             const nodeGroup = g.append('g').attr('class', 'nodes');
             const node = nodeGroup.selectAll('g.node')
-                .data(nodesData)
-                .join('g')
+                .data(nodesData).join('g')
                 .attr('class', 'node')
                 .style('cursor', 'pointer')
                 .call(
                     d3.drag()
                         .on('start', (event, d) => {
                             if (!event.active) simulation.alphaTarget(0.3).restart();
-                            d.fx = d.x;
-                            d.fy = d.y;
+                            d.fx = d.x; d.fy = d.y;
                         })
-                        .on('drag', (event, d) => {
-                            d.fx = event.x;
-                            d.fy = event.y;
-                        })
+                        .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
                         .on('end', (event, d) => {
                             if (!event.active) simulation.alphaTarget(0);
-                            d.fx = null;
-                            d.fy = null;
+                            d.fx = null; d.fy = null;
                         })
                 )
-                .on('click', (event, d) => {
-                    event.stopPropagation();
-                    this.selectNode(d);
-                });
+                .on('click', (event, d) => { event.stopPropagation(); this.selectNode(d); });
 
-            // Glow effect for high-risk nodes
+            // Entry point ring
+            node.append('circle')
+                .attr('r', d => this.nodeRadius(d) + 5)
+                .attr('fill', 'none')
+                .attr('stroke', d => (d.is_entry_point && this.overlayEntryPoints) ? '#f97316' : 'none')
+                .attr('stroke-width', 2)
+                .attr('stroke-dasharray', '3 2');
+
+            // Glow for high-risk
             node.append('circle')
                 .attr('r', d => this.nodeRadius(d) + 4)
                 .attr('fill', d => {
@@ -662,14 +838,10 @@ function attackPathApp() {
                 .attr('stroke', 'rgba(0,0,0,0.3)')
                 .attr('stroke-width', 1);
 
-            // Icon text inside node
             node.append('text')
                 .attr('text-anchor', 'middle')
                 .attr('dominant-baseline', 'central')
-                .attr('font-size', d => {
-                    if (d.type === 'target') return '10px';
-                    return '8px';
-                })
+                .attr('font-size', d => d.type === 'target' ? '10px' : '8px')
                 .attr('fill', 'rgba(255,255,255,0.9)')
                 .attr('pointer-events', 'none')
                 .text(d => {
@@ -680,7 +852,6 @@ function attackPathApp() {
                     return '?';
                 });
 
-            // Labels below node
             node.append('text')
                 .attr('text-anchor', 'middle')
                 .attr('y', d => this.nodeRadius(d) + 12)
@@ -692,14 +863,22 @@ function attackPathApp() {
                     return d.label.length > maxLen ? d.label.slice(0, maxLen) + '…' : d.label;
                 });
 
-            // Tooltip on hover
             node.append('title').text(d => `${d.label}\nType: ${d.type}\nRisk: ${d.risk}`);
 
-            // Click on SVG background to deselect
+            // Apply entry point opacity
+            if (reachable) {
+                node.style('opacity', d => reachable.has(d.id) ? 1 : 0.12);
+                link.style('opacity', d => {
+                    const s = typeof d.source === 'object' ? d.source.id : d.source;
+                    const t = typeof d.target === 'object' ? d.target.id : d.target;
+                    return reachable.has(s) && reachable.has(t) ? 0.8 : 0.05;
+                });
+            }
+
             svg.on('click', () => {
                 this.selectedNode = null;
                 this.connectedNodes = [];
-                nodeGroup.selectAll('circle:nth-child(2)')
+                nodeGroup.selectAll('circle:nth-child(3)')
                     .attr('stroke', 'rgba(0,0,0,0.3)')
                     .attr('stroke-width', 1);
             });
@@ -709,19 +888,19 @@ function attackPathApp() {
                 .force('link', d3.forceLink(edgesData)
                     .id(d => d.id)
                     .distance(d => {
-                        // Longer distance for less related nodes
                         const src = typeof d.source === 'object' ? d.source : nodesData.find(n => n.id === d.source);
                         const tgt = typeof d.target === 'object' ? d.target : nodesData.find(n => n.id === d.target);
                         if (!src || !tgt) return 80;
+                        if (d.type === 'pivot' || d.type === 'subdomain') return 200;
                         if (src.type === 'target' || tgt.type === 'target') return 90;
                         if (tgt.type === 'finding' && tgt.risk >= 8) return 60;
                         return 75;
                     })
-                    .strength(0.6)
+                    .strength(0.5)
                 )
                 .force('charge', d3.forceManyBody()
                     .strength(d => {
-                        if (d.type === 'target') return -300;
+                        if (d.type === 'target') return -400;
                         if (d.type === 'finding' && d.risk >= 8) return -200;
                         return -120;
                     })
@@ -734,25 +913,20 @@ function attackPathApp() {
                         .attr('y1', d => d.source.y)
                         .attr('x2', d => d.target.x)
                         .attr('y2', d => d.target.y);
-
                     edgeLabel
                         .attr('x', d => ((d.source.x || 0) + (d.target.x || 0)) / 2)
                         .attr('y', d => ((d.source.y || 0) + (d.target.y || 0)) / 2);
-
                     node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`);
                 });
 
             this._simulation = simulation;
 
-            // If no nodes — show a message
             if (nodesData.length === 0) {
                 g.append('text')
-                    .attr('x', width / 2)
-                    .attr('y', height / 2)
+                    .attr('x', width / 2).attr('y', height / 2)
                     .attr('text-anchor', 'middle')
-                    .attr('fill', '#475569')
-                    .attr('font-size', '14px')
-                    .text('No scan data available for this target.');
+                    .attr('fill', '#475569').attr('font-size', '14px')
+                    .text('No scan data available.');
             }
         },
     };

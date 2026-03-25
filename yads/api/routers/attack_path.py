@@ -5,6 +5,8 @@ Builds a graph of potential attack chains for a given target by aggregating
 data from all available scan results. Nodes represent assets, services, ports,
 and findings. Edges represent exploitable relationships between them.
 """
+import re
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,6 +35,38 @@ SEVERITY_RISK: Dict[str, int] = {
 
 def _risk(severity: str) -> int:
     return SEVERITY_RISK.get((severity or "info").lower(), 1)
+
+
+_RECON_MODULES = {"dns_scanner", "axfr_scanner", "banner_grabber", "security_txt", "crawler", "typosquat_scanner"}
+_INITIAL_ACCESS_MODULES = {"ssl_scanner", "cloud_scanner", "email_security"}
+_CRED_MODULES = {"cookie_scanner"}
+
+def _att_phase_for_finding(module_name: str, severity: str) -> str:
+    if module_name in _RECON_MODULES:
+        return "recon"
+    if module_name in _INITIAL_ACCESS_MODULES:
+        return "initial_access"
+    if module_name in _CRED_MODULES:
+        return "credential_access"
+    if severity in ("critical", "high"):
+        return "impact"
+    return "execution"
+
+
+_IP_RE = re.compile(r'\b(\d{1,3}\.){3}\d{1,3}\b')
+
+def _extract_public_ips(data: Dict) -> set:
+    ips = set()
+    for m in _IP_RE.finditer(str(data)):
+        ip = m.group()
+        if not (ip.startswith("10.") or ip.startswith("192.168.")
+                or ip.startswith("127.") or ip.startswith("172.")):
+            ips.add(ip)
+    return ips
+
+
+def _is_subdomain(child: str, parent: str) -> bool:
+    return child != parent and child.endswith("." + parent)
 
 
 # ---------------------------------------------------------------------------
@@ -77,11 +111,15 @@ def _build_port_nodes(
             elif port_num in (80, 443, 8080, 8443):
                 risk = 2
 
+            is_ep = port_num in (21, 22, 23, 25, 80, 443, 8080, 8443, 3389, 5900,
+                                  1433, 3306, 5432, 6379, 27017)
             nodes.append({
                 "id": nid,
                 "label": f":{port_num}" + (f" ({service_name})" if service_name else ""),
                 "type": "port",
                 "risk": risk,
+                "att_phase": "initial_access",
+                "is_entry_point": is_ep,
                 "metadata": {
                     "port": port_num,
                     "service": service_name or "unknown",
@@ -101,6 +139,7 @@ def _build_port_nodes(
         nid = "port_80"
         node_ids.add(nid)
         nodes.append({"id": nid, "label": ":80 (http)", "type": "port", "risk": 2,
+                       "att_phase": "initial_access", "is_entry_point": True,
                        "metadata": {"port": 80, "service": "http", "banner": ""}})
         edges.append({"source": target_node_id, "target": nid, "label": "exposes"})
         port_node_ids.append(nid)
@@ -109,6 +148,7 @@ def _build_port_nodes(
         nid = "port_443"
         node_ids.add(nid)
         nodes.append({"id": nid, "label": ":443 (https)", "type": "port", "risk": 2,
+                       "att_phase": "initial_access", "is_entry_point": True,
                        "metadata": {"port": 443, "service": "https", "banner": ""}})
         edges.append({"source": target_node_id, "target": nid, "label": "exposes"})
         port_node_ids.append(nid)
@@ -164,6 +204,8 @@ def _build_service_nodes(
                 "label": label,
                 "type": "service",
                 "risk": risk,
+                "att_phase": "execution",
+                "is_entry_point": False,
                 "metadata": {
                     "name": name,
                     "version": version or "",
@@ -206,11 +248,15 @@ def _build_finding_nodes(
 
         if nid not in node_ids:
             node_ids.add(nid)
+            phase = _att_phase_for_finding(module_name, severity)
+            is_ep = (module_name == "cloud_scanner" and "public" in issue.lower())
             nodes.append({
                 "id": nid,
                 "label": issue[:60],
                 "type": "finding",
                 "risk": _risk(severity),
+                "att_phase": phase,
+                "is_entry_point": is_ep,
                 "metadata": {
                     "severity": severity,
                     "module": module_name,
@@ -308,6 +354,8 @@ def _process_web_analyzer(
                 "label": cve_id,
                 "type": "finding",
                 "risk": _risk(severity),
+                "att_phase": _att_phase_for_finding("web_analyzer", severity),
+                "is_entry_point": False,
                 "metadata": {
                     "severity": severity,
                     "module": "web_analyzer",
@@ -350,6 +398,8 @@ def _process_nuclei_scanner(
                 "label": name[:60],
                 "type": "finding",
                 "risk": _risk(severity),
+                "att_phase": _att_phase_for_finding("nuclei_scanner", severity),
+                "is_entry_point": False,
                 "metadata": {
                     "severity": severity,
                     "module": "nuclei_scanner",
@@ -397,6 +447,8 @@ def _process_ssl_scanner(
                     "label": issue_text[:60],
                     "type": "finding",
                     "risk": _risk(sev),
+                    "att_phase": "initial_access",
+                    "is_entry_point": False,
                     "metadata": {
                         "severity": sev,
                         "module": "ssl_scanner",
@@ -435,6 +487,8 @@ def build_attack_graph(
         "label": target.domain,
         "type": "target",
         "risk": 1,
+        "att_phase": "recon",
+        "is_entry_point": False,
         "metadata": {
             "domain": target.domain,
             "target_id": target.id,
@@ -522,6 +576,92 @@ def build_attack_graph(
 
 
 # ---------------------------------------------------------------------------
+# Tenant-wide graph builder (B: multi-target)
+# ---------------------------------------------------------------------------
+
+def build_tenant_attack_graph(
+    targets: List[Any],
+    scan_results_per_target: Dict[int, List[Any]],
+) -> Dict[str, Any]:
+    """
+    Build a combined attack graph for all tenant targets.
+    Adds cross-target pivot edges for shared public IPs and subdomain relationships.
+    """
+    all_nodes: List[Dict] = []
+    all_edges: List[Dict] = []
+    target_root_ids: Dict[int, str] = {}
+    target_ips: Dict[int, set] = {}
+
+    for target in targets:
+        srs = scan_results_per_target.get(target.id, [])
+        subgraph = build_attack_graph(target, srs)
+        prefix = f"t{target.id}_"
+
+        id_map: Dict[str, str] = {}
+        for n in subgraph["nodes"]:
+            new_id = prefix + n["id"]
+            id_map[n["id"]] = new_id
+            n["id"] = new_id
+            all_nodes.append(n)
+
+        for e in subgraph["edges"]:
+            e["source"] = id_map.get(e["source"], prefix + str(e["source"]))
+            e["target"] = id_map.get(e["target"], prefix + str(e["target"]))
+            all_edges.append(e)
+
+        target_root_ids[target.id] = prefix + "target_root"
+
+        dns_sr = next((sr for sr in srs if sr.module_name == "dns_scanner"), None)
+        if dns_sr and dns_sr.data:
+            target_ips[target.id] = _extract_public_ips(dns_sr.data)
+
+    # Cross-target: shared infrastructure (shared public IPs)
+    tid_list = list(target_ips.keys())
+    seen_pivots: set = set()
+    for i, tid_a in enumerate(tid_list):
+        for tid_b in tid_list[i + 1:]:
+            shared = target_ips[tid_a] & target_ips[tid_b]
+            if shared and tid_a in target_root_ids and tid_b in target_root_ids:
+                pivot_key = frozenset([tid_a, tid_b])
+                if pivot_key not in seen_pivots:
+                    seen_pivots.add(pivot_key)
+                    all_edges.append({
+                        "source": target_root_ids[tid_a],
+                        "target": target_root_ids[tid_b],
+                        "label": f"shares infra ({list(shared)[0]})",
+                        "type": "pivot",
+                    })
+
+    # Cross-target: subdomain relationships
+    for ta in targets:
+        for tb in targets:
+            if ta.id != tb.id and _is_subdomain(tb.domain, ta.domain):
+                if ta.id in target_root_ids and tb.id in target_root_ids:
+                    all_edges.append({
+                        "source": target_root_ids[ta.id],
+                        "target": target_root_ids[tb.id],
+                        "label": "subdomain of",
+                        "type": "subdomain",
+                    })
+
+    max_risk = max((n["risk"] for n in all_nodes), default=0)
+    critical_finding_ids = {n["id"] for n in all_nodes if n["type"] == "finding" and n["risk"] >= 8}
+
+    summary = {
+        "total_nodes": len(all_nodes),
+        "critical_paths": len(critical_finding_ids),
+        "max_risk_score": max_risk,
+        "node_type_counts": {
+            "target": sum(1 for n in all_nodes if n["type"] == "target"),
+            "port": sum(1 for n in all_nodes if n["type"] == "port"),
+            "service": sum(1 for n in all_nodes if n["type"] == "service"),
+            "finding": sum(1 for n in all_nodes if n["type"] == "finding"),
+        },
+    }
+    return {"nodes": all_nodes, "edges": all_edges, "summary": summary}
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
@@ -553,6 +693,47 @@ async def view_attack_path(
         "user": user,
         "targets": targets,
     })
+
+
+@router.get("/api/attack-path/tenant")
+async def get_tenant_attack_path_data(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_active_user),
+) -> JSONResponse:
+    """Return JSON graph data for the entire tenant's attack surface."""
+    if user.role not in ("admin", "tenant_admin", "scanner", "auditor"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if user.role == "admin" and user.tenant_id is None:
+        stmt = select(Target).where(Target.is_archived == False).order_by(Target.domain)
+    else:
+        stmt = select(Target).where(
+            Target.tenant_id == user.tenant_id,
+            Target.is_archived == False,
+        ).order_by(Target.domain)
+
+    targets = list(session.exec(stmt).all())
+    if not targets:
+        empty: Dict = {"nodes": [], "edges": [], "summary": {
+            "total_nodes": 0, "critical_paths": 0, "max_risk_score": 0,
+            "node_type_counts": {"target": 0, "port": 0, "service": 0, "finding": 0},
+        }}
+        return JSONResponse(content=empty)
+
+    target_ids = [t.id for t in targets]
+    sr_stmt = (
+        select(ScanResult)
+        .where(ScanResult.target_id.in_(target_ids))
+        .order_by(ScanResult.scanned_at.desc())
+    )
+    all_results = list(session.exec(sr_stmt).all())
+
+    scan_results_per_target: Dict[int, List] = defaultdict(list)
+    for sr in all_results:
+        scan_results_per_target[sr.target_id].append(sr)
+
+    graph = build_tenant_attack_graph(targets, dict(scan_results_per_target))
+    return JSONResponse(content=graph)
 
 
 @router.get("/api/attack-path/{target_id}")
