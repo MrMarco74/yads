@@ -651,6 +651,9 @@ async def compliance_dashboard(
             "request": request,
             "user": user,
             "catalog": [],
+            "lock_title": "Compliance Add-on nicht installiert",
+            "lock_subtitle": "Das Compliance-Modul ist nicht installiert.",
+            "lock_description": "Installiere das Add-on 'compliance' und 'compliance_frameworks' über den Extension Hub, um diese Funktion zu nutzen.",
         })
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
     date_range_display = get_date_range_display(from_dt, to_dt, preset)

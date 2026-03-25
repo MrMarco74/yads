@@ -66,8 +66,8 @@
                         </summary>
                         <ul class="pl-9 mt-1 space-y-1">
                             <li><a href="/pqc" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/pqc' in request.path %}text-cyan-400 font-semibold{% endif %}">PQC Readiness</a></li>
-                            <li><a href="/cert-timeline/inventory" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/inventory' in request.path %}text-cyan-400 font-semibold{% endif %}">SSL Inventory</a></li>
-                            <li><a href="/cert-timeline" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cert-timeline' in request.path and '/inventory' not in request.path %}text-cyan-400 font-semibold{% endif %}">Cert Timeline</a></li>
+                            <li><a href="/cert-timeline/?tab=timeline" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cert-timeline' in request.path and request.query_params.get('tab', 'timeline') == 'timeline' %}text-cyan-400 font-semibold{% endif %}">Cert Timeline</a></li>
+                            <li><a href="/cert-timeline/?tab=inventory" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cert-timeline' in request.path and request.query_params.get('tab') == 'inventory' %}text-cyan-400 font-semibold{% endif %}">SSL Inventory</a></li>
                         </ul>
                     </details>
                 </li>

@@ -41,6 +41,7 @@
               <option value="open">Open</option>
               <option value="acknowledged">Acknowledged</option>
               <option value="false_positive">False Positive</option>
+              <option value="risk_acceptance">Risk Acceptance</option>
               <option value="fixed">Fixed</option>
             </select>
           </div>
@@ -80,6 +81,7 @@
       <option value="open">Open</option>
       <option value="acknowledged">Acknowledged</option>
       <option value="false_positive">False Positive</option>
+      <option value="risk_acceptance">Risk Acceptance</option>
       <option value="fixed">Fixed</option>
     </select>
     <button onclick="tfBulkApply()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg">Anwenden</button>
@@ -129,6 +131,7 @@
         <option value="open" {% if filter_status=='open' %}selected{% endif %}>Open</option>
         <option value="acknowledged" {% if filter_status=='acknowledged' %}selected{% endif %}>Acknowledged</option>
         <option value="false_positive" {% if filter_status=='false_positive' %}selected{% endif %}>False Positive</option>
+        <option value="risk_acceptance" {% if filter_status=='risk_acceptance' %}selected{% endif %}>Risk Acceptance</option>
         <option value="fixed" {% if filter_status=='fixed' %}selected{% endif %}>Fixed</option>
       </select>
     </div>
@@ -241,9 +244,12 @@
                 {% if sf.status == 'open' %}bg-slate-800 text-slate-300 border border-slate-700
                 {% elif sf.status == 'acknowledged' %}bg-blue-900/50 text-blue-300 border border-blue-700/50
                 {% elif sf.status == 'false_positive' %}bg-slate-800 text-slate-500 border border-slate-700 line-through
+                {% elif sf.status == 'risk_acceptance' %}bg-amber-900/50 text-amber-300 border border-amber-700/50
                 {% elif sf.status == 'fixed' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700/50
                 {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
-                {% if sf.status == 'false_positive' %}FP{% else %}{{ sf.status|replace('_',' ')|title }}{% endif %}
+                {% if sf.status == 'false_positive' %}FP
+                {% elif sf.status == 'risk_acceptance' %}Risk Accept.
+                {% else %}{{ sf.status|replace('_',' ')|title }}{% endif %}
               </span>
             </td>
             <td class="px-3 py-2 text-slate-500 whitespace-nowrap">{{ sf.first_found.strftime('%Y-%m-%d') if sf.first_found else '—' }}</td>

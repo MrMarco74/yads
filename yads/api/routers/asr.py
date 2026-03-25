@@ -27,6 +27,20 @@ def _get_asr_data(session: Session, user: User, for_export: bool = False, status
     if not status_filter:
         status_filter = FindingStatusFilter(session, user.tenant_id if user.tenant_id else None)
 
+    # 1. Fetch relevant targets
+    targets_query = select(Target)
+    if user.tenant_id:
+        targets_query = targets_query.where(Target.tenant_id == user.tenant_id)
+    elif user.role != "admin":
+        targets_query = targets_query.where(Target.tenant_id == None)
+
+    targets = session.exec(targets_query).all()
+    target_ids = tuple(t.id for t in targets)
+    target_map = {t.id: t for t in targets}
+
+    if not targets:
+        return [], {"dead_endpoints": 0, "unconfigured": 0, "expired_certs": 0, "total_cleanup": 0}
+
     # 2. Fetch Latest Results for WebAnalyzer & SSL
     statement = select(ScanResult).where(
         ScanResult.module_name.in_(["web_analyzer", "ssl_scanner"]),

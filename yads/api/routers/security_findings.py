@@ -397,7 +397,7 @@ async def update_finding_status(
     status = body.get("status", "open")
     note = body.get("note", "")
 
-    valid_statuses = {"open", "acknowledged", "false_positive", "fixed"}
+    valid_statuses = {"open", "acknowledged", "false_positive", "fixed", "risk_acceptance"}
     from fastapi import HTTPException
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(valid_statuses)}")
