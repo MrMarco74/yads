@@ -239,6 +239,12 @@ async def login(
     log_login_success(request, user, session)
     session.commit()
 
+    # Derive the effective scheme (direct HTTPS or via TLS-terminating proxy).
+    _scheme = request.scope.get("scheme", "http")
+    if request.headers.get("x-forwarded-proto", "").lower() == "https":
+        _scheme = "https"
+    _secure_cookie = (_scheme == "https")
+
     response = RedirectResponse(url=redirect_url, status_code=303)
     response.set_cookie(
         key="access_token",
@@ -246,9 +252,7 @@ async def login(
         httponly=True,
         max_age=token_minutes * 60,
         samesite="lax",
-        # App runs behind a TLS-terminating reverse proxy — secure=True unless operator
-        # explicitly disables HTTPS via DISABLE_HTTPS_ONLY (e.g. local dev without proxy)
-        secure=not settings.DISABLE_HTTPS_ONLY,
+        secure=_secure_cookie,
     )
     return response
 
@@ -516,6 +520,9 @@ async def oidc_callback(
         return RedirectResponse(url="/login?error=user_creation_failed")
 
     # YADS Session-Cookie setzen (gleicher Mechanismus wie lokaler Login)
+    _scheme = request.scope.get("scheme", "http")
+    if request.headers.get("x-forwarded-proto", "").lower() == "https":
+        _scheme = "https"
     access_token = create_access_token(subject=user.username)
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
@@ -524,7 +531,7 @@ async def oidc_callback(
         httponly=True,
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=not settings.DISABLE_HTTPS_ONLY,
+        secure=(_scheme == "https"),
     )
     logger.info(f"OIDC login successful: {user.email} (role={user.role})")
     return response
