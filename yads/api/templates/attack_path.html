@@ -169,15 +169,15 @@
         </div>
 
         <!-- Center: D3 Graph -->
-        <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style="min-height: 600px; position: relative;">
-            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col" style="height: calc(100vh - 160px); min-height: 500px; position: relative;">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
                 <h2 class="text-sm font-semibold text-white">Attack Graph</h2>
                 <div class="flex items-center gap-3 text-xs text-slate-500">
                     <span x-text="`${nodes.length} nodes`"></span>
-                    <span x-text="`${edges.length} edges`"></span>
+                    <span x-text="`· ${edges.length} edges`"></span>
                 </div>
             </div>
-            <div id="graph-container" style="width: 100%; height: 560px; background: #0b0f19; position: relative;">
+            <div id="graph-container" style="width: 100%; flex: 1; background: #0b0f19; position: relative; min-height: 0;">
                 <svg id="attack-graph-svg" style="width: 100%; height: 100%;"></svg>
             </div>
         </div>
@@ -530,7 +530,7 @@ function attackPathApp() {
             if (this._simulation) this._simulation.stop();
 
             const width = container.clientWidth || container.offsetWidth || 800;
-            const height = container.clientHeight || container.offsetHeight || 560;
+            const height = container.clientHeight || container.offsetHeight || window.innerHeight - 200;
 
             const visibleNodes = this.filteredNodes();
             const visibleIds = new Set(visibleNodes.map(n => n.id));
