@@ -109,22 +109,9 @@ async def bulk_scan_targets(
 
     logger.info(f"Bulk Scan Request. Target Count: {len(target_ids)}. Final: {final_types}")
 
-    # Throttle: cap total queued tasks at 50 to avoid flooding the broker.
-    # Targets that are already 'queued' count against the cap.
-    already_queued = session.exec(
-        select(func.count(Target.id)).where(
-            Target.tenant_id == user.tenant_id,
-            Target.scan_status == "queued",
-        )
-    ).first() or 0
-    max_new = max(0, 50 - already_queued)
-
     count = 0
     skipped = 0
     for tid_str in target_ids:
-        if count >= max_new:
-            skipped += len(target_ids) - target_ids.index(tid_str)
-            break
         if _queue_single_bulk_target(session, user, tid_str, final_types):
             count += 1
         else:
@@ -134,7 +121,7 @@ async def bulk_scan_targets(
     _audit_scan_trigger(session, user, list(target_ids)[:50], final_types, "bulk_scan", request)
 
     if skipped:
-        msg = f"Queued+{count}+scans+(+{skipped}+skipped,+queue+cap+reached)"
+        msg = f"Queued+{count}+scans+(+{skipped}+skipped)"
     else:
         msg = f"Queued+{count}+scans"
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
