@@ -121,7 +121,10 @@ class VisualOSINT(BaseScannerModule):
                     args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
                 )
                 try:
-                    context = browser.new_context(viewport={'width': 1280, 'height': 800})
+                    context = browser.new_context(
+                        viewport={'width': 1280, 'height': 800},
+                        ignore_https_errors=True,
+                    )
                     page = context.new_page()
 
                     captured = False
