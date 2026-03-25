@@ -126,23 +126,20 @@ class CSRFMiddleware:
 
         token = generate_csrf_token()
 
-        # Determine if we should set the Secure flag.
-        # 1. Check if the current request is HTTPS (direct or via reverse proxy)
+        # Determine the effective scheme: prefer X-Forwarded-Proto (set by a
+        # reverse proxy doing TLS termination) over the raw ASGI scheme.
         scheme = scope.get("scheme", "http")
-        headers = dict(scope.get("headers", []))
-        if b"x-forwarded-proto" in headers:
-            if headers[b"x-forwarded-proto"].lower() == b"https":
+        raw_headers = dict(scope.get("headers", []))
+        if b"x-forwarded-proto" in raw_headers:
+            if raw_headers[b"x-forwarded-proto"].lower() == b"https":
                 scheme = "https"
 
-        # 2. Secure flag:
-        # - If DISABLE_HTTPS_ONLY is True (dev/installer fallback):
-        #   Only set Secure if we are actually on HTTPS.
-        # - If DISABLE_HTTPS_ONLY is False (production default):
-        #   Force Secure even if the internal connection is HTTP (expected behind proxy).
-        if settings.DISABLE_HTTPS_ONLY:
-            secure = (scheme == "https")
-        else:
-            secure = True
+        # Set Secure only when the connection is actually HTTPS — either directly
+        # or via a proxy that sets X-Forwarded-Proto: https.
+        # Forcing Secure=True on plain-HTTP connections (no proxy) breaks the
+        # cookie for non-localhost FQDNs: browsers silently drop Secure cookies
+        # received over HTTP for anything other than localhost.
+        secure = (scheme == "https")
 
         cookie_header = (
             f"{CSRF_COOKIE}={token}; Path=/; SameSite=Strict"
