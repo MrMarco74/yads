@@ -56,7 +56,18 @@ def _safe_redirect(url: Optional[str], default: str = "/") -> str:
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+async def login_page(request: Request, mfa: Optional[str] = Query(None)):
+    if mfa:
+        pending_key = f"yads:mfa_pending:{mfa}"
+        stored = redis_client.get(pending_key)
+        if stored:
+            username = stored if isinstance(stored, str) else stored.decode()
+            return templates.TemplateResponse("login.html", {
+                "request": request,
+                "mfa_required": True,
+                "username": username,
+                "mfa_token": mfa,
+            })
     return templates.TemplateResponse("login.html", {
         "request": request,
         "auth_mode": settings.AUTH_MODE,
@@ -191,12 +202,11 @@ async def login(
             redis_client.setex(f"yads:mfa_pending:{token}", 300, user.username)
             log_login_failure(request, username, "mfa_required", session)
             session.commit()
-            return templates.TemplateResponse("login.html", {
-                "request": request,
-                "mfa_required": True,
-                "username": username,
-                "mfa_token": token,
-            })
+            # PRG: redirect to GET /login?mfa=<token> so the CSRF middleware
+            # issues a fresh cookie before the MFA form is rendered.
+            # Returning the MFA template directly from a POST response does not
+            # trigger _pass_set_cookie, leaving the next POST without a valid cookie.
+            return RedirectResponse(url=f"/login?mfa={token}", status_code=302)
 
     # ── Success ──
     token_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
