@@ -1,129 +1,463 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-5">
 
-    <!-- Header & Stats -->
+    <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-white tracking-tight">Cloud Asset Enumeration</h1>
-            <p class="text-sm text-slate-400">Identify Shadow IT and exposed cloud storage buckets (AWS, Google, Azure).</p>
+            <p class="text-sm text-slate-400">Shadow IT and exposed cloud storage buckets (AWS, GCP, Azure, DO, R2).</p>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
             {% if date_range_display %}
             <span class="text-sm text-slate-400">
                 <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 {{ date_range_display }}
             </span>
             {% endif %}
-            <div class="flex gap-2">
-                <a href="/cloud-assets/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Excel
-                </a>
-                <a href="/cloud-assets/export/pdf?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    PDF
-                </a>
-            </div>
+            <a href="/cloud-assets/export/excel?{{ request.query_string.decode() }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </a>
+            <a href="/cloud-assets/export/pdf?{{ request.query_string.decode() }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Disclaimer Banner -->
+    <div class="flex items-start gap-3 bg-amber-900/20 border border-amber-700/40 rounded-xl px-5 py-4">
+        <svg class="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <div class="text-sm text-amber-200/80 leading-relaxed">
+            <span class="font-semibold text-amber-300">Hinweis zur Methodik:</span>
+            Diese Buckets wurden durch systematisches Ausprobieren von Namensmustern basierend auf deinen Target-Domains entdeckt.
+            <strong class="text-amber-200">Ein gefundener Bucket bedeutet nicht, dass er dir gehört</strong> — es kann ein zufälliger Namenstrefffer eines fremden Buckets sein.
+            Nutze die Confidence-Bewertung und prüfe jeden Eintrag manuell. Markiere Einträge als <em>Bestätigt (gehört uns)</em> oder <em>False Positive (fremder Bucket)</em>.
+            False-Positives werden aus dieser Liste ausgeblendet.
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+            <div class="text-xs text-slate-400 mb-1">Gesamt</div>
+            <div class="text-2xl font-bold text-white">{{ stats.total_assets }}</div>
+        </div>
+        <div class="p-4 rounded-xl border border-red-900/30 bg-red-900/10">
+            <div class="text-xs text-red-400 mb-1">Public (Open)</div>
+            <div class="text-2xl font-bold text-red-400">{{ stats.public_acc }}</div>
+        </div>
+        <div class="p-4 rounded-xl border border-blue-900/30 bg-blue-900/10">
+            <div class="text-xs text-blue-400 mb-1">Protected</div>
+            <div class="text-2xl font-bold text-blue-400">{{ stats.protected_acc }}</div>
+        </div>
+        <div class="p-4 rounded-xl border border-amber-900/30 bg-amber-900/10">
+            <div class="text-xs text-amber-400 mb-1">Unbewertet</div>
+            <div class="text-2xl font-bold text-amber-400">{{ triage_stats.unreviewed }}</div>
+        </div>
+        <div class="p-4 rounded-xl border border-emerald-900/30 bg-emerald-900/10">
+            <div class="text-xs text-emerald-400 mb-1">Bestätigt (ours)</div>
+            <div class="text-2xl font-bold text-emerald-400">{{ triage_stats.confirmed }}</div>
         </div>
     </div>
 
     <!-- Date Filter -->
-    <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-        <form method="GET" class="space-y-4">
+    <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+        <form method="GET" class="flex flex-wrap items-end gap-3">
             {% include 'components/_date_range_picker.html' %}
-            <div class="flex gap-2">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">Apply Filter</button>
-                <a href="/cloud-assets" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition-all border border-slate-700">Reset</a>
-            </div>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">Filter anwenden</button>
+            <a href="/cloud-assets" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition-all border border-slate-700">Reset</a>
         </form>
-    </div>
-
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="p-6 rounded-xl border border-slate-800 bg-slate-900/50">
-            <div class="text-sm text-slate-400 mb-1">Total Assets Discovery</div>
-            <div class="text-2xl font-bold text-white">{{ stats.total_assets }}</div>
-        </div>
-        
-        <div class="p-6 rounded-xl border border-red-900/30 bg-red-900/10">
-            <div class="text-sm text-red-400 mb-1">Publicly Accessible</div>
-            <div class="text-2xl font-bold text-red-400">{{ stats.public_acc }}</div>
-            <div class="text-xs text-red-400/70 mt-2">Open buckets - urgent review</div>
-        </div>
-
-        <div class="p-6 rounded-xl border border-blue-900/30 bg-blue-900/10">
-            <div class="text-sm text-blue-400 mb-1">Protected Assets</div>
-            <div class="text-2xl font-bold text-blue-400">{{ stats.protected_acc }}</div>
-             <div class="text-xs text-blue-400/70 mt-2">Exists but access denied</div>
-        </div>
     </div>
 
     <!-- Main Table -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div class="p-4 border-b border-slate-800">
-            <h3 class="font-semibold text-white">Discovered Cloud Assets</h3>
+
+        <!-- Table Toolbar -->
+        <div class="p-4 border-b border-slate-800 flex flex-wrap items-center gap-3">
+            <h3 class="font-semibold text-white flex-1">Discovered Cloud Assets</h3>
+
+            <!-- Status Filter Tabs -->
+            <div class="flex bg-slate-800 rounded-lg p-0.5 text-xs font-medium">
+                <button onclick="filterTable('all')" id="tab-all" class="tab-btn px-3 py-1.5 rounded-md transition-colors bg-slate-700 text-white">Alle</button>
+                <button onclick="filterTable('open')" id="tab-open" class="tab-btn px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white">Unbewertet</button>
+                <button onclick="filterTable('acknowledged')" id="tab-acknowledged" class="tab-btn px-3 py-1.5 rounded-md transition-colors text-slate-400 hover:text-white">Bestätigt</button>
+            </div>
+
+            <!-- Provider Filter -->
+            <select id="filter-provider" onchange="applyFilters()" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-1.5">
+                <option value="">Alle Provider</option>
+                <option value="AWS">AWS S3</option>
+                <option value="GCP">Google Cloud</option>
+                <option value="Azure">Azure</option>
+                <option value="DigitalOcean">DigitalOcean</option>
+                <option value="Cloudflare">Cloudflare R2</option>
+            </select>
+
+            <!-- Confidence Filter -->
+            <select id="filter-confidence" onchange="applyFilters()" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-3 py-1.5">
+                <option value="">Alle Confidence</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
         </div>
-        
+
+        <!-- Bulk Action Bar (hidden until checkboxes selected) -->
+        <div id="bulk-bar" class="hidden px-4 py-2.5 bg-indigo-900/30 border-b border-indigo-700/40 flex items-center gap-3 text-sm">
+            <span class="text-indigo-300 font-medium"><span id="bulk-count">0</span> ausgewählt</span>
+            <button onclick="bulkTriage('confirm')" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-semibold transition-colors">Bestätigen (ours)</button>
+            <button onclick="bulkTriage('false_positive')" class="bg-red-800 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-xs font-semibold transition-colors">False Positive</button>
+            <button onclick="bulkTriage('open')" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1 rounded-lg text-xs font-semibold transition-colors">Zurücksetzen</button>
+            <button onclick="clearSelection()" class="ml-auto text-slate-400 hover:text-white text-xs">Auswahl aufheben</button>
+        </div>
+
         <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-400">
+            <table class="w-full text-sm text-left text-slate-400" id="cloud-table">
                 <thead class="text-xs text-slate-400 uppercase bg-slate-800/50">
                     <tr>
-                        <th class="px-6 py-3">Domain</th>
-                        <th class="px-6 py-3">Provider</th>
-                        <th class="px-6 py-3">Bucket Name</th>
-                        <th class="px-6 py-3">Status</th>
-                        <th class="px-6 py-3">Actions</th>
+                        <th class="px-4 py-3 w-8">
+                            <input type="checkbox" id="select-all" onchange="toggleAll(this)" class="rounded border-slate-600 bg-slate-800 text-indigo-500 cursor-pointer">
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('domain')">
+                            Domain <span class="sort-icon text-slate-600" data-col="domain">↕</span>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('provider')">
+                            Provider <span class="sort-icon text-slate-600" data-col="provider">↕</span>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('bucket')">
+                            Bucket Name <span class="sort-icon text-slate-600" data-col="bucket">↕</span>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('status')">
+                            Status <span class="sort-icon text-slate-600" data-col="status">↕</span>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('confidence')">
+                            Confidence <span class="sort-icon text-slate-600" data-col="confidence">↕</span>
+                        </th>
+                        <th class="px-4 py-3 cursor-pointer hover:text-white select-none" onclick="sortTable('triage')">
+                            Bewertung <span class="sort-icon text-slate-600" data-col="triage">↕</span>
+                        </th>
+                        <th class="px-4 py-3">Aktionen</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800">
+                <tbody class="divide-y divide-slate-800" id="table-body">
                     {% for item in items %}
-                    <tr class="hover:bg-slate-800/30 transition-colors">
-                        <td class="px-6 py-4 font-medium text-white">{{ item.domain }}</td>
-                        <td class="px-6 py-4">
+                    <tr class="hover:bg-slate-800/30 transition-colors cloud-row"
+                        data-triage="{{ item.triage_status }}"
+                        data-provider="{% if 'AWS' in item.provider %}AWS{% elif 'Google' in item.provider %}GCP{% elif 'Azure' in item.provider %}Azure{% elif 'DigitalOcean' in item.provider %}DigitalOcean{% elif 'Cloudflare' in item.provider %}Cloudflare{% else %}other{% endif %}"
+                        data-confidence="{{ item.confidence }}"
+                        data-domain="{{ item.domain }}"
+                        data-bucket="{{ item.bucket_name }}"
+                        data-bucket-status="{{ item.status }}"
+                        id="row-{{ item.finding_hash }}">
+
+                        <td class="px-4 py-3">
+                            <input type="checkbox" class="row-check rounded border-slate-600 bg-slate-800 text-indigo-500 cursor-pointer" onchange="updateBulkBar()">
+                        </td>
+                        <td class="px-4 py-4 font-medium text-white text-sm">{{ item.domain }}</td>
+                        <td class="px-4 py-4">
                             {% if "AWS" in item.provider %}
-                                <span class="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-xs">AWS</span>
+                                <span class="bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded text-xs font-medium">AWS S3</span>
                             {% elif "Google" in item.provider %}
-                                <span class="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs">GCP</span>
+                                <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded text-xs font-medium">GCP</span>
                             {% elif "Azure" in item.provider %}
-                                <span class="bg-sky-500/10 text-sky-400 px-2 py-1 rounded text-xs">Azure</span>
+                                <span class="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded text-xs font-medium">Azure</span>
+                            {% elif "DigitalOcean" in item.provider %}
+                                <span class="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-xs font-medium">DO Spaces</span>
+                            {% elif "Cloudflare" in item.provider %}
+                                <span class="bg-orange-500/10 text-orange-300 px-2 py-0.5 rounded text-xs font-medium">CF R2</span>
                             {% else %}
-                                {{ item.provider }}
+                                <span class="text-slate-500 text-xs">{{ item.provider }}</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 font-mono text-xs text-slate-300">{{ item.bucket_name }}</td>
-                        <td class="px-6 py-4">
+                        <td class="px-4 py-4 font-mono text-xs text-slate-300">
+                            {{ item.bucket_name }}
+                            {% if item.content_match %}
+                            <span class="ml-1.5 bg-emerald-900/30 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-medium" title="Domain-String im Bucket-Inhalt gefunden">content match</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-4">
                             {% if "Public" in item.status %}
-                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/30 text-red-400 border border-red-900/50">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                                    {{ item.status }}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/30 text-red-400 border border-red-900/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>Public
                                 </span>
                             {% elif "Protected" in item.status %}
-                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-400 border border-blue-900/50">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                                    {{ item.status }}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-400 border border-blue-900/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>Protected
                                 </span>
                             {% else %}
-                                <span class="text-slate-500">{{ item.status }}</span>
+                                <span class="text-slate-500 text-xs">{{ item.status }}</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4">
-                            <a href="{{ item.url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 hover:underline">
-                                Visit URL &rarr;
-                            </a>
+                        <td class="px-4 py-4">
+                            {% if item.confidence == "high" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-800/50" title="Bucket-Name oder Content deutet stark auf diese Domain hin">
+                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                    High
+                                </span>
+                            {% elif item.confidence == "medium" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/30 text-amber-400 border border-amber-800/50" title="Bucket-Name enthält Teile der Domain">
+                                    Medium
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-500 border border-slate-700" title="Generischer Name — Zugehörigkeit unklar">
+                                    Low
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-4" id="triage-cell-{{ item.finding_hash }}">
+                            {% if item.triage_status == "acknowledged" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-800/50">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    Bestätigt
+                                </span>
+                                {% if item.yf_id %}
+                                <span class="text-[10px] text-slate-600 ml-1">{{ item.yf_id }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/20 text-amber-500 border border-amber-900/30">
+                                    Unbewertet
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-4">
+                            {% set item_data = {"domain": item.domain, "bucket_name": item.bucket_name, "target_id": item.target_id, "provider": item.provider, "url": item.url} %}
+                            <div class="flex items-center gap-1.5" id="actions-{{ item.finding_hash }}"
+                                 data-item="{{ item_data | tojson | e }}"
+                                 data-hash="{{ item.finding_hash }}"
+                                 data-triage="{{ item.triage_status }}">
+                                {% if item.triage_status != "acknowledged" %}
+                                <button class="btn-confirm bg-emerald-800/50 hover:bg-emerald-700/70 text-emerald-300 px-2 py-1 rounded text-xs font-medium transition-colors" title="Als unser Bucket bestätigen">
+                                    Ours
+                                </button>
+                                {% else %}
+                                <button class="btn-reset bg-slate-700/50 hover:bg-slate-600/70 text-slate-400 px-2 py-1 rounded text-xs font-medium transition-colors" title="Bewertung zurücksetzen">
+                                    Reset
+                                </button>
+                                {% endif %}
+                                <button class="btn-fp bg-red-900/30 hover:bg-red-800/50 text-red-400 px-2 py-1 rounded text-xs font-medium transition-colors" title="False Positive — gehört nicht zu uns">
+                                    FP
+                                </button>
+                                <a href="{{ item.url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300 px-2 py-1 text-xs" title="URL öffnen">↗</a>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-slate-500">
-                            No cloud assets detected yet. Ensure the "cloud_scanner" module is enabled in scan profiles.
+                        <td colspan="8" class="px-6 py-12 text-center">
+                            <div class="text-slate-500 text-sm">Keine Cloud Assets gefunden.</div>
+                            <div class="text-slate-600 text-xs mt-1">Stelle sicher, dass das <code class="text-slate-500">cloud_scanner</code>-Modul in den Scan-Profilen aktiviert ist.</div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Table Footer -->
+        <div class="px-4 py-3 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between">
+            <span id="visible-count">{{ items | length }} Einträge</span>
+            <span>False Positives werden automatisch ausgeblendet.</span>
+        </div>
     </div>
 </div>
+
+<script>
+const _CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] ?? '';
+let _activeTab = 'all';
+let _sortCol = null;
+let _sortAsc = true;
+
+// ─── Filter ─────────────────────────────────────────────────────────────────
+
+function filterTable(status) {
+    _activeTab = status;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('bg-slate-700', 'text-white');
+        b.classList.add('text-slate-400', 'hover:text-white');
+    });
+    const activeBtn = document.getElementById('tab-' + status);
+    if (activeBtn) {
+        activeBtn.classList.add('bg-slate-700', 'text-white');
+        activeBtn.classList.remove('text-slate-400', 'hover:text-white');
+    }
+    applyFilters();
+}
+
+function applyFilters() {
+    const providerFilter = document.getElementById('filter-provider').value;
+    const confFilter = document.getElementById('filter-confidence').value;
+    let visible = 0;
+    document.querySelectorAll('.cloud-row').forEach(row => {
+        const triage = row.dataset.triage;
+        const provider = row.dataset.provider;
+        const conf = row.dataset.confidence;
+        const tabOk = _activeTab === 'all' || triage === _activeTab;
+        const provOk = !providerFilter || provider === providerFilter;
+        const confOk = !confFilter || conf === confFilter;
+        if (tabOk && provOk && confOk) {
+            row.classList.remove('hidden');
+            visible++;
+        } else {
+            row.classList.add('hidden');
+        }
+    });
+    document.getElementById('visible-count').textContent = visible + ' Einträge';
+    updateBulkBar();
+}
+
+// ─── Sort ────────────────────────────────────────────────────────────────────
+
+const _CONF_ORDER = {high: 0, medium: 1, low: 2};
+const _TRIAGE_ORDER = {acknowledged: 0, open: 1};
+
+function sortTable(col) {
+    if (_sortCol === col) { _sortAsc = !_sortAsc; }
+    else { _sortCol = col; _sortAsc = true; }
+
+    document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '↕');
+    const icon = document.querySelector(`.sort-icon[data-col="${col}"]`);
+    if (icon) icon.textContent = _sortAsc ? '↑' : '↓';
+
+    const tbody = document.getElementById('table-body');
+    const rows = [...tbody.querySelectorAll('.cloud-row')];
+
+    rows.sort((a, b) => {
+        let va, vb;
+        if (col === 'domain') { va = a.dataset.domain; vb = b.dataset.domain; }
+        else if (col === 'provider') { va = a.dataset.provider; vb = b.dataset.provider; }
+        else if (col === 'bucket') { va = a.dataset.bucket; vb = b.dataset.bucket; }
+        else if (col === 'status') { va = a.dataset.bucketStatus || ''; vb = b.dataset.bucketStatus || ''; }
+        else if (col === 'confidence') {
+            va = _CONF_ORDER[a.dataset.confidence] ?? 9;
+            vb = _CONF_ORDER[b.dataset.confidence] ?? 9;
+            return _sortAsc ? va - vb : vb - va;
+        }
+        else if (col === 'triage') {
+            va = _TRIAGE_ORDER[a.dataset.triage] ?? 9;
+            vb = _TRIAGE_ORDER[b.dataset.triage] ?? 9;
+            return _sortAsc ? va - vb : vb - va;
+        }
+        else { return 0; }
+        return _sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+
+// ─── Checkboxes / Bulk ───────────────────────────────────────────────────────
+
+function toggleAll(master) {
+    document.querySelectorAll('.cloud-row:not(.hidden) .row-check').forEach(cb => {
+        cb.checked = master.checked;
+    });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = [...document.querySelectorAll('.row-check:checked')];
+    const bar = document.getElementById('bulk-bar');
+    document.getElementById('bulk-count').textContent = checked.length;
+    if (checked.length > 0) bar.classList.remove('hidden');
+    else bar.classList.add('hidden');
+}
+
+function clearSelection() {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    updateBulkBar();
+}
+
+async function bulkTriage(action) {
+    const checked = [...document.querySelectorAll('.row-check:checked')];
+    if (!checked.length) return;
+    const rows = checked.map(cb => cb.closest('tr'));
+    const items = rows.map(r => {
+        const ad = r.querySelector('[id^="actions-"]');
+        return JSON.parse(ad.dataset.item);
+    });
+    const hashes = rows.map(r => r.id.replace('row-', ''));
+    const ok = await _postTriage(action, items);
+    if (ok) {
+        hashes.forEach(h => _updateRow(h, action));
+        clearSelection();
+    }
+}
+
+async function triageSingle(action, actionsDiv) {
+    const item = JSON.parse(actionsDiv.dataset.item);
+    const hash = actionsDiv.dataset.hash;
+    const ok = await _postTriage(action, [item]);
+    if (ok) _updateRow(hash, action);
+}
+
+// Delegate action button clicks
+document.addEventListener('click', e => {
+    const actDiv = e.target.closest('[id^="actions-"]');
+    if (!actDiv) return;
+    if (e.target.classList.contains('btn-confirm')) triageSingle('confirm', actDiv);
+    else if (e.target.classList.contains('btn-reset')) triageSingle('open', actDiv);
+    else if (e.target.classList.contains('btn-fp')) triageSingle('false_positive', actDiv);
+});
+
+async function _postTriage(action, items) {
+    try {
+        const resp = await fetch('/cloud-assets/triage', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': _CSRF},
+            body: JSON.stringify({action, items})
+        });
+        return resp.ok;
+    } catch(e) {
+        console.error('Triage failed', e);
+        return false;
+    }
+}
+
+function _updateRow(hash, action) {
+    const row = document.getElementById('row-' + hash);
+    if (!row) return;
+
+    if (action === 'false_positive') {
+        // Fade out and remove — FP items are hidden on next load
+        row.style.transition = 'opacity 0.4s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 400);
+        return;
+    }
+
+    const newStatus = action === 'confirm' ? 'acknowledged' : 'open';
+    row.dataset.triage = newStatus;
+
+    // Update triage cell badge
+    const cell = document.getElementById('triage-cell-' + hash);
+    if (cell) {
+        if (newStatus === 'acknowledged') {
+            cell.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-800/50">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                Bestätigt</span>`;
+        } else {
+            cell.innerHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/20 text-amber-500 border border-amber-900/30">Unbewertet</span>`;
+        }
+    }
+
+    // Update action buttons
+    const actions = document.getElementById('actions-' + hash);
+    if (actions) {
+        actions.dataset.triage = newStatus;
+        const firstBtn = actions.querySelector('button');
+        if (newStatus === 'acknowledged') {
+            firstBtn.textContent = 'Reset';
+            firstBtn.className = 'btn-reset bg-slate-700/50 hover:bg-slate-600/70 text-slate-400 px-2 py-1 rounded text-xs font-medium transition-colors';
+        } else {
+            firstBtn.textContent = 'Ours';
+            firstBtn.className = 'btn-confirm bg-emerald-800/50 hover:bg-emerald-700/70 text-emerald-300 px-2 py-1 rounded text-xs font-medium transition-colors';
+        }
+    }
+
+    // Re-apply filters to reflect new triage state
+    applyFilters();
+}
+</script>
 {% endblock %}
