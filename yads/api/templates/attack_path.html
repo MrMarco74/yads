@@ -57,8 +57,15 @@
     <!-- Main Layout -->
     <div x-show="graphLoaded && !loading" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
 
+        <!-- Graph Canvas (right / main area) -->
+        <div class="xl:col-span-3 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style="height: 620px;">
+            <div id="graph-container" class="w-full h-full relative">
+                <svg id="attack-graph-svg" class="w-full h-full" style="background: #0b0f19;"></svg>
+            </div>
+        </div>
+
         <!-- Left Panel: Summary Stats -->
-        <div class="xl:col-span-1 space-y-4">
+        <div class="xl:col-span-1 space-y-4 xl:order-first">
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 xl:grid-cols-1 gap-3">
