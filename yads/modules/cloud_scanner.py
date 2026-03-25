@@ -57,6 +57,9 @@ class CloudScanner(BaseScannerModule):
 
         candidate_list = sorted(candidates, key=len)[:80]
 
+        # Keywords used for domain matching inside bucket content
+        domain_keywords = [kw.lower() for kw in [base_name, safe_target, target] if len(kw) >= 4]
+
         assets = []
         findings = []
 
@@ -126,6 +129,34 @@ class CloudScanner(BaseScannerModule):
                     else:
                         continue
 
+                    # Determine confidence: name-based first, then content check for public buckets
+                    if name == base_name or name == safe_target:
+                        confidence = "high"
+                        content_match = False
+                    elif name.startswith(base_name + "-") or name.endswith("-" + base_name) \
+                            or name.startswith(safe_target + "-") or name.endswith("-" + safe_target):
+                        confidence = "medium"
+                        content_match = False
+                    else:
+                        confidence = "low"
+                        content_match = False
+
+                    # For public buckets with low/medium confidence: fetch content sample
+                    if status_code in prov["open_codes"] and confidence in ("low", "medium"):
+                        try:
+                            get_resp = requests.get(url, timeout=TIMEOUT, stream=True)
+                            sample = b""
+                            for chunk in get_resp.iter_content(chunk_size=8192):
+                                sample += chunk
+                                if len(sample) >= 16384:
+                                    break
+                            text = sample.decode(errors="ignore").lower()
+                            if any(kw in text for kw in domain_keywords):
+                                content_match = True
+                                confidence = "high"
+                        except Exception:
+                            pass
+
                     asset = {
                         "provider": prov["name"],
                         "bucket_name": name,
@@ -133,6 +164,8 @@ class CloudScanner(BaseScannerModule):
                         "status": status,
                         "status_code": status_code,
                         "severity": severity,
+                        "confidence": confidence,
+                        "content_match": content_match,
                     }
                     assets.append(asset)
                     self.logger.info(f"Found {prov['name']} asset: {name} ({status})")
