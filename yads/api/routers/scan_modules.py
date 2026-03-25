@@ -441,6 +441,7 @@ async def addons_view(
         "request": request,
         "user": user,
         "modules": modules,
+        "grouped_modules": grouped,
         "categories": CATEGORIES,
         "is_platform_admin": True,
         "signing_status": signing_status,

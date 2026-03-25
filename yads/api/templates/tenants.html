@@ -42,7 +42,7 @@
                     <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Name</th>
                     <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Created At</th>
                     <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Users</th>
-                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Targets</th>
+                    <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Targets / Limit</th>
                     <th class="px-6 py-3 text-xs font-medium tracking-wider text-gray-400 uppercase">Actions</th>
                 </tr>
             </thead>
@@ -57,11 +57,22 @@
                         {{ tenant.users|length }}
                     </td>
                     <td class="px-6 py-4 text-sm">
-                        {{ tenant.targets|length }}
+                        {% set tcount = tenant.targets|length %}
+                        {% set tlimit = tenant.max_targets %}
+                        {% set pct = (tcount / tlimit * 100) | int if tlimit > 0 else 0 %}
+                        <div class="flex items-center gap-2">
+                            <span class="{% if pct >= 90 %}text-red-400 font-bold{% elif pct >= 70 %}text-amber-400{% else %}text-gray-300{% endif %}">
+                                {{ tcount }} / {{ tlimit }}
+                            </span>
+                            <div class="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full {% if pct >= 90 %}bg-red-500{% elif pct >= 70 %}bg-amber-500{% else %}bg-teal-500{% endif %}"
+                                     style="width: {{ [pct, 100]|min }}%"></div>
+                            </div>
+                        </div>
                     </td>
                     <td class="px-6 py-4 space-x-2 flex items-center">
                         <button onclick="openRenameModal({{ tenant.id }}, '{{ tenant.name }}')" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">Rename</button>
-                        <button onclick="openLicenseModal({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.osint_enabled|lower }}, {{ tenant.osint_quota_max }}, {{ tenant.osint_cost_per_search }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">License</button>
+                        <button onclick="openLicenseModal({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.osint_enabled|lower }}, {{ tenant.osint_quota_max }}, {{ tenant.osint_cost_per_search }}, {{ tenant.max_targets }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">License</button>
                         <button onclick="openManageUsers({{ tenant.id }}, '{{ tenant.name }}', {{ tenant.allowed_users|map(attribute='id')|list }})" class="px-3 py-1 text-xs font-bold text-slate-300 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-colors">Users</button>
                         <form action="/tenants/delete" method="post" class="inline" onsubmit="return confirm('DANGER: This will delete ALL users, targets, and scan results for this tenant. Continue?');">
                             {{ csrf_token() }}
@@ -157,6 +168,14 @@
                         <input type="number" step="0.01" name="osint_cost" id="licenseCost" required
                                class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all">
                     </div>
+
+                    <!-- Target Limit -->
+                    <div class="border-t border-gray-700 pt-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Target Limit</label>
+                        <input type="number" name="max_targets" id="licenseMaxTargets" min="1" required
+                               class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition-all">
+                        <p class="mt-1 text-xs text-gray-500">Maximum number of targets this tenant can add.</p>
+                    </div>
                 </div>
                 
                 <div class="mt-8 flex items-center justify-end gap-3">
@@ -234,15 +253,16 @@
         document.getElementById('renameModal').classList.add('hidden');
     }
 
-    function openLicenseModal(id, name, enabled, quota, cost) {
+    function openLicenseModal(id, name, enabled, quota, cost, maxTargets) {
         document.getElementById('licenseTenantId').value = id;
         document.getElementById('licenseTenantName').textContent = name;
         document.getElementById('licenseTenantNameHidden').value = name;
-        
+
         document.getElementById('licenseEnabled').checked = enabled;
         document.getElementById('licenseQuota').value = quota;
         document.getElementById('licenseCost').value = cost;
-        
+        document.getElementById('licenseMaxTargets').value = maxTargets;
+
         document.getElementById('licenseModal').classList.remove('hidden');
     }
 

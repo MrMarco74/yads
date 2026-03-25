@@ -18,6 +18,7 @@
                             <option value="open">Open</option>
                             <option value="acknowledged">Acknowledged</option>
                             <option value="false_positive">False Positive</option>
+                            <option value="risk_acceptance">Risk Acceptance</option>
                             <option value="fixed">Fixed</option>
                         </select>
                     </div>
@@ -77,6 +78,7 @@
                     <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
                     <option value="acknowledged" {% if status_filter == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
                     <option value="false_positive" {% if status_filter == 'false_positive' %}selected{% endif %}>False Positive</option>
+                    <option value="risk_acceptance" {% if status_filter == 'risk_acceptance' %}selected{% endif %}>Risk Acceptance</option>
                     <option value="fixed" {% if status_filter == 'fixed' %}selected{% endif %}>Fixed</option>
                 </select>
                 {% if module_filter or severity_filter or status_filter %}
@@ -171,8 +173,8 @@
                                     class="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
                                     title="Klicken zum Kopieren">{{ f.yf_id }}</button>
                             {% endif %}
-                            {% if f.first_found %}<span class="text-[10px] text-slate-500">Erstmals: {{ f.first_found }}</span>{% endif %}
-                            {% if f.last_seen %}<span class="text-[10px] text-slate-500">Zuletzt: {{ f.last_seen }}</span>{% endif %}
+                            {% if f.first_found %}<span class="text-[10px] text-slate-500">Erstmals: {{ f.first_found.strftime('%Y-%m-%d') if f.first_found.strftime is defined else f.first_found | string | truncate(10, False, '') }}</span>{% endif %}
+                            {% if f.last_seen %}<span class="text-[10px] text-slate-500">Zuletzt: {{ f.last_seen.strftime('%Y-%m-%d') if f.last_seen.strftime is defined else f.last_seen | string | truncate(10, False, '') }}</span>{% endif %}
                             {% if f.due_date %}
                             <span class="text-[10px] font-medium {% if f.due_overdue %}text-red-400{% else %}text-amber-400{% endif %}">
                                 Fällig: {{ f.due_date }}{% if f.due_overdue %} ⚠{% endif %}
@@ -190,9 +192,12 @@
                         {% if f.status == 'open' %}bg-slate-800 text-slate-300 border border-slate-700
                         {% elif f.status == 'acknowledged' %}bg-blue-900/50 text-blue-300 border border-blue-700/50
                         {% elif f.status == 'false_positive' %}bg-slate-800 text-slate-500 border border-slate-700 line-through
+                        {% elif f.status == 'risk_acceptance' %}bg-amber-900/50 text-amber-300 border border-amber-700/50
                         {% elif f.status == 'fixed' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700/50
                         {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
-                        {% if f.status == 'false_positive' %}FP{% else %}{{ f.status|replace('_', ' ')|title }}{% endif %}
+                        {% if f.status == 'false_positive' %}FP
+                        {% elif f.status == 'risk_acceptance' %}Risk Accept.
+                        {% else %}{{ f.status|replace('_', ' ')|title }}{% endif %}
                     </span>
                     <!-- Rescan button -->
                     <button onclick="triggerFindingRescan(this, {{ entry.target.id }}, '{{ f.module }}')"

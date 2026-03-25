@@ -1121,6 +1121,24 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # max_targets: per-tenant target quota
+        print(">> Adding max_targets column to tenant table...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS max_targets INTEGER DEFAULT 500;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # scan_heartbeat_at: liveness signal updated every 2 min during active scan
+        print(">> Adding scan_heartbeat_at column to target table...")
+        try:
+            conn.execute(text("ALTER TABLE target ADD COLUMN IF NOT EXISTS scan_heartbeat_at TIMESTAMP;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

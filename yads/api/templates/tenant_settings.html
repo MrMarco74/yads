@@ -35,989 +35,918 @@
         </div>
         {% endif %}
 
-        <form method="POST">
-            {{ csrf_token() }}
+        <!-- Tab wrapper -->
+        <div x-data="{tab: (window.location.hash.slice(1) || 'security')}"
+             x-init="window.addEventListener('hashchange', () => { tab = location.hash.slice(1) || 'security'; })">
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <!-- Security Settings -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    {{ _('settings.security') }}
-                </h3>
-                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Session Timeout (Minutes)</label>
-                        <input type="number" name="session_timeout_minutes" 
-                               value="{{ tenant.session_timeout_minutes or 60 }}"
-                               min="5" max="480"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500 font-mono"
-                               placeholder="60">
-                        <p class="text-[10px] text-gray-500 mt-1">Duration of user session validity. Max 480 (8 hours).</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Finding SLA Settings -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2" id="finding-slas">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Finding SLAs (Tage bis Fälligkeit)
-                </h3>
-                <p class="text-sm text-gray-400 mb-6">
-                    Legen Sie fest, nach wie vielen Tagen ein Finding den Status "Überfällig" erreicht. (Standard nach BSI).
-                </p>
-                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-red-500 mb-2 uppercase tracking-wide">Critical</label>
-                        <input type="number" name="sla_critical" value="{{ tenant.sla_critical or 7 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-orange-400 mb-2 uppercase tracking-wide">High</label>
-                        <input type="number" name="sla_high" value="{{ tenant.sla_high or 30 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-yellow-400 mb-2 uppercase tracking-wide">Medium</label>
-                        <input type="number" name="sla_medium" value="{{ tenant.sla_medium or 90 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-500 font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide">Low</label>
-                        <input type="number" name="sla_low" value="{{ tenant.sla_low or 180 }}" min="1" max="1000" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 font-mono">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Info</label>
-                        <input type="number" name="sla_info" value="{{ tenant.sla_info or '' }}" min="1" max="1000" placeholder="Optional" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-gray-500 font-mono placeholder-gray-600">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Google Search Integration -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    Google Search Integration (OSINT)
-                </h3>
-                <p class="text-sm text-gray-400 mb-6">
-                    Configure your own Google Programmable Search Engine to enable OSINT features independently.
-                    These keys are stored securely and used only for your tenant's searches.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-indigo-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to obtain Keys</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
-                        <ol class="list-decimal list-outside space-y-3 ml-3">
-                            <li>
-                                <div class="font-medium text-white mb-1">Get API Key & Enable Vision API</div>
-                                Go to the <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">Google Cloud Console</a>.
-                                <ul class="list-disc ml-4 mt-1 text-gray-400">
-                                    <li>Create an API Key under <em>APIs & Services > Credentials</em>.</li>
-                                    <li><strong>Important:</strong> If using "API Restrictions", add <strong>"Cloud Vision API"</strong> to the allowed list.</li>
-                                    <li>Go to <em>APIs & Services > Library</em> and enable the <strong>"Cloud Vision API"</strong>.</li>
-                                    <li><span class="text-yellow-500/80">Note:</span> This API requires an active Billing Account (free tier available).</li>
-                                </ul>
-                            </li>
-                            <li>
-                                <div class="font-medium text-white mb-1">Search Engine ID (CX)</div>
-                                <span class="text-gray-500 italic">Optional for Image Search.</span> Used only if you want to use text-based fallback search features in future updates.
-                            </li>
-                        </ol>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- API Key -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Google API Key</label>
-                        <input type="password" name="google_api_key" 
-                               value="{{ tenant.google_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600"
-                               placeholder="AIzaSy..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">From Google Cloud Console (Custom Search API)</p>
-                    </div>
-
-                    <!-- CX -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Search Engine ID (CX)</label>
-                        <input type="text" name="google_cse_cx" 
-                               value="{{ tenant.google_cse_cx or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600"
-                               placeholder="0123456789:abcdefghijk"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">From Programmable Search Engine Control Panel</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Vulnerability Scanning (Nuclei) -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
-                    Vulnerability Scanning (Nuclei)
-                </h3>
-                <p class="text-sm text-gray-400 mb-4">
-                    Nuclei is an open-source vulnerability scanner. The API key enables Pro features like cloud-based scanning and team collaboration.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-orange-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to get a Nuclei Pro API Key</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
-                        <ol class="list-decimal list-outside space-y-2 ml-3">
-                            <li>Go to <a href="https://cloud.projectdiscovery.io/" target="_blank" class="text-orange-400 hover:text-orange-300 underline">ProjectDiscovery Cloud Platform (PDCP)</a></li>
-                            <li>Sign up for a free account or log in</li>
-                            <li>Navigate to <strong>Settings &rarr; API Keys</strong></li>
-                            <li>Generate a new API key and copy it</li>
-                        </ol>
-                        <div class="mt-3 p-2 bg-orange-900/20 border border-orange-700/30 rounded text-orange-300">
-                            <strong>Free Tier:</strong> Includes basic scanning capabilities. Pro subscription unlocks advanced features, more templates, and higher rate limits.
-                        </div>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 gap-6">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Nuclei Pro API Key (PDCP)</label>
-                        <input type="password" name="nuclei_api_key"
-                               value="{{ tenant.nuclei_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500 font-mono placeholder-gray-600"
-                               placeholder="pdcp_..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://cloud.projectdiscovery.io/settings" target="_blank" class="text-orange-400 hover:underline">cloud.projectdiscovery.io</a></p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Credential Monitoring (HIBP) -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
-                    Credential Monitoring (Have I Been Pwned)
-                </h3>
-                <p class="text-sm text-gray-400 mb-4">
-                    Check if email addresses associated with your domains have appeared in data breaches.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-red-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to get an HIBP API Key</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
-                        <ol class="list-decimal list-outside space-y-2 ml-3">
-                            <li>Go to <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:text-red-300 underline">haveibeenpwned.com/API/Key</a></li>
-                            <li>Purchase an API key subscription (required for breach lookups)</li>
-                            <li>Copy the API key from your account dashboard</li>
-                        </ol>
-                        <div class="mt-3 p-2 bg-red-900/20 border border-red-700/30 rounded text-red-300">
-                            <strong>Pricing:</strong> HIBP API keys are paid (~$3.50/month). This funds the service and ensures responsible usage. Password hash lookups (k-anonymity) are free and don't require a key.
-                        </div>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 gap-6">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">HIBP API Key</label>
-                        <input type="password" name="hibp_api_key"
-                               value="{{ tenant.hibp_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500 font-mono placeholder-gray-600"
-                               placeholder="hibp_..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:underline">haveibeenpwned.com/API/Key</a></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Email Intelligence (Hunter.io) -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                    Email Intelligence (Hunter.io)
-                </h3>
-                <p class="text-sm text-gray-400 mb-4">
-                    Discover email addresses associated with domains. Used by the Email Intelligence scanner.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-cyan-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to get a Hunter.io API Key</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
-                        <ol class="list-decimal list-outside space-y-2 ml-3">
-                            <li>Go to <a href="https://hunter.io/users/sign_up" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">hunter.io</a> and create a free account</li>
-                            <li>Navigate to <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">API Keys</a> in your dashboard</li>
-                            <li>Copy your API key</li>
-                        </ol>
-                        <div class="mt-3 p-2 bg-cyan-900/20 border border-cyan-700/30 rounded text-cyan-300">
-                            <strong>Free Tier:</strong> 25 searches/month. Paid plans start at $49/month for 500 searches.
-                        </div>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 gap-6">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Hunter.io API Key</label>
-                        <input type="password" name="hunter_api_key"
-                               value="{{ tenant.hunter_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
-                               placeholder="hunter_..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:underline">hunter.io/api-keys</a></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Social Media Scanner (GitHub & Twitter) -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                    Social Media Scanner (GitHub & Twitter)
-                </h3>
-                <p class="text-sm text-gray-400 mb-4">
-                    Enhanced reconnaissance for GitHub repositories and Twitter/X mentions.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-purple-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to get API Keys</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
-                        <!-- GitHub -->
-                        <div>
-                            <h5 class="font-bold text-white mb-2">GitHub Personal Access Token</h5>
-                            <ol class="list-decimal list-outside space-y-1 ml-3">
-                                <li>Go to <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:text-purple-300 underline">GitHub Settings &rarr; Developer settings &rarr; Personal access tokens</a></li>
-                                <li>Click <strong>"Generate new token (classic)"</strong></li>
-                                <li>Select scopes: <code class="bg-gray-800 px-1 rounded">public_repo</code>, <code class="bg-gray-800 px-1 rounded">read:org</code>, <code class="bg-gray-800 px-1 rounded">read:user</code></li>
-                                <li>Generate and copy the token (starts with <code class="bg-gray-800 px-1 rounded">ghp_</code>)</li>
-                            </ol>
-                            <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
-                                <strong>Free:</strong> 5,000 requests/hour with token (vs 60/hour without)
-                            </div>
-                        </div>
-                        <!-- Twitter -->
-                        <div>
-                            <h5 class="font-bold text-white mb-2">Twitter/X Bearer Token</h5>
-                            <ol class="list-decimal list-outside space-y-1 ml-3">
-                                <li>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:text-purple-300 underline">Twitter Developer Portal</a></li>
-                                <li>Create a new Project and App</li>
-                                <li>Navigate to <strong>"Keys and tokens"</strong></li>
-                                <li>Generate and copy the <strong>Bearer Token</strong></li>
-                            </ol>
-                            <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
-                                <strong>Free Tier:</strong> 500,000 tweets/month read access. Requires phone number verification.
-                            </div>
-                        </div>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- GitHub Token -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">GitHub Personal Access Token</label>
-                        <input type="password" name="github_token"
-                               value="{{ tenant.github_token or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
-                               placeholder="ghp_..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:underline">github.com/settings/tokens</a></p>
-                    </div>
-
-                    <!-- Twitter Bearer Token -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Twitter/X Bearer Token</label>
-                        <input type="password" name="twitter_bearer_token"
-                               value="{{ tenant.twitter_bearer_token or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
-                               placeholder="AAAA..."
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:underline">developer.twitter.com</a></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Advanced OSINT API Keys -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                    Advanced OSINT Pivots
-                    <span class="ml-2 text-[9px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold">BETA</span>
-                </h3>
-                <p class="text-sm text-gray-400 mb-4">
-                    External threat intelligence APIs for enhanced reconnaissance. These are optional and used for cross-referencing findings.
-                </p>
-
-                <!-- Help Accordion -->
-                <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
-                    <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-amber-400 transition-colors flex items-center gap-2 select-none">
-                        <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        <span>How to get API Keys</span>
-                    </summary>
-                    <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
-                        <!-- Shodan -->
-                        <div>
-                            <h5 class="font-bold text-white mb-2">Shodan API Key</h5>
-                            <ol class="list-decimal list-outside space-y-1 ml-3">
-                                <li>Create an account at <a href="https://account.shodan.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">shodan.io</a></li>
-                                <li>Go to <a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account Settings</a></li>
-                                <li>Copy your API key from the Overview page</li>
-                            </ol>
-                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
-                                <strong>Free:</strong> Limited search credits. Paid membership ($49 one-time) unlocks full access.
-                            </div>
-                        </div>
-                        <!-- Censys -->
-                        <div>
-                            <h5 class="font-bold text-white mb-2">Censys API Key</h5>
-                            <ol class="list-decimal list-outside space-y-1 ml-3">
-                                <li>Create a free account at <a href="https://censys.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">censys.io</a></li>
-                                <li>Go to <a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account &rarr; API</a></li>
-                                <li>Copy both the <strong>API ID</strong> and <strong>Secret</strong> (format: <code class="bg-gray-800 px-1 rounded">API_ID:SECRET</code>)</li>
-                            </ol>
-                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
-                                <strong>Free:</strong> 250 queries/month for researchers. Enterprise plans available.
-                            </div>
-                        </div>
-                        <!-- VirusTotal -->
-                        <div>
-                            <h5 class="font-bold text-white mb-2">VirusTotal API Key</h5>
-                            <ol class="list-decimal list-outside space-y-1 ml-3">
-                                <li>Create an account at <a href="https://www.virustotal.com/gui/join-us" target="_blank" class="text-amber-400 hover:text-amber-300 underline">virustotal.com</a></li>
-                                <li>Go to your <a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Profile &rarr; API Key</a></li>
-                                <li>Copy your API key</li>
-                            </ol>
-                            <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
-                                <strong>Free:</strong> 500 lookups/day, 4 requests/minute. Premium plans remove limits.
-                            </div>
-                        </div>
-                    </div>
-                </details>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Shodan API Key -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Shodan API Key</label>
-                        <input type="password" name="shodan_api_key"
-                               value="{{ tenant.shodan_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
-                               placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:underline">shodan.io</a> - Internet-wide scanning</p>
-                    </div>
-
-                    <!-- Censys API Key -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Censys API Key</label>
-                        <input type="password" name="censys_api_key"
-                               value="{{ tenant.censys_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
-                               placeholder="api_id:api_secret"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:underline">censys.io</a> - Certificate & host search</p>
-                    </div>
-
-                    <!-- VirusTotal API Key -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">VirusTotal API Key</label>
-                        <input type="password" name="virustotal_api_key"
-                               value="{{ tenant.virustotal_api_key or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
-                               placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1"><a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:underline">virustotal.com</a> - Malware analysis</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Report Branding Settings -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg md:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Report Branding
-                    <span class="ml-2 text-[9px] bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
-                </h3>
-                <p class="text-sm text-gray-400 mb-6">
-                    Customize the appearance of generated security reports. These settings apply to all reports created via the Report Builder.
-                </p>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Logo URL -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Logo URL</label>
-                        <input type="text" name="report_logo_url"
-                               value="{{ tenant.report_logo_url or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
-                               placeholder="https://example.com/logo.png"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">URL to your company logo. Supports PNG, JPG, or SVG. Recommended height: 40-60px.</p>
-                    </div>
-
-                    <!-- Company Name -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Company Name</label>
-                        <input type="text" name="report_company_name"
-                               value="{{ tenant.report_company_name or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
-                               placeholder="{{ tenant.name }}"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Displayed in report headers. Defaults to tenant name if empty.</p>
-                    </div>
-
-                    <!-- Primary Color -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Primary Color</label>
-                        <div class="flex items-center gap-2">
-                            <input type="color" name="report_primary_color"
-                                   value="{{ tenant.report_primary_color or '#3b82f6' }}"
-                                   class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
-                            <input type="text"
-                                   value="{{ tenant.report_primary_color or '#3b82f6' }}"
-                                   class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
-                                   placeholder="#3b82f6"
-                                   readonly>
-                        </div>
-                        <p class="text-[10px] text-gray-500 mt-1">Used for headers, titles, and accent elements.</p>
-                    </div>
-
-                    <!-- Secondary Color -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Secondary Color</label>
-                        <div class="flex items-center gap-2">
-                            <input type="color" name="report_secondary_color"
-                                   value="{{ tenant.report_secondary_color or '#64748b' }}"
-                                   class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
-                            <input type="text"
-                                   value="{{ tenant.report_secondary_color or '#64748b' }}"
-                                   class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
-                                   placeholder="#64748b"
-                                   readonly>
-                        </div>
-                        <p class="text-[10px] text-gray-500 mt-1">Used for subtitles, borders, and secondary elements.</p>
-                    </div>
-
-                    <!-- Header Text -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Header Text</label>
-                        <input type="text" name="report_header_text"
-                               value="{{ tenant.report_header_text or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
-                               placeholder="Security Assessment Report"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Optional tagline or subtitle displayed below company name.</p>
-                    </div>
-
-                    <!-- Footer Text -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Footer Text</label>
-                        <input type="text" name="report_footer_text"
-                               value="{{ tenant.report_footer_text or '' }}"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
-                               placeholder="Confidential - Internal Use Only"
-                               autocomplete="off">
-                        <p class="text-[10px] text-gray-500 mt-1">Displayed at the bottom of each report page.</p>
-                    </div>
-                </div>
-
-                <!-- Preview Card -->
-                <div class="mt-6 p-4 bg-white rounded-lg">
-                    <div class="flex items-center gap-3 pb-3 border-b" style="border-color: {{ tenant.report_primary_color or '#3b82f6' }}20;">
-                        {% if tenant.report_logo_url %}
-                        <img src="{{ tenant.report_logo_url }}" alt="Logo" class="h-8 object-contain" onerror="this.style.display='none'">
-                        {% endif %}
-                        <div>
-                            <h4 class="font-bold text-sm" style="color: {{ tenant.report_primary_color or '#3b82f6' }}">{{ tenant.report_company_name or tenant.name }}</h4>
-                            {% if tenant.report_header_text %}
-                            <p class="text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">{{ tenant.report_header_text }}</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="text-xs text-slate-600 py-2">Preview of report header styling...</div>
-                    {% if tenant.report_footer_text %}
-                    <div class="pt-2 border-t text-center text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">
-                        {{ tenant.report_footer_text }}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            </div> <!-- Close Grid -->
-
-            <!-- ── Dynamic Module API Keys ──────────────────────────────── -->
-            {% if module_api_keys %}
-            <div class="mt-6 bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
-                <h3 class="text-lg font-semibold text-white mb-1 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    API-Schlüssel der Module
-                </h3>
-                <p class="text-sm text-gray-400 mb-5">
-                    BYOK-Keys (Bring Your Own Key) für aktivierte Scanner-Module. Werden verschlüsselt gespeichert und pro Tenant isoliert.
-                    Felder ohne Eingabe bleiben unverändert; ein Leerzeichen löscht den bestehenden Key.
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {% for entry in module_api_keys %}
-                    {% set spec = entry.spec %}
-                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="block text-xs font-bold text-gray-300 uppercase tracking-wide">{{ spec.label }}</label>
-                            {% if entry.is_set %}
-                            <span class="text-[10px] text-emerald-400 font-medium">✓ gesetzt</span>
-                            {% else %}
-                            <span class="text-[10px] text-gray-600">nicht konfiguriert</span>
-                            {% endif %}
-                        </div>
-                        {% if spec.description %}
-                        <p class="text-[10px] text-gray-500 mb-2">{{ spec.description }}</p>
-                        {% endif %}
-                        <input type="password"
-                               name="apikey_{{ spec.name }}"
-                               placeholder="{{ '••••••••••••' if entry.is_set else spec.placeholder }}"
-                               autocomplete="off"
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600">
-                        {% if spec.help_url %}
-                        <p class="text-[10px] text-gray-500 mt-1">
-                            Key beantragen: <a href="{{ spec.help_url }}" target="_blank" class="text-indigo-400 hover:underline">{{ spec.help_url }}</a>
-                        </p>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Save Bar -->
-            <div class="mt-8 pt-4 border-t border-gray-700 flex items-center justify-between bg-gray-800 p-4 rounded-xl shadow-xl sticky bottom-4 z-20 border border-gray-600">
-                <div class="text-xs text-gray-400">
-                    <span class="block font-bold text-gray-300">Configuration Status</span>
-                    These settings are applied immediately to all tenant operations.
-                </div>
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-indigo-500/20 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Save All Settings
+            <!-- Tab navigation -->
+            <div class="flex gap-1 mb-6 border-b border-gray-700 pb-0">
+                <button type="button"
+                        @click="tab='security'; location.hash='security'"
+                        :class="tab==='security' ? 'border-b-2 border-indigo-500 text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'"
+                        class="px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    Sicherheit
+                </button>
+                <button type="button"
+                        @click="tab='apikeys'; location.hash='apikeys'"
+                        :class="tab==='apikeys' ? 'border-b-2 border-indigo-500 text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'"
+                        class="px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    API-Keys
+                </button>
+                <button type="button"
+                        @click="tab='reports'; location.hash='reports'"
+                        :class="tab==='reports' ? 'border-b-2 border-indigo-500 text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'"
+                        class="px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Berichte & AI
+                </button>
+                <button type="button"
+                        @click="tab='automation'; location.hash='automation'"
+                        :class="tab==='automation' ? 'border-b-2 border-indigo-500 text-white bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'"
+                        class="px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Automation
                 </button>
             </div>
 
-            <!-- LLM / AI Analysis -->
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 space-y-4">
-                <div class="flex items-center gap-2 mb-1">
-                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">AI / LLM Report Analysis</h3>
-                </div>
-                <p class="text-xs text-gray-500">Configure an LLM provider to generate AI-powered risk assessments and management summaries in PDF exports. Use <strong class="text-indigo-400">Export PDF + AI</strong> on the Analytics page to trigger analysis.</p>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Provider</label>
-                    <select name="llm_provider" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500">
-                        <option value="" {% if not tenant.llm_provider %}selected{% endif %}>Disabled (use global setting)</option>
-                        <option value="disabled" {% if tenant.llm_provider == 'disabled' %}selected{% endif %}>Disabled (override global)</option>
-                        <option value="ollama" {% if tenant.llm_provider == 'ollama' %}selected{% endif %}>Ollama (local)</option>
-                        <option value="openai" {% if tenant.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
-                        <option value="anthropic" {% if tenant.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
-                        <option value="custom" {% if tenant.llm_provider == 'custom' %}selected{% endif %}>Custom (OpenAI-compatible)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API URL <span class="text-gray-600 font-normal">(Ollama / Custom)</span></label>
-                    <input type="text" name="llm_api_url" value="{{ tenant.llm_api_url or '' }}"
-                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
-                           placeholder="http://ollama:11434">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API Key <span class="text-gray-600 font-normal">(OpenAI / Anthropic / Custom)</span></label>
-                    <input type="password" name="llm_api_key" value="{{ tenant.llm_api_key or '' }}"
-                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
-                           placeholder="sk-...">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Model <span class="text-gray-600 font-normal">(leave blank for default)</span></label>
-                    <input type="text" name="llm_model" value="{{ tenant.llm_model or '' }}"
-                           class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
-                           placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
-                </div>
-            </div>
+            <!-- ══════════════════════════════════════════════════════════════
+                 MAIN FORM — wraps Sicherheit, API-Keys, Berichte & AI
+                 ══════════════════════════════════════════════════════════════ -->
+            <form method="POST" id="tenant-settings-form">
+                {{ csrf_token() }}
 
+                <!-- ── Tab: Sicherheit ──────────────────────────────────── -->
+                <div x-show="tab === 'security'" class="space-y-6">
 
-
-        </form>
-
-        <!-- Webhook Settings (Separate Form/Logic) -->
-        <div class="mt-8 bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
-            <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                Webhook Notifications
-            </h3>
-            <p class="text-sm text-gray-400 mb-6">
-                Receive real-time JSON payloads when specific events occur in your tenant.
-            </p>
-
-            <!-- Existing Webhooks List -->
-            <div class="space-y-4 mb-8">
-                {% for hook in webhooks %}
-                <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div class="flex-1 overflow-hidden">
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="font-mono text-sm text-indigo-300 truncate" title="{{ hook.url }}">{{ hook.url }}</span>
-                            {% if hook.is_active %}
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-green-900/50 text-green-300 border border-green-500/30">Active</span>
-                            {% else %}
-                            <span class="px-2 py-0.5 rounded text-[10px] bg-gray-700 text-gray-300">Inactive</span>
-                            {% endif %}
+                    <!-- Security Settings -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            {{ _('settings.security') }}
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Session Timeout (Minutes)</label>
+                                <input type="number" name="session_timeout_minutes"
+                                       value="{{ tenant.session_timeout_minutes or 60 }}"
+                                       min="5" max="480"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500 font-mono"
+                                       placeholder="60">
+                                <p class="text-[10px] text-gray-500 mt-1">Duration of user session validity. Max 480 (8 hours).</p>
+                            </div>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                            {% for event in hook.event_types %}
-                            <span class="text-[10px] uppercase tracking-wide text-gray-500 bg-gray-800 px-1.5 rounded">{{ event }}</span>
+                    </div>
+
+                    <!-- Finding SLA Settings -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg" id="finding-slas">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Finding SLAs (Tage bis Fälligkeit)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-6">
+                            Legen Sie fest, nach wie vielen Tagen ein Finding den Status "Überfällig" erreicht. (Standard nach BSI).
+                        </p>
+                        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-red-500 mb-2 uppercase tracking-wide">Critical</label>
+                                <input type="number" name="sla_critical" value="{{ tenant.sla_critical or 7 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-orange-400 mb-2 uppercase tracking-wide">High</label>
+                                <input type="number" name="sla_high" value="{{ tenant.sla_high or 30 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-yellow-400 mb-2 uppercase tracking-wide">Medium</label>
+                                <input type="number" name="sla_medium" value="{{ tenant.sla_medium or 90 }}" min="1" max="365" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-yellow-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide">Low</label>
+                                <input type="number" name="sla_low" value="{{ tenant.sla_low or 180 }}" min="1" max="1000" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Info</label>
+                                <input type="number" name="sla_info" value="{{ tenant.sla_info or '' }}" min="1" max="1000" placeholder="Optional" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-gray-500 font-mono placeholder-gray-600">
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /tab security -->
+
+                <!-- ── Tab: API-Keys ────────────────────────────────────── -->
+                <div x-show="tab === 'apikeys'" class="space-y-6">
+
+                    <!-- Google Search Integration -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            Google Search Integration (OSINT)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-6">
+                            Configure your own Google Programmable Search Engine to enable OSINT features independently.
+                            These keys are stored securely and used only for your tenant's searches.
+                        </p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-indigo-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to obtain Keys
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                                <ol class="list-decimal list-outside space-y-3 ml-3">
+                                    <li>
+                                        <div class="font-medium text-white mb-1">Get API Key & Enable Vision API</div>
+                                        Go to the <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">Google Cloud Console</a>.
+                                        <ul class="list-disc ml-4 mt-1 text-gray-400">
+                                            <li>Create an API Key under <em>APIs & Services > Credentials</em>.</li>
+                                            <li><strong>Important:</strong> If using "API Restrictions", add <strong>"Cloud Vision API"</strong> to the allowed list.</li>
+                                            <li>Go to <em>APIs & Services > Library</em> and enable the <strong>"Cloud Vision API"</strong>.</li>
+                                            <li><span class="text-yellow-500/80">Note:</span> This API requires an active Billing Account (free tier available).</li>
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <div class="font-medium text-white mb-1">Search Engine ID (CX)</div>
+                                        <span class="text-gray-500 italic">Optional for Image Search.</span> Used only if you want to use text-based fallback search features in future updates.
+                                    </li>
+                                </ol>
+                            </div>
+                        </details>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Google API Key</label>
+                                <input type="password" name="google_api_key" value="{{ tenant.google_api_key or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600"
+                                       placeholder="AIzaSy..." autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">From Google Cloud Console (Custom Search API)</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Search Engine ID (CX)</label>
+                                <input type="text" name="google_cse_cx" value="{{ tenant.google_cse_cx or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600"
+                                       placeholder="0123456789:abcdefghijk" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">From Programmable Search Engine Control Panel</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vulnerability Scanning (Nuclei) -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
+                            Vulnerability Scanning (Nuclei)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-4">
+                            Nuclei is an open-source vulnerability scanner. The API key enables Pro features like cloud-based scanning and team collaboration.
+                        </p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-orange-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to get a Nuclei Pro API Key
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                                <ol class="list-decimal list-outside space-y-2 ml-3">
+                                    <li>Go to <a href="https://cloud.projectdiscovery.io/" target="_blank" class="text-orange-400 hover:text-orange-300 underline">ProjectDiscovery Cloud Platform (PDCP)</a></li>
+                                    <li>Sign up for a free account or log in</li>
+                                    <li>Navigate to <strong>Settings &rarr; API Keys</strong></li>
+                                    <li>Generate a new API key and copy it</li>
+                                </ol>
+                                <div class="mt-3 p-2 bg-orange-900/20 border border-orange-700/30 rounded text-orange-300">
+                                    <strong>Free Tier:</strong> Includes basic scanning capabilities. Pro subscription unlocks advanced features, more templates, and higher rate limits.
+                                </div>
+                            </div>
+                        </details>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Nuclei Pro API Key (PDCP)</label>
+                            <input type="password" name="nuclei_api_key" value="{{ tenant.nuclei_api_key or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500 font-mono placeholder-gray-600"
+                                   placeholder="pdcp_..." autocomplete="off">
+                            <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://cloud.projectdiscovery.io/settings" target="_blank" class="text-orange-400 hover:underline">cloud.projectdiscovery.io</a></p>
+                        </div>
+                    </div>
+
+                    <!-- Credential Monitoring (HIBP) -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.571-4.132"></path></svg>
+                            Credential Monitoring (Have I Been Pwned)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-4">
+                            Check if email addresses associated with your domains have appeared in data breaches.
+                        </p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-red-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to get an HIBP API Key
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                                <ol class="list-decimal list-outside space-y-2 ml-3">
+                                    <li>Go to <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:text-red-300 underline">haveibeenpwned.com/API/Key</a></li>
+                                    <li>Purchase an API key subscription (required for breach lookups)</li>
+                                    <li>Copy the API key from your account dashboard</li>
+                                </ol>
+                                <div class="mt-3 p-2 bg-red-900/20 border border-red-700/30 rounded text-red-300">
+                                    <strong>Pricing:</strong> HIBP API keys are paid (~$3.50/month). This funds the service and ensures responsible usage.
+                                </div>
+                            </div>
+                        </details>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">HIBP API Key</label>
+                            <input type="password" name="hibp_api_key" value="{{ tenant.hibp_api_key or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500 font-mono placeholder-gray-600"
+                                   placeholder="hibp_..." autocomplete="off">
+                            <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-red-400 hover:underline">haveibeenpwned.com/API/Key</a></p>
+                        </div>
+                    </div>
+
+                    <!-- Email Intelligence (Hunter.io) -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            Email Intelligence (Hunter.io)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-4">Discover email addresses associated with domains. Used by the Email Intelligence scanner.</p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-cyan-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to get a Hunter.io API Key
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-3 pl-9">
+                                <ol class="list-decimal list-outside space-y-2 ml-3">
+                                    <li>Go to <a href="https://hunter.io/users/sign_up" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">hunter.io</a> and create a free account</li>
+                                    <li>Navigate to <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline">API Keys</a> in your dashboard</li>
+                                    <li>Copy your API key</li>
+                                </ol>
+                                <div class="mt-3 p-2 bg-cyan-900/20 border border-cyan-700/30 rounded text-cyan-300">
+                                    <strong>Free Tier:</strong> 25 searches/month. Paid plans start at $49/month for 500 searches.
+                                </div>
+                            </div>
+                        </details>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Hunter.io API Key</label>
+                            <input type="password" name="hunter_api_key" value="{{ tenant.hunter_api_key or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
+                                   placeholder="hunter_..." autocomplete="off">
+                            <p class="text-[10px] text-gray-500 mt-1">Get your key from <a href="https://hunter.io/api-keys" target="_blank" class="text-cyan-400 hover:underline">hunter.io/api-keys</a></p>
+                        </div>
+                    </div>
+
+                    <!-- Social Media Scanner (GitHub & Twitter) -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            Social Media Scanner (GitHub & Twitter)
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-4">Enhanced reconnaissance for GitHub repositories and Twitter/X mentions.</p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-purple-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to get API Keys
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
+                                <div>
+                                    <h5 class="font-bold text-white mb-2">GitHub Personal Access Token</h5>
+                                    <ol class="list-decimal list-outside space-y-1 ml-3">
+                                        <li>Go to <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:text-purple-300 underline">GitHub Settings &rarr; Developer settings &rarr; Personal access tokens</a></li>
+                                        <li>Click <strong>"Generate new token (classic)"</strong></li>
+                                        <li>Select scopes: <code class="bg-gray-800 px-1 rounded">public_repo</code>, <code class="bg-gray-800 px-1 rounded">read:org</code>, <code class="bg-gray-800 px-1 rounded">read:user</code></li>
+                                        <li>Generate and copy the token (starts with <code class="bg-gray-800 px-1 rounded">ghp_</code>)</li>
+                                    </ol>
+                                    <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
+                                        <strong>Free:</strong> 5,000 requests/hour with token (vs 60/hour without)
+                                    </div>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-white mb-2">Twitter/X Bearer Token</h5>
+                                    <ol class="list-decimal list-outside space-y-1 ml-3">
+                                        <li>Go to <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:text-purple-300 underline">Twitter Developer Portal</a></li>
+                                        <li>Create a new Project and App</li>
+                                        <li>Navigate to <strong>"Keys and tokens"</strong></li>
+                                        <li>Generate and copy the <strong>Bearer Token</strong></li>
+                                    </ol>
+                                    <div class="mt-2 p-2 bg-purple-900/20 border border-purple-700/30 rounded text-purple-300">
+                                        <strong>Free Tier:</strong> 500,000 tweets/month read access. Requires phone number verification.
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">GitHub Personal Access Token</label>
+                                <input type="password" name="github_token" value="{{ tenant.github_token or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
+                                       placeholder="ghp_..." autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://github.com/settings/tokens" target="_blank" class="text-purple-400 hover:underline">github.com/settings/tokens</a></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Twitter/X Bearer Token</label>
+                                <input type="password" name="twitter_bearer_token" value="{{ tenant.twitter_bearer_token or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono placeholder-gray-600"
+                                       placeholder="AAAA..." autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">Get from <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" class="text-purple-400 hover:underline">developer.twitter.com</a></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced OSINT Pivots -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                            Advanced OSINT Pivots
+                            <span class="ml-2 text-[9px] bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded font-semibold">BETA</span>
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-4">External threat intelligence APIs for enhanced reconnaissance. These are optional and used for cross-referencing findings.</p>
+                        <details class="bg-gray-900/50 border border-gray-700/50 rounded-lg open:bg-gray-900/80 mb-6 group">
+                            <summary class="p-3 text-xs font-bold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-amber-400 transition-colors flex items-center gap-2 select-none">
+                                <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                How to get API Keys
+                            </summary>
+                            <div class="px-4 pb-4 text-xs text-gray-300 space-y-4 pl-9">
+                                <div>
+                                    <h5 class="font-bold text-white mb-2">Shodan API Key</h5>
+                                    <ol class="list-decimal list-outside space-y-1 ml-3">
+                                        <li>Create an account at <a href="https://account.shodan.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">shodan.io</a></li>
+                                        <li>Go to <a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account Settings</a></li>
+                                        <li>Copy your API key from the Overview page</li>
+                                    </ol>
+                                    <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                        <strong>Free:</strong> Limited search credits. Paid membership ($49 one-time) unlocks full access.
+                                    </div>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-white mb-2">Censys API Key</h5>
+                                    <ol class="list-decimal list-outside space-y-1 ml-3">
+                                        <li>Create a free account at <a href="https://censys.io/register" target="_blank" class="text-amber-400 hover:text-amber-300 underline">censys.io</a></li>
+                                        <li>Go to <a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Account &rarr; API</a></li>
+                                        <li>Copy both the <strong>API ID</strong> and <strong>Secret</strong> (format: <code class="bg-gray-800 px-1 rounded">API_ID:SECRET</code>)</li>
+                                    </ol>
+                                    <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                        <strong>Free:</strong> 250 queries/month for researchers. Enterprise plans available.
+                                    </div>
+                                </div>
+                                <div>
+                                    <h5 class="font-bold text-white mb-2">VirusTotal API Key</h5>
+                                    <ol class="list-decimal list-outside space-y-1 ml-3">
+                                        <li>Create an account at <a href="https://www.virustotal.com/gui/join-us" target="_blank" class="text-amber-400 hover:text-amber-300 underline">virustotal.com</a></li>
+                                        <li>Go to your <a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:text-amber-300 underline">Profile &rarr; API Key</a></li>
+                                        <li>Copy your API key</li>
+                                    </ol>
+                                    <div class="mt-2 p-2 bg-amber-900/20 border border-amber-700/30 rounded text-amber-300">
+                                        <strong>Free:</strong> 500 lookups/day, 4 requests/minute. Premium plans remove limits.
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Shodan API Key</label>
+                                <input type="password" name="shodan_api_key" value="{{ tenant.shodan_api_key or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                                       placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1"><a href="https://account.shodan.io/" target="_blank" class="text-amber-400 hover:underline">shodan.io</a> - Internet-wide scanning</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Censys API Key</label>
+                                <input type="password" name="censys_api_key" value="{{ tenant.censys_api_key or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                                       placeholder="api_id:api_secret" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1"><a href="https://search.censys.io/account/api" target="_blank" class="text-amber-400 hover:underline">censys.io</a> - Certificate & host search</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">VirusTotal API Key</label>
+                                <input type="password" name="virustotal_api_key" value="{{ tenant.virustotal_api_key or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500 font-mono placeholder-gray-600"
+                                       placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1"><a href="https://www.virustotal.com/gui/user/apikey" target="_blank" class="text-amber-400 hover:underline">virustotal.com</a> - Malware analysis</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Module API Keys -->
+                    {% if module_api_keys %}
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                            API-Schlüssel der Module
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-5">
+                            BYOK-Keys für aktivierte Scanner-Module. Werden verschlüsselt gespeichert und pro Tenant isoliert.
+                            Felder ohne Eingabe bleiben unverändert; ein Leerzeichen löscht den bestehenden Key.
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for entry in module_api_keys %}
+                            {% set spec = entry.spec %}
+                            <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-1">
+                                    <label class="block text-xs font-bold text-gray-300 uppercase tracking-wide">{{ spec.label }}</label>
+                                    {% if entry.is_set %}
+                                    <span class="text-[10px] text-emerald-400 font-medium">✓ gesetzt</span>
+                                    {% else %}
+                                    <span class="text-[10px] text-gray-600">nicht konfiguriert</span>
+                                    {% endif %}
+                                </div>
+                                {% if spec.description %}
+                                <p class="text-[10px] text-gray-500 mb-2">{{ spec.description }}</p>
+                                {% endif %}
+                                <input type="password"
+                                       name="apikey_{{ spec.name }}"
+                                       placeholder="{{ '••••••••••••' if entry.is_set else spec.placeholder }}"
+                                       autocomplete="off"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono placeholder-gray-600">
+                                {% if spec.help_url %}
+                                <p class="text-[10px] text-gray-500 mt-1">
+                                    Key beantragen: <a href="{{ spec.help_url }}" target="_blank" class="text-indigo-400 hover:underline">{{ spec.help_url }}</a>
+                                </p>
+                                {% endif %}
+                            </div>
                             {% endfor %}
                         </div>
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                        <!-- Test Button -->
-                        <button hx-post="/tenant-settings/webhooks/{{ hook.id }}/test" 
-                                hx-swap="outerHTML"
-                                class="p-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-300 hover:text-white transition-colors text-xs flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                            Test
-                        </button>
-                        <!-- Delete Button -->
-                        <form action="/tenant-settings/webhooks/{{ hook.id }}/delete" method="POST" onsubmit="return confirm('Delete this webhook?');">
-                            {{ csrf_token() }}
+                    {% endif %}
 
-                            <button type="submit" class="p-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 rounded text-red-400 hover:text-red-300 transition-colors text-xs flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
-                        </form>
+                </div><!-- /tab apikeys -->
+
+                <!-- ── Tab: Berichte & AI ────────────────────────────────── -->
+                <div x-show="tab === 'reports'" class="space-y-6">
+
+                    <!-- Report Branding -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Report Branding
+                            <span class="ml-2 text-[9px] bg-cyan-600/20 text-cyan-400 px-1.5 py-0.5 rounded font-semibold">NEW</span>
+                        </h3>
+                        <p class="text-sm text-gray-400 mb-6">
+                            Customize the appearance of generated security reports. These settings apply to all reports created via the Report Builder.
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Logo URL</label>
+                                <input type="text" name="report_logo_url" value="{{ tenant.report_logo_url or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-mono placeholder-gray-600"
+                                       placeholder="https://example.com/logo.png" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">URL to your company logo. Supports PNG, JPG, or SVG. Recommended height: 40-60px.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Company Name</label>
+                                <input type="text" name="report_company_name" value="{{ tenant.report_company_name or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                                       placeholder="{{ tenant.name }}" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">Displayed in report headers. Defaults to tenant name if empty.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Primary Color</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" name="report_primary_color" value="{{ tenant.report_primary_color or '#3b82f6' }}"
+                                           class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
+                                    <input type="text" value="{{ tenant.report_primary_color or '#3b82f6' }}"
+                                           class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
+                                           placeholder="#3b82f6" readonly>
+                                </div>
+                                <p class="text-[10px] text-gray-500 mt-1">Used for headers, titles, and accent elements.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Secondary Color</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" name="report_secondary_color" value="{{ tenant.report_secondary_color or '#64748b' }}"
+                                           class="h-10 w-16 bg-gray-900 border border-gray-700 rounded cursor-pointer">
+                                    <input type="text" value="{{ tenant.report_secondary_color or '#64748b' }}"
+                                           class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm font-mono placeholder-gray-600"
+                                           placeholder="#64748b" readonly>
+                                </div>
+                                <p class="text-[10px] text-gray-500 mt-1">Used for subtitles, borders, and secondary elements.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Header Text</label>
+                                <input type="text" name="report_header_text" value="{{ tenant.report_header_text or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                                       placeholder="Security Assessment Report" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">Optional tagline or subtitle displayed below company name.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Footer Text</label>
+                                <input type="text" name="report_footer_text" value="{{ tenant.report_footer_text or '' }}"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-gray-600"
+                                       placeholder="Confidential - Internal Use Only" autocomplete="off">
+                                <p class="text-[10px] text-gray-500 mt-1">Displayed at the bottom of each report page.</p>
+                            </div>
+                        </div>
+                        <!-- Preview Card -->
+                        <div class="mt-6 p-4 bg-white rounded-lg">
+                            <div class="flex items-center gap-3 pb-3 border-b" style="border-color: {{ tenant.report_primary_color or '#3b82f6' }}20;">
+                                {% if tenant.report_logo_url %}
+                                <img src="{{ tenant.report_logo_url }}" alt="Logo" class="h-8 object-contain" onerror="this.style.display='none'">
+                                {% endif %}
+                                <div>
+                                    <h4 class="font-bold text-sm" style="color: {{ tenant.report_primary_color or '#3b82f6' }}">{{ tenant.report_company_name or tenant.name }}</h4>
+                                    {% if tenant.report_header_text %}
+                                    <p class="text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">{{ tenant.report_header_text }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-600 py-2">Preview of report header styling...</div>
+                            {% if tenant.report_footer_text %}
+                            <div class="pt-2 border-t text-center text-xs" style="color: {{ tenant.report_secondary_color or '#64748b' }}">
+                                {{ tenant.report_footer_text }}
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
-                </div>
-                {% else %}
-                <div class="text-center py-6 text-gray-500 border border-dashed border-gray-700 rounded-lg">
-                    No webhooks configured.
-                </div>
-                {% endfor %}
-            </div>
 
-            <!-- Add New Webhook -->
-            <form action="/tenant-settings/webhooks" method="POST" class="bg-gray-900/30 rounded-lg p-4 border border-gray-700/50">
-                {{ csrf_token() }}
-
-                <h4 class="text-sm font-bold text-white mb-3 uppercase tracking-wide">Add New Webhook</h4>
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div class="md:col-span-8">
-                        <label class="block text-xs text-gray-500 mb-1">Payload URL</label>
-                        <input type="url" name="url" required placeholder="https://api.example.com/hooks/yads" 
-                               class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono">
+                    <!-- LLM / AI Analysis -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg space-y-4">
+                        <div class="flex items-center gap-2 mb-1">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                            <h3 class="text-lg font-semibold text-white">AI / LLM Report Analysis</h3>
+                        </div>
+                        <p class="text-sm text-gray-400">Configure an LLM provider to generate AI-powered risk assessments and management summaries in PDF exports. Use <strong class="text-indigo-400">Export PDF + AI</strong> on the Analytics page to trigger analysis.</p>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Provider</label>
+                            <select name="llm_provider" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500">
+                                <option value="" {% if not tenant.llm_provider %}selected{% endif %}>Disabled (use global setting)</option>
+                                <option value="disabled" {% if tenant.llm_provider == 'disabled' %}selected{% endif %}>Disabled (override global)</option>
+                                <option value="ollama" {% if tenant.llm_provider == 'ollama' %}selected{% endif %}>Ollama (local)</option>
+                                <option value="openai" {% if tenant.llm_provider == 'openai' %}selected{% endif %}>OpenAI</option>
+                                <option value="anthropic" {% if tenant.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic (Claude)</option>
+                                <option value="custom" {% if tenant.llm_provider == 'custom' %}selected{% endif %}>Custom (OpenAI-compatible)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API URL <span class="text-gray-600 font-normal">(Ollama / Custom)</span></label>
+                            <input type="text" name="llm_api_url" value="{{ tenant.llm_api_url or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                                   placeholder="http://ollama:11434">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">API Key <span class="text-gray-600 font-normal">(OpenAI / Anthropic / Custom)</span></label>
+                            <input type="password" name="llm_api_key" value="{{ tenant.llm_api_key or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                                   placeholder="sk-...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Model <span class="text-gray-600 font-normal">(leave blank for default)</span></label>
+                            <input type="text" name="llm_model" value="{{ tenant.llm_model or '' }}"
+                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                                   placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
+                        </div>
                     </div>
-                    <div class="md:col-span-4 self-end">
-                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded shadow-lg shadow-purple-500/20 transition-all text-sm">
-                            Add Webhook
-                        </button>
+
+                </div><!-- /tab reports -->
+
+                <!-- Sticky save bar — visible on all form tabs -->
+                <div x-show="tab !== 'automation'"
+                     class="mt-8 pt-4 border-t border-gray-700 flex items-center justify-between bg-gray-800 p-4 rounded-xl shadow-xl sticky bottom-4 z-20 border border-gray-600">
+                    <div class="text-xs text-gray-400">
+                        <span class="block font-bold text-gray-300">Configuration Status</span>
+                        These settings are applied immediately to all tenant operations.
                     </div>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-indigo-500/20 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Save All Settings
+                    </button>
                 </div>
-                <!-- Event Selection -->
-                <div class="mt-3">
-                    <label class="block text-xs text-gray-500 mb-2">Trigger on Events</label>
-                    <div class="flex flex-wrap gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" name="events" value="scan_finished" checked class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
-                            <span class="text-sm text-gray-300 group-hover:text-white">Scan Finished</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" name="events" value="new_asset" checked class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
-                            <span class="text-sm text-gray-300 group-hover:text-white">New Asset Found</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer group">
-                            <input type="checkbox" name="events" value="vuln_found" class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
-                            <span class="text-sm text-gray-300 group-hover:text-white">Vulnerability Found</span>
-                        </label>
-                    </div>
-                </div>
-            </form>
-        </div>
 
-    <!-- Automated Scan Configuration -->
-    {% if not no_context %}
-    <div class="mt-8" id="automation">
-        <div class="flex items-center gap-3 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <h3 class="text-lg font-bold text-white">Automated Scan Schedule</h3>
-        </div>
-        <form action="/tenant-settings/automation" method="POST" class="bg-gray-900/40 rounded-xl border border-gray-700/50 p-6 space-y-5">
-            {{ csrf_token() }}
+            </form><!-- /main form -->
 
+            <!-- ── Tab: Automation ──────────────────────────────────────── -->
+            <div x-show="tab === 'automation'" class="space-y-6">
 
-            <!-- Master switch -->
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-sm font-semibold text-white">Enable Automated Scanning</div>
-                    <div class="text-xs text-gray-400 mt-0.5">Scheduler queues idle targets automatically on the configured interval</div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span id="auto-scan-label" class="text-xs font-bold {% if scan_config and scan_config.auto_scan_enabled %}text-blue-400{% else %}text-red-400{% endif %}">
-                        {% if scan_config and scan_config.auto_scan_enabled %}EIN{% else %}AUS{% endif %}
-                    </span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" name="auto_scan_enabled" value="true" id="auto-scan-toggle" class="sr-only peer"
-                            {% if scan_config and scan_config.auto_scan_enabled %}checked{% endif %}>
-                        <div class="w-11 h-6 bg-red-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                </div>
-                <script>
-                (function(){
-                    var cb = document.getElementById('auto-scan-toggle');
-                    var lbl = document.getElementById('auto-scan-label');
-                    if(!cb||!lbl) return;
-                    cb.addEventListener('change', function(){
-                        lbl.textContent = cb.checked ? 'EIN' : 'AUS';
-                        lbl.className = 'text-xs font-bold ' + (cb.checked ? 'text-blue-400' : 'text-red-400');
-                    });
-                })();
-                </script>
-            </div>
+                <!-- Webhook Notifications -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Webhook Notifications
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-6">Receive real-time JSON payloads when specific events occur in your tenant.</p>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Frequency -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Frequency</label>
-                    <select name="frequency" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
-                        {% for f in ["daily","weekly","monthly"] %}
-                        <option value="{{ f }}" {% if scan_config and scan_config.frequency == f %}selected{% endif %}>{{ f|capitalize }}</option>
+                    <div class="space-y-4 mb-8">
+                        {% for hook in webhooks %}
+                        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div class="flex-1 overflow-hidden">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-mono text-sm text-indigo-300 truncate" title="{{ hook.url }}">{{ hook.url }}</span>
+                                    {% if hook.is_active %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] bg-green-900/50 text-green-300 border border-green-500/30">Active</span>
+                                    {% else %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] bg-gray-700 text-gray-300">Inactive</span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    {% for event in hook.event_types %}
+                                    <span class="text-[10px] uppercase tracking-wide text-gray-500 bg-gray-800 px-1.5 rounded">{{ event }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button hx-post="/tenant-settings/webhooks/{{ hook.id }}/test" hx-swap="outerHTML"
+                                        class="p-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-gray-300 hover:text-white transition-colors text-xs flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    Test
+                                </button>
+                                <form action="/tenant-settings/webhooks/{{ hook.id }}/delete" method="POST" onsubmit="return confirm('Delete this webhook?');">
+                                    {{ csrf_token() }}
+                                    <button type="submit" class="p-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 rounded text-red-400 hover:text-red-300 transition-colors text-xs flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-6 text-gray-500 border border-dashed border-gray-700 rounded-lg">No webhooks configured.</div>
                         {% endfor %}
-                    </select>
-                </div>
-                <!-- Cron override -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Cron Override <span class="text-gray-500">(optional, overrides frequency)</span></label>
-                    <input type="text" name="cron_expression" placeholder="e.g. 0 2 * * 1"
-                        value="{{ scan_config.cron_expression if scan_config and scan_config.cron_expression else '' }}"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
-                </div>
-                <!-- Max targets per run -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Max Targets per Scheduler Tick</label>
-                    <input type="number" name="max_targets_per_run" min="1" max="100"
-                        value="{{ scan_config.max_targets_per_run if scan_config else 10 }}"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
-                </div>
-                <!-- Max concurrent -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Max Concurrent Scans (this tenant)</label>
-                    <input type="number" name="max_concurrent_scans" min="1" max="10"
-                        value="{{ scan_config.max_concurrent_scans if scan_config else 3 }}"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
-                </div>
-                <!-- Time window -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window Start (UTC HH:MM, optional)</label>
-                    <input type="text" name="scan_window_start" placeholder="e.g. 02:00"
-                        value="{{ scan_config.scan_window_start if scan_config and scan_config.scan_window_start else '' }}"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window End (UTC HH:MM, optional)</label>
-                    <input type="text" name="scan_window_end" placeholder="e.g. 06:00"
-                        value="{{ scan_config.scan_window_end if scan_config and scan_config.scan_window_end else '' }}"
-                        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
-                </div>
-            </div>
-
-            <!-- Scan types -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-300 mb-2">Scan Types to Run Automatically</label>
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {% set active_types = scan_config.scan_types if scan_config and scan_config.scan_types else ["dns_scanner","ssl_scanner","web_analyzer"] %}
-                    {% for st in all_scan_types %}
-                    <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
-                        <input type="checkbox" name="scan_types" value="{{ st }}"
-                            {% if st in active_types %}checked{% endif %}
-                            class="rounded border-gray-600 bg-gray-700 text-blue-500">
-                        {{ st | replace("_", " ") | title }}
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-
-            {% if scan_config and scan_config.last_auto_run_at %}
-            <div class="text-xs text-gray-500">
-                Last auto-run: {{ scan_config.last_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}
-                {% if scan_config.next_auto_run_at %} · Next: {{ scan_config.next_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}{% endif %}
-            </div>
-            {% endif %}
-
-            <div class="flex justify-end pt-2">
-                <button type="submit" class="btn-primary px-6 py-2 text-sm">Save Automation Settings</button>
-            </div>
-        </form>
-    </div>
-    {% endif %}
-
-    <!-- ── Tenant Config Backup / Restore ─────────────────────────────────── -->
-    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg mt-6">
-        <h3 class="text-lg font-semibold text-white mb-1 flex items-center gap-2">
-            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-            </svg>
-            Konfiguration exportieren / importieren
-        </h3>
-        <p class="text-xs text-gray-400 mb-5">
-            Exportiert API-Keys, LLM-Konfiguration, Report-Branding, Webhooks, Scan-Automatisierung und Scanprofile
-            in eine passwortgeschützte <code class="font-mono text-violet-300">.ytcfg</code>-Datei.
-            Beim Import wird eine Vorschau der Änderungen angezeigt, bevor sie angewendet werden.
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            <!-- Export -->
-            <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-5">
-                <h4 class="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    Export
-                </h4>
-                <form id="export-cfg-form" onsubmit="doExportConfig(event)" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">Passwort</label>
-                        <input type="password" id="export-password" required minlength="8"
-                               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-1 focus:ring-violet-500"
-                               placeholder="Min. 8 Zeichen">
-                        <p class="text-[10px] text-gray-500 mt-1">Die Datei wird mit diesem Passwort verschlüsselt.</p>
                     </div>
-                    <button type="submit"
-                            class="w-full px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+
+                    <form action="/tenant-settings/webhooks" method="POST" class="bg-gray-900/30 rounded-lg p-4 border border-gray-700/50">
+                        {{ csrf_token() }}
+                        <h4 class="text-sm font-bold text-white mb-3 uppercase tracking-wide">Add New Webhook</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div class="md:col-span-8">
+                                <label class="block text-xs text-gray-500 mb-1">Payload URL</label>
+                                <input type="url" name="url" required placeholder="https://api.example.com/hooks/yads"
+                                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500 font-mono">
+                            </div>
+                            <div class="md:col-span-4 self-end">
+                                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded shadow-lg shadow-purple-500/20 transition-all text-sm">Add Webhook</button>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs text-gray-500 mb-2">Trigger on Events</label>
+                            <div class="flex flex-wrap gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" name="events" value="scan_finished" checked class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
+                                    <span class="text-sm text-gray-300 group-hover:text-white">Scan Finished</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" name="events" value="new_asset" checked class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
+                                    <span class="text-sm text-gray-300 group-hover:text-white">New Asset Found</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer group">
+                                    <input type="checkbox" name="events" value="vuln_found" class="rounded bg-gray-800 border-gray-600 text-purple-500 focus:ring-offset-gray-900 focus:ring-purple-500">
+                                    <span class="text-sm text-gray-300 group-hover:text-white">Vulnerability Found</span>
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Automated Scan Schedule -->
+                {% if not no_context %}
+                <div id="automation">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Automated Scan Schedule</h3>
+                    </div>
+                    <form action="/tenant-settings/automation" method="POST" class="bg-gray-900/40 rounded-xl border border-gray-700/50 p-6 space-y-5">
+                        {{ csrf_token() }}
+
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-white">Enable Automated Scanning</div>
+                                <div class="text-xs text-gray-400 mt-0.5">Scheduler queues idle targets automatically on the configured interval</div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span id="auto-scan-label" class="text-xs font-bold {% if scan_config and scan_config.auto_scan_enabled %}text-blue-400{% else %}text-red-400{% endif %}">
+                                    {% if scan_config and scan_config.auto_scan_enabled %}EIN{% else %}AUS{% endif %}
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="auto_scan_enabled" value="true" id="auto-scan-toggle" class="sr-only peer"
+                                        {% if scan_config and scan_config.auto_scan_enabled %}checked{% endif %}>
+                                    <div class="w-11 h-6 bg-red-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <script>
+                            (function(){
+                                var cb = document.getElementById('auto-scan-toggle');
+                                var lbl = document.getElementById('auto-scan-label');
+                                if(!cb||!lbl) return;
+                                cb.addEventListener('change', function(){
+                                    lbl.textContent = cb.checked ? 'EIN' : 'AUS';
+                                    lbl.className = 'text-xs font-bold ' + (cb.checked ? 'text-blue-400' : 'text-red-400');
+                                });
+                            })();
+                            </script>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Frequency</label>
+                                <select name="frequency" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                                    {% for f in ["daily","weekly","monthly"] %}
+                                    <option value="{{ f }}" {% if scan_config and scan_config.frequency == f %}selected{% endif %}>{{ f|capitalize }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Cron Override <span class="text-gray-500">(optional, overrides frequency)</span></label>
+                                <input type="text" name="cron_expression" placeholder="e.g. 0 2 * * 1"
+                                    value="{{ scan_config.cron_expression if scan_config and scan_config.cron_expression else '' }}"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Max Targets per Scheduler Tick</label>
+                                <input type="number" name="max_targets_per_run" min="1" max="100"
+                                    value="{{ scan_config.max_targets_per_run if scan_config else 10 }}"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Max Concurrent Scans (this tenant)</label>
+                                <input type="number" name="max_concurrent_scans" min="1" max="10"
+                                    value="{{ scan_config.max_concurrent_scans if scan_config else 3 }}"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window Start (UTC HH:MM, optional)</label>
+                                <input type="text" name="scan_window_start" placeholder="e.g. 02:00"
+                                    value="{{ scan_config.scan_window_start if scan_config and scan_config.scan_window_start else '' }}"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-300 mb-1">Scan Window End (UTC HH:MM, optional)</label>
+                                <input type="text" name="scan_window_end" placeholder="e.g. 06:00"
+                                    value="{{ scan_config.scan_window_end if scan_config and scan_config.scan_window_end else '' }}"
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 mb-2">Scan Types to Run Automatically</label>
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {% set active_types = scan_config.scan_types if scan_config and scan_config.scan_types else ["dns_scanner","ssl_scanner","web_analyzer"] %}
+                                {% for st in all_scan_types %}
+                                <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                                    <input type="checkbox" name="scan_types" value="{{ st }}"
+                                        {% if st in active_types %}checked{% endif %}
+                                        class="rounded border-gray-600 bg-gray-700 text-blue-500">
+                                    {{ st | replace("_", " ") | title }}
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {% if scan_config and scan_config.last_auto_run_at %}
+                        <div class="text-xs text-gray-500">
+                            Last auto-run: {{ scan_config.last_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}
+                            {% if scan_config.next_auto_run_at %} · Next: {{ scan_config.next_auto_run_at.strftime("%Y-%m-%d %H:%M UTC") }}{% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="flex justify-end pt-2">
+                            <button type="submit" class="btn-primary px-6 py-2 text-sm">Save Automation Settings</button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                <!-- Konfiguration exportieren / importieren -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                         </svg>
-                        .ytcfg herunterladen
-                    </button>
-                </form>
-            </div>
-
-            <!-- Import -->
-            <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-5">
-                <h4 class="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                    </svg>
-                    Import
-                </h4>
-                <form id="import-preview-form" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">.ytcfg-Datei</label>
-                        <input type="file" id="import-file" accept=".ytcfg" required
-                               class="w-full text-sm text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-violet-700 file:text-white hover:file:bg-violet-600 cursor-pointer">
+                        Konfiguration exportieren / importieren
+                    </h3>
+                    <p class="text-xs text-gray-400 mb-5">
+                        Exportiert API-Keys, LLM-Konfiguration, Report-Branding, Webhooks, Scan-Automatisierung und Scanprofile
+                        in eine passwortgeschützte <code class="font-mono text-violet-300">.ytcfg</code>-Datei.
+                        Beim Import wird eine Vorschau der Änderungen angezeigt, bevor sie angewendet werden.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-5">
+                            <h4 class="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                Export
+                            </h4>
+                            <form id="export-cfg-form" onsubmit="doExportConfig(event)" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-400 mb-1">Passwort</label>
+                                    <input type="password" id="export-password" required minlength="8"
+                                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-1 focus:ring-violet-500"
+                                           placeholder="Min. 8 Zeichen">
+                                    <p class="text-[10px] text-gray-500 mt-1">Die Datei wird mit diesem Passwort verschlüsselt.</p>
+                                </div>
+                                <button type="submit"
+                                        class="w-full px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                    </svg>
+                                    .ytcfg herunterladen
+                                </button>
+                            </form>
+                        </div>
+                        <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-5">
+                            <h4 class="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                </svg>
+                                Import
+                            </h4>
+                            <form id="import-preview-form" class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-400 mb-1">.ytcfg-Datei</label>
+                                    <input type="file" id="import-file" accept=".ytcfg" required
+                                           class="w-full text-sm text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-violet-700 file:text-white hover:file:bg-violet-600 cursor-pointer">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-400 mb-1">Passwort</label>
+                                    <input type="password" id="import-password" required
+                                           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-1 focus:ring-amber-500"
+                                           placeholder="Datei-Passwort">
+                                </div>
+                                <button type="button" onclick="doImportPreview()"
+                                        class="w-full px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm-3 9a9 9 0 100-18 9 9 0 000 18z"/>
+                                    </svg>
+                                    Vorschau laden
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-1">Passwort</label>
-                        <input type="password" id="import-password" required
-                               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:ring-1 focus:ring-amber-500"
-                               placeholder="Datei-Passwort">
-                    </div>
-                    <button type="button" onclick="doImportPreview()"
-                            class="w-full px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm-3 9a9 9 0 100-18 9 9 0 000 18z"/>
-                        </svg>
-                        Vorschau laden
-                    </button>
-                </form>
-            </div>
-        </div>
+                    <div id="import-preview-area" class="mt-5"></div>
+                </div>
 
-        <!-- Preview area -->
-        <div id="import-preview-area" class="mt-5"></div>
-    </div>
+            </div><!-- /tab automation -->
 
-    <script>
-    // ── Export ────────────────────────────────────────────────────────────────
-    async function doExportConfig(e) {
-        e.preventDefault();
-        var pw = document.getElementById('export-password').value;
-        if (!pw || pw.length < 8) { alert('Passwort muss mindestens 8 Zeichen lang sein.'); return; }
-        var btn = e.submitter || e.target.querySelector('button[type=submit]');
-        btn.disabled = true;
-        btn.textContent = 'Wird erstellt…';
-        try {
-            var resp = await fetch('/tenant-settings/export-config?password=' + encodeURIComponent(pw), { method: 'GET' });
-            if (!resp.ok) {
-                var err = await resp.json().catch(() => ({}));
-                alert('Fehler: ' + (err.detail || resp.statusText));
-                return;
-            }
-            var blob = await resp.blob();
-            var cd = resp.headers.get('Content-Disposition') || '';
-            var fname = (cd.match(/filename="?([^"]+)"?/) || [])[1] || 'config.ytcfg';
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a'); a.href = url; a.download = fname; a.click();
-            URL.revokeObjectURL(url);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> .ytcfg herunterladen';
-        }
-    }
-
-    // ── CSRF helper ───────────────────────────────────────────────────────────
-    function getCsrfToken() {
-        var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
-        return match ? decodeURIComponent(match[1]) : '';
-    }
-
-    // ── Import preview ────────────────────────────────────────────────────────
-    async function doImportPreview() {
-        var file = document.getElementById('import-file').files[0];
-        var pw   = document.getElementById('import-password').value;
-        if (!file) { alert('Bitte eine .ytcfg-Datei auswählen.'); return; }
-        if (!pw)   { alert('Bitte das Datei-Passwort eingeben.'); return; }
-        var area = document.getElementById('import-preview-area');
-        area.innerHTML = '<div class="text-xs text-slate-400 animate-pulse p-4">Lade Vorschau…</div>';
-        var fd = new FormData();
-        fd.append('config_file', file);
-        fd.append('import_password', pw);
-        try {
-            var resp = await fetch('/tenant-settings/import-config/preview', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': getCsrfToken() },
-                body: fd
-            });
-            area.innerHTML = await resp.text();
-        } catch (err) {
-            area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';
-        }
-    }
-
-    // ── Apply (called from preview fragment) ──────────────────────────────────
-    window.doApplyConfig = async function() {
-        var file = document.getElementById('import-file').files[0];
-        var pw   = document.getElementById('import-password').value;
-        if (!file || !pw) { alert('Datei oder Passwort fehlt. Bitte erneut auswählen.'); return; }
-        var area = document.getElementById('import-preview-area');
-        var fd = new FormData();
-        fd.append('config_file', file);
-        fd.append('import_password', pw);
-        try {
-            var resp = await fetch('/tenant-settings/import-config/apply', {
-                method: 'POST',
-                headers: { 'X-CSRF-Token': getCsrfToken() },
-                body: fd
-            });
-            area.innerHTML = await resp.text();
-        } catch (err) {
-            area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';
-        }
-    };
-    </script>
+        </div><!-- /x-data tab wrapper -->
 
     {% endif %}
 </div>
+
+<script>
+async function doExportConfig(e) {
+    e.preventDefault();
+    var pw = document.getElementById('export-password').value;
+    if (!pw || pw.length < 8) { alert('Passwort muss mindestens 8 Zeichen lang sein.'); return; }
+    var btn = e.submitter || e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Wird erstellt…';
+    try {
+        var resp = await fetch('/tenant-settings/export-config?password=' + encodeURIComponent(pw), { method: 'GET' });
+        if (!resp.ok) {
+            var err = await resp.json().catch(() => ({}));
+            alert('Fehler: ' + (err.detail || resp.statusText));
+            return;
+        }
+        var blob = await resp.blob();
+        var cd = resp.headers.get('Content-Disposition') || '';
+        var fname = (cd.match(/filename="?([^"]+)"?/) || [])[1] || 'config.ytcfg';
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> .ytcfg herunterladen';
+    }
+}
+
+function getCsrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
+async function doImportPreview() {
+    var file = document.getElementById('import-file').files[0];
+    var pw   = document.getElementById('import-password').value;
+    if (!file) { alert('Bitte eine .ytcfg-Datei auswählen.'); return; }
+    if (!pw)   { alert('Bitte das Datei-Passwort eingeben.'); return; }
+    var area = document.getElementById('import-preview-area');
+    area.innerHTML = '<div class="text-xs text-slate-400 animate-pulse p-4">Lade Vorschau…</div>';
+    var fd = new FormData();
+    fd.append('config_file', file);
+    fd.append('import_password', pw);
+    try {
+        var resp = await fetch('/tenant-settings/import-config/preview', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': getCsrfToken() },
+            body: fd
+        });
+        area.innerHTML = await resp.text();
+    } catch (err) {
+        area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';
+    }
+}
+
+window.doApplyConfig = async function() {
+    var file = document.getElementById('import-file').files[0];
+    var pw   = document.getElementById('import-password').value;
+    if (!file || !pw) { alert('Datei oder Passwort fehlt. Bitte erneut auswählen.'); return; }
+    var area = document.getElementById('import-preview-area');
+    var fd = new FormData();
+    fd.append('config_file', file);
+    fd.append('import_password', pw);
+    try {
+        var resp = await fetch('/tenant-settings/import-config/apply', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': getCsrfToken() },
+            body: fd
+        });
+        area.innerHTML = await resp.text();
+    } catch (err) {
+        area.innerHTML = '<div class="text-xs text-red-400 p-4">Netzwerkfehler: ' + err + '</div>';
+    }
+};
+</script>
 {% endblock %}

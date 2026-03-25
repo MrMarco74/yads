@@ -65,11 +65,12 @@ async def add_tenant(request: Request, name: str = Form(...), session: Session =
 
 @router.post("/update", dependencies=[Depends(RoleChecker(["admin"]))])
 async def update_tenant(
-    tenant_id: int = Form(...), 
+    tenant_id: int = Form(...),
     name: str = Form(...),
     osint_enabled: bool = Form(False),
     osint_quota: int = Form(0),
     osint_cost: float = Form(0.0),
+    max_targets: int = Form(500),
     session: Session = Depends(get_db_session)
 ):
     # License Check
@@ -88,6 +89,7 @@ async def update_tenant(
     tenant.osint_enabled = osint_enabled
     tenant.osint_quota_max = osint_quota
     tenant.osint_cost_per_search = osint_cost
+    tenant.max_targets = max(1, max_targets)
     
     session.add(tenant)
     session.commit()

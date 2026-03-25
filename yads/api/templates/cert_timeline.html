@@ -1,145 +1,407 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="space-y-6">
+<div x-data="certPage()" class="space-y-6">
 
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex flex-wrap justify-between items-start gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-white tracking-tight">Certificate Timeline</h1>
-            <p class="text-sm text-slate-400">Visual history of SSL certificate issuance across your infrastructure.</p>
+            <h1 class="text-2xl font-bold text-white tracking-tight">SSL Certificate Hub</h1>
+            <p class="text-sm text-slate-400 mt-1">Certificate timeline and full inventory with PQC readiness.</p>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-2">
             {% if date_range_display %}
-            <span class="text-sm text-slate-400">
-                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span class="text-sm text-slate-400 flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 {{ date_range_display }}
             </span>
             {% endif %}
-            <div class="flex gap-2">
-                <a href="/cert-timeline/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Excel
-                </a>
-                <a href="/cert-timeline/export/pdf?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    PDF
-                </a>
-            </div>
+            <!-- Export buttons swap with tab -->
+            <template x-if="activeTab === 'timeline'">
+                <div class="flex gap-2">
+                    <a href="/cert-timeline/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}"
+                       class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-slate-700 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Excel
+                    </a>
+                    <a href="/cert-timeline/export/pdf?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}"
+                       class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-slate-700 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        PDF
+                    </a>
+                </div>
+            </template>
+            <template x-if="activeTab === 'inventory'">
+                <div class="flex gap-2">
+                    <a href="/cert-timeline/inventory/export/excel?date_from={{ request.query_params.date_from or '' }}&date_to={{ request.query_params.date_to or '' }}&preset={{ request.query_params.preset or 'all' }}"
+                       class="inline-flex items-center gap-1.5 rounded-md bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-800/40 hover:text-white border border-emerald-800/50 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Export Excel
+                    </a>
+                    <a href="/pqc/export/excel"
+                       class="inline-flex items-center gap-1.5 rounded-md bg-violet-900/30 px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-800/40 hover:text-white border border-violet-800/50 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        PQC Fleet Report
+                    </a>
+                </div>
+            </template>
         </div>
     </div>
 
     <!-- Date Filter -->
-    <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-        <form method="GET" class="space-y-4">
+    <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+        <form method="GET" class="space-y-3">
+            <input type="hidden" name="tab" :value="activeTab">
             {% include 'components/_date_range_picker.html' %}
             <div class="flex gap-2">
                 <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">Apply Filter</button>
-                <a href="/cert-timeline" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition-all border border-slate-700">Reset</a>
+                <a x-bind:href="'/cert-timeline/?tab=' + activeTab" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition-all border border-slate-700">Reset</a>
             </div>
         </form>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Total Certs -->
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-             <div class="flex items-center gap-4">
-                <div class="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+    <!-- Stats — 4 cards, clickable to filter timeline -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <!-- Active Certificates -->
+        <button type="button" @click="setFilter('active')"
+                :class="activeFilter === 'active' ? 'ring-2 ring-blue-400 border-blue-500/50' : 'border-slate-800 hover:border-blue-500/30'"
+                class="rounded-xl border bg-slate-900/50 p-5 text-left transition-all w-full group relative">
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                 </div>
                 <div>
-                    <h4 class="text-2xl font-bold text-white">{{ stats.total_certs }}</h4>
+                    <p class="text-2xl font-bold text-white">{{ stats.total_certs }}</p>
                     <p class="text-xs text-slate-400 font-medium">Active Certificates</p>
                 </div>
             </div>
-        </div>
-        
+            <div x-show="activeTab === 'timeline'" class="mt-2 text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">Click to filter ↑</div>
+        </button>
+
         <!-- Expiring Soon -->
-         <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-             <div class="flex items-center gap-4">
-                <div class="h-10 w-10 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <button type="button" @click="setFilter('expiring_soon')"
+                :class="activeFilter === 'expiring_soon' ? 'ring-2 ring-orange-400 border-orange-500/50' : 'border-slate-800 hover:border-orange-500/30'"
+                class="rounded-xl border bg-slate-900/50 p-5 text-left transition-all w-full group relative">
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </div>
                 <div>
-                    <h4 class="text-2xl font-bold text-white">{{ stats.expiring_soon }}</h4>
-                    <p class="text-xs text-orange-400 font-medium">Expiring < 30 Days</p>
+                    <p class="text-2xl font-bold text-white">{{ stats.expiring_soon }}</p>
+                    <p class="text-xs text-orange-400 font-medium">Expiring &lt; 30 Days</p>
                 </div>
             </div>
-        </div>
+            <div x-show="activeTab === 'timeline'" class="mt-2 text-[10px] text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity">Click to filter ↑</div>
+        </button>
 
-        <!-- Rogue Candidates -->
-        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-             <div class="flex items-center gap-4">
-                <div class="h-10 w-10 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <!-- Expired -->
+        <button type="button" @click="setFilter('expired')"
+                :class="activeFilter === 'expired' ? 'ring-2 ring-red-400 border-red-500/50' : 'border-slate-800 hover:border-red-500/30'"
+                class="rounded-xl border bg-slate-900/50 p-5 text-left transition-all w-full group relative">
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                 </div>
                 <div>
-                    <h4 class="text-2xl font-bold text-white">{{ stats.rogue_candidates }}</h4>
-                    <p class="text-xs text-rose-400 font-medium">Issued Recently (< 24h)</p>
+                    <p class="text-2xl font-bold text-white">{{ stats.expired }}</p>
+                    <p class="text-xs text-red-400 font-medium">Expired Certificates</p>
                 </div>
             </div>
-        </div>
+            <div x-show="activeTab === 'timeline'" class="mt-2 text-[10px] text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">Click to filter ↑</div>
+        </button>
+
+        <!-- Issued Recently -->
+        <button type="button" @click="setFilter('new')"
+                :class="activeFilter === 'new' ? 'ring-2 ring-rose-400 border-rose-500/50' : 'border-slate-800 hover:border-rose-500/30'"
+                class="rounded-xl border bg-slate-900/50 p-5 text-left transition-all w-full group relative">
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg bg-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stats.rogue_candidates }}</p>
+                    <p class="text-xs text-rose-400 font-medium">Issued &lt; 24h</p>
+                </div>
+            </div>
+            <div x-show="activeTab === 'timeline'" class="mt-2 text-[10px] text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">Click to filter ↑</div>
+        </button>
+
     </div>
 
-    <!-- Timeline -->
-    <div class="relative border-l border-slate-800 ml-3 space-y-8">
-        
-        {% for period, certs in timeline.items() %}
-        <div class="mb-8">
-            <div class="absolute -left-1.5 mt-2 h-3 w-3 rounded-full border border-slate-900 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
-            <h3 class="ml-6 text-xl font-bold text-white mb-6 uppercase tracking-wider text-xs bg-slate-800/50 inline-block px-3 py-1 rounded-full">{{ period }}</h3>
-            
-            <div class="ml-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for cert in certs %}
-                <div class="rounded-xl border {% if cert.is_new %}border-rose-500/50 bg-rose-900/10{% else %}border-slate-800 bg-slate-900/50{% endif %} p-5 transition-all hover:border-indigo-500/50 group relative overflow-hidden">
-                    
-                    {% if cert.is_new %}
-                    <div class="absolute top-0 right-0 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl">NEW</div>
-                    {% endif %}
+    <!-- Active Filter Banner -->
+    <div x-show="activeFilter !== null" x-transition class="flex items-center gap-3 bg-slate-800/60 border border-slate-700/50 rounded-lg px-4 py-2.5 text-sm text-slate-300">
+        <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"></path></svg>
+        <span>Filter: <strong x-text="filterLabels[activeFilter]" class="text-white"></strong></span>
+        <button @click="clearFilter()" class="ml-auto text-xs text-slate-400 hover:text-white flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            Clear
+        </button>
+    </div>
 
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="h-8 w-8 rounded bg-slate-800 flex items-center justify-center">
-                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+    <!-- Tab Bar -->
+    <div class="flex border-b border-slate-800">
+        <button type="button" @click="switchTab('timeline')"
+                :class="activeTab === 'timeline' ? 'border-b-2 border-indigo-500 text-white' : 'text-slate-400 hover:text-slate-200'"
+                class="px-5 py-3 text-sm font-semibold transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            Certificate Timeline
+        </button>
+        <button type="button" @click="switchTab('inventory')"
+                :class="activeTab === 'inventory' ? 'border-b-2 border-indigo-500 text-white' : 'text-slate-400 hover:text-slate-200'"
+                class="px-5 py-3 text-sm font-semibold transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            SSL Inventory
+            <span class="text-[10px] font-mono bg-slate-700 px-1.5 py-0.5 rounded text-slate-400">{{ inventory | length }}</span>
+        </button>
+    </div>
+
+    <!-- ── Tab: Timeline ─────────────────────────────────────────── -->
+    <div x-show="activeTab === 'timeline'" x-transition:enter="transition-opacity duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+        <div id="timeline-container" class="relative border-l border-slate-800 ml-3 space-y-8">
+
+            {% for period, certs in timeline.items() %}
+            <div class="mb-8 timeline-period">
+                <div class="absolute -left-1.5 mt-2 h-3 w-3 rounded-full border border-slate-900 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                <h3 class="ml-6 text-xs font-bold text-white mb-4 uppercase tracking-wider bg-slate-800/50 inline-block px-3 py-1 rounded-full">{{ period }}</h3>
+
+                <div class="ml-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for cert in certs %}
+                    <div data-cert-status="{{ cert.cert_status }}"
+                         class="rounded-xl border transition-all hover:border-indigo-500/50 group relative overflow-hidden
+                                {% if cert.cert_status == 'expired' %}border-red-500/50 bg-red-900/10
+                                {% elif cert.cert_status == 'expiring_soon' %}border-orange-500/40 bg-orange-900/10
+                                {% elif cert.cert_status == 'new' %}border-rose-500/50 bg-rose-900/10
+                                {% else %}border-slate-800 bg-slate-900/50{% endif %}">
+
+                        {% if cert.cert_status == 'expired' %}
+                        <div class="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl">EXPIRED</div>
+                        {% elif cert.cert_status == 'new' %}
+                        <div class="absolute top-0 right-0 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl">NEW</div>
+                        {% elif cert.cert_status == 'expiring_soon' %}
+                        <div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl">{{ cert.days_left }}d left</div>
+                        {% endif %}
+
+                        <div class="p-5">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="h-8 w-8 rounded bg-slate-800 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-white truncate max-w-[170px]" title="{{ cert.subject }}">{{ cert.subject }}</h4>
+                                        <a href="/targets/{{ cert.target_id }}" class="text-xs text-indigo-400 hover:underline block">{{ cert.domain }}</a>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h4 class="text-sm font-semibold text-white truncate max-w-[180px]" title="{{ cert.subject }}">{{ cert.subject }}</h4>
-                                <a href="/targets/{{ cert.target_id }}" class="text-xs text-indigo-400 hover:underline block">{{ cert.domain }}</a>
+
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="text-slate-500">Issuer</span>
+                                    <span class="text-slate-300 font-medium truncate max-w-[150px]" title="{{ cert.issuer }}">{{ cert.issuer }}</span>
+                                </div>
+
+                                <div class="bg-slate-800 h-1.5 rounded-full overflow-hidden w-full">
+                                    <div class="h-full rounded-full
+                                        {% if cert.cert_status == 'expired' %}bg-red-500
+                                        {% elif cert.cert_status == 'expiring_soon' %}bg-orange-500
+                                        {% else %}bg-indigo-500{% endif %}"
+                                         style="width: 100%"></div>
+                                </div>
+
+                                <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                                    <span>{{ cert.issued_display }}</span>
+                                    <span class="{% if cert.cert_status == 'expired' %}text-red-400{% elif cert.cert_status == 'expiring_soon' %}text-orange-400{% endif %}">
+                                        {{ cert.expires_display }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="space-y-3">
-                         <!-- Issuer -->
-                        <div class="flex justify-between items-center text-xs">
-                             <span class="text-slate-500">Issuer</span>
-                             <span class="text-slate-300 font-medium truncate max-w-[150px]" title="{{ cert.issuer }}">{{ cert.issuer }}</span>
-                        </div>
-                        
-                        <!-- Timeline Bar -->
-                        <div class="bg-slate-800 h-1.5 rounded-full overflow-hidden w-full mt-2">
-                             <div class="bg-indigo-500 h-full rounded-full" style="width: 100%"></div>
-                        </div>
-                        
-                        <!-- Dates -->
-                        <div class="flex justify-between text-[10px] text-slate-500 font-mono">
-                            <span>{{ cert.issued_display }}</span>
-                            <span>{{ cert.expires_display }}</span>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+            </div>
+            {% else %}
+            <div class="ml-6 mt-4">
+                <div class="p-8 rounded-xl border border-slate-800 border-dashed text-center">
+                    <p class="text-slate-500">No certificates found. Ensure SSL Scanner is enabled.</p>
+                </div>
+            </div>
+            {% endfor %}
+
+        </div>
+
+        <!-- No results after filter -->
+        <div id="timeline-empty-msg" class="hidden p-8 rounded-xl border border-slate-800 border-dashed text-center text-slate-500">
+            No certificates match the selected filter.
+        </div>
+    </div>
+
+    <!-- ── Tab: Inventory ────────────────────────────────────────── -->
+    <div x-show="activeTab === 'inventory'" x-transition:enter="transition-opacity duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="space-y-4">
+
+        <!-- PQC Legend -->
+        <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">PQC Status — Legend</p>
+            <div class="flex flex-wrap gap-4 text-xs text-slate-300">
+                <div class="flex items-start gap-2">
+                    <span class="inline-flex items-center gap-1 rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/20 whitespace-nowrap">
+                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse inline-block"></span>PQC Active
+                    </span>
+                    <span class="text-slate-400 leading-tight">Hybrid PQC key exchange (e.g. X25519MLKEM768) was actively negotiated. Already quantum-safe.</span>
+                </div>
+                <div class="flex items-start gap-2">
+                    <span class="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-300 ring-1 ring-inset ring-yellow-400/20 whitespace-nowrap">Capable</span>
+                    <span class="text-slate-400 leading-tight">TLS 1.3 active (prerequisite met), but no PQC key exchange configured yet. Ready to enable.</span>
+                </div>
+                <div class="flex items-start gap-2">
+                    <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20 whitespace-nowrap">Not Ready</span>
+                    <span class="text-slate-400 leading-tight">No TLS 1.3 detected. Upgrade to TLS 1.3 first before PQC can be enabled.</span>
+                </div>
             </div>
         </div>
-        {% else %}
-         <div class="ml-6 mt-4">
-             <div class="p-8 rounded-xl border border-slate-800 border-dashed text-center">
-                 <p class="text-slate-500">No active certificates found. Ensure SSL Scanner is enabled.</p>
-             </div>
-         </div>
-        {% endfor %}
-        
+
+        <!-- Inventory Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-400">
+                    <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                        <tr>
+                            <th class="px-6 py-4">Domain / Target</th>
+                            <th class="px-6 py-4">Common Name (CN)</th>
+                            <th class="px-6 py-4">Issuer</th>
+                            <th class="px-6 py-4">Validity</th>
+                            <th class="px-6 py-4">PQC Status</th>
+                            <th class="px-6 py-4">Status</th>
+                            <th class="px-6 py-4 text-right">Serial / Ver.</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        {% for cert in inventory %}
+                        <tr class="hover:bg-slate-800/30 transition-colors">
+                            <td class="px-6 py-4">
+                                <a href="/targets/{{ cert.target_id }}" class="text-white font-medium hover:text-indigo-400 hover:underline">{{ cert.domain }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="truncate max-w-[200px]" title="{{ cert.subject }}">{{ cert.subject }}</span>
+                                    {% if cert.san_count > 1 %}
+                                    <span title="SANs: {{ cert.sans }}" class="cursor-help inline-flex items-center rounded-sm bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase font-bold text-slate-400 border border-slate-700">
+                                        +{{ cert.san_count - 1 }} SANs
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="truncate max-w-[150px] block" title="{{ cert.issuer }}">{{ cert.issuer }}</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-col text-xs">
+                                    <span class="text-slate-300">From: {{ cert.issued_display }}</span>
+                                    <span class="text-slate-500">To: {{ cert.expires_display }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if cert.pqc_status == 'PQC Active' %}
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse inline-block"></span>PQC Active
+                                    </span>
+                                {% elif cert.pqc_status == 'PQC Capable' %}
+                                    <span class="inline-flex items-center rounded-md bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-300 ring-1 ring-inset ring-yellow-400/20">Capable</span>
+                                {% elif cert.pqc_status %}
+                                    <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">Not Ready</span>
+                                {% else %}
+                                    <span class="text-slate-600 text-xs">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if cert.days_valid < 0 %}
+                                    <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">Expired</span>
+                                {% elif cert.days_valid < 30 %}
+                                    <span class="inline-flex items-center rounded-md bg-orange-400/10 px-2 py-1 text-xs font-medium text-orange-400 ring-1 ring-inset ring-orange-400/20">Expiring ({{ cert.days_valid }}d)</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-md bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-400 ring-1 ring-inset ring-emerald-400/20">Valid ({{ cert.days_valid }}d)</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <div class="flex flex-col items-end gap-1">
+                                    <span class="text-[10px] font-mono text-slate-600" title="Serial Number">{{ cert.serial_short }}...</span>
+                                    <span class="text-[10px] text-slate-500">{{ cert.version or 'v3' }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                                No SSL certificates found. Run the SSL Scanner module to populate this list.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
+
 </div>
+
+<script>
+function certPage() {
+    return {
+        activeTab: '{{ active_tab | default("timeline") }}',
+        activeFilter: null,
+        filterLabels: {
+            active: 'Active Certificates',
+            expiring_soon: 'Expiring < 30 Days',
+            expired: 'Expired Certificates',
+            new: 'Issued < 24h',
+        },
+
+        switchTab(tab) {
+            this.activeTab = tab;
+            if (tab === 'timeline' && this.activeFilter) {
+                this.$nextTick(() => this._applyFilter());
+            }
+            // Update URL without reload
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url);
+        },
+
+        setFilter(status) {
+            if (this.activeTab !== 'timeline') {
+                this.activeTab = 'timeline';
+            }
+            this.activeFilter = this.activeFilter === status ? null : status;
+            this.$nextTick(() => this._applyFilter());
+        },
+
+        clearFilter() {
+            this.activeFilter = null;
+            this._applyFilter();
+        },
+
+        _applyFilter() {
+            const cards = document.querySelectorAll('[data-cert-status]');
+            cards.forEach(el => {
+                const match = this.activeFilter === null || el.dataset.certStatus === this.activeFilter;
+                el.style.display = match ? '' : 'none';
+            });
+
+            // Hide/show period groups if all cards within are hidden
+            document.querySelectorAll('.timeline-period').forEach(period => {
+                const hasVisible = Array.from(period.querySelectorAll('[data-cert-status]'))
+                    .some(el => el.style.display !== 'none');
+                period.style.display = hasVisible ? '' : 'none';
+            });
+
+            // Show empty state if everything is hidden
+            const anyVisible = Array.from(cards).some(el => el.style.display !== 'none');
+            const emptyMsg = document.getElementById('timeline-empty-msg');
+            if (emptyMsg) emptyMsg.classList.toggle('hidden', anyVisible || this.activeFilter === null);
+        },
+    };
+}
+</script>
 {% endblock %}

@@ -109,9 +109,25 @@ async def bulk_scan_targets(
 
     logger.info(f"Bulk Scan Request. Target Count: {len(target_ids)}. Final: {final_types}")
 
+    # Soft cap: max 50 queued+running tasks per tenant to avoid flooding the broker
+    already_active = 0
+    if user.tenant_id:
+        from sqlmodel import func
+        already_active = session.exec(
+            select(func.count(Target.id)).where(
+                Target.tenant_id == user.tenant_id,
+                Target.scan_status.in_(["queued", "running"])
+            )
+        ).first() or 0
+    max_new = max(0, 50 - already_active) if user.tenant_id else len(target_ids)
+
     count = 0
     skipped = 0
-    for tid_str in target_ids:
+    capped = 0
+    for i, tid_str in enumerate(target_ids):
+        if count >= max_new:
+            capped = len(target_ids) - i
+            break
         if _queue_single_bulk_target(session, user, tid_str, final_types):
             count += 1
         else:
@@ -120,10 +136,12 @@ async def bulk_scan_targets(
     session.commit()
     _audit_scan_trigger(session, user, list(target_ids)[:50], final_types, "bulk_scan", request)
 
+    msg_parts = [f"Queued {count} scans"]
     if skipped:
-        msg = f"Queued+{count}+scans+(+{skipped}+skipped)"
-    else:
-        msg = f"Queued+{count}+scans"
+        msg_parts.append(f"{skipped} skipped")
+    if capped:
+        msg_parts.append(f"{capped} deferred (queue cap, {already_active + count}/50 active)")
+    msg = ", ".join(msg_parts).replace(" ", "+")
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
 

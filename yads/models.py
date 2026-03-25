@@ -80,6 +80,9 @@ class Tenant(SQLModel, table=True):
     llm_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     llm_model: Optional[str] = Field(default=None)
 
+    # Target quota
+    max_targets: int = Field(default=500)
+
     # Finding SLA (days until due_date, BSI defaults)
     sla_critical: int = Field(default=7)
     sla_high: int = Field(default=30)
@@ -120,7 +123,8 @@ class Target(SQLModel, table=True):
     # Status Tracking
     scan_status: str = Field(default="idle") # idle, queued, running, failed
     scan_progress: Optional[str] = Field(default=None) # e.g. "Running DNS Scanner..."
-    queued_at: Optional[datetime] = Field(default=None)  # set when dispatched, cleared when worker picks up
+    queued_at: Optional[datetime] = Field(default=None)  # set when dispatched to Celery
+    scan_heartbeat_at: Optional[datetime] = Field(default=None)  # updated every 2 min while running
     
     # Archiving (for DNS cleanup)
     is_archived: bool = Field(default=False, index=True)
