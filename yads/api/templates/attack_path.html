@@ -57,15 +57,8 @@
     <!-- Main Layout -->
     <div x-show="graphLoaded && !loading" class="grid grid-cols-1 xl:grid-cols-4 gap-4">
 
-        <!-- Graph Canvas (right / main area) -->
-        <div class="xl:col-span-3 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" style="height: 620px;">
-            <div id="graph-container" class="w-full h-full relative">
-                <svg id="attack-graph-svg" class="w-full h-full" style="background: #0b0f19;"></svg>
-            </div>
-        </div>
-
         <!-- Left Panel: Summary Stats -->
-        <div class="xl:col-span-1 space-y-4 xl:order-first">
+        <div class="xl:col-span-1 space-y-4">
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 xl:grid-cols-1 gap-3">
@@ -401,9 +394,9 @@ function attackPathApp() {
                     .slice(0, 15);
                 this.graphLoaded = true;
 
-                // Render after DOM update
+                // Render after DOM update + browser layout pass
                 await this.$nextTick();
-                this.renderGraph();
+                requestAnimationFrame(() => requestAnimationFrame(() => this.renderGraph()));
             } catch (e) {
                 this.error = e.message || 'An error occurred loading the attack graph.';
             } finally {
@@ -536,8 +529,8 @@ function attackPathApp() {
             d3.select(svgEl).selectAll('*').remove();
             if (this._simulation) this._simulation.stop();
 
-            const width = container.clientWidth;
-            const height = container.clientHeight;
+            const width = container.clientWidth || container.offsetWidth || 800;
+            const height = container.clientHeight || container.offsetHeight || 560;
 
             const visibleNodes = this.filteredNodes();
             const visibleIds = new Set(visibleNodes.map(n => n.id));
