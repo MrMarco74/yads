@@ -13,13 +13,12 @@
         </div>
 
         <div>
-            <h1 class="text-2xl font-bold text-white">Extension Hub</h1>
-            <p class="text-base text-amber-400 font-semibold mt-1">Professional Edition erforderlich</p>
+            <h1 class="text-2xl font-bold text-white">{{ lock_title | default('Extension Hub') }}</h1>
+            <p class="text-base text-amber-400 font-semibold mt-1">{{ lock_subtitle | default('Professional Edition erforderlich') }}</p>
         </div>
 
         <p class="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-            Diese Funktion ist nur in der Professional Edition verfügbar. Mit dem Extension Hub können
-            spezialisierte Scanner-Module installiert, verwaltet und über den integrierten Extension Hub bezogen werden.
+            {{ lock_description | default('Diese Funktion ist nur in der Professional Edition verfügbar. Mit dem Extension Hub können spezialisierte Scanner-Module installiert, verwaltet und über den integrierten Extension Hub bezogen werden.') }}
         </p>
 
         <!-- Feature highlights -->
@@ -54,15 +53,6 @@
             </div>
         </div>
 
-        <!-- CTA -->
-        <div class="pt-2">
-            <a href="https://yads-security.com/pricing"
-               target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-900/30">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                Jetzt upgraden — yads-security.com/pricing
-            </a>
-        </div>
     </div>
 
     <!-- Teaser: Available Add-ons -->

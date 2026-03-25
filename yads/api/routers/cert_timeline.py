@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
 from sqlmodel import Session, select
 from yads.database import get_session
@@ -37,7 +37,7 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
     target_map = {t.id: t for t in targets}
 
     if not targets:
-        return {}, {"total_certs": 0, "expiring_soon": 0, "rogue_candidates": 0}
+        return {}, {"total_certs": 0, "expiring_soon": 0, "expired": 0, "rogue_candidates": 0}
 
     # 2. Fetch Latest SSL Results
     statement = select(ScanResult).where(
@@ -67,37 +67,47 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
     stats = {
         "total_certs": 0,
         "expiring_soon": 0,
-        "rogue_candidates": 0 
+        "expired": 0,
+        "rogue_candidates": 0,
     }
-    
+
     for t_id, res in latest_results.items():
         if not res.data: continue
         target = target_map.get(t_id)
-        
+
         # Extract Dates
         not_before_str = res.data.get("notBefore")
         not_after_str = res.data.get("notAfter")
         issuer = res.data.get("issuer", {}).get("commonName", "Unknown Issuer")
-        
+
         if not not_before_str: continue
-        
+
         try:
             issued_date = dateutil.parser.parse(not_before_str).replace(tzinfo=None) # naive comparison
             expiry_date = dateutil.parser.parse(not_after_str).replace(tzinfo=None) if not_after_str else None
-            
+
             stats["total_certs"] += 1
-            
-            # Check for expiring soon (< 30 days)
+
+            # Check for expiring soon / expired
+            days_left = None
+            cert_status = "active"
             if expiry_date:
                 days_left = (expiry_date - datetime.now()).days
-                if days_left < 30:
+                if days_left < 0:
+                    stats["expired"] += 1
+                    cert_status = "expired"
+                elif days_left < 30:
                     stats["expiring_soon"] += 1
-            
+                    cert_status = "expiring_soon"
+
             # Check for "New" (Rogue candidate?)
             hours_since_issue = (datetime.now() - issued_date).total_seconds() / 3600
-            if hours_since_issue < 24:
+            is_new = hours_since_issue < 24
+            if is_new:
                 stats["rogue_candidates"] += 1
-                
+                if cert_status == "active":
+                    cert_status = "new"
+
             events.append({
                 "target_id": t_id,
                 "domain": target.domain,
@@ -105,7 +115,9 @@ def _get_cert_timeline_data(session: Session, user: User, for_export: bool = Fal
                 "issued_at": issued_date,
                 "expires_at": expiry_date,
                 "days_valid": (expiry_date - issued_date).days if expiry_date else 0,
-                "is_new": hours_since_issue < 24,
+                "days_left": days_left,
+                "is_new": is_new,
+                "cert_status": cert_status,
                 "subject": res.data.get("subject", {}).get("commonName", target.domain),
                 "issued_display": issued_date.strftime("%b %d, %Y"),
                 "expires_display": expiry_date.strftime("%b %d, %Y") if expiry_date else "Unknown"
@@ -139,18 +151,23 @@ async def cert_timeline_dashboard(
     user: User = Depends(get_current_user_html),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    preset: Optional[str] = Query("all")
+    preset: Optional[str] = Query("all"),
+    tab: Optional[str] = Query("timeline"),
 ):
     from_dt, to_dt = parse_date_range(date_from, date_to, preset)
     date_range_display = get_date_range_display(from_dt, to_dt, preset)
 
     timeline, stats = _get_cert_timeline_data(session, user, date_from=from_dt, date_to=to_dt)
+    inventory, inventory_stats = _get_ssl_inventory_data(session, user, date_from=from_dt, date_to=to_dt)
     return templates.TemplateResponse("cert_timeline.html", {
         "request": request,
         "user": user,
         "timeline": timeline,
         "stats": stats,
-        "date_range_display": date_range_display
+        "inventory": inventory,
+        "inventory_stats": inventory_stats,
+        "date_range_display": date_range_display,
+        "active_tab": tab,
     })
 
 @router.get("/export/excel")
@@ -192,26 +209,22 @@ async def export_cert_pdf(
             "Expires": e["expires_display"],
             "Issuer": e["issuer"]
         })
+    return generate_pdf(export_data, "Certificate Timeline", "cert_timeline_report")
+
 @router.get("/inventory", response_class=HTMLResponse)
 async def ssl_inventory_view(
     request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(get_current_user_html),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    preset: Optional[str] = Query("all")
+    preset: Optional[str] = Query("all"),
+    user: User = Depends(get_current_user_html),
 ):
-    from_dt, to_dt = parse_date_range(date_from, date_to, preset)
-    date_range_display = get_date_range_display(from_dt, to_dt, preset)
-
-    inventory, stats = _get_ssl_inventory_data(session, user, date_from=from_dt, date_to=to_dt)
-    return templates.TemplateResponse("analytics_ssl.html", {
-        "request": request,
-        "user": user,
-        "inventory": inventory,
-        "stats": stats,
-        "date_range_display": date_range_display
-    })
+    # Merged into the main cert-timeline page; redirect to inventory tab
+    qs = f"tab=inventory"
+    if date_from: qs += f"&date_from={date_from}"
+    if date_to: qs += f"&date_to={date_to}"
+    if preset and preset != "all": qs += f"&preset={preset}"
+    return RedirectResponse(url=f"/cert-timeline/?{qs}", status_code=302)
 
 def _get_ssl_inventory_data(session: Session, user: User, for_export: bool = False, date_from: datetime = None, date_to: datetime = None):
     # Reuse logic to fetch targets and results

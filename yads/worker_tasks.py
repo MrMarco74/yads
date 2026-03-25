@@ -12,7 +12,8 @@ import logging
 import requests
 import hashlib
 import json as _json
-from datetime import datetime
+import threading
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait, ALL_COMPLETED, as_completed as _as_completed
 
 from sqlmodel import Session, select
@@ -266,34 +267,54 @@ def send_daily_digests():
         logger.error(f"[Worker] send_daily_digests failed: {e}")
 
 
+# ── Scan Heartbeat ────────────────────────────────────────────────────────────
+
+def _run_scan_heartbeat(target_id: int, stop_event: threading.Event) -> None:
+    """Daemon thread: updates scan_heartbeat_at every 2 min while scan is running."""
+    while not stop_event.wait(120):
+        try:
+            with Session(engine) as s:
+                t = s.get(Target, target_id)
+                if t and t.scan_status == "running":
+                    t.scan_heartbeat_at = datetime.now(timezone.utc)
+                    s.add(t)
+                    s.commit()
+        except Exception:
+            pass
+
+
 # ── Stuck Job Cleaner ─────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.reset_stuck_targets")
 def reset_stuck_targets():
     """
     Reset genuinely stuck targets back to 'idle':
-    - 'running' targets with no update for > 45 min (worker crash)
-    - 'queued' targets with queued_at > 60 min ago (task lost from broker — e.g. broker restart)
-
-    We use queued_at (not created_at) so legitimately busy queues are not touched.
-    A task that hasn't been picked up after 60 minutes is either lost or the queue
-    was purged — safe to reset so the user can re-trigger the scan.
+    - 'running' targets whose heartbeat is stale (> 10 min without update → worker crash/hang)
+    - 'running' targets with no heartbeat and started > 45 min ago (pre-heartbeat entries)
+    - 'queued' targets with queued_at > 60 min ago (task lost from broker)
     """
     from sqlmodel import text as sql_text
     from datetime import datetime, timedelta, timezone
 
-    running_cutoff = datetime.now(timezone.utc) - timedelta(minutes=45)
-    queued_cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
-    running_cutoff_str = running_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
-    queued_cutoff_str = queued_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+    heartbeat_cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+    running_cutoff   = datetime.now(timezone.utc) - timedelta(minutes=45)
+    queued_cutoff    = datetime.now(timezone.utc) - timedelta(minutes=60)
+    heartbeat_cutoff_str = heartbeat_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+    running_cutoff_str   = running_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
+    queued_cutoff_str    = queued_cutoff.strftime("%Y-%m-%dT%H:%M:%S")
 
     with Session(engine) as db:
-        # Reset stuck 'running' targets (worker crash)
-        r1 = db.execute(sql_text(
-            "UPDATE target SET scan_status='idle', queued_at=NULL "
-            "WHERE scan_status = 'running' "
-            "AND (queued_at IS NULL OR queued_at < :cutoff)"
-        ), {"cutoff": running_cutoff_str})
+        # Reset stuck 'running' targets:
+        # - Has heartbeat but it's stale (> 10 min) → worker crashed mid-scan
+        # - No heartbeat and queued_at old (> 45 min) → pre-heartbeat era, truly stuck
+        # - No heartbeat and queued_at NULL → very old stuck entry
+        r1 = db.execute(sql_text("""
+            UPDATE target SET scan_status='idle', queued_at=NULL, scan_heartbeat_at=NULL
+            WHERE scan_status = 'running' AND (
+                (scan_heartbeat_at IS NOT NULL AND scan_heartbeat_at < :hb_cutoff)
+                OR (scan_heartbeat_at IS NULL AND (queued_at IS NULL OR queued_at < :run_cutoff))
+            )
+        """), {"hb_cutoff": heartbeat_cutoff_str, "run_cutoff": running_cutoff_str})
 
         # Reset orphaned 'queued' targets (task lost from broker)
         r2 = db.execute(sql_text(
@@ -306,7 +327,7 @@ def reset_stuck_targets():
         db.commit()
 
         if r1.rowcount:
-            logger.warning(f"[StuckCleaner] Reset {r1.rowcount} stuck running target(s) → idle (> 45 min)")
+            logger.warning(f"[StuckCleaner] Reset {r1.rowcount} stuck running target(s) → idle (stale heartbeat / no heartbeat > 45 min)")
         if r2.rowcount:
             logger.warning(f"[StuckCleaner] Reset {r2.rowcount} orphaned queued target(s) → idle (queued_at > 60 min)")
         if not r1.rowcount and not r2.rowcount:
@@ -561,7 +582,7 @@ def run_all_scans(
 
                 target.scan_status = "running"
                 target.scan_progress = "Initializing scan..."
-                target.queued_at = None  # clear: task is now being processed
+                target.queued_at = datetime.now(timezone.utc)  # track when worker started — used by StuckCleaner
                 parent_tenant_id = target.tenant_id
                 session.add(target)
                 session.commit()
@@ -581,6 +602,13 @@ def run_all_scans(
                 logger.error(f"[Worker] Failed to update start status: {e}")
                 session.rollback()
                 return
+
+            # Start heartbeat thread — updates scan_heartbeat_at every 2 min
+            _hb_stop = threading.Event()
+            _hb_thread = threading.Thread(
+                target=_run_scan_heartbeat, args=(target_id, _hb_stop), daemon=True
+            )
+            _hb_thread.start()
 
             # Pre-check web availability
             has_http = False
@@ -1256,12 +1284,17 @@ def run_all_scans(
                 logger.error(f"[Worker] Error in compliance recalculation: {e}")
                 session.rollback()
 
+            # Stop heartbeat thread
+            if '_hb_stop' in locals():
+                _hb_stop.set()
+
             # Reset status
             try:
                 t = session.get(Target, target_id)
                 if t:
                     t.scan_status = "idle"
                     t.scan_progress = f"Last scan completed at {datetime.utcnow().strftime('%H:%M:%S')}"
+                    t.scan_heartbeat_at = None
                     session.add(t)
                     session.commit()
             except Exception as e:
