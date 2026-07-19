@@ -33,8 +33,7 @@ RUN pip install --no-cache-dir --upgrade pip==25.3 wheel==0.46.2 && \
 
 # ── Stage 3: Scanner-tools layer ──────────────────────────────────────────────
 # Extends base-api with Nuclei, Playwright/Chromium and Nmap + full requirements.
-# Used for local dev builds (docker-compose.yml --target dev).
-# Production worker builds use Dockerfile.worker + pre-baked yads-tools image.
+# Used for local dev builds (docker-compose.yml --target dev) and the worker target.
 # Nuclei templates are NOT baked in — provided via volume (nuclei_templates:/root/nuclei-templates).
 FROM base-api AS base-scanner
 
