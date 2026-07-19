@@ -39,11 +39,6 @@ for item in "${FILES_TO_REMOVE[@]}"; do
 done
 echo -e "${GREEN}✓ Configuration files removed.${NC}"
 
-# 3. Docker logout (optional but clean)
-echo -e "${YELLOW}[3/3] Registry Logout...${NC}"
-docker logout registry.yads-security.com &>/dev/null || true
-echo -e "${GREEN}✓ Registry session cleaned up.${NC}"
-
 echo ""
 echo -e "${GREEN}Cleanup complete. Your environment is now in a fresh state.${NC}"
 echo -e "${YELLOW}==============================================================================${NC}"

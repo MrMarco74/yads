@@ -1,11 +1,3 @@
-import os
-import sys
-from pathlib import Path
-
-# Setup paths
-yads_path = "/home/mrmarco/Documents/gitlab/yads"
-sys.path.insert(0, yads_path)
-
 import unittest
 from unittest.mock import MagicMock, patch
 from sqlmodel import Session, SQLModel, create_engine, select, Field, Relationship, Column

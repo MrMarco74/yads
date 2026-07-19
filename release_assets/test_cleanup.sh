@@ -15,9 +15,8 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ---------------------------------------------------------------------------
-# Absolute paths — edit here if the project moves
-# ---------------------------------------------------------------------------
-INSTALL_TEST_DIR="/home/mrmarco/Documents/gitlab/yads/install-test"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_TEST_DIR="$(dirname "$SCRIPT_DIR")/install-test"
 RELEASE_DIR="$INSTALL_TEST_DIR/yads-test-release"
 
 # Installer-generated files — live inside the unpacked release dir
@@ -130,15 +129,9 @@ if [[ "${1:-}" == "--all" ]]; then
 else
     echo "  (Release-Archive behalten — nutze --all um sie auch zu löschen)"
 fi
-docker logout registry.yads-security.com &>/dev/null || true
-echo -e "${GREEN}  ✓ Registry-Logout durchgeführt${NC}"
-
 # ---------------------------------------------------------------------------
 echo ""
 echo -e "${GREEN}=============================================================================${NC}"
 echo -e "${GREEN}  ✓ Fertig — Umgebung ist sauber. Setup-Tool kann neu gestartet werden.${NC}"
 echo -e "${GREEN}=============================================================================${NC}"
-echo ""
-echo -e "  Neues Test-Release bauen und direkt starten:"
-echo -e "  ${CYAN}/home/mrmarco/Documents/gitlab/yads/release_assets/build_test_release.sh --run${NC}"
 echo ""

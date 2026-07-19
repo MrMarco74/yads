@@ -46,12 +46,7 @@ async def view_user_guide(
         elif os.path.exists("../../../USER_GUIDE.md"):
              guide_path = "../../../USER_GUIDE.md"
         else:
-             # Last resort: Try absolute path in typical dev location
-             dev_path = "/home/mrmarco/Documents/gitlab/yads/USER_GUIDE.md"
-             if os.path.exists(dev_path):
-                 guide_path = dev_path
-             else:
-                return HTMLResponse("<h1>Error: USER_GUIDE.md not found</h1><p>Please insure the file exists in the application root.</p>", status_code=404)
+            return HTMLResponse("<h1>Error: USER_GUIDE.md not found</h1><p>Please insure the file exists in the application root.</p>", status_code=404)
             
     async with aiofiles.open(guide_path, mode='r') as f:
         content = await f.read()
