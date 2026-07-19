@@ -471,22 +471,3 @@ The `backup_db.sh` script runs on API startup. Manual backups can be triggered v
 ## License
 
 MIT License. See `LICENSE`.
-
-## Bug Report References in Git Commits
-
-Bug reports received via **support.yads-security.com** have IDs in the format `YAD-YYYY-NNNNN` (e.g. `YAD-2026-00007`).
-
-**Convention:** When fixing a bug that was reported via the support portal, always include a `Fixes:` trailer in the commit message:
-
-```
-fix: short description of the fix
-
-Longer explanation if needed.
-
-Fixes: YAD-2026-00007
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-```
-
-**For Claude Code:** If the user provides a bug report (inline or via the support portal ID) and you create a fix commit, **always** include `Fixes: YAD-YYYY-NNNNN` in the commit body when the report ID is known. Do not skip this even when the fix is small.
-
-A `commit-msg` git hook warns (non-blocking) if a `fix:` commit is missing this reference.

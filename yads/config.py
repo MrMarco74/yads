@@ -51,13 +51,6 @@ class Settings(BaseSettings):
     CLIENT_CERT_PATH: Optional[str] = os.getenv("CLIENT_CERT_PATH", None)
     CLIENT_KEY_PATH: Optional[str] = os.getenv("CLIENT_KEY_PATH", None)
 
-    # Bug Report / Support Portal
-    SUPPORT_PORTAL_URL: str = os.getenv("SUPPORT_PORTAL_URL", "https://support.yads-security.com")
-    # X25519 public key (base64 raw, 32 bytes) — generated via scripts/generate_support_keypair.py
-    SUPPORT_DEV_PUBLIC_KEY: str = "2MDu0XELKKqTCSW97qSwoWg2u+S4eXxN+O8PK25qnTc="
-    # Set to false to skip TLS verification for the support portal (dev/staging without proper cert)
-    SUPPORT_PORTAL_VERIFY_SSL: bool = os.getenv("SUPPORT_PORTAL_VERIFY_SSL", "true").lower() == "true"
-
     # Custom Module Signing
     # All custom module uploads require a valid Ed25519 signature by default.
     # To disable signature enforcement (e.g. in dev environments without a keypair),

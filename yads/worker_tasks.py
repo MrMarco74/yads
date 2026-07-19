@@ -391,34 +391,10 @@ def prune_old_scan_results():
             logger.info(f"[Worker] Pruned {res_audit.rowcount} SecurityAuditLogs (> 5 years)")
 
             session.commit()
-            
-            # 4. Trigger Support Portal Cleanup
-            # We do this as a fire-and-forget background request
-            _trigger_support_portal_cleanup()
-            
+
             logger.info("[Worker] Data retention pruning completed successfully.")
     except Exception as e:
         logger.error(f"[Worker] Data retention pruning failed: {e}")
-
-def _trigger_support_portal_cleanup():
-    """Triggers the anonymization task on the Support Portal."""
-    import requests
-    try:
-        url = f"{settings.SUPPORT_PORTAL_URL.rstrip('/')}/api/admin/cleanup"
-        # The Support Portal likely needs an ADMIN_TOKEN for this
-        token = os.getenv("SUPPORT_PORTAL_ADMIN_TOKEN")
-        if not token:
-            logger.warning("[Worker] SUPPORT_PORTAL_ADMIN_TOKEN not set, skipping remote cleanup.")
-            return
-            
-        headers = {"Authorization": f"Bearer {token}"}
-        resp = requests.post(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            logger.info("[Worker] Support Portal cleanup triggered successfully.")
-        else:
-            logger.warning(f"[Worker] Support Portal cleanup trigger failed (Status: {resp.status_code})")
-    except Exception as e:
-        logger.warning(f"[Worker] Failed to trigger Support Portal cleanup: {e}")
 
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────
