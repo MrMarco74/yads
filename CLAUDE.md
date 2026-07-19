@@ -116,7 +116,6 @@ User → yads-api → PostgreSQL (data persistence)
   - `base.py`: `BaseScannerModule` abstract class (all scanners inherit from this)
   - `scheduler.py`: Cron-like scan scheduling (background thread in worker)
   - `backup.py`: Encrypted ZIP backup/restore system
-  - `license.py`: Ed25519-based license verification
   - `scoring.py`: Security score calculation (100-point scale)
   - `redis_logger.py`: Real-time log streaming for live UI updates
   - `webhook_service.py`: Event-driven webhook notifications
@@ -143,7 +142,7 @@ User → yads-api → PostgreSQL (data persistence)
 
 - **`yads/worker.py`**: Celery worker orchestration (943 lines)
   - Main task: `run_all_scans(target_id, domain, scan_types, tenant_id)`
-  - License verification, queue pause checking, subdomain auto-queueing
+  - Queue pause checking, subdomain auto-queueing
 
 - **`scripts/`**: Operational scripts
   - `start_worker.py`: Worker startup with DB config loading
@@ -186,17 +185,16 @@ class BaseScannerModule(abc.ABC):
 **Main Task:** `yads.worker.run_all_scans`
 
 ```
-1. Verify license from database
-2. Check queue pause flag (SystemConfig.QUEUE_ACTIVE)
-3. Update target status to "running"
-4. Test HTTP/HTTPS connectivity (ports 80/443)
-5. Execute selected scanner modules sequentially
+1. Check queue pause flag (SystemConfig.QUEUE_ACTIVE)
+2. Update target status to "running"
+3. Test HTTP/HTTPS connectivity (ports 80/443)
+4. Execute selected scanner modules sequentially
    - Each module wrapped in LogCapture context manager
    - Logs streamed to Redis for live UI updates
    - Results saved to PostgreSQL with change detection
-6. Auto-queue newly discovered subdomains (if enabled)
-7. Update target status to "idle"
-8. Fire "scan_finished" webhook event
+5. Auto-queue newly discovered subdomains (if enabled)
+6. Update target status to "idle"
+7. Fire "scan_finished" webhook event
 ```
 
 **Real-Time Logging:**
