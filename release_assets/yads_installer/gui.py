@@ -44,9 +44,6 @@ except ImportError:
         return "TextEdit { background: #1e1e1e; border-radius: 8px; }"
 
 # --- Constants & Configuration ---
-REGISTRY_URL = "registry.yads-security.com"
-REGISTRY_USER = "yads-push"
-REGISTRY_TOKEN = "REDACTED"
 VERSION = "1.1.4"
 COMPOSE_FILE = "docker-compose.yml"
 NGINX_TEMPLATE = "nginx.conf.template"
@@ -135,19 +132,11 @@ class InstallationManager(QObject):
 
     def run_install(self):
         """Main installation sequence — data driven to reduce complexity."""
-        local_images = os.environ.get("YADS_LOCAL_IMAGES") == "1" or os.environ.get("YADS_VERSION") == "local"
-        if local_images:
-            self.log_signal.emit("ℹ️  Lokale Images erkannt — Registry-Login und Pull werden übersprungen.", "info")
-
         steps = [
             (10, "Stoppe bestehende Dienste (falls vorhanden)...", self.shutdown_existing),
+            (20, "Baue Docker Images aus dem Quellcode (Dies kann dauern)...",
+             lambda: self.run_docker(["compose", "build"])),
         ]
-        if not local_images:
-            steps += [
-                (20, "Authentifiziere bei Registry...", self.login_registry),
-                (50, "Downloade Docker Images (Dies kann dauern)...",
-                 lambda: self.run_docker(["compose", "pull"])),
-            ]
         steps += [
             (30, "Generiere kryptografische Schlüssel...", self.generate_secrets),
             (35, "Bereite Konfigurationsdateien vor...", self.prepare_installation_files),
@@ -228,18 +217,6 @@ class InstallationManager(QObject):
 
         self.secrets["backup_done"] = True
         self.secrets["backup_path"] = backup_path
-
-    def login_registry(self):
-        # Use --password-stdin to avoid insecurity warning and be more robust
-        login_process = subprocess.Popen(
-            ["docker", "login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-        stdout, stderr = login_process.communicate(input=REGISTRY_TOKEN)
-        
-        if login_process.returncode != 0:
-            raise RuntimeError(f"Registry Login fehlgeschlagen: {stderr.strip()}")
-        self.log_signal.emit("Registry Login erfolgreich.", "info")
 
     def generate_secrets(self):
         """Generates new secrets or reuses existing ones if upgrading."""
