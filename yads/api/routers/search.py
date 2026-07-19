@@ -106,10 +106,8 @@ async def get_search_suggestions(
         { "title": "Scan Profiles", "desc": "Scan-Profile erstellen und verwalten", "hint": "Config", "url": "/scan-profiles", "icon": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
         { "title": "Schedules", "desc": "Automatische Scan-Zeitpläne", "hint": "Config", "url": "/schedules", "icon": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
         { "title": "System Settings", "desc": "Globale Plattform-Konfiguration", "hint": "Config", "url": "/settings", "icon": "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0" },
-        { "title": "License Manager", "desc": "Lizenzschlüssel und Aktivierung verwalten", "hint": "License", "url": "/license", "icon": "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" },
         { "title": "Tenants", "desc": "Mandanten und Tenant-Verwaltung", "hint": "Admin", "url": "/tenants", "icon": "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
         { "title": "Notifications", "desc": "Admin-Benachrichtigungen verwalten", "hint": "Admin", "url": "/notifications/admin", "icon": "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
-        { "title": "Support Tickets", "desc": "Eigene Support-Anfragen", "hint": "Support", "url": "/help/support-tickets", "icon": "M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" },
     ]
     for m in mgmt:
         suggestions.append({ "prefix": "/", **m })

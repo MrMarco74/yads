@@ -51,13 +51,6 @@ class Settings(BaseSettings):
     CLIENT_CERT_PATH: Optional[str] = os.getenv("CLIENT_CERT_PATH", None)
     CLIENT_KEY_PATH: Optional[str] = os.getenv("CLIENT_KEY_PATH", None)
 
-    # Licensing
-    LICENSE_PUBLIC_KEY: str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQURXL0UxMzJWUzkwQlZLclZTYW9zYzVablRIZERQME1WRGhPaDZZNTYwVG89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
-    LICENSE_KEY: Optional[str] = None
-    # Separate Ed25519 public key for verifying activation codes (sign_activation.py output).
-    # If not set, falls back to LICENSE_PUBLIC_KEY (backwards-compatible but less secure).
-    ACTIVATION_PUBLIC_KEY: Optional[str] = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUNvd0JRWURLMlZ3QXlFQXcweVQ5cDFiTkVmWmR1RGtQbk5RczBseUFxMkFLdXF6enFRWEZCc0oxTW89Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo="
-
     # Bug Report / Support Portal
     SUPPORT_PORTAL_URL: str = os.getenv("SUPPORT_PORTAL_URL", "https://support.yads-security.com")
     # X25519 public key (base64 raw, 32 bytes) — generated via scripts/generate_support_keypair.py

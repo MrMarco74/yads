@@ -9,7 +9,6 @@ from yads.models import Target, ScanResult, User, SecurityTrend
 from yads.auth.deps import get_current_active_user
 from yads.config import settings
 from yads.core.comparisons import ComparisonEngine
-from yads.utils.license_deps import require_feature
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 from yads.utils.findings import FindingStatusFilter
 

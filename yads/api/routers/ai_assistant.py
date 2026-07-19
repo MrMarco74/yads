@@ -22,7 +22,6 @@ from yads.api.templating import templates
 from yads.auth.deps import RoleChecker, get_current_user_html
 from yads.database import get_session
 from yads.models import ScanResult, SecurityTrend, SystemConfig, Target, Tenant, User
-from yads.utils.license_deps import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -1016,7 +1015,6 @@ async def ai_assistant_page(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user_html),
     _roles: None = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
-    has_ai_insights: bool = Depends(require_feature("ai_insights")),
 ):
     # Check whether AI is configured so the template can show the right badge
     provider, _, _ = _get_ai_config(session, user)
@@ -1034,7 +1032,6 @@ async def ai_assistant_page(
             "user": user,
             "targets": targets,
             "ai_provider": provider or "rule-based",
-            "has_ai_insights": has_ai_insights,
         },
     )
 
@@ -1201,7 +1198,6 @@ async def explain_finding(
     body: ExplainFindingRequest,
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
-    _licensed: bool = Depends(require_feature("ai_insights")),
 ):
     provider, api_key, model = _get_ai_config(session, user)
     lang = body.lang
@@ -1259,7 +1255,6 @@ async def executive_summary(
     body: ExecutiveSummaryRequest,
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner", "auditor"])),
-    _licensed: bool = Depends(require_feature("ai_insights")),
 ):
     # Scope check — no domain or hostname returned to AI
     target = session.get(Target, target_id)

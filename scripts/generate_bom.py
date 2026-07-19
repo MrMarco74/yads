@@ -167,8 +167,8 @@ class SBOMGenerator:
                     "type": "application",
                     "name": "YADS",
                     "version": self.version,
-                    "description": "Yet Another Domain Scanner - Enterprise Attack Surface Management",
-                    "licenses": [{"license": {"name": "Proprietary"}}]
+                    "description": "Yet Another Domain Scanner - Attack Surface Management",
+                    "licenses": [{"license": {"id": "MIT"}}]
                 }
             },
             "components": components
