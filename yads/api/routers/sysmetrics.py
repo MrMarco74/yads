@@ -334,19 +334,19 @@ async def bug_report_fragment(
     if alert_lines:
         lines += ["--- Aktive System-Alerts (automatisch) ---"] + alert_lines + [""]
 
-    lines += [
-        f"======================",
-        f"Bitte senden an : support@yads-security.com",
-        f"Betreff          : Bug Report YADS v{settings.VERSION}",
-    ]
-
     report_text = "\n".join(lines)
 
-    # Build mailto href (subject + plain body)
+    # Build GitHub issue URL (title + prefilled body) — the primary reporting path.
     import urllib.parse
-    subject = urllib.parse.quote(f"Bug Report YADS v{settings.VERSION}")
-    body = urllib.parse.quote(report_text)
-    mailto = f"mailto:support@yads-security.com?subject={subject}&body={body}"
+    issue_title = urllib.parse.quote(f"Bug Report YADS v{settings.VERSION}")
+    issue_body = urllib.parse.quote(report_text)
+    github_issue_url = (
+        f"https://github.com/MrMarco74/yads/issues/new"
+        f"?title={issue_title}&body={issue_body}"
+    )
+
+    # Mailto fallback for reports containing anything the user doesn't want public.
+    mailto = f"mailto:support@yads-security.com?subject={issue_title}&body={issue_body}"
 
     # Escape for HTML display
     display_text = (report_text
@@ -362,9 +362,26 @@ async def bug_report_fragment(
   >{display_text}</pre>
 
   <div class="flex flex-wrap gap-3 mt-4">
+    <a href="{github_issue_url}" target="_blank" rel="noopener"
+       class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+              text-white text-sm font-medium rounded-lg transition-colors">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577
+                 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7
+                 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.238 1.838 1.238 1.07 1.834
+                 2.809 1.304 3.495.997.108-.775.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93
+                 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23a11.5
+                 11.5 0 013.003-.404c1.02.005 2.047.138 3.003.404 2.28-1.552 3.285-1.23 3.285-1.23.645
+                 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81
+                 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092
+                 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+      </svg>
+      Auf GitHub melden
+    </a>
+
     <button onclick="copyBugReport()"
-            class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                   text-white text-sm font-medium rounded-lg transition-colors">
+            class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600
+                   text-slate-200 text-sm font-medium rounded-lg transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -373,18 +390,14 @@ async def bug_report_fragment(
     </button>
 
     <a href="{mailto}"
-       class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600
-              text-slate-200 text-sm font-medium rounded-lg transition-colors">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-      </svg>
-      Im E-Mail-Programm öffnen
+       class="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-slate-200 text-xs transition-colors">
+      oder per E-Mail senden
     </a>
   </div>
 
-  <p class="mt-3 text-xs text-slate-500">
-    Tipp: Du kannst den Text oben direkt bearbeiten, bevor du ihn kopierst. Das Feld ist vollständig selektierbar.
+  <p class="mt-3 text-xs text-amber-400/80">
+    ⚠️ GitHub-Issues sind öffentlich. Bitte interne Hostnamen, IPs oder andere sensible Details vor dem
+    Absenden aus dem Text oben entfernen — er ist frei editierbar und vollständig selektierbar.
   </p>
 </div>
 
