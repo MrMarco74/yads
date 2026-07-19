@@ -34,7 +34,8 @@ class _IPv4Adapter(HTTPAdapter):
             _conn.create_connection = _orig
 
 class UpdateService:
-    VERSION_URL = "https://yads-security.com/releases/version.json"
+    # GitHub's own Releases API — no separate hosting/infra needed.
+    VERSION_URL = "https://api.github.com/repos/MrMarco74/yads/releases/latest"
     CACHE_KEY = "yads_latest_version_cache"
     CACHE_TTL = 21600 # 6 hours
 
@@ -74,41 +75,28 @@ class UpdateService:
         except Exception as e:
             logger.warning(f"Failed to access Redis cache for update check: {e}")
 
-        # 2. Fetch Remote
+        # 2. Fetch Remote — GitHub Releases API (public, unauthenticated, no infra to run)
         try:
-            # Use requests (already a dependency)
             session = requests.Session()
             session.mount("https://", _IPv4Adapter())
-            response = session.get(UpdateService.VERSION_URL, timeout=5.0)
+            response = session.get(
+                UpdateService.VERSION_URL,
+                headers={"Accept": "application/vnd.github+json"},
+                timeout=5.0,
+            )
             response.raise_for_status()
-            
-            try:
-                data = response.json()
-            except json.JSONDecodeError:
-                # If server returns malformed JSON (e.g. unescaped quotes in 'text' field)
-                # We try a simple regex cleanup for the 'text' field
-                import re
-                raw_text = response.text
-                match = re.search(r'("text":\s*")(.*?)("(?:\n|\s)*,)', raw_text, re.DOTALL)
-                if match:
-                    prefix, content, suffix = match.groups()
-                    # Escape internal quotes that aren't already escaped
-                    # We match quotes that are NOT preceded by a backslash
-                    fixed_content = re.sub(r'([^\\])"', r'\1\"', content)
-                    # Also handle the case where a quote is at the very beginning of content
-                    if fixed_content.startswith('"'):
-                        fixed_content = '\\"' + fixed_content[1:]
-                        
-                    fixed_text = raw_text.replace(match.group(0), f'{prefix}{fixed_content}{suffix}')
-                    data = json.loads(fixed_text)
-                else:
-                    raise
+            release = response.json()
 
-            # Expected format: {"version": "1.13.0", "text": "New features available!", "url": "https://..."}
-            remote_version = data.get("version")
-            
-            # 3. Cache it (even if no update, we cache the 'no update' state for a while?)
-            # Actually, cache the data we got.
+            # GitHub tags are typically "v1.20.0" — strip the leading "v" for comparison.
+            remote_version = (release.get("tag_name") or "").lstrip("vV")
+            summary_source = release.get("name") or release.get("body") or ""
+            summary = summary_source.strip().splitlines()[0][:200] if summary_source.strip() else ""
+            data = {
+                "version": remote_version,
+                "text": summary,
+                "url": release.get("html_url", ""),
+            }
+
             if r:
                 try:
                     r.setex(UpdateService.CACHE_KEY, UpdateService.CACHE_TTL, json.dumps(data))
@@ -118,7 +106,7 @@ class UpdateService:
                 return data
         except Exception as e:
             logger.error(f"Failed to check for YADS updates: {e}")
-            
+
         return None
 
     @staticmethod
