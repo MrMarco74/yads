@@ -7,6 +7,7 @@ product_screenshots/
 .venv/
 venv/
 __pycache__/
+node_modules/
 
 # Environment & Configuration Files
 *.env
