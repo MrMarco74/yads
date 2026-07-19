@@ -24,7 +24,7 @@ def _get_config() -> dict:
         "port": int(os.environ.get("SMTP_PORT", "587")),
         "user": os.environ.get("SMTP_USER", ""),
         "password": os.environ.get("SMTP_PASSWORD", ""),
-        "from_addr": os.environ.get("SMTP_FROM", "yads-donotreply@example.internal"),
+        "from_addr": os.environ.get("SMTP_FROM", "yads-donotreply@example.com"),
         "tls": os.environ.get("SMTP_TLS", "true").lower() != "false",
     }
     try:
