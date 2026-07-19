@@ -470,7 +470,7 @@ The `backup_db.sh` script runs on API startup. Manual backups can be triggered v
 
 ## License
 
-Proprietary / Internal Tool. Commercial license with Ed25519 signature verification.
+MIT License. See `LICENSE`.
 
 ## Bug Report References in Git Commits
 

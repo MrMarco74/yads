@@ -201,13 +201,6 @@ class YADSMetrics:
             registry=self._registry
         )
 
-        # License status
-        self.license_valid = Gauge(
-            'yads_license_valid',
-            'Whether the license is valid (1) or invalid/expired (0)',
-            registry=self._registry
-        )
-
         # Queue status
         self.queue_active = Gauge(
             'yads_queue_active',
@@ -412,9 +405,6 @@ class YADSMetrics:
                 # Queue metrics
                 self._collect_queue_metrics(session, SystemConfig)
 
-                # License status
-                self._collect_license_metrics(session, SystemConfig)
-
             self._last_db_poll = datetime.utcnow()
 
         except Exception as e:
@@ -501,21 +491,6 @@ class YADSMetrics:
 
         except Exception as e:
             logger.debug(f"Failed to collect queue metrics: {e}")
-
-    def _collect_license_metrics(self, session, SystemConfig):
-        """Collect license status metrics."""
-        try:
-            from yads.core.license import license_manager
-
-            config = session.get(SystemConfig, "license_key")
-            if config and config.value:
-                is_valid = license_manager.verify(config.value)
-                self.license_valid.set(1 if is_valid else 0)
-            else:
-                self.license_valid.set(0)
-
-        except Exception as e:
-            logger.debug(f"Failed to collect license metrics: {e}")
 
     # =========================================================================
     # Output Generation

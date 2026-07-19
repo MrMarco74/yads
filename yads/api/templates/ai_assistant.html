@@ -524,29 +524,6 @@
     <!-- TAB 4: Finding Explanation (Pro)                              -->
     <!-- ================================================================== -->
     <div x-show="activeTab === 'explain'" x-transition>
-        {% if not has_ai_insights %}
-        <!-- CE teaser -->
-        <div class="relative">
-            <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm rounded-xl z-10 flex flex-col items-center justify-center gap-4 p-8 text-center">
-                <div class="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                </div>
-                <div>
-                    <p class="text-white font-semibold text-base">Pro Feature</p>
-                    <p class="text-slate-400 text-sm mt-1 max-w-md">Finding Explanation uses AI to describe what each security finding means, what attackers can do with it, and how to fix it — using only anonymised finding types (no hostnames or raw data sent).</p>
-                </div>
-                <a href="/settings/license" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    Upgrade to Professional
-                </a>
-            </div>
-            <!-- Blurred preview (decorative) -->
-            <div class="blur-sm pointer-events-none opacity-40 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-5 h-64"></div>
-                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 h-64"></div>
-            </div>
-        </div>
-        {% else %}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- Input form -->
@@ -694,35 +671,12 @@
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
 
     <!-- ================================================================== -->
     <!-- TAB 5: Executive Summary (Pro)                               -->
     <!-- ================================================================== -->
     <div x-show="activeTab === 'exec'" x-transition>
-        {% if not has_ai_insights %}
-        <!-- CE teaser -->
-        <div class="relative">
-            <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm rounded-xl z-10 flex flex-col items-center justify-center gap-4 p-8 text-center">
-                <div class="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-                    <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                </div>
-                <div>
-                    <p class="text-white font-semibold text-base">Pro Feature</p>
-                    <p class="text-slate-400 text-sm mt-1 max-w-md">Executive Summary generates a management-ready security assessment paragraph from your scan results. Only aggregated scores and finding counts are sent to AI — never hostnames, IPs, or raw scan data.</p>
-                </div>
-                <a href="/settings/license" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                    Upgrade to Professional
-                </a>
-            </div>
-            <div class="blur-sm pointer-events-none opacity-40 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-5 h-64"></div>
-                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 h-64"></div>
-            </div>
-        </div>
-        {% else %}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- Controls -->
@@ -880,7 +834,6 @@
                 </div>
             </div>
         </div>
-        {% endif %}
     </div>
 
 </div>

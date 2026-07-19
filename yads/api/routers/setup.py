@@ -5,7 +5,6 @@ import os
 import logging
 from sqlalchemy import text, create_engine
 from yads.config import settings
-from yads.core.license import license_manager
 from yads.database import engine as current_engine, get_session
 from sqlmodel import Session, select
 from yads.models import User, SystemConfig
@@ -16,9 +15,6 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 logger = logging.getLogger("yads-setup")
 
 # -- Models --
-
-class LicenseRequest(BaseModel):
-    license_key: str
 
 class DBConfigRequest(BaseModel):
     password: str
@@ -71,31 +67,6 @@ def _require_setup_open():
             detail="Setup already complete. Use the admin panel to manage this setting."
         )
 
-
-@router.post("/check-license")
-async def check_license(req: LicenseRequest):
-    _require_setup_open()
-    data = license_manager.verify(req.license_key)
-    if not data:
-        raise HTTPException(status_code=400, detail="Invalid or expired license key")
-    
-    # Persist License Key — write to config file AND to SystemConfig DB
-    # so that get_activation_required() in templates works immediately
-    # without requiring an API restart.
-    update_persistent_config("LICENSE_KEY", req.license_key)
-    with Session(current_engine) as session:
-        existing = session.get(SystemConfig, "license_key")
-        if existing:
-            existing.value = req.license_key
-            session.add(existing)
-        else:
-            session.add(SystemConfig(key="license_key", value=req.license_key))
-        session.commit()
-
-    # Update in-memory settings
-    settings.LICENSE_KEY = req.license_key
-
-    return {"status": "valid", "data": data}
 
 @router.post("/configure-db")
 async def configure_db(req: DBConfigRequest):
@@ -289,15 +260,6 @@ async def finish_setup():
     import uuid
 
     with Session(engine) as session:
-        # Persist license key for next boot
-        if settings.LICENSE_KEY:
-            config = session.get(SystemConfig, "license_key")
-            if config:
-                config.value = settings.LICENSE_KEY
-            else:
-                config = SystemConfig(key="license_key", value=settings.LICENSE_KEY)
-            session.add(config)
-
         # Auto-dismiss onboarding wizard for admin — GUI installer already did setup
         done_key = "ONBOARDING_DONE_admin"
         if not session.get(SystemConfig, done_key):
@@ -348,90 +310,3 @@ async def queue_install_report(req: InstallReportPayload):
     return {"status": "queued"}
 
 
-class ActivationCodeRequest(BaseModel):
-    activation_code: str
-
-
-@router.post("/activate")
-async def activate_instance(req: ActivationCodeRequest):
-    """
-    Validate and store a signed activation response code.
-    The code is in the same format as a license key: base64url(payload).base64url(signature).
-    Verified with the same LICENSE_PUBLIC_KEY.
-    Stores the code in SystemConfig under ACTIVATION_CODE.
-    """
-    import base64 as _b64
-    import json as _json
-    from yads.models import SystemConfig
-    from yads.database import engine
-    from sqlmodel import Session
-
-    # Verify signature using activation public key
-    from yads.core.license import activation_verifier
-    activation_data = activation_verifier.verify(req.activation_code)
-    if not activation_data:
-        raise HTTPException(status_code=400, detail="Ungültiger oder abgelaufener Aktivierungscode.")
-
-    # Check instance_uuid matches this instance
-    with Session(engine) as session:
-        uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-        our_uuid = uuid_conf.value if uuid_conf else None
-
-    code_uuid = activation_data.get("instance_uuid")
-    if code_uuid and our_uuid and code_uuid != our_uuid:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Aktivierungscode gehört zu einer anderen Instanz ({code_uuid})."
-        )
-
-    # Persist activation code
-    with Session(engine) as session:
-        existing = session.get(SystemConfig, "ACTIVATION_CODE")
-        if existing:
-            existing.value = req.activation_code
-        else:
-            session.add(SystemConfig(key="ACTIVATION_CODE", value=req.activation_code))
-        session.commit()
-
-    return {"status": "activated", "data": activation_data}
-
-
-@router.get("/activation-status")
-async def get_activation_status():
-    """Return current activation status for this instance."""
-    import json as _json
-    from yads.models import SystemConfig
-    from yads.database import engine
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
-        uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-        license_conf = session.get(SystemConfig, "license_key")
-
-    instance_uuid = uuid_conf.value if uuid_conf else None
-    activation_code = code_conf.value if code_conf else None
-
-    # Determine if business license
-    lic_data = None
-    if license_conf and license_conf.value:
-        lic_data = license_manager.verify(license_conf.value)
-    customer_id = lic_data.get("customer_id") if lic_data else None
-    is_business = bool(customer_id)
-
-    # Validate stored activation code
-    from yads.core.license import activation_verifier
-    activation_data = None
-    if activation_code:
-        activation_data = activation_verifier.verify(activation_code, instance_uuid)
-
-    activated = bool(activation_data)
-
-    return {
-        "instance_uuid": instance_uuid,
-        "is_business": is_business,
-        "customer_id": customer_id,
-        "activated": activated,
-        "requires_activation": is_business and not activated,
-        "activation_data": activation_data,
-    }

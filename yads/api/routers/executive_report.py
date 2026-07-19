@@ -9,12 +9,10 @@ from yads.database import get_session
 from yads.auth.deps import get_current_user_html, get_current_active_user
 from yads.models import User, Target, ScanResult, SecurityTrend
 from yads.api.templating import templates
-from yads.utils.license_deps import require_feature
 
 router = APIRouter(
     prefix="/executive-report",
     tags=["executive-report"],
-    dependencies=[Depends(require_feature("reports"))],
 )
 
 
