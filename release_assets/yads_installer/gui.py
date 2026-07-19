@@ -327,7 +327,6 @@ class InstallationManager(QObject):
             f"YADS_HOST={self.data['host']}",
             f"API_PORT=80",
             f"YADS_DIRECT_PORT={self.data['api_port']}",
-            f"YADS_LICENSE={self.data.get('license_key', '')}",
             f"POSTGRES_USER={self.data.get('db_user', 'yads')}",
             f"YADS_ADMIN_USER={self.data.get('admin_user', 'admin')}",
             f"YADS_ADMIN_PASS={self.data.get('admin_pass', 'admin')}",
@@ -428,7 +427,6 @@ class GlassInstaller(AcrylicWindow):
             'use_nginx': True,
             'auth_mode': 'simple',
             'mon_choice': '1',
-            'license_key': '',
             'install_mode': 'upgrade'
         }
 
@@ -465,7 +463,6 @@ class GlassInstaller(AcrylicWindow):
             (FIF.TILES, "Datenbank"),
             (FIF.PEOPLE, "Identität"),
             (FIF.PIE_SINGLE, "Monitoring"),
-            (FIF.CERTIFICATE, "Lizenz"),
             (FIF.SETTING, "Admin"),
             (FIF.FINGERPRINT, "Verschlüsselung"),
             (FIF.TILES, "Modus"),
@@ -517,7 +514,6 @@ class GlassInstaller(AcrylicWindow):
         self.content_stack.addWidget(self.create_database_step())
         self.content_stack.addWidget(self.create_idp_step())
         self.content_stack.addWidget(self.create_monitoring_step())
-        self.content_stack.addWidget(self.create_license_step())
         self.content_stack.addWidget(self.create_admin_step())
         self.content_stack.addWidget(self.create_encryption_step())
         self.content_stack.addWidget(self.create_mode_step())
@@ -712,20 +708,6 @@ class GlassInstaller(AcrylicWindow):
         mon_layout.addWidget(self.rb_mon_external)
         
         layout.addWidget(self.mon_group)
-        layout.addStretch(1)
-        return page
-
-    def create_license_step(self) -> QFrame:
-        page = QFrame()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(60, 40, 60, 40)
-        layout.addWidget(SubtitleLabel("Lizenzschlüssel", page))
-        
-        self.input_license = TextEdit(page)
-        self.input_license.setPlaceholderText("Dein YADS-Lizenzschlüssel hier einfügen...")
-        self.input_license.setFixedHeight(150)
-        layout.addWidget(self.input_license)
-        
         layout.addStretch(1)
         return page
 
@@ -1077,44 +1059,41 @@ class GlassInstaller(AcrylicWindow):
             else:
                 self.data['mon_choice'] = '3'
             
-        elif idx == 6: # License
-            self.data['license_key'] = self.input_license.toPlainText().strip()
-            
-        elif idx == 7: # Admin
+        elif idx == 6: # Admin
             if not self.input_admin_user.text() or not self.input_admin_pass.text():
                 InfoBar.warning("Eingabe fehlt", "Benutzername und Passwort erforderlich.", parent=self)
                 return False
-            
+
             # BSI Validation
             is_valid, err_msg = validate_bsi_password(self.input_admin_pass.text())
             if not is_valid:
                 InfoBar.warning("Passwort-Sicherheit (BSI)", err_msg, duration=5000, parent=self)
                 return False
-            
+
             if self.input_admin_pass.text() != self.input_admin_pass_confirm.text():
                 InfoBar.warning("Passwort-Fehler", "Passwörter stimmen nicht überein.", duration=5000, parent=self)
                 return False
 
             self.data['admin_user'] = self.input_admin_user.text()
             self.data['admin_pass'] = self.input_admin_pass.text()
-            
-        elif idx == 8: # Encryption
+
+        elif idx == 7: # Encryption
             if not self.input_enc_pass.text() or not self.input_enc_pass_confirm.text():
                 InfoBar.warning("Eingabe fehlt", "Ein Verschlüsselungspasswort ist zwingend erforderlich.", parent=self)
                 return False
-            
+
             is_valid, err_msg = validate_bsi_password(self.input_enc_pass.text())
             if not is_valid:
                 InfoBar.warning("Passwort-Sicherheit (BSI)", err_msg, duration=5000, parent=self)
                 return False
-                
+
             if self.input_enc_pass.text() != self.input_enc_pass_confirm.text():
                 InfoBar.warning("Passwort-Fehler", "Passwörter stimmen nicht überein.", duration=5000, parent=self)
                 return False
 
             self.data['encryption_pass'] = self.input_enc_pass.text()
 
-        elif idx == 9: # Mode
+        elif idx == 8: # Mode
             self.data['install_mode'] = 'upgrade' if self.rb_upgrade.isChecked() else 'reinstall'
             self.data['do_backup'] = self.cb_backup.isChecked()
             

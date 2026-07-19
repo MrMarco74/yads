@@ -110,7 +110,6 @@ class HeadlessInstallationManager:
             f"YADS_HOST={self.data['host']}",
             f"API_PORT=80",
             f"YADS_DIRECT_PORT={self.data['api_port']}",
-            f"YADS_LICENSE={self.data.get('license_key', '')}",
             f"POSTGRES_USER={self.data.get('db_user', 'yads')}",
             f"YADS_ADMIN_USER={self.data.get('admin_user', 'admin')}",
             f"YADS_ADMIN_PASS={self.data.get('admin_pass', 'admin')}",

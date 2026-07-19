@@ -265,13 +265,7 @@ Global stop signal for workers:
 - Worker checks before executing tasks (retry with 60s countdown if paused)
 - Toggle via UI without restarting workers
 
-**4. License Verification:**
-Ed25519 signature verification on every scan:
-- License key stored in `SystemConfig.LICENSE_KEY`
-- Payload format: `base64(json_payload).base64(signature)`
-- Worker validates before task execution
-
-**5. DNS Cleanup:**
+**4. DNS Cleanup:**
 `dns_cleanup_scanner` module marks unresolvable domains:
 - Sets `Target.is_archived=true` + `archived_reason`
 - Separate UI view for archived targets
@@ -411,13 +405,6 @@ python scripts/cleanup_dead_targets.py
 **Queue All DNS Cleanup Scans:**
 ```bash
 python scripts/queue_all_dns_cleanup.py
-```
-
-**Generate License Keys:**
-```bash
-python scripts/generate_license_keys.py
-python scripts/sign_license.py
-python scripts/apply_license.py
 ```
 
 ## Environment Variables
