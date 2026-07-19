@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Distributed Worker System enables horizontal scaling of YADS scanning capabilities across multiple Docker Swarm nodes. This allows organizations to:
+The Distributed Worker System enables horizontal scaling of YADS scanning capabilities across multiple machines — no orchestrator (Docker Swarm/Kubernetes) required, just network access between manager and workers. This allows organizations to:
 
 - **Scale scanning capacity** by adding worker nodes
 - **Distribute load** across multiple machines
@@ -13,11 +13,12 @@ The Distributed Worker System enables horizontal scaling of YADS scanning capabi
 
 ```
 +------------------------------------------------------------------+
-|                        Docker Swarm Cluster                       |
+|                         YADS Worker Cluster                       |
 +------------------------------------------------------------------+
 |  +-------------------+       +--------------------+                |
-|  |   Manager Node    |       |  Swarm Manager     |                |
-|  |  (yads-api)       |<----->|  (Docker Built-in) |                |
+|  |   Manager Node    |       |  Worker Manager    |                |
+|  |  (yads-api)       |<----->|  (yads/core/       |                |
+|  |                   |       |   worker_manager)  |                |
 |  +-------------------+       +--------------------+                |
 |          |                                                         |
 |          | Redis (Encrypted Overlay Network)                       |
@@ -45,7 +46,7 @@ The Distributed Worker System enables horizontal scaling of YADS scanning capabi
 |-----------|-------------|
 | **Manager Node** | Runs the YADS API, PostgreSQL, Redis, and Primary Worker |
 | **Primary Worker** | Auto-registered worker on the manager node |
-| **Secondary Workers** | Distributed workers on labeled Swarm nodes |
+| **Secondary Workers** | Distributed workers running on any machine with network access to the manager |
 | **Worker Manager** | Central coordinator for registration, heartbeats, and task routing |
 | **Worker Client** | Worker-side component for manager communication |
 
@@ -68,97 +69,42 @@ The primary worker automatically registers itself. No additional configuration n
 
 ---
 
-## Production Deployment (Docker Swarm)
+## Production Deployment (Multi-Host, No Orchestrator)
 
 ### Prerequisites
 
-- Docker Engine 24.0+ on all nodes
-- Docker Swarm initialized
-- Network connectivity between nodes (ports 2377, 7946, 4789)
-- Shared access to YADS container registry
+- Docker Engine 24.0+ on the manager host (worker-only hosts just need Python 3.11+, or Docker if you'd rather run the worker image)
+- Network connectivity from every worker host to the manager's API port
 
-### Step 1: Initialize Docker Swarm
-
-On the manager node:
+### Step 1: Bring Up the Manager
 
 ```bash
-# Initialize Swarm
-docker swarm init --advertise-addr <MANAGER-IP>
-
-# Save the join token for worker nodes
-docker swarm join-token worker
+git clone https://github.com/MrMarco74/yads.git && cd yads
+cp .env.example .env
+# set POSTGRES_PASSWORD and WORKER_REGISTRATION_TOKEN in .env
+#   (generate a token with: openssl rand -base64 32)
+docker compose up -d --build
 ```
 
-### Step 2: Join Worker Nodes
+### Step 2: Add Secondary Workers
 
-On each worker node:
+On each additional worker host:
 
 ```bash
-# Join the swarm (use token from Step 1)
-docker swarm join --token <TOKEN> <MANAGER-IP>:2377
+git clone https://github.com/MrMarco74/yads.git && cd yads
+pip install -r requirements.txt   # or build+run the yads-worker image instead
+
+WORKER_MODE=secondary \
+  MANAGER_URL=http://<MANAGER-IP>:8000 \
+  WORKER_REGISTRATION_TOKEN=<same token as Step 1> \
+  python scripts/start_distributed_worker.py
 ```
 
-### Step 3: Label Worker Nodes
+Each worker self-registers with the manager on startup — no cluster join step, no node labeling.
 
-On the manager node, label which nodes should run YADS workers:
+### Step 3: Scale Workers
 
-```bash
-# List nodes
-docker node ls
-
-# Label nodes for YADS workers
-docker node update --label-add yads-worker=true <NODE-NAME>
-
-# Example: Label all worker nodes
-for node in $(docker node ls -q); do
-  docker node update --label-add yads-worker=true $node
-done
-```
-
-### Step 4: Configure Environment
-
-Create a `.env` file on the manager node:
-
-```bash
-# Required
-POSTGRES_PASSWORD=your_secure_database_password
-WORKER_REGISTRATION_TOKEN=your_worker_registration_token
-
-# Optional
-YADS_IMAGE=registry.example.com/yads/yads:latest
-WORKER_REPLICAS=3
-WORKER_MAX_TASKS=4
-WORKER_MAX_NETWORK_MBPS=100
-MFA_ENABLED=true
-```
-
-Generate a secure registration token:
-
-```bash
-# Generate a random token
-openssl rand -base64 32
-```
-
-### Step 5: Deploy the Stack
-
-```bash
-# Deploy to Swarm
-docker stack deploy -c docker-compose.swarm.yml yads
-
-# Verify deployment
-docker stack services yads
-docker service ls
-```
-
-### Step 6: Scale Workers
-
-```bash
-# Scale to 5 workers
-docker service scale yads_yads-worker=5
-
-# Check worker distribution
-docker service ps yads_yads-worker
-```
+Repeat Step 2 on more hosts to add capacity; stop the worker process/container to remove it (it's marked offline after the next missed heartbeat).
 
 ---
 
@@ -528,29 +474,20 @@ To migrate an existing single-worker deployment to distributed mode:
    docker exec yads-api /app/scripts/backup_db.sh
    ```
 
-2. **Stop Existing Stack**
-   ```bash
-   docker-compose down
-   ```
-
-3. **Initialize Swarm**
-   ```bash
-   docker swarm init
-   ```
-
-4. **Configure Environment**
+2. **Configure Environment**
    - Add `WORKER_REGISTRATION_TOKEN` to `.env`
-   - Update `WORKER_MODE=primary` for manager
+   - Set `WORKER_MODE=primary` for the manager
 
-5. **Deploy Swarm Stack**
+3. **Restart the Manager**
    ```bash
-   docker stack deploy -c docker-compose.swarm.yml yads
+   docker compose up -d --build
    ```
 
-6. **Add Worker Nodes**
-   - Join nodes to swarm
-   - Label with `yads-worker=true`
-   - Scale worker service
+4. **Add Worker Hosts**
+   - On each additional machine, run `scripts/start_distributed_worker.py` with
+     `WORKER_MODE=secondary` and `MANAGER_URL` pointed at the manager
+     (see [Step 2](#step-2-add-secondary-workers) above) — each one
+     self-registers, no cluster join needed
 
 ---
 
