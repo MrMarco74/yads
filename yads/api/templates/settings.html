@@ -711,35 +711,5 @@ function downloadBackup() {
     document.getElementById('export_tenant_ids').value = ids;
     document.getElementById('export-form').submit();
 }
-
-async function submitActivationCode() {
-    const code = document.getElementById('activation-code-input').value.trim();
-    const result = document.getElementById('activation-result');
-    if (!code) return;
-    result.className = 'text-xs mt-1';
-    result.textContent = 'Wird geprüft…';
-    try {
-        const resp = await fetch('/setup/activate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': '{{ csrf_token_value() if csrf_token_value else "" }}'
-            },
-            body: JSON.stringify({activation_code: code}),
-        });
-        const data = await resp.json();
-        if (resp.ok) {
-            result.className = 'text-xs mt-1 text-green-400';
-            result.textContent = '✓ Aktiviert — Seite wird neu geladen…';
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            result.className = 'text-xs mt-1 text-red-400';
-            result.textContent = '✗ ' + (data.detail || JSON.stringify(data));
-        }
-    } catch (e) {
-        result.className = 'text-xs mt-1 text-red-400';
-        result.textContent = '✗ Netzwerkfehler: ' + e.message;
-    }
-}
 </script>
 {% endblock %}

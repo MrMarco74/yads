@@ -38,35 +38,33 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 ## 🚀 Quick Start & Installation
 
 1.  **Deployment**:
-    The infrastructure configuration has moved to the **[yads-infra](file:///home/mrmarco/Documents/gitlab/yads-infra)** repository.
-    Clone it and run:
+    The infrastructure configuration lives in the **[yads-infra](https://github.com/MrMarco74/yads-infra)** repository, which builds against a sibling `yads` checkout (no prebuilt images or registry needed).
 
     ```bash
-    docker-compose up -d
+    git clone https://github.com/MrMarco74/yads.git
+    git clone https://github.com/MrMarco74/yads-infra.git
+    cd yads-infra
+    docker compose up -d
     ```
 
 2.  **Initial Setup Wizard**:
     Open `http://<your-server-ip>:8000`. You will be automatically redirected to the **Setup Wizard**.
-    Follow the 4-step process:
+    Follow the steps:
 
-    *   **License**: Enter your YADS license key.
     *   **Database**: Set a secure password for the database.
     *   **Initialization**: Choose "Upgrade" (keep data) or "Factory Reset" (purge data).
     *   **Admin**: Create your first System Admin account.
 
 3.  **Manual Development Setup**:
-    YADS is now split into multiple repositories. For development, ensure they are checked out as peer directories:
+    YADS is split into multiple repositories. For development, ensure they are checked out as peer directories:
 
     ```bash
     # Core API & Models
-    git clone .../yads.git
-    
+    git clone https://github.com/MrMarco74/yads.git
+
     # Common Utilities (Required by many)
-    git clone .../yads-common.git
-    
-    # Desktop Tools (GUI, Test Suite, License Manager)
-    git clone .../yads-tools.git
-    
+    git clone https://github.com/MrMarco74/yads-common.git
+
     # Setup for Core:
     cd yads
     pip install -r requirements.txt
@@ -78,10 +76,12 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 
 - `yads`: Core API, Workers, and Models.
 - `yads-common`: Shared GUI components, cryptography, and utilities.
-- `yads-tools`: Release Manager, Test Suite, License Manager, and Support Watcher.
-- `yads-website`: Main landing page (static).
-- `yads-support-portal`: Dedicated support and ticket management system.
+- `yads-addons`: Optional scanner modules loaded via the Extension Hub.
+- `yads-shadowtwin`: Monte Carlo breach-simulation engine.
+- `yads-templates`: Jinja2 report templates.
 - `yads-infra`: Docker Compose and infrastructure configurations.
+- `yads-kubernetes`: Helm charts, Terraform, and Ansible for large-scale deployment.
+- `yads-documentation`: Architecture blueprints and contributor guides.
 
 ## 🗺️ Roadmap
 
@@ -94,4 +94,4 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 
 ## License
 
-Proprietary / Internal Tool.
+MIT License. See [LICENSE](LICENSE) for details.
