@@ -13,22 +13,16 @@
       "path": "../yads-kubernetes"
     },
     {
-      "path": "../yads-support-portal"
-    },
-    {
-      "path": "../yads-testing"
-    },
-    {
-      "path": "../yads-tools"
-    },
-    {
-      "path": "../yads-website"
-    },
-    {
       "path": "../yads-addons"
     },
     {
-      "path": "../yads-screenshots"
+      "path": "../yads-shadowtwin"
+    },
+    {
+      "path": "../yads-templates"
+    },
+    {
+      "path": "../yads-documentation"
     }
   ],
   "settings": {

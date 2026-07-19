@@ -28,18 +28,12 @@ logs/
 htmlcov/
 pytest_cache/
 .pytest_cache/
-pef_docker_build/
 tmp/
 
 # Releases
 releases/
 
-# Internal Tools
-license_manager/
-tools/
-
 # Sensitive Data & Backups
-support/keys/
 data/
 *.sql
 *.sql.gz
