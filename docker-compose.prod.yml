@@ -2,8 +2,10 @@
 services:
   # --- Backend Services ---
   yads-api:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
-
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
     command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8085"
     restart: always
     ports:
@@ -24,8 +26,10 @@ services:
           - yads
 
   yads-worker:
-    image: gitlab.fritz.box:5050/apps/yads/yads:latest
-
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
     command: python /app/scripts/start_worker.py
     restart: always
     environment:

@@ -160,7 +160,7 @@ YADS includes built-in backup tools.
 
 ## 4. Distributed Worker System
 
-YADS supports horizontal scaling of scanning capacity through a distributed worker architecture. This enables deploying workers across multiple Docker Swarm nodes.
+YADS supports horizontal scaling of scanning capacity through a distributed worker architecture. This enables deploying workers across multiple machines — no Docker Swarm or Kubernetes required, workers just need network access to the manager's API.
 
 ### Quick Overview
 
@@ -175,26 +175,22 @@ YADS supports horizontal scaling of scanning capacity through a distributed work
 ### Deployment Modes
 
 1. **Standalone** (Default): Single worker, no coordination
-2. **Primary Worker**: Runs on manager node, auto-registered
-3. **Secondary Workers**: Distributed across Swarm nodes
+2. **Primary Worker**: Runs on the manager host, auto-registered
+3. **Secondary Workers**: Run on any additional host with network access to the manager
 
 ### Quick Start for Distributed Mode
 
 ```bash
-# 1. Set registration token
+# 1. Set registration token (same value on manager and all workers)
 export WORKER_REGISTRATION_TOKEN=$(openssl rand -base64 32)
 
-# 2. Initialize Docker Swarm
-docker swarm init
+# 2. On the manager: start the API/worker stack as usual (docker compose up -d)
 
-# 3. Label worker nodes
-docker node update --label-add yads-worker=true <node-name>
-
-# 4. Deploy stack
-docker stack deploy -c docker-compose.swarm.yml yads
-
-# 5. Scale workers
-docker service scale yads_yads-worker=5
+# 3. On each additional worker host: build/pull the yads-worker image, then run
+WORKER_MODE=secondary \
+  MANAGER_URL=http://<manager-host>:8000 \
+  WORKER_REGISTRATION_TOKEN=$WORKER_REGISTRATION_TOKEN \
+  python scripts/start_distributed_worker.py
 ```
 
 ### Configuration

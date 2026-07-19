@@ -4,7 +4,10 @@ services:
   # YADS CORE (always started)
   # ==========================================================================
   yads-api:
-    image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: api
     container_name: yads-api
     restart: always
     environment:
@@ -53,7 +56,10 @@ services:
       - yads-net
 
   yads-worker:
-    image: registry.yads-security.com/yads/yads-worker:${YADS_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: worker
     container_name: yads-worker
     restart: always
     environment:
