@@ -41,17 +41,6 @@ command -v openssl &>/dev/null  || die "openssl is not installed."
 echo -e "${GREEN}✓ Dependencies OK${NC}"
 echo ""
 
-# ── 1b. Registry Login ────────────────────────────────────────────────────────
-echo -e "${YELLOW}[1b] Authenticating with YADS Container Registry...${NC}"
-# Pull credentials are embedded — no user input required.
-# Access can be revoked server-side at any time (contact support@yads-security.com).
-_REGISTRY_USER="yads-readonly"
-_REGISTRY_TOKEN="REDACTED"
-echo "$_REGISTRY_TOKEN" | docker login registry.yads-security.com -u "$_REGISTRY_USER" --password-stdin \
-    && echo -e "  ${GREEN}✓ Registry authenticated successfully${NC}" \
-    || { echo -e "  ${RED}✗ Registry login failed. Please contact support@yads-security.com${NC}"; exit 1; }
-echo ""
-
 # ── 2. Docker Host ────────────────────────────────────────────────────────────
 echo -e "${YELLOW}[2/8] Docker Host Configuration${NC}"
 echo "  1) Local Machine (localhost)"

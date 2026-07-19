@@ -7,9 +7,6 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Constants (Copied from gui.py) ---
-REGISTRY_URL = "registry.yads-security.com"
-REGISTRY_USER = "yads-push"
-REGISTRY_TOKEN = "REDACTED"
 COMPOSE_FILE = "docker-compose.yml"
 NGINX_TEMPLATE = "release_assets/yads_installer/nginx.conf.template"
 CUSTOMER_COMPOSE = "release_assets/yads_installer/docker-compose.customer.yml"
@@ -26,14 +23,13 @@ class HeadlessInstallationManager:
         try:
             self.log("Starting headless installation...")
             self.shutdown_existing()
-            self.login_registry()
             self.generate_secrets()
             self.prepare_installation_files()
             self.write_env()
-            
-            self.log("Pulling docker images...")
-            self.run_docker(["compose", "pull"])
-            
+
+            self.log("Building images from source...")
+            self.run_docker(["compose", "build"])
+
             self.log("Starting containers...")
             self.run_docker(["compose", "up", "-d"])
             
@@ -54,17 +50,6 @@ class HeadlessInstallationManager:
         containers = ["yads-proxy", "yads-api", "yads-worker", "yads-db", "yads-redis"]
         for c in containers:
             subprocess.run(["docker", "rm", "-f", c], capture_output=True)
-
-    def login_registry(self):
-        self.log(f"Logging into {REGISTRY_URL}...")
-        login_process = subprocess.Popen(
-            ["docker", "login", REGISTRY_URL, "-u", REGISTRY_USER, "--password-stdin"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-        stdout, stderr = login_process.communicate(input=REGISTRY_TOKEN)
-        if login_process.returncode != 0:
-            raise RuntimeError(f"Registry Login failed: {stderr.strip()}")
-        self.log("Registry Login successful.")
 
     def generate_secrets(self):
         self.log("Generating/Reusing secrets...")

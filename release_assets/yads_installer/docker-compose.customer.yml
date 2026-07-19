@@ -18,7 +18,10 @@ services:
 
   # --- Backend Services ---
   yads-api:
-    image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: api
     container_name: yads-api
     command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
@@ -46,7 +49,10 @@ services:
       - yads-net
 
   yads-worker:
-    image: registry.yads-security.com/yads/yads-worker:${YADS_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: worker
     container_name: yads-worker
     command: python /app/scripts/start_worker.py
     restart: always
