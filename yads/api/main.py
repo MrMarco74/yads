@@ -218,40 +218,6 @@ async def lifespan(app: FastAPI):
                     session.commit()
                     logger.info("Seeded QUEUE_ACTIVE=true into SystemConfig.")
 
-            # --- Send pending installation report (airgapped installs) ---
-            with Session(engine) as session:
-                from yads.models import SystemConfig as _SC
-                import threading as _threading, json as _json
-                import requests as _requests
-                pending = session.get(_SC, "INSTALL_REPORT_PENDING")
-                already_sent = session.get(_SC, "INSTALL_REPORT_SENT")
-                if pending and not already_sent:
-                    payload_str = pending.value
-                    def _send_pending(pstr=payload_str):
-                        try:
-                            data = _json.loads(pstr)
-                            resp = _requests.post(
-                                "https://support.yads-security.com/api/installation",
-                                json=data,
-                                timeout=10,
-                            )
-                            resp.raise_for_status()
-                            # Mark as sent, remove pending
-                            from yads.database import engine as _eng
-                            from sqlmodel import Session as _Sess
-                            from yads.models import SystemConfig as _SC2
-                            with _Sess(_eng) as s:
-                                pnd = s.get(_SC2, "INSTALL_REPORT_PENDING")
-                                if pnd:
-                                    s.delete(pnd)
-                                if not s.get(_SC2, "INSTALL_REPORT_SENT"):
-                                    s.add(_SC2(key="INSTALL_REPORT_SENT", value="1"))
-                                s.commit()
-                            logger.info("[InstallReport] Pending installation report sent successfully.")
-                        except Exception as _exc:
-                            logger.info(f"[InstallReport] Still no internet — will retry next start. ({_exc})")
-                    _threading.Thread(target=_send_pending, daemon=True).start()
-
             # --- Reset stuck targets (queued/running but no worker processing them) ---
             with Session(engine) as session:
                 from sqlmodel import text as sql_text

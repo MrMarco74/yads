@@ -140,30 +140,11 @@ async def send_installation_report(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user_html),
 ):
-    """Opt-in: send anonymous telemetry to the support portal."""
-    import threading
-    import httpx
-    from yads.config import settings
-
-    payload = {**_build_telemetry_payload(session), "install_type": "web_wizard"}
-
-    # Mark report as sent to avoid duplicate from /setup/finish
+    """Mark the onboarding installation-report step as acknowledged."""
     from yads.models import SystemConfig as _SC
     existing_flag = session.get(_SC, "INSTALL_REPORT_SENT")
     if not existing_flag:
         session.add(_SC(key="INSTALL_REPORT_SENT", value="1"))
         session.commit()
-
-    portal_url = getattr(settings, "SUPPORT_PORTAL_URL", "").rstrip("/")
-    if portal_url:
-        def _send():
-            try:
-                verify_ssl = getattr(settings, "SUPPORT_PORTAL_VERIFY_SSL", True)
-                ca_path = getattr(settings, "CUSTOM_CA_CERT_PATH", None)
-                with httpx.Client(verify=(ca_path or verify_ssl), timeout=10) as client:
-                    client.post(f"{portal_url}/api/installation", json=payload)
-            except Exception as exc:
-                logger.warning(f"Installation report failed: {exc}")
-        threading.Thread(target=_send, daemon=True).start()
 
     return RedirectResponse("/onboarding?step=5", status_code=303)
