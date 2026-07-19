@@ -5,10 +5,10 @@
 YADS uses a dedicated Docker container (`yads-backup`) running alongside the database to perform automated PostgreSQL backups. The container uses `postgres:15-alpine` to guarantee `pg_dump` version compatibility and BusyBox `crond` for scheduling.
 
 ```
-yads-backup (crond) → pg_dump → /backups/ (Hetzner Storage Box)
+yads-backup (crond) → pg_dump → /backups/ (mounted volume)
 ```
 
-Backups are stored on the Hetzner Storage Box mounted at `/mnt/backups/yads/`.
+Backups are stored under the `/backups` path inside the container — bind-mount this to wherever you want backups persisted (e.g. `- /path/to/backups:/backups`).
 
 ## Schedule & Retention
 
@@ -29,7 +29,7 @@ Example: `yads_yads_2026-02-08_030000.sql.gz`
 
 ## Configuration
 
-All settings are controlled via environment variables in `docker-compose.swarm.yml`:
+All settings are controlled via environment variables on the `yads-backup` service in your compose file:
 
 | Variable               | Default        | Description                        |
 |------------------------|----------------|------------------------------------|
@@ -81,12 +81,12 @@ docker service logs yads_yads-backup
 
 **Check recent backups:**
 ```bash
-ls -lht "/mnt/backups/yads/daily/" | head -5
+ls -lht "/path/to/backups/daily/" | head -5
 ```
 
 **Verify backup integrity:**
 ```bash
-gunzip -t "/mnt/backups/yads/daily/<filename>.sql.gz"
+gunzip -t "/path/to/backups/daily/<filename>.sql.gz"
 ```
 
 **Common issues:**

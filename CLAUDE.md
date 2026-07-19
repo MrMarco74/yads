@@ -45,21 +45,6 @@ WORKER_MODE=secondary MANAGER_URL=http://localhost:8000 \
   python scripts/start_distributed_worker.py
 ```
 
-**Docker Swarm Deployment:**
-```bash
-# Initialize Swarm
-docker swarm init
-
-# Label worker nodes
-docker node update --label-add yads-worker=true <node-name>
-
-# Deploy stack
-docker stack deploy -c docker-compose.swarm.yml yads
-
-# Scale workers
-docker service scale yads_yads-worker=5
-```
-
 ### Database Operations
 
 ```bash
@@ -84,16 +69,13 @@ cd frontend
 npm run watch:css
 ```
 
-### CI/CD
+### Building & SBOM/CBOM
 
-The `.gitlab-ci.yml` pipeline includes:
-- **Lint Stage:** Docker and YAML linting
-- **Build Stage:** Multi-stage Docker build, SBOM generation (Syft), CBOM generation
-- **Deploy Stage:** Automated deployment to Portainer
+No CI pipeline is included in this release — build and scan locally:
 
 ```bash
 # Build production image locally
-docker compose -f docker-compose.prod.yml -f docker-compose.build.yml build yads-api
+docker compose -f docker-compose.prod.yml build yads-api
 
 # Generate SBOM/CBOM
 syft . -o cyclonedx-json=sbom.json
@@ -296,7 +278,7 @@ Ed25519 signature verification on every scan:
 - Prevents wasted scans on dead domains
 
 **6. Distributed Workers:**
-Horizontal scaling via Docker Swarm:
+Horizontal scaling via a custom worker-manager (no Docker Swarm/Kubernetes required):
 - `WorkerManager` (`yads/core/worker_manager.py`): Central coordinator
 - `WorkerClient` (`yads/core/worker_client.py`): Worker-side communication
 - Workers register with pre-shared token, send heartbeats every 30s
