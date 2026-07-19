@@ -160,17 +160,6 @@ async def create_user(
     if existing:
         return RedirectResponse(url="/users/?error=Username+exists", status_code=303)
 
-    # --- CE User Limit ---
-    from yads.core.community_edition import get_ce_state, check_can_add_user
-    _ce = get_ce_state(session)
-    if _ce["edition"] == "community" and final_tenant_id:
-        current_user_count = session.exec(
-            select(func.count()).select_from(User).where(User.tenant_id == final_tenant_id)
-        ).one()
-        _ok, _reason = check_can_add_user(session, current_user_count)
-        if not _ok:
-            return RedirectResponse(url=f"/users/?error={_reason}", status_code=303)
-
     pw_error = _validate_pw(password)
     if pw_error:
         return RedirectResponse(url=f"/users/?error={pw_error}", status_code=303)

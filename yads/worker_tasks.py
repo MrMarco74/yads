@@ -445,36 +445,6 @@ def run_all_scans(
 
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
 
-    # --- License / CE Enforcement ---
-    from yads.core.license import license_manager, activation_verifier
-    from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
-    try:
-        with Session(engine) as session:
-            ce_state = get_ce_state(session)
-            if ce_state["edition"] == "community":
-                allowed, reason = ce_check_scan(session)
-                if not allowed:
-                    logger.warning(f"[Worker] CE read-only — discarding task for {domain}: {reason}")
-                    return
-            else:
-                lc = session.exec(select(SystemConfig).where(SystemConfig.key == "license_key")).first()
-                lic_data = license_manager.verify(lc.value) if (lc and lc.value) else None
-                if not lic_data:
-                    logger.warning(f"[Worker] License Invalid or Missing. Discarding task for {domain}.")
-                    return
-                # --- Activation enforcement for business licenses ---
-                if lic_data.get("customer_id"):
-                    uuid_conf = session.exec(select(SystemConfig).where(SystemConfig.key == "INSTANCE_UUID")).first()
-                    instance_uuid = uuid_conf.value if uuid_conf else None
-                    act_conf = session.exec(select(SystemConfig).where(SystemConfig.key == "ACTIVATION_CODE")).first()
-                    act_data = activation_verifier.verify(act_conf.value, instance_uuid) if (act_conf and act_conf.value) else None
-                    if not act_data:
-                        logger.warning(f"[Worker] Instanz nicht aktiviert — Scan für {domain} verworfen.")
-                        return
-    except Exception as e:
-        logger.error(f"[Worker] License check failed: {e}")
-        return
-
     def check_port(host, port, timeout=2):
         try:
             with socket.create_connection((host, port), timeout=timeout):

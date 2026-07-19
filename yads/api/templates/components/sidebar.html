@@ -7,17 +7,7 @@
         <img src="/static/logo.png" alt="YADS" class="h-8 w-8">
         <div>
             <span class="block text-sm font-bold text-white tracking-wide">YADS</span>
-            {% set _lic = get_license_status() %}
-            {% if _lic.tier == 'Free' or (_lic.tier == 'Commercial' and get_activation_required()) %}
-            <a href="/settings#license" class="flex items-center gap-1" title="Lizenz nicht aktiviert – jetzt aktivieren →">
-                <span class="block text-[10px] uppercase tracking-wider text-yellow-400 font-medium">Aktivierung notwendig</span>
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span>
-            </a>
-            {% elif _lic.tier == 'Commercial' %}
-            <span class="block text-[10px] uppercase tracking-wider text-slate-500 font-medium">Professional</span>
-            {% else %}
-            <span class="block text-[10px] uppercase tracking-wider text-slate-500 font-medium">Community Edition</span>
-            {% endif %}
+            <span class="block text-[10px] uppercase tracking-wider text-slate-500 font-medium">Open Source</span>
         </div>
     </div>
 
@@ -197,7 +187,7 @@
                 </li>
                 {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
                 <li>
-                    <details class="group" {% if '/users' in request.path or '/tenant-settings' in request.path or '/settings' in request.path or '/license' in request.path or '/tenants' in request.path or '/tags' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/users' in request.path or '/tenant-settings' in request.path or '/settings' in request.path or '/tenants' in request.path or '/tags' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
                             <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                             <span class="ml-3 text-sm font-medium flex-1">Settings & Users</span>
@@ -207,7 +197,6 @@
                             {% if user and user.role == 'admin' %}
                             <li><a href="/settings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/settings' %}text-cyan-400 font-semibold{% endif %}">System Settings</a></li>
                             <li><a href="/tenants" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenants' in request.path %}text-cyan-400 font-semibold{% endif %}">Tenants & Limits</a></li>
-                            <li><a href="/license" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/license' in request.path %}text-cyan-400 font-semibold{% endif %}">License Status</a></li>
                             {% endif %}
                             <li><a href="/tenant-settings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenant-settings' in request.path and '/findings' not in request.path %}text-cyan-400 font-semibold{% endif %}">Tenant Preferences</a></li>
                             <li><a href="/users" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if request.path == '/users' %}text-cyan-400 font-semibold{% endif %}">Users</a></li>
@@ -241,7 +230,6 @@
                 </li>
                 <li><a href="https://yads-security.com/docs.html" target="_blank" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Documentation ↗</a></li>
                 <li><a href="/changes/" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Recent Changes</a></li>
-                <li><a href="/help/support-tickets" class="flex items-center text-xs text-slate-400 hover:text-white px-2 py-1 transition-colors">Support Tickets</a></li>
             </ul>
         </div>
     </div>

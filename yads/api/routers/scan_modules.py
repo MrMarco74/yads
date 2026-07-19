@@ -8,7 +8,6 @@ Admin interface for:
   - Removing custom-installed add-ons (platform admin only)
   - Browsing the add-on store catalog (online + air-gap/embedded fallback)
   - Checking for updates against the catalog
-  - Enterprise-gated — CE users see the locked placeholder page
 """
 import json
 import os
@@ -25,7 +24,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from yads.api.templating import templates
-from yads.core.license import license_manager
 from yads.core.module_signing import compute_file_hash, recheck_file_integrity, sign_zip, verify_module_signature
 from yads.auth.deps import PlatformAdminChecker, RoleChecker, get_current_user_html
 from yads.core.module_registry import CATEGORIES, REGISTRY, ModuleDef, get_module_labels
@@ -107,16 +105,6 @@ _FALLBACK_CATALOG = [
 
 _CATALOG_ONLINE_URL = "https://yads-security.com/files/modules/catalog.json"
 _CATALOG_DB_KEY = "addon_store_catalog"
-
-
-# ---------------------------------------------------------------------------
-# Enterprise check helper
-# ---------------------------------------------------------------------------
-def _is_enterprise(session: Session) -> bool:
-    lic = session.get(SystemConfig, "license_key")
-    if not lic or not lic.value:
-        return False
-    return license_manager.verify(lic.value) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -380,16 +368,6 @@ async def addons_view(
     session: Session = Depends(get_session),
     user: User = Depends(PlatformAdminChecker()),
 ):
-    # Enterprise gate
-    enterprise = _is_enterprise(session)
-    if not enterprise:
-        catalog = _fetch_catalog(session)
-        return templates.TemplateResponse("addons_locked.html", {
-            "request": request,
-            "user": user,
-            "catalog": catalog,
-        })
-
     modules = _build_module_rows(session, tenant_id=None)
 
     # Catalog for store section
@@ -446,7 +424,6 @@ async def addons_view(
         "is_platform_admin": True,
         "signing_status": signing_status,
         "catalog": catalog,
-        "is_enterprise": enterprise,
         "signing_info": signing_status,
     })
 

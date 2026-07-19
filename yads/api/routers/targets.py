@@ -163,18 +163,6 @@ def _queue_single_bulk_target(session: Session, user: User, tid_str: str, scan_t
         if not target:
             return False
 
-        # License Check
-        from yads.core.community_edition import get_ce_state, check_can_scan
-        from yads.core.license import license_manager
-        _ce = get_ce_state(session)
-        if _ce["edition"] == "community":
-            ok, _ = check_can_scan(session)
-            if not ok: return False
-        else:
-            lc = session.get(SystemConfig, "license_key")
-            if not lc or not lc.value or not license_manager.verify(lc.value):
-                return False
-
         # Dispatch
         celery_app.send_task(
             "yads.worker.run_all_scans",
@@ -225,10 +213,6 @@ async def bulk_import_targets(
         if _is_duplicate_target(session, user, domain):
             stats["duplicates"] += 1
             continue
-
-        # License Check
-        if not _check_import_license_limit(session, stats["imported"]):
-            return RedirectResponse(url=f"{next_url}?error=License+Limit+Reached", status_code=303)
 
         session.add(Target(domain=domain, tenant_id=user.tenant_id, discovery_reason=discovery_reason))
         stats["imported"] += 1
@@ -305,26 +289,6 @@ def _verify_domain_dns(domain: str) -> bool:
 def _is_duplicate_target(session: Session, user: User, domain: str) -> bool:
     """Check if target already exists for tenant."""
     return session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first() is not None
-
-
-def _check_import_license_limit(session: Session, current_batch_count: int) -> bool:
-    """Check if adding another target exceeds license limits. Archived targets are excluded."""
-    from yads.core.community_edition import get_ce_state, check_can_add_target
-    from yads.core.license import license_manager
-    total = session.exec(
-        select(func.count()).select_from(Target).where(Target.is_archived == False)
-    ).one() + current_batch_count
-    ce = get_ce_state(session)
-    if ce["edition"] == "community":
-        ok, _ = check_can_add_target(session, total)
-        return ok
-    
-    lc = session.get(SystemConfig, "license_key")
-    limit = 5
-    if lc and lc.value:
-        data = license_manager.verify(lc.value)
-        if data: limit = data.get("max_targets", 0)
-    return total < limit
 
 
 def _format_import_msg(stats: dict) -> str:
@@ -521,21 +485,6 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
         # mass auto-queuing of subdomains and must always be an explicit choice.
         selected_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
     
-    # --- License / CE Check ---
-    from yads.models import SystemConfig
-    from yads.core.license import license_manager
-    from yads.core.community_edition import get_ce_state, check_can_scan as ce_check_scan
-    ce_state = get_ce_state(session)
-    if ce_state["edition"] == "community":
-        allowed, reason = ce_check_scan(session)
-        if not allowed:
-            return RedirectResponse(url=f"/targets/{target_id}?error={reason}", status_code=303)
-    else:
-        lc = session.get(SystemConfig, "license_key")
-        if not lc or not lc.value or not license_manager.verify(lc.value):
-            msg = "Error: Scanning requires a valid license."
-            return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)
-
     if not selected_types:
         msg = "Error: No valid scan types selected."
         return RedirectResponse(url=f"/targets/{target_id}?error={msg}", status_code=303)

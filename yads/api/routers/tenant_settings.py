@@ -13,7 +13,6 @@ from yads.models import User, Tenant, Webhook, TenantScanConfig, SecurityFinding
 from yads.auth.deps import RoleChecker, get_current_user
 from yads.core.module_registry import REGISTRY
 from yads.config import settings
-from yads.utils.license_deps import require_feature
 
 router = APIRouter(prefix="/tenant-settings", tags=["tenant-settings"])
 from yads.api.templating import templates
@@ -217,8 +216,7 @@ async def create_webhook(
     url: str = Form(...),
     events: list[str] = Form(default=[]),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
-    session: Session = Depends(get_session),
-    _ = Depends(require_feature("webhooks"))
+    session: Session = Depends(get_session)
 ):
     if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
     
@@ -236,8 +234,7 @@ async def create_webhook(
 async def delete_webhook(
     webhook_id: int,
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
-    session: Session = Depends(get_session),
-    _ = Depends(require_feature("webhooks"))
+    session: Session = Depends(get_session)
 ):
     if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
     
@@ -252,8 +249,7 @@ async def delete_webhook(
 async def test_webhook(
     webhook_id: int,
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
-    session: Session = Depends(get_session),
-    _ = Depends(require_feature("webhooks"))
+    session: Session = Depends(get_session)
 ):
     if not user.tenant_id: return RedirectResponse("/tenant-settings", status_code=303)
     

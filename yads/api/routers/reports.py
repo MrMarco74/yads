@@ -12,10 +12,9 @@ from datetime import datetime
 from yads.utils.export import generate_excel, generate_pdf, generate_api_excel, generate_form_excel, generate_traffic_excel, generate_traffic_pdf
 from yads.models import User, Target, ScanResult, HTTPTraffic
 from yads.modules.report_generator import generate_report
-from yads.utils.license_deps import require_feature
 from yads.api.utils.date_filter import parse_date_range, get_date_range_display
 
-router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_feature("reports"))])
+router = APIRouter(prefix="/reports", tags=["reports"])
 from yads.api.templating import templates
 # from fastapi.templating import Jinja2Templates
 

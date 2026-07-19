@@ -263,25 +263,6 @@ async def lifespan(app: FastAPI):
                 if stuck:
                     logger.warning(f"[Startup] Reset {stuck} stuck target(s) from queued/running → idle.")
 
-            # --- Load License Key to Settings ---
-            # Priority: DB (persisted by setup API) → LICENSE_KEY env var → nothing
-            with Session(engine) as session:
-                from yads.models import SystemConfig
-                lic = session.get(SystemConfig, "license_key")
-                if lic and lic.value:
-                    settings.LICENSE_KEY = lic.value
-                    logger.info("License key loaded from database into runtime settings.")
-                else:
-                    env_lic = os.getenv("LICENSE_KEY", "").strip()
-                    if env_lic:
-                        settings.LICENSE_KEY = env_lic
-                        # Persist so it survives .env removal
-                        session.add(SystemConfig(key="license_key", value=env_lic))
-                        session.commit()
-                        logger.info("License key loaded from env var and persisted to database.")
-                    else:
-                        logger.warning("No license key found in database or environment.")
-
             # --- Register Default Worker ---
             try:
                 from yads.core.worker_manager import worker_manager
@@ -438,17 +419,6 @@ async def language_middleware(request: Request, call_next):
         return HTMLResponse("Internal Server Error", status_code=500)
 
 
-@app.middleware("http")
-async def ce_state_middleware(request: Request, call_next):
-    """Attach CE state to request.state so all templates can access it."""
-    try:
-        from yads.core.community_edition import get_ce_state
-        with Session(engine) as _s:
-            request.state.ce_state = get_ce_state(_s)
-    except Exception:
-        request.state.ce_state = None
-    return await call_next(request)
-
 # -- Prometheus Metrics Middleware --
 import time as _time
 from yads.core.metrics import get_metrics as _get_metrics
@@ -522,8 +492,6 @@ app.include_router(portfolio.ui_router)
 app.include_router(api_keys.router)
 app.include_router(changelog.router)
 app.include_router(help.router)
-from yads.api.routers import support_tickets
-app.include_router(support_tickets.router)
 app.include_router(profile.router)
 app.include_router(schedules.router)
 app.include_router(queue.router)

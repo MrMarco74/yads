@@ -6,9 +6,8 @@ from datetime import datetime, timedelta
 from yads.database import get_session
 from yads.models import User, Target, ScanSchedule, Tenant
 from yads.auth.deps import get_current_user_html, RoleChecker
-from yads.utils.license_deps import require_feature
 
-router = APIRouter(prefix="/schedules", tags=["schedules"], dependencies=[Depends(require_feature("scheduled_scans"))])
+router = APIRouter(prefix="/schedules", tags=["schedules"])
 from yads.api.templating import templates
 
 # Inject Globals (Standard Pattern)

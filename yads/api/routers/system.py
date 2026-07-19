@@ -25,96 +25,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _register_license_key_with_portal(license_token: str) -> None:
-    """
-    Auto-register the Ed25519 report-signing public key with the support portal.
-    Called in a background thread after a license key is saved.
-    Uses the self-service /api/register-key endpoint — no admin credentials needed.
-    """
-    try:
-        import base64
-        import requests
-        from yads.core.license import _get_license_payload
-
-        # Decode payload without DB (inline decode — token is already validated by caller)
-        payload_b64 = license_token.split(".")[0]
-        pad = len(payload_b64) % 4
-        if pad:
-            payload_b64 += "=" * (4 - pad)
-        import json as _json
-        payload = _json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
-
-        report_signing_key_b64 = payload.get("report_signing_key")
-        customer_id = payload.get("customer_id")
-
-        # Always send/update installation report when a license key is entered,
-        # even for CE keys without customer_id — creates or updates the record.
-        try:
-            from yads.database import engine as _eng
-            from yads.models import SystemConfig as _SC
-            from sqlmodel import Session as _Sess
-            from yads.api.routers.updates import get_update_manager
-
-            with _Sess(_eng) as _s:
-                uuid_conf = _s.get(_SC, "INSTANCE_UUID")
-                instance_uuid = uuid_conf.value if uuid_conf else None
-
-            version = "unknown"
-            try:
-                version = get_update_manager().state.current_version or version
-            except Exception:
-                pass
-
-            if instance_uuid:
-                portal_url_early = settings.SUPPORT_PORTAL_URL.rstrip("/")
-                ir = requests.post(
-                    f"{portal_url_early}/api/installation",
-                    json={
-                        "instance_uuid": instance_uuid,
-                        "version": version,
-                        "install_type": "installer",
-                        "customer_id": customer_id or None,
-                    },
-                    timeout=10,
-                    verify=settings.SUPPORT_PORTAL_VERIFY_SSL,
-                )
-                if ir.status_code == 200:
-                    logger.info(f"[LicenseSync] Installation report sent for instance {instance_uuid[:8]}…")
-                else:
-                    logger.warning(f"[LicenseSync] Installation report failed: {ir.status_code}")
-        except Exception as _ie:
-            logger.warning(f"[LicenseSync] Could not send installation report: {_ie}")
-
-        if not report_signing_key_b64 or not customer_id:
-            logger.info("[LicenseSync] CE license — no report_signing_key/customer_id, skipping key registration.")
-            return
-
-        # Derive public key from private key seed
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-        raw_seed = base64.b64decode(report_signing_key_b64)
-        pub_bytes = Ed25519PrivateKey.from_private_bytes(raw_seed).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-        pub_b64 = base64.b64encode(pub_bytes).decode()
-
-        portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
-        verify_ssl = settings.SUPPORT_PORTAL_VERIFY_SSL
-        resp = requests.post(
-            f"{portal_url}/api/register-key",
-            json={"license_token": license_token},
-            timeout=10,
-            verify=verify_ssl,
-        )
-        if resp.status_code == 200:
-            logger.info(f"[LicenseSync] Successfully registered public key for customer {customer_id} with support portal.")
-        elif resp.status_code == 503:
-            logger.warning("[LicenseSync] Support portal self-registration not configured (LICENSE_AUTHORITY_PUBLIC_KEY missing).")
-        else:
-            logger.warning(f"[LicenseSync] Support portal returned {resp.status_code}: {resp.text[:200]}")
-
-    except Exception as e:
-        logger.warning(f"[LicenseSync] Failed to sync license key with support portal: {e}")
-
-
 @router.get("/logs", response_class=HTMLResponse)
 async def view_logs_page(request: Request, user: User = Depends(RoleChecker(["admin", "tenant_admin"]))):
     """
@@ -555,33 +465,6 @@ async def view_settings(request: Request, session: Session = Depends(get_session
             pass
 
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # --- License Info ---
-    from yads.core.license import license_manager
-    license_conf = session.get(SystemConfig, "license_key")
-    license_data = None
-    license_status = "Free Tier (Limit 5)"
-    license_limit = 5
-
-    if license_conf and license_conf.value:
-        data = license_manager.verify(license_conf.value)
-        if data:
-            license_data = data
-            license_limit = data.get("max_targets", 0)
-            exp_date = datetime.fromtimestamp(data.get("exp", 0)).strftime("%Y-%m-%d")
-            license_status = f"Valid (Customer: {data.get('sub')}, Expires: {exp_date})"
-        else:
-            license_status = "Invalid / Expired"
-
-    # --- Activation Status ---
-    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
-    activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
-    activation_data = None
-    is_business_license = bool(license_data and license_data.get("customer_id"))
-    if activation_code_conf and activation_code_conf.value:
-        from yads.core.license import activation_verifier
-        activation_data = activation_verifier.verify(activation_code_conf.value, instance_uuid)
 
     # --- TLS/SSL Certificate Settings ---
     https_only = False
@@ -695,14 +578,6 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "email_notifications_enabled": email_notifications_enabled,
         "base_url": base_url,
         "data_retention_days": data_retention_days,
-        "license_key": license_conf.value if license_conf else "",
-        "license_status": license_status,
-        "license_data": license_data,
-        "license_limit": license_limit,
-        "is_business_license": is_business_license,
-        "activation_data": activation_data,
-        "instance_uuid": instance_uuid,
-        "ce_state": __import__('yads.core.community_edition', fromlist=['get_ce_state']).get_ce_state(session),
         "global_max_concurrent_scans": global_max_concurrent_scans,
         "global_max_network_mbps": global_max_network_mbps,
         "default_wordlist_count": default_wordlist_count,
@@ -755,9 +630,6 @@ async def update_settings(
     base_url: Optional[str] = Form(None, max_length=500),
     data_retention_days: int = Form(90),
 
-    # License
-    license_key: Optional[str] = Form(None, max_length=2048),
-
     # Distributed Worker Settings
     global_max_concurrent_scans: int = Form(50),
     global_max_network_mbps: float = Form(500),
@@ -795,21 +667,6 @@ async def update_settings(
             conf.value = v
             session.add(conf)
             
-    # Save License
-    if license_key is not None:
-        trimmed_lic = license_key.strip()
-        set_conf("license_key", trimmed_lic)
-        settings.LICENSE_KEY = trimmed_lic
-        logger.info(f"Runtime License Key updated via UI.")
-        # Auto-register Ed25519 public key with support portal (fire-and-forget)
-        if trimmed_lic:
-            import threading
-            threading.Thread(
-                target=_register_license_key_with_portal,
-                args=(trimmed_lic,),
-                daemon=True,
-            ).start()
-    
     # Update Auto Queue
     if auto_queue is not None: set_conf("AUTO_QUEUE_SUBDOMAINS", "true") 
     else: set_conf("AUTO_QUEUE_SUBDOMAINS", "false")
@@ -1103,184 +960,6 @@ async def admin_reset(session: Session = Depends(get_session)):
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
 
 
-@router.get("/license", response_class=HTMLResponse)
-async def view_license(request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin"]))):
-    from yads.core.license import license_manager
-    from yads.models import SystemConfig
-
-    license_conf = session.get(SystemConfig, "license_key")
-    license_data = None
-    license_status = "Free Tier (Limit 5)"
-    license_limit = 5
-    license_key = ""
-
-    if license_conf and license_conf.value:
-        license_key = license_conf.value
-        data = license_manager.verify(license_conf.value)
-        if data:
-            license_data = data
-            license_limit = data.get("max_targets", 0)
-            exp_date = datetime.fromtimestamp(data.get("exp", 0)).strftime("%Y-%m-%d")
-            license_status = f"Valid (Customer: {data.get('sub')}, Expires: {exp_date})"
-        else:
-            license_status = "Invalid / Expired"
-
-    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-    instance_uuid = instance_uuid_conf.value if instance_uuid_conf else None
-    activation_code_conf = session.get(SystemConfig, "ACTIVATION_CODE")
-    activation_data = None
-    is_business_license = bool(license_data and license_data.get("customer_id"))
-    if activation_code_conf and activation_code_conf.value:
-        from yads.core.license import activation_verifier
-        activation_data = activation_verifier.verify(activation_code_conf.value, instance_uuid)
-
-    from yads.core.community_edition import get_ce_state
-    ce_state = get_ce_state(session)
-
-    msg = request.query_params.get("msg")
-    error = request.query_params.get("error")
-
-    return templates.TemplateResponse("license.html", {
-        "request": request,
-        "user": user,
-        "license_key": license_key,
-        "license_data": license_data,
-        "license_status": license_status,
-        "license_limit": license_limit,
-        "is_business_license": is_business_license,
-        "activation_data": activation_data,
-        "instance_uuid": instance_uuid,
-        "ce_state": ce_state,
-        "msg": msg,
-        "error": error,
-    })
-
-
-@router.post("/license/save-key")
-async def save_license_key(
-    request: Request,
-    license_key: str = Form(default="", max_length=131072),
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"]))
-):
-    from yads.models import SystemConfig
-    trimmed = license_key.strip()
-    # Persist to DB (for immediate effect)
-    existing = session.get(SystemConfig, "license_key")
-    if existing:
-        existing.value = trimmed
-        session.add(existing)
-    else:
-        session.add(SystemConfig(key="license_key", value=trimmed))
-    session.commit()
-    # Persist to config file + update in-memory settings
-    from yads.api.routers.setup import update_persistent_config
-    update_persistent_config("LICENSE_KEY", trimmed)
-    settings.LICENSE_KEY = trimmed
-    if trimmed:
-        import threading
-        threading.Thread(target=_register_license_key_with_portal, args=(trimmed,), daemon=True).start()
-    return RedirectResponse(url="/license?msg=Lizenzschlüssel+gespeichert", status_code=303)
-
-
-@router.post("/license/check-activation")
-async def check_activation_from_portal(
-    request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"])),
-):
-    """
-    Poll the support portal for an approved activation response code.
-    If found, save it as the license key and redirect to /license with a success message.
-    """
-    import requests
-
-    instance_uuid_conf = session.get(SystemConfig, "INSTANCE_UUID")
-    if not instance_uuid_conf or not instance_uuid_conf.value:
-        return RedirectResponse(url="/license?error=Keine+Instance-UUID+konfiguriert", status_code=303)
-
-    instance_uuid = instance_uuid_conf.value.strip()
-    portal_url = settings.SUPPORT_PORTAL_URL.rstrip("/")
-
-    try:
-        resp = requests.get(
-            f"{portal_url}/api/installation/activation/{instance_uuid}",
-            headers={"Accept": "application/json"},
-            timeout=10,
-            verify=settings.SUPPORT_PORTAL_VERIFY_SSL,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.exceptions.RequestException as e:
-        return RedirectResponse(url=f"/license?error=Portal+nicht+erreichbar+oder+Fehler:+{e}", status_code=303)
-    except Exception as e:
-        return RedirectResponse(url=f"/license?error=Fehler:+{e}", status_code=303)
-
-    status = data.get("status")
-    if status == "not_found":
-        return RedirectResponse(url="/license?error=Keine+Aktivierungsanfrage+im+Portal+gefunden", status_code=303)
-    if status == "pending":
-        return RedirectResponse(url="/license?error=Aktivierung+noch+ausstehend+(pending)", status_code=303)
-    if status == "rejected":
-        return RedirectResponse(url="/license?error=Aktivierung+wurde+abgelehnt", status_code=303)
-
-    response_code = data.get("response_code", "").strip()
-    if not response_code:
-        return RedirectResponse(url="/license?error=Kein+Antwortcode+im+Portal+hinterlegt", status_code=303)
-
-    # Verify the activation code before saving
-    from yads.core.license import activation_verifier
-    act_data = activation_verifier.verify(response_code)
-    if not act_data:
-        return RedirectResponse(url="/license?error=Aktivierungscode+ungültig+oder+abgelaufen+(falscher+Signing-Key?)", status_code=303)
-
-    # Save as ACTIVATION_CODE (separate from license_key — does NOT overwrite the license!)
-    existing = session.get(SystemConfig, "ACTIVATION_CODE")
-    if existing:
-        existing.value = response_code
-        session.add(existing)
-    else:
-        session.add(SystemConfig(key="ACTIVATION_CODE", value=response_code))
-    session.commit()
-
-    # Persist to config.env
-    from yads.api.routers.setup import update_persistent_config
-    update_persistent_config("ACTIVATION_CODE", response_code)
-
-    return RedirectResponse(url="/license?msg=Instanz+erfolgreich+aktiviert", status_code=303)
-
-
-@router.post("/admin/license/validate", response_class=HTMLResponse)
-async def validate_license_ui(
-    request: Request,
-    license_key: str = Form(...),
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"]))
-):
-    from yads.core.license import license_manager
-    
-    trimmed_lic = license_key.strip()
-    data = license_manager.verify(trimmed_lic)
-    
-    license_status = "Invalid or Expired"
-    license_limit = 0
-    license_data = {}
-    
-    if data:
-        license_status = "Valid License"
-        license_limit = data.get("max_targets", 0)
-        license_data = data
-        
-    return templates.TemplateResponse("_license_card_content.html", {
-        "request": request,
-        "license_key": trimmed_lic,
-        "license_status": license_status,
-        "license_data": license_data,
-        "license_limit": license_limit
-    })
-
-
-
 async def admin_reset_system(request: Request, session: Session = Depends(get_session)):
     """
     Emergency Stop & Data Wipe:
@@ -1343,39 +1022,3 @@ async def get_rate_limit_status(
         )
 
     return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
-
-
-# ── Community Edition endpoints ───────────────────────────────────────────────
-
-@router.post("/admin/ce/activate", response_class=HTMLResponse)
-async def ce_activate(
-    request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"])),
-):
-    from yads.core.community_edition import activate, get_ce_state
-    already = get_ce_state(session)["edition"] == "community"
-    activate(session)
-    state = get_ce_state(session)
-    msg = "bereits aktiv" if already else "Community Edition aktiviert"
-    return templates.TemplateResponse("_ce_card.html", {
-        "request": request,
-        "ce_state": state,
-        "msg": msg,
-    })
-
-
-@router.post("/admin/ce/extend", response_class=HTMLResponse)
-async def ce_extend(
-    request: Request,
-    session: Session = Depends(get_session),
-    user: User = Depends(RoleChecker(["admin"])),
-):
-    from yads.core.community_edition import extend, get_ce_state
-    ok, msg = extend(session)
-    state = get_ce_state(session)
-    return templates.TemplateResponse("_ce_card.html", {
-        "request": request,
-        "ce_state": state,
-        "msg": msg,
-    })

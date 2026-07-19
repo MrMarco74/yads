@@ -19,7 +19,7 @@ services:
   yads-api:
     image: registry.yads-security.com/yads/yads-api:${YADS_VERSION:-latest}
     container_name: yads-api
-    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/apply_license.py && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "/app/scripts/backup_db.sh && python /app/scripts/maintenance/migrate_db.py && uvicorn yads.api.main:app --host 0.0.0.0 --port 8000"
     restart: always
     volumes:
       - ./yads:/app/yads
@@ -37,7 +37,6 @@ services:
       - BROKER_URL=amqp://yads:yads@rabbitmq:5672//
       - LOG_DIR=/app/logs
       - SECRET_KEY=${SECRET_KEY}
-      - LICENSE_KEY=${LICENSE_KEY}
       - YADS_ADMIN_USER=${YADS_ADMIN_USER}
       - YADS_ADMIN_PASS=${YADS_ADMIN_PASS}
       - SETUP_COMPLETE=${SETUP_COMPLETE:-true}

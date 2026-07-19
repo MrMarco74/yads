@@ -31,9 +31,6 @@ DATABASE_URL=postgresql://yads:your_secure_password_here@db:5432/yads
 # Secret Key for JWT Token Signing
 # Generate with: openssl rand -hex 32
 SECRET_KEY=your_secret_key_here
-
-# License Key (provided by vendor)
-LICENSE_KEY=your_license_key_here
 ```
 
 ### Configuration File Template
@@ -162,7 +159,6 @@ YADS logs security-relevant events including:
 - User authentication attempts
 - Permission changes
 - Configuration modifications
-- License validation events
 
 Logs are stored in `logs/` and should be monitored regularly.
 

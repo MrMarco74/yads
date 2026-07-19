@@ -15,13 +15,12 @@ from yads.database import get_session
 from yads.models import User, Target, Tenant, OSINTIntelligence
 from yads.auth.deps import get_current_user_html, RoleChecker, get_current_user
 from yads.config import settings
-from yads.utils.license_deps import require_feature
 
 # Google API Config (Mock/Stub for now)
 GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY")
 GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
 
-router = APIRouter(prefix="/osint", tags=["osint"], dependencies=[Depends(require_feature("osint"))])
+router = APIRouter(prefix="/osint", tags=["osint"])
 from yads.api.templating import templates
 
 # Inject Globals (Required for base.html)

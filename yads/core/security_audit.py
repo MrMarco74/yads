@@ -76,8 +76,6 @@ class SecurityEventType(str, Enum):
 
     # System Events
     SYSTEM_CONFIG_CHANGED = "system_config_changed"
-    LICENSE_APPLIED = "license_applied"
-    LICENSE_EXPIRED = "license_expired"
     BACKUP_CREATED = "backup_created"
     BACKUP_RESTORED = "backup_restored"
 
@@ -208,12 +206,6 @@ MITRE_MAPPINGS: Dict[SecurityEventType, MITREMapping] = {
     # System Events
     SecurityEventType.SYSTEM_CONFIG_CHANGED: MITREMapping(
         "TA0005", "Defense Evasion", "T1562", "Impair Defenses"
-    ),
-    SecurityEventType.LICENSE_APPLIED: MITREMapping(
-        "TA0003", "Persistence", "T1543", "Create or Modify System Process"
-    ),
-    SecurityEventType.LICENSE_EXPIRED: MITREMapping(
-        "TA0040", "Impact", "T1489", "Service Stop"
     ),
     SecurityEventType.BACKUP_CREATED: MITREMapping(
         "TA0009", "Collection", "T1560", "Archive Collected Data"
