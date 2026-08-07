@@ -1,5 +1,10 @@
 logs/
 yads/api/static/screenshots/
+
+# IDE / agent tool local config — never commit
+.vscode/
+.agent/
+.continue/
 # tests/ — removed from ignore so the test suite is tracked in git
 releases/
 release_build/
@@ -21,7 +26,9 @@ data/*.env
 *.sql
 *.sql.gz
 *.db
+*.sqlite
 *.sqlite3
+support_backups/
 logs/backups/
 
 # Backup Files
