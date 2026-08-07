@@ -23,10 +23,8 @@ python-whois
 Pillow>=12.1.1
 imagehash
 tldextract
-python-jose[cryptography]
+PyJWT>=2.10.1
 cryptography>=46.0.5
-pyasn1>=0.6.3
-ecdsa>=0.19.1
 passlib[bcrypt]
 bcrypt==3.2.2
 pyotp
