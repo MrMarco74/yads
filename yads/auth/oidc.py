@@ -12,11 +12,14 @@ Flow:
 7. YADS erstellt eigenes Session-Cookie (wie lokaler Login)
 """
 
+import json
 import logging
 import httpx
+import jwt
+from jwt import PyJWTError as JWTError
+from jwt.algorithms import RSAAlgorithm
 from typing import Optional, Dict, Any
 from datetime import datetime
-from jose import jwt as jose_jwt, JWTError
 from sqlmodel import Session, select
 
 from yads.config import settings
@@ -126,11 +129,20 @@ def decode_token_claims(token_response: Dict[str, Any], realm: str = None) -> Op
         r = realm or cfg["realm"]
         issuer = f"{settings.OIDC_SERVER_URL}/realms/{r}"
 
+        # PyJWT (unlike python-jose) needs an actual key object, not a raw JWKS
+        # dict -- find the JWK matching the token's `kid` header and convert it.
+        kid = jwt.get_unverified_header(token).get("kid")
+        matching_jwk = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+        if not matching_jwk:
+            logger.error(f"OIDC: No matching JWK found for kid={kid}")
+            return None
+        signing_key = RSAAlgorithm.from_jwk(json.dumps(matching_jwk))
+
         # Verify signature + expiry + issuer. Skip audience check for access_token
         # compatibility (Keycloak access tokens may use "account" as aud, not client_id).
-        claims = jose_jwt.decode(
+        claims = jwt.decode(
             token,
-            jwks,
+            key=signing_key,
             algorithms=["RS256", "RS384", "RS512"],
             issuer=issuer,
             options={"verify_aud": False},

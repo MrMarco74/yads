@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional, Union, Any
-from jose import jwt
+import jwt
 from passlib.context import CryptContext
 from yads.config import settings
 
