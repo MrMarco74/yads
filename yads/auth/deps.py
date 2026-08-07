@@ -1,6 +1,7 @@
 from typing import Generator, Annotated, List
 from fastapi import Depends, HTTPException, status, Request
-from jose import jwt, JWTError
+import jwt
+from jwt import PyJWTError as JWTError
 from sqlmodel import Session, select
 from yads.config import settings
 from yads.database import engine, get_session as get_db_session, redis_client
