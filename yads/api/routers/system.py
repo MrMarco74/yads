@@ -668,8 +668,11 @@ async def update_settings(
             session.add(conf)
             
     # Update Auto Queue
-    if auto_queue is not None: set_conf("AUTO_QUEUE_SUBDOMAINS", "true") 
-    else: set_conf("AUTO_QUEUE_SUBDOMAINS", "false")
+    # NOTE: auto_queue is `bool = Form(False)`, so it's never actually None --
+    # an unchecked checkbox arrives as False, not absent. The old
+    # `is not None` check was therefore always true, silently forcing this
+    # back on (true) on every settings save regardless of the checkbox.
+    set_conf("AUTO_QUEUE_SUBDOMAINS", "true" if auto_queue else "false")
         
     # Rate Limit
     rl_conf = session.get(SystemConfig, "SCAN_QUEUE_RATE_LIMIT")
