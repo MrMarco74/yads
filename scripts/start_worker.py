@@ -64,9 +64,12 @@ def main():
         concurrency = _cpu_default()
 
     # 2. Determine which queues to consume
-    # Default: celery (standard scans) + discovery (recursive discovery sessions)
-    # Override via WORKER_QUEUES env var, e.g. WORKER_QUEUES=celery to disable discovery
-    queues = os.getenv("WORKER_QUEUES", "celery,discovery")
+    # Default: celery (standard scans) + discovery (recursive discovery
+    # sessions) + utility (admin tool checks/updates that must keep working
+    # even while the scan queue is paused -- see worker_core.py).
+    # Override via WORKER_QUEUES env var, e.g. WORKER_QUEUES=celery to
+    # disable discovery/utility.
+    queues = os.getenv("WORKER_QUEUES", "celery,discovery,utility")
     print(f"[Startup] Worker queues: {queues}")
 
     # 3. Construct Command

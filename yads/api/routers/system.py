@@ -17,9 +17,15 @@ from yads.api.templating import templates
 
 from yads.api.utils.update_checker import UpdateService
 from yads.core.backup import create_backup_zip, restore_backup_from_zip
-from celery import Celery
 from yads.config import settings
-celery_app = Celery('yads_worker', broker=settings.BROKER_URL, backend=settings.REDIS_URL)
+# Shared, pre-configured Celery app (task_queues/task_routes -- see
+# worker_core.py) -- NOT a fresh Celery(...) instance. A second,
+# unconfigured instance here would silently lose all queue routing
+# (e.g. check_nmap_available/check_nuclei_available/
+# update_nuclei_templates being routed to the 'utility' queue instead of
+# the pausable default 'celery' queue), which is exactly the bug this
+# comment is here to prevent regressing.
+from yads.worker_core import celery_app
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,17 +112,10 @@ async def binary_status(request: Request, user: User = Depends(RoleChecker(["adm
     # redeploy, which is why "Install nmap" appeared to work then
     # silently reverted). Ask the worker instead for both.
     #
-    # KNOWN LIMITATION (2026-08-09): when the scan queue is paused
-    # (Settings -> Distributed Workers, or QUEUE_ACTIVE=false), the
-    # worker's startup code cancels its *entire* Celery consumer, not
-    # just scan dispatch (see scripts/start_worker.py /
-    # "[Worker] startup: Queue is PAUSED in DB. Cancelling consumer.").
-    # That means these send_task(...).get(timeout=5) calls -- and the
-    # nuclei-update dispatch in admin_nuclei_update below -- silently
-    # time out and report unavailable/fail while the queue is paused,
-    # even though they're admin utility calls, not scans. Fixing this
-    # properly means giving admin-utility tasks their own always-consumed
-    # queue, independent of the scan-pause flag; not done yet.
+    # These run on the 'utility' queue (see worker_core.py), not the
+    # default 'celery' queue, so they keep working even while the scan
+    # queue is paused (pause only cancels the 'celery'/'discovery'
+    # consumers by name).
     WORKER_CHECK_TASK = {
         "nmap": "yads.worker.check_nmap_available",
         "nuclei": "yads.worker.check_nuclei_available",
@@ -258,10 +257,8 @@ async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker
     Dispatched to a worker node via Celery -- the nuclei binary only exists
     in the worker image, not the API image (see Dockerfile's base-scanner
     stage), so running it in-process here always fails with
-    FileNotFoundError.
-
-    KNOWN LIMITATION: silently times out while the scan queue is paused
-    -- see the comment in binary_status() above for why.
+    FileNotFoundError. Runs on the 'utility' queue (see worker_core.py),
+    so this keeps working even while the scan queue is paused.
     """
     logger.info(f"Admin {user.username} triggered Nuclei template update.")
     try:

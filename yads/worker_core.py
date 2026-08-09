@@ -33,16 +33,29 @@ celery_app.conf.task_reject_on_worker_lost = True
 # ── Queue routing ─────────────────────────────────────────────────────────────
 # Tasks on the 'discovery' queue are only consumed by workers that explicitly
 # listen to it (via -Q celery,discovery).  Standard scan tasks stay on 'celery'.
+#
+# 'utility' is for admin-triggered utility tasks (tool availability checks,
+# on-demand template updates) that must keep working even while the scan
+# queue is paused. Pausing (queue.py/mobile.py/worker_core.py's
+# on_worker_ready) cancels the 'celery' and 'discovery' consumers by literal
+# name, never a wildcard/"cancel everything" call -- so a distinctly-named
+# queue is naturally invisible to all of that pause/resume logic and needs
+# no changes there. See scripts/start_worker.py for the matching -Q entry.
 from kombu import Queue as _Queue, Exchange as _Exchange
 _default_exchange = _Exchange("celery", type="direct", durable=True)
 _discovery_exchange = _Exchange("discovery", type="direct", durable=True)
+_utility_exchange = _Exchange("utility", type="direct", durable=True)
 celery_app.conf.task_queues = (
     _Queue("celery",    _default_exchange,   routing_key="celery",    durable=True),
     _Queue("discovery", _discovery_exchange, routing_key="discovery", durable=True),
+    _Queue("utility",   _utility_exchange,   routing_key="utility",   durable=True),
 )
 celery_app.conf.task_routes = {
     "yads.worker.run_discovery_scan":      {"queue": "discovery"},
     "yads.worker.start_discovery_session": {"queue": "discovery"},
+    "yads.worker.check_nmap_available":    {"queue": "utility"},
+    "yads.worker.check_nuclei_available":  {"queue": "utility"},
+    "yads.worker.update_nuclei_templates": {"queue": "utility"},
 }
 
 # Beat schedule — tasks registered in worker_tasks.py
