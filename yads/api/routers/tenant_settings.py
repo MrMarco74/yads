@@ -103,7 +103,11 @@ async def update_tenant_settings(
     shodan_api_key: Optional[str] = Form(None),
     censys_api_key: Optional[str] = Form(None),
     virustotal_api_key: Optional[str] = Form(None),
-    session_timeout_minutes: Optional[int] = Form(None),
+    # Optional[str], not Optional[int]: an empty number input submits "",
+    # which FastAPI/Pydantic v2 doesn't coerce to None for Optional[int] --
+    # it 422s the whole form before this function even runs. Parsed to int
+    # manually below instead.
+    session_timeout_minutes: Optional[str] = Form(None),
     # Report Branding Fields
     report_logo_url: Optional[str] = Form(None),
     report_company_name: Optional[str] = Form(None),
@@ -116,17 +120,32 @@ async def update_tenant_settings(
     llm_api_url: Optional[str] = Form(None),
     llm_api_key: Optional[str] = Form(None),
     llm_model: Optional[str] = Form(None),
-    # SLA Settings
-    sla_critical: Optional[int] = Form(None),
-    sla_high: Optional[int] = Form(None),
-    sla_medium: Optional[int] = Form(None),
-    sla_low: Optional[int] = Form(None),
-    sla_info: Optional[int] = Form(None),
+    # SLA Settings (same Optional[str]-not-int reasoning as session_timeout_minutes above)
+    sla_critical: Optional[str] = Form(None),
+    sla_high: Optional[str] = Form(None),
+    sla_medium: Optional[str] = Form(None),
+    sla_low: Optional[str] = Form(None),
+    sla_info: Optional[str] = Form(None),
     user: User = Depends(RoleChecker(["tenant_admin", "admin"])),
     session: Session = Depends(get_session)
 ):
     if not user.tenant_id:
         return RedirectResponse("/tenant-settings", status_code=303)
+
+    def _to_int(raw: Optional[str]) -> Optional[int]:
+        if raw is None or not raw.strip():
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+
+    session_timeout_minutes = _to_int(session_timeout_minutes)
+    sla_critical = _to_int(sla_critical)
+    sla_high = _to_int(sla_high)
+    sla_medium = _to_int(sla_medium)
+    sla_low = _to_int(sla_low)
+    sla_info = _to_int(sla_info)
 
     tenant = session.get(Tenant, user.tenant_id)
     if not tenant:
