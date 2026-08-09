@@ -12,8 +12,10 @@ secret_scan:
   script:
     - trivy fs --scanners secret --exit-code 1 .
     - |
+      # Excludes this file itself and mirror_to_github.sh: they legitimately
+      # contain the pattern text as denylist config, not as a leak.
       DENYLIST='musterbank|redacted|familie-frischkorn\.de|highantdev\.de|fritz\.box'
-      if grep -rEIl "$DENYLIST" --exclude-dir=.git . ; then
+      if grep -rEIl "$DENYLIST" --exclude-dir=.git --exclude=.gitlab-ci.yml --exclude=mirror_to_github.sh . ; then
         echo "Denylisted term found above." >&2
         exit 1
       fi
