@@ -397,6 +397,49 @@ def prune_old_scan_results():
         logger.error(f"[Worker] Data retention pruning failed: {e}")
 
 
+def _resolve_nuclei_binary() -> str:
+    """Admin-configured nuclei path (Settings -> Scanner Resources), falling
+    back to a bare 'nuclei' resolved via PATH."""
+    with Session(engine) as session:
+        conf = session.get(SystemConfig, "NUCLEI_BINARY_PATH")
+    return (conf.value.strip() if conf and conf.value else "") or "nuclei"
+
+
+@celery_app.task(name="yads.worker.update_nuclei_templates")
+def update_nuclei_templates():
+    """
+    Runs 'nuclei -ut' to update vulnerability templates. Must run on a worker
+    node -- the nuclei binary and the nuclei_templates volume are only
+    present in the worker image (see Dockerfile's base-scanner stage), not
+    the API image.
+    """
+    import subprocess
+    nuclei_bin = _resolve_nuclei_binary()
+    logger.info(f"[Worker] Running Nuclei template update ({nuclei_bin}).")
+    try:
+        proc = subprocess.run(  # nosec B603 B607 - path from admin-only Settings, no user input
+            [nuclei_bin, "-ut"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=600
+        )
+        if proc.returncode == 0:
+            last_line = proc.stdout.splitlines()[-1] if proc.stdout.strip() else "Templates are up to date."
+            return {"ok": True, "message": last_line}
+        return {"ok": False, "message": f"Update failed ({proc.returncode}): {proc.stderr[:100]}"}
+    except Exception as e:
+        logger.error(f"[Worker] Nuclei template update failed: {e}")
+        return {"ok": False, "message": str(e)}
+
+
+@celery_app.task(name="yads.worker.check_nuclei_available")
+def check_nuclei_available():
+    """Resolve availability of the (optionally admin-configured) nuclei binary on this worker."""
+    import shutil
+    nuclei_bin = _resolve_nuclei_binary()
+    resolved = shutil.which(nuclei_bin)
+    if not resolved and os.path.isfile(nuclei_bin) and os.access(nuclei_bin, os.X_OK):
+        resolved = nuclei_bin
+    return {"available": bool(resolved), "path": resolved}
+
+
 # ── Main Scan Task ────────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True, acks_late=True, reject_on_worker_lost=True)

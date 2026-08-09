@@ -263,6 +263,13 @@
                             Update
                         </button>
                     </div>
+                    <div class="p-3 bg-gray-900/50 rounded border border-gray-700">
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Nuclei Binary Path</label>
+                        <input type="text" name="nuclei_binary_path" value="{{ nuclei_binary_path }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 font-mono"
+                            placeholder="nuclei (auto-detect on PATH)">
+                        <p class="text-[10px] text-gray-500 mt-1">Full path to the nuclei binary on the worker node, if it's not on its PATH. Save settings, then click Update above.</p>
+                    </div>
 
                     <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
                         <div>

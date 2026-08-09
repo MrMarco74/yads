@@ -101,7 +101,18 @@ async def binary_status(request: Request, user: User = Depends(RoleChecker(["adm
     ]
     result = []
     for b in BINARIES:
-        available = bool(shutil.which(b["name"]))
+        if b["name"] == "nuclei":
+            # nuclei only ever runs on the worker (see Dockerfile's
+            # base-scanner stage) -- checking shutil.which() here in the
+            # API process would always be wrong. Ask the worker instead.
+            try:
+                status = celery_app.send_task("yads.worker.check_nuclei_available").get(timeout=5)
+                available = bool(status.get("available"))
+            except Exception as e:
+                logger.debug(f"Failed to check nuclei availability on worker: {e}")
+                available = False
+        else:
+            available = bool(shutil.which(b["name"]))
         result.append({**b, "available": available, "mode": "full" if available else ("fallback" if b["has_fallback"] else "unavailable")})
     return result
 
@@ -228,19 +239,17 @@ async def admin_nmap_install(request: Request, user: User = Depends(RoleChecker(
 async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker(["admin"]))):
     """
     Manually triggers 'nuclei -ut' to update vulnerability templates.
+    Dispatched to a worker node via Celery -- the nuclei binary only exists
+    in the worker image, not the API image (see Dockerfile's base-scanner
+    stage), so running it in-process here always fails with
+    FileNotFoundError.
     """
-    import subprocess
     logger.info(f"Admin {user.username} triggered Nuclei template update.")
     try:
-        # Run update command
-        proc = subprocess.Popen(["nuclei", "-ut"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)  # nosec B603 B607 - hardcoded nuclei command, no user input
-        stdout, stderr = proc.communicate(timeout=600) # 10 min timeout
-        
-        if proc.returncode == 0:
-            last_line = stdout.splitlines()[-1] if stdout.strip() else "Templates are up to date."
-            return HTMLResponse(content=f'<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2 animate-fade-in">{last_line}</div>')
-        else:
-            return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Update failed ({proc.returncode}): {stderr[:100]}</div>')
+        result = celery_app.send_task("yads.worker.update_nuclei_templates").get(timeout=600)
+        if result.get("ok"):
+            return HTMLResponse(content=f'<div class="bg-green-900/40 border border-green-500/50 text-green-200 p-2 rounded text-[10px] mt-2 animate-fade-in">{result["message"]}</div>')
+        return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">{result["message"]}</div>')
     except Exception as e:
         logger.error(f"Nuclei update failed: {e}")
         return HTMLResponse(content=f'<div class="bg-red-900/40 border border-red-500/50 text-red-200 p-2 rounded text-[10px] mt-2 animate-fade-in">Error: {str(e)}</div>')
@@ -413,6 +422,11 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     except Exception as e:
         logger.debug(f"Failed to check nuclei templates: {e}")
 
+    nuclei_binary_path = ""
+    nbp_conf = session.get(SystemConfig, "NUCLEI_BINARY_PATH")
+    if nbp_conf:
+        nuclei_binary_path = nbp_conf.value
+
     # Splunk Config
     splunk_hec_url = ""
     splunk_hec_token = ""
@@ -581,6 +595,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "global_max_network_mbps": global_max_network_mbps,
         "default_wordlist_count": default_wordlist_count,
         "nuclei_last_updated": nuclei_last_updated,
+        "nuclei_binary_path": nuclei_binary_path,
         # TLS/SSL Settings
         "https_only": https_only,
         "https_only_env_override": https_only_env_override,
@@ -628,6 +643,7 @@ async def update_settings(
     email_notifications_enabled: bool = Form(False),
     base_url: Optional[str] = Form(None, max_length=500),
     data_retention_days: int = Form(90),
+    nuclei_binary_path: Optional[str] = Form(None, max_length=500),
 
     # Distributed Worker Settings
     global_max_concurrent_scans: int = Form(50),
@@ -756,6 +772,10 @@ async def update_settings(
     if client_cert_path is not None:
         client_cert_path = client_cert_path.strip()
         set_conf("CLIENT_CERT_PATH", client_cert_path)
+
+    if nuclei_binary_path is not None:
+        nuclei_binary_path = nuclei_binary_path.strip()
+        set_conf("NUCLEI_BINARY_PATH", nuclei_binary_path)
 
     if client_key_path is not None:
         client_key_path = client_key_path.strip()
