@@ -40,9 +40,13 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 1.  **Deployment**:
     The infrastructure configuration lives in the **[yads-infra](https://github.com/MrMarco74/yads-infra)** repository, which builds against a sibling `yads` checkout (no prebuilt images or registry needed).
 
+    YADS is split across several repos that need to move together — clone the matching
+    [release tag](https://github.com/MrMarco74/yads/releases) rather than `main` for a
+    known-working combination (see a release's notes for the full compatible tag list):
+
     ```bash
-    git clone https://github.com/MrMarco74/yads.git
-    git clone https://github.com/MrMarco74/yads-infra.git
+    git clone --branch v1.20.0 https://github.com/MrMarco74/yads.git
+    git clone --branch v1.20.0 https://github.com/MrMarco74/yads-infra.git
     cd yads-infra
     docker compose up -d
     ```
