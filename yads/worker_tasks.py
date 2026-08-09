@@ -440,6 +440,20 @@ def check_nuclei_available():
     return {"available": bool(resolved), "path": resolved}
 
 
+@celery_app.task(name="yads.worker.check_nmap_available")
+def check_nmap_available():
+    """
+    Resolve nmap availability on this worker. nmap is baked into the
+    worker image at build time (Dockerfile's base-scanner stage), so this
+    is normally always True -- unlike the API container, where an
+    apt-get-installed nmap only lives in that container's writable layer
+    and disappears on every restart/redeploy.
+    """
+    import shutil
+    resolved = shutil.which("nmap")
+    return {"available": bool(resolved), "path": resolved}
+
+
 # ── Main Scan Task ────────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True, acks_late=True, reject_on_worker_lost=True)

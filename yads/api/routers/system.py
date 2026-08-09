@@ -94,25 +94,41 @@ async def get_logs_stream(file: str = "yads-api.log", user: User = Depends(RoleC
 @router.get("/api/system/binary-status")
 async def binary_status(request: Request, user: User = Depends(RoleChecker(["admin"]))):
     """Return availability of optional external binaries (nmap, nuclei, …)."""
-    import shutil
     BINARIES = [
         {"name": "nmap",   "label": "Nmap",   "install_hint": "apt-get install -y nmap",   "has_fallback": True,  "fallback_note": "socket-based scan (limited, no stealth)"},
         {"name": "nuclei", "label": "Nuclei", "install_hint": "See /admin/tools for update", "has_fallback": False, "fallback_note": ""},
     ]
+    # nmap/nuclei only ever run on the worker (see Dockerfile's
+    # base-scanner stage) -- checking shutil.which() here in the API
+    # process would always be wrong (and for nmap specifically, an
+    # apt-get-installed binary in the API container only lives in that
+    # container's writable layer and disappears on every restart/
+    # redeploy, which is why "Install nmap" appeared to work then
+    # silently reverted). Ask the worker instead for both.
+    #
+    # KNOWN LIMITATION (2026-08-09): when the scan queue is paused
+    # (Settings -> Distributed Workers, or QUEUE_ACTIVE=false), the
+    # worker's startup code cancels its *entire* Celery consumer, not
+    # just scan dispatch (see scripts/start_worker.py /
+    # "[Worker] startup: Queue is PAUSED in DB. Cancelling consumer.").
+    # That means these send_task(...).get(timeout=5) calls -- and the
+    # nuclei-update dispatch in admin_nuclei_update below -- silently
+    # time out and report unavailable/fail while the queue is paused,
+    # even though they're admin utility calls, not scans. Fixing this
+    # properly means giving admin-utility tasks their own always-consumed
+    # queue, independent of the scan-pause flag; not done yet.
+    WORKER_CHECK_TASK = {
+        "nmap": "yads.worker.check_nmap_available",
+        "nuclei": "yads.worker.check_nuclei_available",
+    }
     result = []
     for b in BINARIES:
-        if b["name"] == "nuclei":
-            # nuclei only ever runs on the worker (see Dockerfile's
-            # base-scanner stage) -- checking shutil.which() here in the
-            # API process would always be wrong. Ask the worker instead.
-            try:
-                status = celery_app.send_task("yads.worker.check_nuclei_available").get(timeout=5)
-                available = bool(status.get("available"))
-            except Exception as e:
-                logger.debug(f"Failed to check nuclei availability on worker: {e}")
-                available = False
-        else:
-            available = bool(shutil.which(b["name"]))
+        try:
+            status = celery_app.send_task(WORKER_CHECK_TASK[b["name"]]).get(timeout=5)
+            available = bool(status.get("available"))
+        except Exception as e:
+            logger.debug(f"Failed to check {b['name']} availability on worker: {e}")
+            available = False
         result.append({**b, "available": available, "mode": "full" if available else ("fallback" if b["has_fallback"] else "unavailable")})
     return result
 
@@ -243,6 +259,9 @@ async def admin_nuclei_update(request: Request, user: User = Depends(RoleChecker
     in the worker image, not the API image (see Dockerfile's base-scanner
     stage), so running it in-process here always fails with
     FileNotFoundError.
+
+    KNOWN LIMITATION: silently times out while the scan queue is paused
+    -- see the comment in binary_status() above for why.
     """
     logger.info(f"Admin {user.username} triggered Nuclei template update.")
     try:
