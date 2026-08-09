@@ -41,5 +41,9 @@ if git grep -rIlE "$DENYLIST" HEAD -- . "${SCAN_EXCLUDES[@]}" >/dev/null 2>&1; t
     exit 1
 fi
 
+# Exported so the pre-push hook this triggers (hooks are per-repo, not
+# per-remote -- this push re-fires it) can recognize this as its own nested
+# push and exit immediately instead of spawning another copy of this script.
+export YADS_MIRROR_RUNNING=1
 git push https://github.com/MrMarco74/"$REPO_NAME".git HEAD:main
 echo "$LOG_PREFIX pushed to github.com/MrMarco74/$REPO_NAME"
