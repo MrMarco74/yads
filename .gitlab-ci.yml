@@ -1,8 +1,8 @@
-# Fail-closed guard between internal GitLab and the public GitHub mirror.
-# secret_scan MUST pass before promote_to_github is allowed to run.
+# Server-side backstop: blocks the pipeline if a known-sensitive term or
+# private key lands on main. Primary sync to GitHub is the local pre-push
+# hook (scripts/mirror_to_github.sh) — see scripts/install-git-hooks.sh.
 stages:
   - security
-  - promote
 
 secret_scan:
   stage: security
@@ -11,23 +11,13 @@ secret_scan:
     entrypoint: [""]
   script:
     - trivy fs --scanners secret --exit-code 1 .
-    # Known-sensitive terms from prior leaks: customer names, internal domains/hosts.
     - |
       DENYLIST='musterbank|redacted|familie-frischkorn\.de|highantdev\.de|fritz\.box'
       if grep -rEIl "$DENYLIST" --exclude-dir=.git . ; then
-        echo "Denylisted term found above — blocking promotion to GitHub." >&2
+        echo "Denylisted term found above." >&2
         exit 1
       fi
   allow_failure: false
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-
-promote_to_github:
-  stage: promote
-  image: alpine/git:latest
-  needs: ["secret_scan"]
-  script:
-    - git push "https://x-access-token:${GITHUB_PUSH_TOKEN}@github.com/MrMarco74/yads.git" "HEAD:main"
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
