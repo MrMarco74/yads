@@ -364,7 +364,6 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     else:
         # Default load
         try:
-             import os
              if os.path.exists("ciphers.csv"):
                 with open("ciphers.csv", "r") as f:
                     approved_ciphers = f.read()
