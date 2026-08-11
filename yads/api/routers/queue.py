@@ -335,7 +335,9 @@ async def control_queue(
         # Revoke + terminate all prefetched (reserved) and actively running tasks
         import threading
         def _hard_stop():
+            import logging
             import time
+            log = logging.getLogger("yads.queue")
             try:
                 i = celery_app.control.inspect(timeout=5.0)
                 reserved = i.reserved() or {}
@@ -345,8 +347,7 @@ async def control_queue(
                         # terminate=True sends SIGTERM to the worker subprocess
                         celery_app.control.revoke(task["id"], terminate=True, signal="SIGTERM")
             except Exception as exc:
-                import logging
-                logging.getLogger("yads.queue").warning(f"[Stop] revoke broadcast failed: {exc}")
+                log.warning(f"[Stop] revoke broadcast failed: {exc}")
             # After workers stop, reset any 'running' targets → 'queued' so they
             # restart cleanly when the queue is resumed.
             time.sleep(3)
@@ -360,11 +361,11 @@ async def control_queue(
                     ))
                     s.commit()
                     if result.rowcount:
-                        logging.getLogger("yads.queue").info(
+                        log.info(
                             f"[Stop] Reset {result.rowcount} running targets → queued"
                         )
             except Exception as exc:
-                logging.getLogger("yads.queue").warning(f"[Stop] DB reset failed: {exc}")
+                log.warning(f"[Stop] DB reset failed: {exc}")
 
         threading.Thread(target=_hard_stop, daemon=True).start()
 
