@@ -183,6 +183,17 @@ class SplunkHECLogger:
         
         if tenant_id is not None:
             payload["event"]["tenant_id"] = tenant_id
+            try:
+                from yads.config import settings
+                from yads.models import Tenant
+                from sqlmodel import Session, create_engine
+                engine = create_engine(settings.DATABASE_URL)
+                with Session(engine) as s:
+                    t = s.get(Tenant, tenant_id)
+                    if t and t.name:
+                        payload["event"]["tenant_name"] = t.name
+            except Exception:
+                pass
 
         try:
             self._queue.put_nowait(payload)
@@ -190,6 +201,15 @@ class SplunkHECLogger:
             self.dropped_count += 1
             logger.error("Splunk queue is full. Spooling event to disk.")
             self._spool_to_disk(payload)
+
+    def shutdown(self) -> None:
+        """Flushes remaining items in the queue to disk on process shutdown."""
+        while not self._queue.empty():
+            try:
+                p = self._queue.get_nowait()
+                self._spool_to_disk(p)
+            except Exception:
+                break
 
     def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
         """
@@ -321,3 +341,6 @@ def mitre_audit(id: str):
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
+import atexit
+atexit.register(splunk_logger.shutdown)

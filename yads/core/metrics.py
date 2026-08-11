@@ -208,6 +208,23 @@ class YADSMetrics:
             registry=self._registry
         )
 
+        # Splunk HEC status
+        self.splunk_queue_depth = Gauge(
+            'yads_splunk_queue_depth',
+            'Current depth of Splunk HEC async event queue',
+            registry=self._registry
+        )
+        self.splunk_events_sent_total = Gauge(
+            'yads_splunk_events_sent_total',
+            'Total Splunk HEC events successfully sent',
+            registry=self._registry
+        )
+        self.splunk_events_dropped_total = Gauge(
+            'yads_splunk_events_dropped_total',
+            'Total Splunk HEC events dropped/spooled',
+            registry=self._registry
+        )
+
     def _setup_histograms(self, Histogram):
         """Setup histogram metrics."""
         # Scan duration histogram
@@ -478,6 +495,17 @@ class YADSMetrics:
                 is_active = config.value.lower() == "true"
                 self.queue_active.set(1 if is_active else 0)
             else:
+                self.queue_active.set(1)
+
+            # Collect Splunk telemetry
+            try:
+                from yads.core.splunk_logger import splunk_logger
+                splunk_stats = splunk_logger.get_stats()
+                self.splunk_queue_depth.set(splunk_stats.get("queue_depth", 0))
+                self.splunk_events_sent_total.set(splunk_stats.get("sent_count", 0))
+                self.splunk_events_dropped_total.set(splunk_stats.get("dropped_count", 0))
+            except Exception:
+                pass
                 self.queue_active.set(1)  # Default to active
 
             # Queue depth from Redis
