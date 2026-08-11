@@ -806,6 +806,12 @@ async def update_settings(
     if osint_webhook_url is not None:
         set_conf("OSINT_WEBHOOK_URL", osint_webhook_url.strip())
 
+    # Splunk HEC Settings
+    if splunk_hec_url is not None:
+        set_conf("SPLUNK_HEC_URL", splunk_hec_url.strip())
+    if splunk_hec_token is not None:
+        set_conf("SPLUNK_HEC_TOKEN", splunk_hec_token.strip())
+
     # Email / SMTP Settings
     if smtp_host is not None:
         set_conf("SMTP_HOST", smtp_host.strip())

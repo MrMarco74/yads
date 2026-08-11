@@ -118,6 +118,7 @@ class SplunkHECLogger:
     def _refresh_config(self) -> None:
         db_url = None
         db_token = None
+        db_index = None
         try:
              from yads.config import settings
              from yads.models import SystemConfig
@@ -130,11 +131,15 @@ class SplunkHECLogger:
                  
                  s_token = session.get(SystemConfig, "SPLUNK_HEC_TOKEN")
                  if s_token and s_token.value: db_token = s_token.value
+
+                 s_index = session.get(SystemConfig, "SPLUNK_INDEX")
+                 if s_index and s_index.value: db_index = s_index.value
         except Exception:
              pass
 
         self.token = db_token if db_token else os.environ.get("SPLUNK_HEC_TOKEN")
         self.url = db_url if db_url else os.environ.get("SPLUNK_HEC_URL")
+        self.index = db_index if db_index else os.environ.get("SPLUNK_INDEX")
 
         if not self.token or not self.url:
             self.enabled = False
@@ -180,6 +185,8 @@ class SplunkHECLogger:
             "sourcetype": sourcetype,
             "event": data
         }
+        if self.index:
+            payload["index"] = self.index
         
         if tenant_id is not None:
             payload["event"]["tenant_id"] = tenant_id

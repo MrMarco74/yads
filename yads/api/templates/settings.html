@@ -367,6 +367,11 @@
                 </div>
 
                 <script>
+                function _csrfToken() {
+                    var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+                    return m ? decodeURIComponent(m[1]) : '';
+                }
+
                 async function testSplunkConnection() {
                     const url = document.getElementById('splunk_hec_url').value;
                     const token = document.getElementById('splunk_hec_token').value;
