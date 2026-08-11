@@ -17,43 +17,44 @@ logger.addHandler(handler)
 
 class SplunkHECLogger:
     def __init__(self):
-        # Hybrid Loading: Check DB first, then Env
+        self.host = socket.gethostname()
+        self.verify_ssl = False  # Allow self-signed or internal CA certs
+        self.token = None
+        self.url = None
+        self.enabled = False
+        self._refresh_config()
+
+    def _refresh_config(self) -> None:
         db_url = None
         db_token = None
-        
         try:
              from yads.config import settings
              from yads.models import SystemConfig
-             from sqlmodel import Session, create_engine, select
+             from sqlmodel import Session, create_engine
              
              engine = create_engine(settings.DATABASE_URL)
              with Session(engine) as session:
                  s_url = session.get(SystemConfig, "SPLUNK_HEC_URL")
-                 if s_url: db_url = s_url.value
+                 if s_url and s_url.value: db_url = s_url.value
                  
                  s_token = session.get(SystemConfig, "SPLUNK_HEC_TOKEN")
-                 if s_token: db_token = s_token.value
-        except Exception as e:
-            # Fallback if DB fails (e.g. migration not run yet)
-            pass
+                 if s_token and s_token.value: db_token = s_token.value
+        except Exception:
+             pass
 
         self.token = db_token if db_token else os.environ.get("SPLUNK_HEC_TOKEN")
         self.url = db_url if db_url else os.environ.get("SPLUNK_HEC_URL")
 
-        self.host = socket.gethostname()
-        self.verify_ssl = True  # Mandatory Requirement
-
         if not self.token or not self.url:
-            # We log this once to stderr but don't crash, 
-            # so the app works even if Splunk isn't configured yet.
-            logger.error("Splunk HEC Token or URL not set. Logging disabled.")
             self.enabled = False
         else:
             self.enabled = True
-    
+
     def _send_payload(self, payload: Dict[str, Any]) -> None:
         if not self.enabled:
-            return
+            self._refresh_config()
+            if not self.enabled:
+                return
 
         headers = {
             "Authorization": f"Splunk {self.token}",
