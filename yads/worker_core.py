@@ -84,6 +84,10 @@ celery_app.conf.beat_schedule = {
         'task': 'yads.worker.sync_external_integrations',
         'schedule': 15 * 60.0, # every 15 minutes
     },
+    'splunk-hec-health-check': {
+        'task': 'yads.worker.check_splunk_hec_health',
+        'schedule': 15 * 60.0, # every 15 minutes
+    },
 }
 
 from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked
@@ -166,6 +170,17 @@ def on_task_failure(task_id, exception, args, kwargs, traceback, einfo, **kw):
             reason = f"Scan failed: {type(exception).__name__}"
         _reset_target_status(target_id, reason)
 
+    # Forward task failure to Splunk Ops stream
+    try:
+        from yads.core.splunk_logger import splunk_logger
+        splunk_logger.send_ops_event(
+            category="worker_task_failure",
+            message=f"Task failed: {type(exception).__name__}",
+            details={"task_id": task_id, "error": str(exception), "target_id": target_id}
+        )
+    except Exception:
+        pass
+
 
 @task_revoked.connect(sender="yads.worker.run_all_scans")
 def on_task_revoked(request, terminated, signum, expired, **kw):
@@ -173,6 +188,16 @@ def on_task_revoked(request, terminated, signum, expired, **kw):
     target_id = request.args[0] if request.args else (request.kwargs or {}).get("target_id")
     if target_id:
         _reset_target_status(target_id, "Scan interrupted (task revoked or hard time limit)")
+
+    try:
+        from yads.core.splunk_logger import splunk_logger
+        splunk_logger.send_ops_event(
+            category="worker_task_revoked",
+            message="Task revoked or hard timeout exceeded",
+            details={"target_id": target_id, "terminated": terminated, "expired": expired}
+        )
+    except Exception:
+        pass
 
 
 @worker_process_init.connect

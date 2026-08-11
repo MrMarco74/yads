@@ -148,13 +148,27 @@ class GitExposureScanner(BaseScannerModule):
                         "content_match": exposed.get("content_match"),
                     }
                     exposed_paths.append(entry)
-                    result["findings"].append({
+                    exposed_finding = {
                         "severity": severity,
-                            "title": description,
+                        "title": description,
                         "detail": f"{url} returned HTTP {exposed.get('status_code')}",
                         "url": url,
                         "category": category,
-                    })
+                    }
+                    result["findings"].append(exposed_finding)
+
+                    # Stream Git/Config exposure finding in real-time to Splunk SIEM
+                    try:
+                        from yads.core.splunk_logger import splunk_logger
+                        splunk_logger.send_finding_event(
+                            finding_type=f"exposure:{category}",
+                            domain=domain,
+                            severity=severity,
+                            mitre_id="T1552.001",
+                            details=exposed_finding
+                        )
+                    except Exception:
+                        pass
             # Don't duplicate across http/https
             break
 

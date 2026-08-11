@@ -30,6 +30,7 @@ class SplunkHECLogger:
         self.sent_count = 0
         self.dropped_count = 0
         self.error_count = 0
+        self.spool_file = "/tmp/yads_splunk_spool.ndjson"
         self._refresh_config()
         self._start_worker()
 
@@ -38,9 +39,58 @@ class SplunkHECLogger:
             self._worker_thread = threading.Thread(target=self._queue_worker, daemon=True)
             self._worker_thread.start()
 
+    def _spool_to_disk(self, payload: Dict[str, Any]) -> None:
+        """Saves unsent payload to local NDJSON disk spool."""
+        try:
+            with open(self.spool_file, "a") as f:
+                f.write(json.dumps(payload) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to spool Splunk event to disk: {e}")
+
+    def _flush_spooled_events(self) -> None:
+        """Re-sends spooled events when Splunk connectivity is restored."""
+        if not os.path.exists(self.spool_file):
+            return
+        try:
+            with open(self.spool_file, "r") as f:
+                lines = f.readlines()
+            if not lines:
+                return
+
+            remaining = []
+            for i, line in enumerate(lines):
+                if not line.strip():
+                    continue
+                try:
+                    payload = json.loads(line)
+                    headers = {"Authorization": f"Splunk {self.token}", "Content-Type": "application/json"}
+                    resp = requests.post(self.url, headers=headers, data=json.dumps(payload), verify=self.verify_ssl, timeout=3)
+                    if resp.status_code != 200:
+                        remaining.extend(lines[i:])
+                        break
+                    self.sent_count += 1
+                except Exception:
+                    remaining.extend(lines[i:])
+                    break
+
+            if remaining:
+                with open(self.spool_file, "w") as f:
+                    f.writelines(remaining)
+            else:
+                os.remove(self.spool_file)
+        except Exception as e:
+            logger.error(f"Error flushing spooled Splunk events: {e}")
+
     def _queue_worker(self) -> None:
+        last_spool_flush = 0
         while True:
             try:
+                # Periodically attempt to flush disk spool every 30 seconds
+                now = time.time()
+                if now - last_spool_flush > 30 and self.enabled:
+                    last_spool_flush = now
+                    self._flush_spooled_events()
+
                 payload = self._queue.get(timeout=2.0)
                 if payload is None:
                     break
@@ -113,6 +163,7 @@ class SplunkHECLogger:
         except requests.exceptions.RequestException as e:
             self.error_count += 1
             logger.error(f"Failed to send event to Splunk: {e}")
+            self._spool_to_disk(payload)
 
     def send_event(self, data: Dict[str, Any], sourcetype: str = "json", tenant_id: Optional[int] = None) -> None:
         """
@@ -137,7 +188,8 @@ class SplunkHECLogger:
             self._queue.put_nowait(payload)
         except queue.Full:
             self.dropped_count += 1
-            logger.error("Splunk queue is full. Dropping event.")
+            logger.error("Splunk queue is full. Spooling event to disk.")
+            self._spool_to_disk(payload)
 
     def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
         """
