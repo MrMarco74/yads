@@ -649,7 +649,7 @@ async def update_settings(
     custom_dns_servers: str = Form(None, max_length=500),
     network_rate_limit: str = Form(None, max_length=20),
     splunk_hec_url: str = Form(None, max_length=500),
-    splunk_hec_token: str = Form(None, max_length=256),
+    splunk_hec_token: str = Form(None, max_length=1024),
     smtp_host: str = Form(None, max_length=253),
     smtp_port: str = Form(None, max_length=5),
     smtp_user: Optional[str] = Form(None, max_length=254),
