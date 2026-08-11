@@ -2,10 +2,11 @@
 FROM node:18-alpine AS css-builder
 
 WORKDIR /app
-COPY frontend/package.json frontend/tailwind.config.js ./
+COPY frontend ./frontend
 COPY yads/api/templates ./yads/api/templates
 COPY yads/api/static/css/input.css ./yads/api/static/css/input.css
 
+WORKDIR /app/frontend
 RUN npm install
 RUN npm run build:css
 
