@@ -193,15 +193,19 @@ async def delete_session(
     if disc_sess.status == "running":
         raise HTTPException(status_code=400, detail="Cannot delete a running session — stop it first")
     # Unlink any Targets that still reference this session via FK before deleting.
-    # The DB constraint has no ON DELETE SET NULL, so we do it explicitly.
     linked_targets = db.exec(
         select(Target).where(Target.discovery_session_id == session_id)
     ).all()
     for t in linked_targets:
         t.discovery_session_id = None
         db.add(t)
+    db.flush()
+
     # Cascade delete candidates
     db.exec(delete(DiscoveryCandidate).where(DiscoveryCandidate.session_id == session_id))
+    db.flush()
+
+    # Delete session
     db.delete(disc_sess)
     db.commit()
     return JSONResponse({"deleted": True})
