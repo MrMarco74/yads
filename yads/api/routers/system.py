@@ -1075,3 +1075,18 @@ async def test_splunk_connection(
         return JSONResponse(content={"status": "ok", "message": msg})
     else:
         return JSONResponse(status_code=400, content={"status": "error", "detail": msg})
+
+
+@router.get("/api/system/splunk-telemetry")
+async def get_splunk_telemetry(
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+) -> JSONResponse:
+    """
+    Return current Splunk HEC queue depth, sent event count, and error metrics.
+    """
+    try:
+        from yads.core.splunk_logger import splunk_logger
+        stats = splunk_logger.get_stats()
+        return JSONResponse(content={"status": "ok", "telemetry": stats})
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(exc)})

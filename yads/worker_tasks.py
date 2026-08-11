@@ -1677,8 +1677,17 @@ def sync_external_integrations():
                 elif ic.integration_type == "siem_syslog":
                     cef = _finding_to_cef(finding_stub, sf.domain, status=sf.status)
                     _push_to_siem_syslog(config, cef)
-                elif ic.integration_type == "siem_http":
-                    ecs = _finding_to_ecs(finding_stub, sf.domain, status=sf.status)
-                    _push_to_siem_http(config, ecs)
-
         logger.info(f"[Sync Worker] Processed {len(findings)} findings for external sync.")
+
+
+@celery_app.task(name="yads.worker.check_splunk_hec_health")
+def check_splunk_hec_health():
+    """
+    Periodic task to check Splunk HEC health & report telemetry stats.
+    """
+    from yads.core.splunk_logger import splunk_logger
+    stats = splunk_logger.get_stats()
+    if stats["enabled"]:
+        logger.info(f"[Splunk Health] HEC Queue depth: {stats['queue_depth']}/{stats['max_queue_size']}, Sent: {stats['sent_count']}, Errors: {stats['error_count']}")
+        if stats["error_count"] > 10 and stats["sent_count"] == 0:
+            logger.warning("[Splunk Health] High error count detected on Splunk HEC logger!")

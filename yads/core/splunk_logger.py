@@ -27,6 +27,9 @@ class SplunkHECLogger:
         self.enabled = False
         self._queue = queue.Queue(maxsize=5000)
         self._worker_thread = None
+        self.sent_count = 0
+        self.dropped_count = 0
+        self.error_count = 0
         self._refresh_config()
         self._start_worker()
 
@@ -46,7 +49,21 @@ class SplunkHECLogger:
             except queue.Empty:
                 continue
             except Exception as e:
+                self.error_count += 1
                 logger.error(f"Error in Splunk queue worker: {e}")
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Returns telemetry data for Splunk queue health monitoring.
+        """
+        return {
+            "enabled": self.enabled,
+            "queue_depth": self._queue.qsize(),
+            "max_queue_size": self._queue.maxsize,
+            "sent_count": self.sent_count,
+            "dropped_count": self.dropped_count,
+            "error_count": self.error_count
+        }
 
     def _refresh_config(self) -> None:
         db_url = None
@@ -92,7 +109,9 @@ class SplunkHECLogger:
                 timeout=5
             )
             response.raise_for_status()
+            self.sent_count += 1
         except requests.exceptions.RequestException as e:
+            self.error_count += 1
             logger.error(f"Failed to send event to Splunk: {e}")
 
     def send_event(self, data: Dict[str, Any], sourcetype: str = "json", tenant_id: Optional[int] = None) -> None:
@@ -117,6 +136,7 @@ class SplunkHECLogger:
         try:
             self._queue.put_nowait(payload)
         except queue.Full:
+            self.dropped_count += 1
             logger.error("Splunk queue is full. Dropping event.")
 
     def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
