@@ -16,7 +16,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -67,3 +67,21 @@ jobs:
           tags: |
             ghcr.io/mrmarco74/yads-${{ matrix.target }}:${{ steps.version.outputs.tag }}
             ghcr.io/mrmarco74/yads-${{ matrix.target }}:latest
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG_NAME" \
+            --title "$TAG_NAME" \
+            --generate-notes || true
