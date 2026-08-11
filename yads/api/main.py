@@ -381,6 +381,20 @@ async def language_middleware(request: Request, call_next):
         _push_api_error_to_redis(request.url, exc)
         import traceback
         logger.error(f"Unhandled exception at {request.url}: {exc}\n{traceback.format_exc()}")
+        try:
+            from yads.core.splunk_logger import splunk_logger
+            splunk_logger.send_ops_event(
+                category="api_error",
+                message=f"Unhandled exception at {request.url.path}",
+                details={
+                    "url": str(request.url),
+                    "method": request.method,
+                    "error": str(exc),
+                    "traceback": traceback.format_exc()[:1000]
+                }
+            )
+        except Exception:
+            pass
         from fastapi.responses import HTMLResponse
         return HTMLResponse("Internal Server Error", status_code=500)
 

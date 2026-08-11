@@ -120,6 +120,44 @@ class SplunkHECLogger:
         # Sending as 'yads:security' sourcetype for easy filtering
         self.send_event(event_data, sourcetype="yads:security")
 
+    def send_ops_event(self, category: str, message: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
+        """
+        Sends Operational/System Health events (sourcetype: yads:ops).
+        """
+        if not self.enabled:
+            return
+
+        if details is None:
+            details = {}
+
+        event_data = {
+            "category": category,
+            "message": message,
+            "details": details,
+            "app": "YADS"
+        }
+        self.send_event(event_data, sourcetype="yads:ops", tenant_id=tenant_id)
+
+    def send_finding_event(self, finding_type: str, domain: str, severity: str, details: Dict[str, Any] = None, mitre_id: str = "T1595.002", tenant_id: Optional[int] = None) -> None:
+        """
+        Sends Vulnerability / Recon Finding events (sourcetype: yads:finding).
+        """
+        if not self.enabled:
+            return
+
+        if details is None:
+            details = {}
+
+        event_data = {
+            "finding_type": finding_type,
+            "domain": domain,
+            "severity": severity,
+            "mitre_technique_id": mitre_id,
+            "details": details,
+            "app": "YADS"
+        }
+        self.send_event(event_data, sourcetype="yads:finding", tenant_id=tenant_id)
+
 # Singleton Instance (Lazy init can be done by modules importing this)
 splunk_logger = SplunkHECLogger()
 

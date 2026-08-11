@@ -1313,6 +1313,25 @@ def run_all_scans(
             })
 
             try:
+                if 'scan_start_time' in locals():
+                    scan_duration = (datetime.utcnow() - scan_start_time).total_seconds()
+                else:
+                    scan_duration = 0.0
+                splunk_logger.send_ops_event(
+                    category="scan_completed",
+                    message=f"Scan completed for {domain}",
+                    details={
+                        "target_id": target_id,
+                        "domain": domain,
+                        "duration_seconds": round(scan_duration, 2),
+                        "scan_types": scan_types
+                    },
+                    tenant_id=parent_tenant_id
+                )
+            except Exception:
+                pass
+
+            try:
                 prom_metrics = get_metrics()
                 prom_metrics.record_scan_finished(tenant_id=parent_tenant_id)
             except Exception as e:
