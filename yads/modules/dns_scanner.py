@@ -171,7 +171,19 @@ class DNSRecordScanner(BaseScannerModule):
                     try:
                         resp = requests.get(f"http://{cname}", timeout=5, headers={"User-Agent": "YADS-Security-Scanner/1.19 (+https://yads-security.com)"})  # nosec B113 — scanner probes target CNAME over http
                         if sig["fingerprint"] in resp.text:
-                            return {"provider": sig["provider"], "cname": cname, "status": "VULNERABLE"}
+                            takeover_result = {"provider": sig["provider"], "cname": cname, "status": "VULNERABLE"}
+                            try:
+                                from yads.core.splunk_logger import splunk_logger
+                                splunk_logger.send_finding_event(
+                                    finding_type="subdomain_takeover",
+                                    domain=cname,
+                                    severity="high",
+                                    mitre_id="T1584.001",
+                                    details=takeover_result
+                                )
+                            except Exception:
+                                pass
+                            return takeover_result
                     except Exception as e:
                         logger.debug(f"Takeover fingerprint request failed for {cname}: {e}")
         except Exception as e:

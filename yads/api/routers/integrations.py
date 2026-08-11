@@ -544,3 +544,45 @@ async def export_ecs(
         content=events,
         headers={"Content-Disposition": f"attachment; filename={target.domain}_findings_ecs.json"},
     )
+
+
+@router.post("/api/integrations/splunk/alert")
+async def splunk_alert_webhook(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """
+    Splunk Alert Webhook Receiver.
+    Triggered by Splunk Notable Events to initiate automated re-scans or target prioritization in YADS.
+    """
+    try:
+        body = await request.json()
+        search_name = body.get("search_name", "Splunk Alert")
+        result = body.get("result", {})
+        domain = result.get("domain") or result.get("event.domain")
+
+        logger.info(f"[Splunk Webhook] Alert received: '{search_name}' for domain '{domain}'")
+
+        if domain:
+            target = session.exec(select(Target).where(Target.domain == domain)).first()
+            if target:
+                target.scan_priority = 9  # High Priority
+                target.scan_status = "queued"
+                session.add(target)
+                session.commit()
+                
+                from yads.worker_core import celery_app
+                celery_app.send_task(
+                    "yads.worker.run_all_scans",
+                    args=[target.id, target.domain, None, target.tenant_id],
+                )
+                return JSONResponse(content={
+                    "status": "ok",
+                    "action": "prioritized_and_rescanned",
+                    "target": domain
+                })
+
+        return JSONResponse(content={"status": "ok", "action": "logged", "alert": search_name})
+    except Exception as exc:
+        logger.error(f"[Splunk Webhook] Processing error: {exc}")
+        return JSONResponse(status_code=400, content={"status": "error", "detail": str(exc)})

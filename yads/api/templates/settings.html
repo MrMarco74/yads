@@ -343,18 +343,61 @@
 
                 <!-- Splunk -->
                 <div class="space-y-3 mb-6 border-t border-gray-700/50 pt-4">
-                    <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Splunk HEC</h4>
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Splunk HEC</h4>
+                        <button type="button" 
+                                id="btn-test-splunk"
+                                onclick="testSplunkConnection()"
+                                class="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-indigo-400 border border-indigo-500/30 rounded flex items-center gap-1 transition">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Test Connection
+                        </button>
+                    </div>
+                    <div id="splunk-test-result" class="hidden text-xs px-3 py-2 rounded"></div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">HEC URL</label>
-                        <input type="text" name="splunk_hec_url" value="{{ splunk_hec_url }}"
-                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono" placeholder="https://splunk...:8088">
+                        <input type="text" id="splunk_hec_url" name="splunk_hec_url" value="{{ splunk_hec_url }}"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono" placeholder="https://splunk...:8088/services/collector/event">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">HEC Token</label>
-                        <input type="password" name="splunk_hec_token" value="{{ splunk_hec_token }}"
+                        <input type="password" id="splunk_hec_token" name="splunk_hec_token" value="{{ splunk_hec_token }}"
                             class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono">
                     </div>
                 </div>
+
+                <script>
+                async function testSplunkConnection() {
+                    const url = document.getElementById('splunk_hec_url').value;
+                    const token = document.getElementById('splunk_hec_token').value;
+                    const resDiv = document.getElementById('splunk-test-result');
+                    resDiv.className = 'text-xs px-3 py-2 rounded bg-gray-800 text-gray-300 block';
+                    resDiv.innerText = 'Testing connection...';
+                    
+                    const formData = new FormData();
+                    formData.append('splunk_hec_url', url);
+                    formData.append('splunk_hec_token', token);
+                    
+                    try {
+                        const r = await fetch('/api/system/test-splunk', {
+                            method: 'POST',
+                            headers: {'X-CSRF-Token': _csrfToken()},
+                            body: formData
+                        });
+                        const data = await r.json();
+                        if (r.ok) {
+                            resDiv.className = 'text-xs px-3 py-2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 block';
+                            resDiv.innerText = '✓ ' + data.message;
+                        } else {
+                            resDiv.className = 'text-xs px-3 py-2 rounded bg-red-950/80 text-red-300 border border-red-500/30 block';
+                            resDiv.innerText = '✗ ' + (data.detail || 'Connection failed');
+                        }
+                    } catch (e) {
+                        resDiv.className = 'text-xs px-3 py-2 rounded bg-red-950/80 text-red-300 border border-red-500/30 block';
+                        resDiv.innerText = '✗ Error: ' + e.message;
+                    }
+                }
+                </script>
 
                 <!-- SMTP -->
                 <div class="space-y-3 border-t border-gray-700/50 pt-4">

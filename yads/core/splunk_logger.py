@@ -183,6 +183,33 @@ class SplunkHECLogger:
         }
         self.send_event(event_data, sourcetype="yads:finding", tenant_id=tenant_id)
 
+    def test_connection(self, url: str, token: str) -> tuple[bool, str]:
+        """
+        Sends a synchronous test payload to verify Splunk HEC reachability and token validity.
+        """
+        if not url or not token:
+            return False, "URL and Token are required"
+
+        headers = {
+            "Authorization": f"Splunk {token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "time": time.time(),
+            "host": self.host,
+            "sourcetype": "yads:test",
+            "event": {"message": "YADS Splunk HEC Connection Test", "status": "ok"}
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, data=json.dumps(payload), verify=self.verify_ssl, timeout=5)
+            if resp.status_code == 200:
+                return True, "Successfully connected to Splunk HEC!"
+            else:
+                return False, f"Splunk returned HTTP {resp.status_code}: {resp.text[:200]}"
+        except requests.exceptions.RequestException as e:
+            return False, f"Connection failed: {str(e)}"
+
 # Singleton Instance (Lazy init can be done by modules importing this)
 splunk_logger = SplunkHECLogger()
 

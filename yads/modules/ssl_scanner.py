@@ -130,6 +130,30 @@ class SSLScanner(BaseScannerModule):
                     results["ct_org"] = results["subject"].get("organizationName") or results["issuer"].get("organizationName")
                     results["ct_email"] = results["subject"].get("emailAddress")
                     
+                    # Stream SSL expiration finding if expired or expiring soon (< 30 days)
+                    if results.get("notAfter"):
+                        try:
+                            from datetime import datetime
+                            not_after_dt = datetime.strptime(results["notAfter"], "%b %d %H:%M:%S %Y %Z")
+                            days_left = (not_after_dt - datetime.utcnow()).days
+                            if days_left <= 30:
+                                severity = "critical" if days_left <= 0 else "medium"
+                                from yads.core.splunk_logger import splunk_logger
+                                splunk_logger.send_finding_event(
+                                    finding_type="ssl_certificate_expiry",
+                                    domain=domain,
+                                    severity=severity,
+                                    mitre_id="T1587.003",
+                                    details={
+                                        "domain": domain,
+                                        "days_until_expiration": days_left,
+                                        "expires_at": results["notAfter"],
+                                        "issuer": results["issuer"].get("organizationName", "unknown")
+                                    }
+                                )
+                        except Exception:
+                            pass
+                    
         except Exception as e:
             results["error"] = str(e)
 

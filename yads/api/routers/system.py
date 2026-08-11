@@ -1059,4 +1059,19 @@ async def get_rate_limit_status(
             content={"status": "error", "detail": str(exc)},
         )
 
-    return RedirectResponse(url="/settings?saved=true&msg=System+Reset+Complete", status_code=303)
+
+@router.post("/api/system/test-splunk")
+async def test_splunk_connection(
+    splunk_hec_url: str = Form(...),
+    splunk_hec_token: str = Form(...),
+    user: User = Depends(RoleChecker(["admin"])),
+) -> JSONResponse:
+    """
+    Test Splunk HEC connectivity and token validity.
+    """
+    from yads.core.splunk_logger import splunk_logger
+    success, msg = splunk_logger.test_connection(splunk_hec_url, splunk_hec_token)
+    if success:
+        return JSONResponse(content={"status": "ok", "message": msg})
+    else:
+        return JSONResponse(status_code=400, content={"status": "error", "detail": msg})
