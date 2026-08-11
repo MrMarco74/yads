@@ -114,6 +114,20 @@ class PortScanner(BaseScannerModule):
                 results["open_ports"].append(port_info)
                 self.logger.info(f"Found open port: {port} ({service_label})")
 
+                # Stream open port finding in real-time to Splunk SIEM
+                try:
+                    from yads.core.splunk_logger import splunk_logger
+                    severity = "high" if port in [21, 22, 23, 3389] else "info"
+                    splunk_logger.send_finding_event(
+                        finding_type="open_port",
+                        domain=target,
+                        severity=severity,
+                        mitre_id="T1046",
+                        details=port_info
+                    )
+                except Exception:
+                    pass
+
         return results
 
     def _probe_web(self, target: str, port: int) -> Dict[str, Any]:

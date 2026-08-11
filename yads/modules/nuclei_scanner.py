@@ -123,6 +123,19 @@ class NucleiScanner(BaseScannerModule):
                         "curl_command": finding.get("curl-command")
                     }
                     results["findings"].append(clean_finding)
+
+                    # Stream finding in real-time to Splunk SIEM
+                    try:
+                        from yads.core.splunk_logger import splunk_logger
+                        splunk_logger.send_finding_event(
+                            finding_type=f"vulnerability:{clean_finding['template_id']}",
+                            domain=target_domain,
+                            severity=severity,
+                            mitre_id="T1595.002",
+                            details=clean_finding
+                        )
+                    except Exception:
+                        pass
                     
                 except json.JSONDecodeError:
                     pass

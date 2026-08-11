@@ -15,6 +15,9 @@ handler = logging.StreamHandler(sys.stderr)
 handler.setFormatter(logging.Formatter('%(asctime)s - SPLUNK_ERROR - %(message)s'))
 logger.addHandler(handler)
 
+import threading
+import queue
+
 class SplunkHECLogger:
     def __init__(self):
         self.host = socket.gethostname()
@@ -22,7 +25,28 @@ class SplunkHECLogger:
         self.token = None
         self.url = None
         self.enabled = False
+        self._queue = queue.Queue(maxsize=5000)
+        self._worker_thread = None
         self._refresh_config()
+        self._start_worker()
+
+    def _start_worker(self) -> None:
+        if self._worker_thread is None or not self._worker_thread.is_alive():
+            self._worker_thread = threading.Thread(target=self._queue_worker, daemon=True)
+            self._worker_thread.start()
+
+    def _queue_worker(self) -> None:
+        while True:
+            try:
+                payload = self._queue.get(timeout=2.0)
+                if payload is None:
+                    break
+                self._send_payload(payload)
+                self._queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error(f"Error in Splunk queue worker: {e}")
 
     def _refresh_config(self) -> None:
         db_url = None
@@ -51,10 +75,8 @@ class SplunkHECLogger:
             self.enabled = True
 
     def _send_payload(self, payload: Dict[str, Any]) -> None:
-        if not self.enabled:
-            self._refresh_config()
-            if not self.enabled:
-                return
+        if not self.token or not self.url:
+            return
 
         headers = {
             "Authorization": f"Splunk {self.token}",
@@ -67,19 +89,20 @@ class SplunkHECLogger:
                 headers=headers,
                 data=json.dumps(payload),
                 verify=self.verify_ssl,
-                timeout=5  # Fast timeout to avoid blocking main thread too long
+                timeout=5
             )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            # Requirements: Log to STDERR, do not crash app
             logger.error(f"Failed to send event to Splunk: {e}")
 
     def send_event(self, data: Dict[str, Any], sourcetype: str = "json", tenant_id: Optional[int] = None) -> None:
         """
-        Sends a generic event to Splunk.
+        Pushes an event asynchronously into the Splunk HEC queue.
         """
         if not self.enabled:
-            return
+            self._refresh_config()
+            if not self.enabled:
+                return
 
         payload = {
             "time": time.time(),
@@ -88,11 +111,13 @@ class SplunkHECLogger:
             "event": data
         }
         
-        # Inject Tenant ID if provided
         if tenant_id is not None:
             payload["event"]["tenant_id"] = tenant_id
 
-        self._send_payload(payload)
+        try:
+            self._queue.put_nowait(payload)
+        except queue.Full:
+            logger.error("Splunk queue is full. Dropping event.")
 
     def send_security_event(self, action: str, user: str, mitre_id: str, details: Dict[str, Any] = None, tenant_id: Optional[int] = None) -> None:
         """
