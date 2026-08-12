@@ -1,5 +1,5 @@
 # ── Stage 1: CSS Build ────────────────────────────────────────────────────────
-FROM node:18-alpine AS css-builder
+FROM node:20-alpine AS css-builder
 
 WORKDIR /app
 COPY frontend ./frontend
