@@ -113,7 +113,7 @@ class VisualOSINT(BaseScannerModule):
         """
         try:
             if not _PLAYWRIGHT_AVAILABLE:
-                logger.error("Playwright not available in this environment")
+                self.logger.error("Playwright not available in this environment")
                 return False
             with sync_playwright() as p:
                 browser = p.chromium.launch(
