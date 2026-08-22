@@ -1,4 +1,4 @@
-# YADS (Yet Another Domain Scanner) — v1.28.0
+# YADS (Yet Another Domain Scanner) — v1.28.1
 
 YADS is a powerful, automated domain intelligence and security scanner. It aggregates data from multiple sources to provide a comprehensive view of a target domain's attack surface, with AI-powered analysis, attack path visualization, and full vulnerability lifecycle management.
 
@@ -23,7 +23,7 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 *   **Reporting**: Export full audit reports as PDF with cover page, chapter intros, and AI executive summary.
 *   **Disaster Recovery**: Built-in Backup & Restore functionality (encrypted, password-protected).
 
-## 🆕 What's New in v1.28.0
+## 🆕 What's New in v1.28.x
 
 *   **Dormant Domain Detector** — New recon module flagging domains that are still registered/monitored but effectively abandoned: 8 weighted signals (no recent activity, no live web service, expiring/expired cert, stale DNS, missing Impressum, never archived by Wayback, no analytics infrastructure, and an optional SearXNG "not indexed" check). New `/dormant-domains` report with WHOIS context and Excel/PDF export.
 *   **Catch-All Page Detector** — New recon module identifying parked-domain sales pages, default web-server splash pages, and wildcard vhosts serving generic content — signature match → vhost/content comparison → optional LLM classification fallback for the inconclusive minority.
@@ -34,8 +34,9 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 *   **Performance** — Batched the N+1 `ScanResult` query and cached `tldextract` lookups on `/targets/table`, cutting load time dramatically for tenants with thousands of targets.
 *   **Security Hardening** — Closed a gap where a category "select all" or Full Scan could sweep in the subdomain wordlist brute-force or the catch-all detector's LLM cost without an explicit, individual opt-in (both `/targets/table` and the per-target scan dialog); hardened the new LLM/SearXNG test endpoints against SSRF and against leaking exception detail or credentials in URLs.
 *   **Bug Fixes** — Fixed the worker container silently missing its encryption key (BYOK secrets were decrypting to garbage in scan-time code, not just failing loudly); fixed a startup-migration split-brain that could crash-loop a deploy on a new column; fixed a session-expiry redirect that could loop; fixed a `NameError` crash in the screenshot module's Playwright-unavailable path; suppressed log-flooding TLS warnings globally.
+*   **v1.28.1 patch** — Fixed target deletion (single, bulk, and tenant delete) 500ing with a `ForeignKeyViolation` whenever a target had a `baseline_snapshot` row; the three cascade-delete code paths had drifted out of sync on which child tables to clean up first.
 
-See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.28.0) for the complete list of changes.
+See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.28.1) for the complete list of changes.
 
 ## 🚀 Quick Start & Installation
 
@@ -47,8 +48,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
     known-working combination (see a release's notes for the full compatible tag list):
 
     ```bash
-    git clone --branch v1.28.0 https://github.com/MrMarco74/yads.git
-    git clone --branch v1.28.0 https://github.com/MrMarco74/yads-infra.git
+    git clone --branch v1.28.1 https://github.com/MrMarco74/yads.git
+    git clone --branch v1.28.1 https://github.com/MrMarco74/yads-infra.git
     cd yads-infra
     docker compose up -d
     ```
@@ -96,7 +97,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
 | **v1.20.0** | ✅ Shipped | AI Intelligence Suite, Attack Path Visualizer, Finding Management, Portfolio View, Asset Tagging, Parallel Scans |
 | **v1.21.x – v1.26.x** | ✅ Shipped | Splunk/SIEM integration suite, distributed workers, custom module system, module signing, NIS2/DORA compliance groundwork |
 | **v1.27.0 – v1.27.1** | ✅ Shipped | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass, Extension Hub fixes |
-| **v1.28.0** | ✅ Current | Dormant Domain Detector, Catch-All Page Detector, Bulk Scan by Criteria, SearXNG integration, LLM settings UX, performance and security hardening |
+| **v1.28.0** | ✅ Shipped | Dormant Domain Detector, Catch-All Page Detector, Bulk Scan by Criteria, SearXNG integration, LLM settings UX, performance and security hardening |
+| **v1.28.1** | ✅ Current | Patch release: fixed target-deletion 500 (missing `baseline_snapshot` in cascade-delete) |
 | **v2.0** | 💡 Vision | Mobile App, Advanced SOAR Playbooks, ML-based Anomaly Detection |
 
 ## License
