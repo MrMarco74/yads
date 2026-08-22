@@ -1,4 +1,4 @@
-# YADS (Yet Another Domain Scanner) — v1.27.0
+# YADS (Yet Another Domain Scanner) — v1.27.1
 
 YADS is a powerful, automated domain intelligence and security scanner. It aggregates data from multiple sources to provide a comprehensive view of a target domain's attack surface, with AI-powered analysis, attack path visualization, and full vulnerability lifecycle management.
 
@@ -23,15 +23,16 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 *   **Reporting**: Export full audit reports as PDF with cover page, chapter intros, and AI executive summary.
 *   **Disaster Recovery**: Built-in Backup & Restore functionality (encrypted, password-protected).
 
-## 🆕 What's New in v1.27.0
+## 🆕 What's New in v1.27.x
 
 *   **Recon Correlation** — Third-party domain risk aggregation, attack-surface delta views (newly opened/closed ports), WAF-bypass verification against real findings, Whois × DNS ownership-change detection, and baseline diffing for API/mobile-app discovery.
 *   **Compliance Suite** — Real Finding → MITRE ATT&CK mapping with an interactive Navigator heatmap, a NIS2 Article 21 measures dashboard, NIS2 24h/72h incident-reporting timers, and a DORA ICT third-party register with resilience-testing evidence export.
 *   **Notifications, Triage & UX** — Finding triage workflow (acknowledge/snooze/assign/ticket), an undo window for destructive actions, global search, command palette, saved filter views, bulk actions, and an onboarding tour.
 *   **Reporting & Platform Ops** — CSV/JSON/SARIF export, recurring report delivery, MSSP white-labeling, Mean-Time-To-Remediate (MTTR) tracking, and a detailed `/health` endpoint for external monitoring.
 *   **Security Hardening** — Closed an IDOR on finding-status endpoints, an SSRF gap in integration health checks, and a reflected XSS vector in search; replaced a regex-based HTML sanitizer with a proper HTML parser in the report generator.
+*   **v1.27.1 patch** — Fixed the Extension Hub catalog's "Installieren" button (it opened a blank upload dialog instead of installing); fixed a missing dependency that could crash the API container on a fresh build.
 
-See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.27.0) for the complete list of ~90 changes.
+See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.27.1) for the complete list of changes.
 
 ## 🚀 Quick Start & Installation
 
@@ -43,8 +44,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
     known-working combination (see a release's notes for the full compatible tag list):
 
     ```bash
-    git clone --branch v1.27.0 https://github.com/MrMarco74/yads.git
-    git clone --branch v1.27.0 https://github.com/MrMarco74/yads-infra.git
+    git clone --branch v1.27.1 https://github.com/MrMarco74/yads.git
+    git clone --branch v1.27.1 https://github.com/MrMarco74/yads-infra.git
     cd yads-infra
     docker compose up -d
     ```
@@ -91,7 +92,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
 |---------|--------|------------|
 | **v1.20.0** | ✅ Shipped | AI Intelligence Suite, Attack Path Visualizer, Finding Management, Portfolio View, Asset Tagging, Parallel Scans |
 | **v1.21.x – v1.26.x** | ✅ Shipped | Splunk/SIEM integration suite, distributed workers, custom module system, module signing, NIS2/DORA compliance groundwork |
-| **v1.27.0** | ✅ Current | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass |
+| **v1.27.0** | ✅ Shipped | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass |
+| **v1.27.1** | ✅ Current | Patch release: Extension Hub install-button fix, API container startup fix |
 | **v2.0** | 💡 Vision | Mobile App, Advanced SOAR Playbooks, ML-based Anomaly Detection |
 
 ## License
