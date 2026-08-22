@@ -67933,6 +67933,20 @@ def seed_changelog():
             )
             session.add(entry_270)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "2.7.1").first():
+            entry_271 = ChangelogEntry(
+                title="YADS v2.7.1: Target Deletion Fix",
+                version="2.7.1",
+                content="""
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Patch</span>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed target deletion (single, bulk, and tenant delete) returning an Internal Server Error with a <code>ForeignKeyViolation</code> whenever the target had a <code>baseline_snapshot</code> row — that table wasn't included in the cascade-delete cleanup. All three deletion code paths now clean up the same, complete set of dependent tables.</li>
+                </ul>
+                """
+            )
+            session.add(entry_271)
+
 
 
 
