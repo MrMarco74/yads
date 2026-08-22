@@ -1341,13 +1341,42 @@ def run_all_scans(
                         _pex.submit(_run_parallel_module, _cls, target_id, domain): name
                         for name, _cls in _parallel_mods
                     }
-                    for _pf in _as_completed(_pfutures, timeout=180):
-                        _pmod_name = _pfutures[_pf]
-                        try:
-                            _pf.result(timeout=120)
-                            logger.info(f"[Worker] Parallel done: {_pmod_name}")
-                        except Exception as _pfe:
-                            logger.error(f"[Worker] Parallel error in {_pmod_name}: {_pfe}")
+                    # as_completed(timeout=...) raises TimeoutError if even ONE of
+                    # the submitted futures is still running when the window
+                    # elapses -- with up to 26 modules sharing 6 threads and some
+                    # (nuclei/crawler/visual_osint) legitimately taking minutes,
+                    # 3 total minutes for the whole batch was far too tight. That
+                    # TimeoutError was uncaught, crashing the entire run_all_scans
+                    # task and skipping everything after this block (status
+                    # finalization, webhooks, auto-queue) -- not just the slow
+                    # module. Catch it, log which modules are still outstanding,
+                    # and keep waiting for the rest individually instead of
+                    # abandoning the whole task. (Exiting the `with` block still
+                    # blocks until every submitted future finishes either way --
+                    # ThreadPoolExecutor can't forcibly kill a running thread --
+                    # so this doesn't shorten a genuinely hung module, it just
+                    # stops one slow module from taking the whole scan down.)
+                    try:
+                        _pf_iter = _as_completed(_pfutures, timeout=1800)
+                        while True:
+                            try:
+                                _pf = next(_pf_iter)
+                            except StopIteration:
+                                break
+                            _pmod_name = _pfutures[_pf]
+                            try:
+                                _pf.result(timeout=120)
+                                logger.info(f"[Worker] Parallel done: {_pmod_name}")
+                            except Exception as _pfe:
+                                logger.error(f"[Worker] Parallel error in {_pmod_name}: {_pfe}")
+                    except TimeoutError:
+                        _still_running = [n for f, n in _pfutures.items() if not f.done()]
+                        logger.error(
+                            f"[Worker] Parallel module batch exceeded 30min timeout — "
+                            f"still running: {_still_running}. Continuing scan; the "
+                            f"`with` block below will still wait for these threads to "
+                            f"finish before the task can complete."
+                        )
                 logger.info("[Worker] All parallel modules completed.")
 
             # Subdomain Discovery & Auto-Queue Logic
