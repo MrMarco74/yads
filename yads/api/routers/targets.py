@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import tldextract
+from functools import lru_cache
 from typing import Optional, List, Annotated
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
@@ -22,6 +23,16 @@ from yads.api.routers.tags import get_unique_tags
 from yads.core.module_registry import get_scan_categories, REGISTRY, get_unavailable_modules, get_degraded_modules
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 from yads.models import SecurityAuditLog
+
+
+@lru_cache(maxsize=100_000)
+def _extract_root(domain: str):
+    """Cached tldextract.extract() -- the same domain string is looked up
+    repeatedly across requests (root-domain filter dropdown + per-row root
+    domain logic on /targets/table), and extract() re-parses the public
+    suffix list on every call.
+    """
+    return tldextract.extract(domain)
 
 
 def _safe_redirect(url: Optional[str], default: str = "/targets/table") -> str:
@@ -940,7 +951,7 @@ async def view_target_table(
     all_domains = session.exec(select(Target.domain).where(Target.tenant_id == user.tenant_id)).all()
     unique_roots = set()
     for d in all_domains:
-        ext = tldextract.extract(d)
+        ext = _extract_root(d)
         if ext.domain and ext.suffix:
             unique_roots.add(f"{ext.domain}.{ext.suffix}")
 
@@ -1239,10 +1250,26 @@ async def view_target_table(
                     approved_ciphers_set.add(cipher_name)
         
     # Prepare table rows with summary data
+    # Batch-fetch ScanResults for every target on this page in one query
+    # instead of one query per target -- the per-target loop below used to
+    # issue N individual SELECTs, which is the dominant cost when `limit`
+    # is large (e.g. the "All" page-size option on a multi-thousand-target
+    # tenant).
+    page_target_ids = [t.id for t in targets]
+    results_by_target: dict[int, list] = {}
+    if page_target_ids:
+        all_page_results = session.exec(
+            select(ScanResult)
+            .where(ScanResult.target_id.in_(page_target_ids))
+            .order_by(ScanResult.target_id, ScanResult.scanned_at.desc())
+        ).all()
+        for r in all_page_results:
+            results_by_target.setdefault(r.target_id, []).append(r)
+
     table_rows = []
     for t in targets:
-        results = session.exec(select(ScanResult).where(ScanResult.target_id == t.id).order_by(ScanResult.scanned_at.desc())).all()
-        
+        results = results_by_target.get(t.id, [])
+
         # Summaries
         # Look for either dns_scanner or subdomain_scanner, prioritizing subdomain_scanner (more data)
         sub_scan = next((r for r in results if r.module_name == 'subdomain_scanner'), None)
@@ -1369,7 +1396,7 @@ async def view_target_table(
         row_data["secrets_count"] = secrets_count
         
         # Root Domain Logic
-        ext = tldextract.extract(t.domain)
+        ext = _extract_root(t.domain)
         # Reconstruct root (e.g. example-client.de)
         root = f"{ext.domain}.{ext.suffix}"
         row_data["root_domain"] = root
