@@ -597,9 +597,24 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Model <span class="text-gray-600 font-normal">(leave blank for default)</span></label>
-                            <input type="text" name="llm_model" value="{{ tenant.llm_model or '' }}"
-                                   class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
-                                   placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
+                            <div class="flex items-center gap-2">
+                                <input type="text" name="llm_model" id="llm_model_input" value="{{ tenant.llm_model or '' }}" list="llm-model-options"
+                                       class="flex-1 bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
+                                       placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
+                                <button type="button" id="llm-fetch-models-btn" onclick="yadsFetchOllamaModels()"
+                                        class="hidden shrink-0 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium py-2 px-3 rounded border border-gray-600 transition-colors">
+                                    Fetch Models
+                                </button>
+                            </div>
+                            <datalist id="llm-model-options"></datalist>
+                            <p id="llm-fetch-models-status" class="text-[11px] mt-1"></p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button type="button" onclick="yadsTestLlmConnection()"
+                                    class="bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium py-2 px-4 rounded transition-colors">
+                                Test Connection
+                            </button>
+                            <span id="llm-test-status" class="text-xs"></span>
                         </div>
                         <div class="mt-4 flex items-center gap-3">
                             <input type="checkbox" name="catchall_llm_fallback_enabled" id="catchall_llm_fallback_enabled" value="1" {% if tenant.catchall_llm_fallback_enabled %}checked{% endif %}
@@ -950,6 +965,83 @@ async function doExportConfig(e) {
 function getCsrfToken() {
     var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
+}
+
+// -- LLM settings: test connection + fetch Ollama model list --
+(function(){
+    var providerSelect = document.querySelector('select[name="llm_provider"]');
+    var fetchBtn = document.getElementById('llm-fetch-models-btn');
+    function syncFetchBtnVisibility() {
+        if (!providerSelect || !fetchBtn) return;
+        fetchBtn.classList.toggle('hidden', providerSelect.value !== 'ollama');
+    }
+    if (providerSelect) {
+        providerSelect.addEventListener('change', syncFetchBtnVisibility);
+        syncFetchBtnVisibility();
+    }
+})();
+
+async function yadsTestLlmConnection() {
+    var statusEl = document.getElementById('llm-test-status');
+    var provider = document.querySelector('select[name="llm_provider"]').value;
+    var apiUrl = document.querySelector('input[name="llm_api_url"]').value;
+    var apiKey = document.querySelector('input[name="llm_api_key"]').value;
+    var model = document.getElementById('llm_model_input').value;
+
+    statusEl.textContent = 'Testing…';
+    statusEl.className = 'text-xs text-gray-400';
+    try {
+        var body = new URLSearchParams({
+            llm_provider: provider, llm_api_url: apiUrl, llm_api_key: apiKey, llm_model: model
+        });
+        var res = await fetch('/tenant-settings/llm/test', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body,
+        });
+        var data = await res.json();
+        if (res.ok && data.status === 'ok') {
+            statusEl.textContent = '✓ ' + data.message;
+            statusEl.className = 'text-xs text-emerald-400';
+        } else {
+            statusEl.textContent = '✗ ' + (data.message || data.detail || 'Connection failed');
+            statusEl.className = 'text-xs text-red-400';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.className = 'text-xs text-red-400';
+    }
+}
+
+async function yadsFetchOllamaModels() {
+    var statusEl = document.getElementById('llm-fetch-models-status');
+    var apiUrl = document.querySelector('input[name="llm_api_url"]').value;
+    var datalist = document.getElementById('llm-model-options');
+
+    statusEl.textContent = 'Fetching models…';
+    statusEl.className = 'text-[11px] mt-1 text-gray-400';
+    try {
+        var res = await fetch('/tenant-settings/llm/ollama-models?llm_api_url=' + encodeURIComponent(apiUrl));
+        var data = await res.json();
+        if (res.ok && data.status === 'ok') {
+            datalist.innerHTML = '';
+            data.models.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m;
+                datalist.appendChild(opt);
+            });
+            statusEl.textContent = data.models.length
+                ? ('✓ ' + data.models.length + ' model(s) found — pick one from the Model field suggestions.')
+                : 'Connected, but no models are pulled on that Ollama instance yet.';
+            statusEl.className = 'text-[11px] mt-1 text-emerald-400';
+        } else {
+            statusEl.textContent = '✗ ' + (data.message || 'Could not reach Ollama instance');
+            statusEl.className = 'text-[11px] mt-1 text-red-400';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.className = 'text-[11px] mt-1 text-red-400';
+    }
 }
 
 async function doImportPreview() {

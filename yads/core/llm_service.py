@@ -183,10 +183,14 @@ def _validate_api_url(url: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _call_ollama(base_url: str, model: str, prompt: str, timeout: int) -> str:
+    # allow_redirects=False: base_url is tenant-supplied (SSRF surface) --
+    # _validate_api_url() only checks the URL as given, so a redirect to a
+    # blocked target (e.g. cloud metadata) must not be silently followed.
     resp = _requests.post(
         f"{base_url.rstrip('/')}/api/generate",
         json={"model": model, "prompt": prompt, "stream": False, "format": "json"},
         timeout=timeout,
+        allow_redirects=False,
     )
     resp.raise_for_status()
     return resp.json()["response"]
@@ -212,7 +216,8 @@ def _call_openai_compat(base_url: str, api_key: str, model: str, prompt: str, ti
     else:
         completions_url = f"{base_url.rstrip('/')}/v1/chat/completions"
 
-    resp = _requests.post(completions_url, headers=headers, json=payload, timeout=timeout)
+    # allow_redirects=False: same tenant-supplied-URL SSRF reasoning as _call_ollama above.
+    resp = _requests.post(completions_url, headers=headers, json=payload, timeout=timeout, allow_redirects=False)
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
 

@@ -4,8 +4,11 @@ from sqlmodel import Session, select, func
 from typing import Optional
 import csv
 import io
+import logging
 import math
 from datetime import date, datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from typing import List
 from yads.database import get_session
@@ -783,3 +786,71 @@ async def test_api_key(
 
     record_health_check(session, row, ok, message)
     return {"key_name": key_name, "status": "ok" if ok else "failed", "message": message}
+
+
+@router.post("/llm/test")
+async def test_llm_connection(
+    llm_provider: str = Form(...),
+    llm_api_url: Optional[str] = Form(None),
+    llm_api_key: Optional[str] = Form(None),
+    llm_model: Optional[str] = Form(None),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+):
+    """
+    Live-test the LLM provider settings currently in the form (not necessarily
+    saved yet) with a minimal completion call, mirroring the BYOK
+    /api-keys/test/{key_name} pattern above but for the LLM config block.
+    """
+    from yads.core.llm_service import _run_sync, _DEFAULT_MODELS, _DEFAULT_TIMEOUT
+
+    provider = (llm_provider or "").strip().lower()
+    if not provider or provider == "disabled":
+        return {"status": "failed", "message": "No provider selected."}
+
+    model = (llm_model or "").strip() or _DEFAULT_MODELS.get(provider, "")
+    try:
+        reply = _run_sync(
+            provider,
+            (llm_api_key or "").strip(),
+            (llm_api_url or "").strip(),
+            model,
+            "Respond with exactly one word: OK",
+            min(_DEFAULT_TIMEOUT, 20),
+        )
+        ok = bool(reply and reply.strip())
+        message = f"Connected — model responded ({len(reply.strip())} chars)." if ok else "Provider returned an empty response."
+        return {"status": "ok" if ok else "failed", "message": message}
+    except Exception as e:
+        # Don't echo the raw exception (may contain response bodies/headers
+        # from an arbitrary tenant-supplied URL) back to the client -- this
+        # endpoint is otherwise a fast, convenient SSRF oracle for a
+        # malicious tenant_admin to probe internal hosts. Log details
+        # server-side, return only the exception class to the UI.
+        logger.warning(f"[LLM test] Connection test failed for tenant {user.tenant_id}: {type(e).__name__}: {e}")
+        return {"status": "failed", "message": f"Connection failed ({type(e).__name__}) — check provider settings."}
+
+
+@router.get("/llm/ollama-models")
+async def list_ollama_models(
+    llm_api_url: str,
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+):
+    """Fetch the model list from an Ollama instance's /api/tags for the
+    LLM settings 'select model' dropdown."""
+    from yads.core.llm_service import _validate_api_url
+    import requests
+
+    base_url = (llm_api_url or "").strip() or "http://ollama:11434"
+    try:
+        _validate_api_url(base_url)
+        # allow_redirects=False: an initially-valid URL could otherwise 302
+        # to a blocked target (e.g. cloud metadata) and bypass the check above.
+        resp = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=10, allow_redirects=False)
+        resp.raise_for_status()
+        models = [m.get("name") for m in resp.json().get("models", []) if m.get("name")]
+        return {"status": "ok", "models": models}
+    except Exception as e:
+        # Same oracle concern as /llm/test above -- don't reflect raw
+        # exception/response content for an arbitrary tenant-supplied URL.
+        logger.warning(f"[Ollama models] Fetch failed for tenant {user.tenant_id}: {type(e).__name__}: {e}")
+        return {"status": "failed", "message": f"Could not reach Ollama instance ({type(e).__name__}).", "models": []}
