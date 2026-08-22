@@ -1273,6 +1273,25 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # ── Backfill: columns that only ever existed in main.py's separate,
+        # now-removed inline startup migrator (see yads/api/main.py lifespan)
+        # -- pulled in here so this script is the single, complete source of
+        # truth for schema migration, not a second list that silently drifts
+        # out of sync with it (which is exactly how catchall_llm_fallback_enabled
+        # above caused a startup crash-loop on 2026-08-22: added only here,
+        # not to main.py's list, and main.py's list is what actually ran).
+        print(">> Backfilling columns previously only added by main.py's inline migrator...")
+        try:
+            conn.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITHOUT TIME ZONE;"))
+            conn.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS language VARCHAR DEFAULT 'en';"))
+            conn.execute(text("ALTER TABLE workernode ADD COLUMN IF NOT EXISTS assigned_tenant_ids JSONB DEFAULT '[]'::jsonb;"))
+            conn.execute(text("ALTER TABLE workernode ADD COLUMN IF NOT EXISTS max_daily_scans INTEGER;"))
+            conn.execute(text("ALTER TABLE workernode ADD COLUMN IF NOT EXISTS description VARCHAR;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

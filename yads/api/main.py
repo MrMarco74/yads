@@ -40,99 +40,20 @@ async def lifespan(app: FastAPI):
     for i in range(max_retries):
         try:
             create_db_and_tables()
-            
-            # --- Schema Migration & Multi-Tenancy Init ---
-            from sqlalchemy import inspect
-            inspector = inspect(engine)
-            
-            with Session(engine) as session:
-                # --- User Table ---
-                if inspector.has_table("user"):
-                    user_columns = [c["name"] for c in inspector.get_columns("user")]
-                    if "tenant_id" not in user_columns:
-                        logger.info("Migrating schema: Adding tenant_id to user table")
-                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
-                    if "last_login" not in user_columns:
-                        logger.info("Migrating schema: Adding last_login to user table")
-                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN last_login TIMESTAMP WITHOUT TIME ZONE"))
-                    if "email" not in user_columns:
-                        logger.info("Migrating schema: Adding email to user table")
-                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN email VARCHAR"))
-                    if "language" not in user_columns:
-                        logger.info("Migrating schema: Adding language to user table")
-                        session.exec(text("ALTER TABLE \"user\" ADD COLUMN language VARCHAR DEFAULT 'en'"))
-                    session.commit()
 
-                # --- Target Table ---
-                if inspector.has_table("target"):
-                    target_columns = [c["name"] for c in inspector.get_columns("target")]
-                    if "tenant_id" not in target_columns:
-                        logger.info("Migrating schema: Adding tenant_id to target table")
-                        session.exec(text("ALTER TABLE target ADD COLUMN tenant_id INTEGER REFERENCES tenant(id)"))
-                    if "scan_priority" not in target_columns:
-                        logger.info("Migrating schema: Adding scan_priority to target table")
-                        session.exec(text("ALTER TABLE target ADD COLUMN scan_priority INTEGER DEFAULT 5"))
-                    session.commit()
+            # --- Schema Migration ---
+            # scripts/maintenance/migrate_db.py is the single source of truth for
+            # additive schema changes (ADD COLUMN / CREATE TABLE, never destructive).
+            # This used to be a second, hand-maintained inline column list here that
+            # silently drifted out of sync with migrate_db.py -- e.g.
+            # catchall_llm_fallback_enabled and the llm_* / hide_yads_branding tenant
+            # fields were added to migrate_db.py but never to this list, so an
+            # existing deployment upgrading past one of those changes would
+            # crash-loop on the missing column instead of getting it auto-applied.
+            # Calling the real migration script directly here removes that drift.
+            from scripts.maintenance.migrate_db import migrate as run_full_migration
+            run_full_migration()
 
-                # --- Tenant Table ---
-                if inspector.has_table("tenant"):
-                    tenant_columns = [c["name"] for c in inspector.get_columns("tenant")]
-                    keys = [
-                        "shodan_api_key", "censys_api_key", "virustotal_api_key",
-                        "hunter_api_key", "github_token", "twitter_bearer_token",
-                        "session_timeout_minutes", "report_logo_url", "report_company_name",
-                        "report_primary_color", "report_secondary_color",
-                        "report_header_text", "report_footer_text"
-                    ]
-                    for key in keys:
-                        if key not in tenant_columns:
-                            logger.info(f"Migrating schema: Adding {key} to tenant table")
-                            if key == "session_timeout_minutes":
-                                session.exec(text("ALTER TABLE tenant ADD COLUMN session_timeout_minutes INTEGER DEFAULT 60"))
-                            elif key == "report_primary_color":
-                                session.exec(text("ALTER TABLE tenant ADD COLUMN report_primary_color VARCHAR DEFAULT '#3b82f6'"))
-                            elif key == "report_secondary_color":
-                                session.exec(text("ALTER TABLE tenant ADD COLUMN report_secondary_color VARCHAR DEFAULT '#64748b'"))
-                            else:
-                                session.exec(text(f"ALTER TABLE tenant ADD COLUMN {key} VARCHAR"))
-                    session.commit()
-
-                # --- WorkerNode Table ---
-                if inspector.has_table("workernode"):
-                    node_columns = [c["name"] for c in inspector.get_columns("workernode")]
-                    cols = {
-                        "node_id": "VARCHAR",
-                        "status": "VARCHAR DEFAULT 'pending'",
-                        "capabilities": "JSONB DEFAULT '[]'",
-                        "assigned_tenant_ids": "JSONB DEFAULT '[]'",
-                        "max_daily_scans": "INTEGER",
-                        "description": "VARCHAR",
-                        "version": "VARCHAR",
-                        "cpu_count": "INTEGER",
-                        "memory_mb": "INTEGER"
-                    }
-                    for col, db_type in cols.items():
-                        if col not in node_columns:
-                            logger.info(f"Migrating schema: Adding {col} to workernode table")
-                            session.exec(text(f"ALTER TABLE workernode ADD COLUMN {col} {db_type}"))
-                    session.commit()
-
-                # Ensure Default Tenant "a customer" -> REMOVED PER USER REQ
-                # from yads.models import Tenant
-                # default_tenant = session.exec(select(Tenant).where(Tenant.name == "a customer")).first()
-                # if not default_tenant:
-                #     default_tenant = Tenant(name="a customer")
-                #     session.add(default_tenant)
-                #     session.commit()
-                #     session.refresh(default_tenant)
-                #     logger.info("Created default tenant: a customer")
-                
-                # Assign Orphaned Users/Targets?
-                # Without default tenant, we can't assign them.
-                # Just leave them NULL (orphaned).
-                # session.exec(text(f"UPDATE target SET tenant_id = {default_tenant.id} WHERE tenant_id IS NULL"))
-                pass
-                
             logger.info("Database connected, tables created, and schema migrated.")
             
             # Enforce Paused State on Boot (Configurable)
