@@ -315,10 +315,18 @@
                         </div>
                         {% endif %}
                     {% else %}
-                    <button onclick="openInstallModalForAddon('{{ addon.module_name }}')"
-                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                        Installieren
+                    <form method="post" action="/addons/{{ addon.module_name }}/update">
+                        {{ csrf_token() }}
+                        <button type="submit"
+                                class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                                title="Lädt v{{ addon.version }} direkt aus dem Katalog herunter und installiert es">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            Installieren
+                        </button>
+                    </form>
+                    <button onclick="openInstallModal()"
+                            class="w-full mt-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                        oder ZIP manuell hochladen
                     </button>
                     {% endif %}
                 </div>
