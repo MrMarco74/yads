@@ -7,7 +7,7 @@ import re
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "YADS"
-    VERSION: str = "1.27.0"
+    VERSION: str = "1.27.1"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 
