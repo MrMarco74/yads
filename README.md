@@ -1,4 +1,4 @@
-# YADS (Yet Another Domain Scanner) — v1.27.1
+# YADS (Yet Another Domain Scanner) — v1.28.0
 
 YADS is a powerful, automated domain intelligence and security scanner. It aggregates data from multiple sources to provide a comprehensive view of a target domain's attack surface, with AI-powered analysis, attack path visualization, and full vulnerability lifecycle management.
 
@@ -23,16 +23,19 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 *   **Reporting**: Export full audit reports as PDF with cover page, chapter intros, and AI executive summary.
 *   **Disaster Recovery**: Built-in Backup & Restore functionality (encrypted, password-protected).
 
-## 🆕 What's New in v1.27.x
+## 🆕 What's New in v1.28.0
 
-*   **Recon Correlation** — Third-party domain risk aggregation, attack-surface delta views (newly opened/closed ports), WAF-bypass verification against real findings, Whois × DNS ownership-change detection, and baseline diffing for API/mobile-app discovery.
-*   **Compliance Suite** — Real Finding → MITRE ATT&CK mapping with an interactive Navigator heatmap, a NIS2 Article 21 measures dashboard, NIS2 24h/72h incident-reporting timers, and a DORA ICT third-party register with resilience-testing evidence export.
-*   **Notifications, Triage & UX** — Finding triage workflow (acknowledge/snooze/assign/ticket), an undo window for destructive actions, global search, command palette, saved filter views, bulk actions, and an onboarding tour.
-*   **Reporting & Platform Ops** — CSV/JSON/SARIF export, recurring report delivery, MSSP white-labeling, Mean-Time-To-Remediate (MTTR) tracking, and a detailed `/health` endpoint for external monitoring.
-*   **Security Hardening** — Closed an IDOR on finding-status endpoints, an SSRF gap in integration health checks, and a reflected XSS vector in search; replaced a regex-based HTML sanitizer with a proper HTML parser in the report generator.
-*   **v1.27.1 patch** — Fixed the Extension Hub catalog's "Installieren" button (it opened a blank upload dialog instead of installing); fixed a missing dependency that could crash the API container on a fresh build.
+*   **Dormant Domain Detector** — New recon module flagging domains that are still registered/monitored but effectively abandoned: 8 weighted signals (no recent activity, no live web service, expiring/expired cert, stale DNS, missing Impressum, never archived by Wayback, no analytics infrastructure, and an optional SearXNG "not indexed" check). New `/dormant-domains` report with WHOIS context and Excel/PDF export.
+*   **Catch-All Page Detector** — New recon module identifying parked-domain sales pages, default web-server splash pages, and wildcard vhosts serving generic content — signature match → vhost/content comparison → optional LLM classification fallback for the inconclusive minority.
+*   **Bulk Scan by Criteria** — New `/targets/bulk-scan` page: pick scan types once and a target-selection criterion (all / root-domains-only / online-only / last-scanned-before-date, combinable) — resolved server-side to a target list, so scanning thousands of domains no longer means rendering a giant table first.
+*   **SearXNG Integration** — Optional self-hosted metasearch integration (`/integrations`) used by recon modules for search-engine-indexing signals; degrades gracefully when not configured.
+*   **LLM Settings UX** — Test Connection button and a real model-picker (fetches the live model list from Ollama or any OpenAI-compatible endpoint) in Tenant Settings, instead of typing a model name blind.
+*   **Impressum Detection** — Split out of the combined GDPR privacy-policy check into its own signal (German TMG/DDG legal-notice requirement is a separate legal basis from the GDPR privacy notice).
+*   **Performance** — Batched the N+1 `ScanResult` query and cached `tldextract` lookups on `/targets/table`, cutting load time dramatically for tenants with thousands of targets.
+*   **Security Hardening** — Closed a gap where a category "select all" or Full Scan could sweep in the subdomain wordlist brute-force or the catch-all detector's LLM cost without an explicit, individual opt-in (both `/targets/table` and the per-target scan dialog); hardened the new LLM/SearXNG test endpoints against SSRF and against leaking exception detail or credentials in URLs.
+*   **Bug Fixes** — Fixed the worker container silently missing its encryption key (BYOK secrets were decrypting to garbage in scan-time code, not just failing loudly); fixed a startup-migration split-brain that could crash-loop a deploy on a new column; fixed a session-expiry redirect that could loop; fixed a `NameError` crash in the screenshot module's Playwright-unavailable path; suppressed log-flooding TLS warnings globally.
 
-See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.27.1) for the complete list of changes.
+See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.28.0) for the complete list of changes.
 
 ## 🚀 Quick Start & Installation
 
@@ -44,8 +47,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
     known-working combination (see a release's notes for the full compatible tag list):
 
     ```bash
-    git clone --branch v1.27.1 https://github.com/MrMarco74/yads.git
-    git clone --branch v1.27.1 https://github.com/MrMarco74/yads-infra.git
+    git clone --branch v1.28.0 https://github.com/MrMarco74/yads.git
+    git clone --branch v1.28.0 https://github.com/MrMarco74/yads-infra.git
     cd yads-infra
     docker compose up -d
     ```
@@ -92,8 +95,8 @@ See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.2
 |---------|--------|------------|
 | **v1.20.0** | ✅ Shipped | AI Intelligence Suite, Attack Path Visualizer, Finding Management, Portfolio View, Asset Tagging, Parallel Scans |
 | **v1.21.x – v1.26.x** | ✅ Shipped | Splunk/SIEM integration suite, distributed workers, custom module system, module signing, NIS2/DORA compliance groundwork |
-| **v1.27.0** | ✅ Shipped | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass |
-| **v1.27.1** | ✅ Current | Patch release: Extension Hub install-button fix, API container startup fix |
+| **v1.27.0 – v1.27.1** | ✅ Shipped | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass, Extension Hub fixes |
+| **v1.28.0** | ✅ Current | Dormant Domain Detector, Catch-All Page Detector, Bulk Scan by Criteria, SearXNG integration, LLM settings UX, performance and security hardening |
 | **v2.0** | 💡 Vision | Mobile App, Advanced SOAR Playbooks, ML-based Anomaly Detection |
 
 ## License
