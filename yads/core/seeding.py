@@ -67824,7 +67824,53 @@ def seed_changelog():
 
             session.add(entry_256)
 
-
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "2.6.0").first():
+            entry_260 = ChangelogEntry(
+                title="YADS v2.6.0: Recon Correlation, Compliance Suite, and Reporting Overhaul",
+                version="2.6.0",
+                content="""
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+                <p>Our biggest release yet: over 90 new features and fixes spanning recon, compliance, reporting, and platform ops.</p>
+                <h3>🔍 Recon &amp; Scanner Correlation</h3>
+                <ul>
+                    <li>Third-Party Domains page aggregating external script/style/iframe risk across all targets.</li>
+                    <li>Attack-Surface Delta view: ports/services diffed against the last scan (newly opened vs. closed).</li>
+                    <li>WAF-bypass verification: cross-checks real Nuclei findings against detected WAF rules.</li>
+                    <li>Whois × DNS ownership-change detection, continuous AXFR re-checks, Wayback Machine secret diffing.</li>
+                    <li>API Discovery and Mobile App Discovery now track baseline changes (new/vanished endpoints, app version drift) between scans.</li>
+                </ul>
+                <h3>⚖️ Compliance: NIS2, DORA &amp; MITRE ATT&amp;CK</h3>
+                <ul>
+                    <li>Real Finding → MITRE ATT&amp;CK tactic/technique mapping, with an interactive Navigator heatmap.</li>
+                    <li>NIS2 Article 21 measures dashboard, computed from actual scan data over the last 90 days.</li>
+                    <li>NIS2 24h/72h incident-reporting timer with a pre-filled notification draft.</li>
+                    <li>DORA ICT third-party register (with concentration-risk detection) and resilience-testing evidence export (PDF/Excel).</li>
+                </ul>
+                <h3>🔔 Notifications, Triage &amp; UX</h3>
+                <ul>
+                    <li>Finding triage workflow: acknowledge, snooze, assign, and ticket-reference fields.</li>
+                    <li>Undo window for destructive actions (target delete, queue purge).</li>
+                    <li>Global search, command palette, saved filter views, bulk actions, and an onboarding tour.</li>
+                    <li>Browser-native print stylesheet for findings and reports.</li>
+                </ul>
+                <h3>📊 Reporting &amp; Platform Ops</h3>
+                <ul>
+                    <li>CSV/JSON/SARIF export, recurring report delivery, and white-labeling for MSSPs.</li>
+                    <li>Mean-Time-To-Remediate (MTTR) tracking by severity on the Security Findings page.</li>
+                    <li>New <code>/health/detailed</code> endpoint for external monitoring (DB, Redis, RabbitMQ, worker pool).</li>
+                    <li>MFA-enforcement reminder banner for tenant admins.</li>
+                </ul>
+                <h3>🔒 Security Hardening</h3>
+                <ul>
+                    <li>Fixed an IDOR that could let a user modify another tenant's finding status via a guessed finding hash.</li>
+                    <li>Replaced a bypassable regex-based HTML sanitizer in the report generator with a proper HTML parser (bleach).</li>
+                    <li>Closed an SSRF gap where a redirecting integration URL could bypass health-check validation.</li>
+                    <li>Escaped all search-result rendering to eliminate a reflected XSS vector.</li>
+                    <li>Hardened temp-file permissions for backup restores and the Splunk spool file.</li>
+                </ul>
+                """
+            )
+            session.add(entry_260)
 
 
 
