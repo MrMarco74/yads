@@ -833,24 +833,46 @@ async def test_llm_connection(
 @router.get("/llm/ollama-models")
 async def list_ollama_models(
     llm_api_url: str,
+    llm_provider: str = "ollama",
+    llm_api_key: str = "",
     user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
 ):
-    """Fetch the model list from an Ollama instance's /api/tags for the
-    LLM settings 'select model' dropdown."""
+    """
+    Fetch the available-model list for the LLM settings 'select model'
+    dropdown. Ollama uses its native /api/tags; openai/custom (any
+    OpenAI-compatible endpoint, e.g. an internal llmproxy/Ollama with its
+    OpenAI-compat shim enabled) uses the standard /v1/models endpoint.
+    Despite the route name (kept for backward compat with the existing
+    frontend call), this now covers all providers except anthropic (which
+    has no public unauthenticated-discovery model-list endpoint).
+    """
     from yads.core.llm_service import _validate_api_url
     import requests
 
-    base_url = (llm_api_url or "").strip() or "http://ollama:11434"
+    provider = (llm_provider or "ollama").strip().lower()
+    api_key = (llm_api_key or "").strip()
+
+    if provider == "openai":
+        base_url = "https://api.openai.com"
+    else:
+        base_url = (llm_api_url or "").strip() or "http://ollama:11434"
+
     try:
         _validate_api_url(base_url)
-        # allow_redirects=False: an initially-valid URL could otherwise 302
-        # to a blocked target (e.g. cloud metadata) and bypass the check above.
-        resp = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=10, allow_redirects=False)
-        resp.raise_for_status()
-        models = [m.get("name") for m in resp.json().get("models", []) if m.get("name")]
-        return {"status": "ok", "models": models}
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        if provider == "ollama":
+            # allow_redirects=False: an initially-valid URL could otherwise 302
+            # to a blocked target (e.g. cloud metadata) and bypass the check above.
+            resp = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=10, allow_redirects=False)
+            resp.raise_for_status()
+            models = [m.get("name") for m in resp.json().get("models", []) if m.get("name")]
+        else:
+            resp = requests.get(f"{base_url.rstrip('/')}/v1/models", headers=headers, timeout=10, allow_redirects=False)
+            resp.raise_for_status()
+            models = [m.get("id") for m in resp.json().get("data", []) if m.get("id")]
+        return {"status": "ok", "models": sorted(models)}
     except Exception as e:
         # Same oracle concern as /llm/test above -- don't reflect raw
         # exception/response content for an arbitrary tenant-supplied URL.
-        logger.warning(f"[Ollama models] Fetch failed for tenant {user.tenant_id}: {type(e).__name__}: {e}")
-        return {"status": "failed", "message": f"Could not reach Ollama instance ({type(e).__name__}).", "models": []}
+        logger.warning(f"[LLM models] Fetch failed for tenant {user.tenant_id} ({provider}): {type(e).__name__}: {e}")
+        return {"status": "failed", "message": f"Could not reach provider ({type(e).__name__}).", "models": []}

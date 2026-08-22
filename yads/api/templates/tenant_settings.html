@@ -973,7 +973,8 @@ function getCsrfToken() {
     var fetchBtn = document.getElementById('llm-fetch-models-btn');
     function syncFetchBtnVisibility() {
         if (!providerSelect || !fetchBtn) return;
-        fetchBtn.classList.toggle('hidden', providerSelect.value !== 'ollama');
+        var supported = ['ollama', 'openai', 'custom'];
+        fetchBtn.classList.toggle('hidden', supported.indexOf(providerSelect.value) === -1);
     }
     if (providerSelect) {
         providerSelect.addEventListener('change', syncFetchBtnVisibility);
@@ -1015,13 +1016,16 @@ async function yadsTestLlmConnection() {
 
 async function yadsFetchOllamaModels() {
     var statusEl = document.getElementById('llm-fetch-models-status');
+    var provider = document.querySelector('select[name="llm_provider"]').value;
     var apiUrl = document.querySelector('input[name="llm_api_url"]').value;
+    var apiKey = document.querySelector('input[name="llm_api_key"]').value;
     var datalist = document.getElementById('llm-model-options');
 
     statusEl.textContent = 'Fetching models…';
     statusEl.className = 'text-[11px] mt-1 text-gray-400';
     try {
-        var res = await fetch('/tenant-settings/llm/ollama-models?llm_api_url=' + encodeURIComponent(apiUrl));
+        var params = new URLSearchParams({ llm_provider: provider, llm_api_url: apiUrl, llm_api_key: apiKey });
+        var res = await fetch('/tenant-settings/llm/ollama-models?' + params.toString());
         var data = await res.json();
         if (res.ok && data.status === 'ok') {
             datalist.innerHTML = '';
@@ -1032,10 +1036,10 @@ async function yadsFetchOllamaModels() {
             });
             statusEl.textContent = data.models.length
                 ? ('✓ ' + data.models.length + ' model(s) found — pick one from the Model field suggestions.')
-                : 'Connected, but no models are pulled on that Ollama instance yet.';
+                : 'Connected, but no models are available on that provider yet.';
             statusEl.className = 'text-[11px] mt-1 text-emerald-400';
         } else {
-            statusEl.textContent = '✗ ' + (data.message || 'Could not reach Ollama instance');
+            statusEl.textContent = '✗ ' + (data.message || 'Could not reach provider');
             statusEl.className = 'text-[11px] mt-1 text-red-400';
         }
     } catch (e) {
