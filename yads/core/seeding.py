@@ -67887,6 +67887,52 @@ def seed_changelog():
             )
             session.add(entry_261)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "2.7.0").first():
+            entry_270 = ChangelogEntry(
+                title="YADS v2.7.0: Dormant Domain Detector, Catch-All Detector & SearXNG",
+                version="2.7.0",
+                content="""
+                <span style=\"background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Stable Release</span>
+                <p>Two new recon modules for finding domains that are registered but forgotten, a way to bulk-scan thousands of targets without ever loading a giant table, and a batch of real bug fixes found while dogfooding all of it.</p>
+                <h3>🕸️ Dormant Domain Detector</h3>
+                <ul>
+                    <li>New recon module flags domains that still resolve and are still monitored, but show no real activity — 8 weighted signals: no recent scan changes, no live web service, expiring/expired SSL cert, stale DNS, missing Impressum, never archived by the Wayback Machine, no analytics infrastructure, and an optional "not indexed by search engine" check via SearXNG.</li>
+                    <li>New <code>/dormant-domains</code> report: dormancy score, triggered signals, and WHOIS registration/expiry context (the "still being paid for, never touched" pattern), with Excel/PDF export.</li>
+                    <li>Runs by default (pure DB analysis, no extra network cost unless the optional SearXNG signal is configured).</li>
+                </ul>
+                <h3>🎭 Catch-All Page Detector</h3>
+                <ul>
+                    <li>New recon module identifies parked-domain sales pages, default web-server splash pages, and wildcard vhosts that serve the same generic content regardless of hostname.</li>
+                    <li>Signature match → vhost/content comparison → optional LLM classification fallback (own tenant opt-in, only spent on the inconclusive minority) — badge shown directly in the target table.</li>
+                </ul>
+                <h3>📋 Bulk Scan by Criteria</h3>
+                <ul>
+                    <li>New <code>/targets/bulk-scan</code> page: choose scan types once, then a target-selection criterion — all / root-domains-only / online-only / last-scanned-before-date — combinable. The server resolves this straight to a target list, so scanning thousands of domains no longer means rendering a giant table first just to click checkboxes.</li>
+                </ul>
+                <h3>🔎 SearXNG Integration &amp; LLM Settings UX</h3>
+                <ul>
+                    <li>Optional self-hosted SearXNG metasearch integration under <code>/integrations</code> — used by recon modules for search-engine-indexing signals, degrades gracefully when not configured.</li>
+                    <li>Tenant Settings LLM config now has a Test Connection button and a real model picker that fetches the live model list from Ollama or any OpenAI-compatible endpoint, instead of typing a model name blind.</li>
+                    <li>Impressum detection split out of the combined GDPR privacy-policy check into its own signal (German TMG/DDG legal-notice requirement is legally separate from the GDPR privacy notice).</li>
+                </ul>
+                <h3>⚡ Performance</h3>
+                <ul>
+                    <li>Batched a per-row N+1 <code>ScanResult</code> query and cached <code>tldextract</code> lookups on <code>/targets/table</code> — dramatically faster on tenants with thousands of targets.</li>
+                </ul>
+                <h3>🔒 Security Hardening &amp; Bug Fixes</h3>
+                <ul>
+                    <li>Closed a gap where a category "select all" or Full Scan could sweep in the subdomain wordlist brute-force or the catch-all detector's LLM cost without an explicit, individual opt-in — in both the target table and the per-target scan dialog.</li>
+                    <li>The new LLM/SearXNG test-connection endpoints no longer reflect raw exception or response detail for an arbitrary configured URL, and no longer accept credentials via a query string.</li>
+                    <li>Fixed the worker container silently missing its encryption key — BYOK secrets (API keys, LLM URL/key) were decrypting to garbage ciphertext in scan-time code instead of failing loudly, for as long as that misconfiguration existed.</li>
+                    <li>Unified two schema-migration code paths that had drifted apart, which could crash-loop a deploy the next time a new column was added.</li>
+                    <li>Fixed a session-expiry redirect that could loop between the app and the login page.</li>
+                    <li>Fixed a <code>NameError</code> crash in the screenshot module's Playwright-unavailable path.</li>
+                    <li>Suppressed log-flooding TLS "InsecureRequestWarning" noise globally instead of per-module.</li>
+                </ul>
+                """
+            )
+            session.add(entry_270)
+
 
 
 
