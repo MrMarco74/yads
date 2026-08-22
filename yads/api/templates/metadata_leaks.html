@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">Metadata Leaks</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Author names, software versions, and internal file paths recovered from documents — aggregated across your whole estate.
+            </p>
+        </div>
+        <span class="inline-flex items-center rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-400 ring-1 ring-inset ring-cyan-400/20">
+            Scope: {{ scope_count }} target{{ 's' if scope_count != 1 else '' }}
+        </span>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-blue-200/80 space-y-1">
+            <p class="font-medium text-blue-300">Why this matters</p>
+            <p>
+                A name or internal path appearing in documents from <strong>multiple</strong> targets is a stronger identity/infrastructure
+                leak signal than any single document — it often reveals shared authorship, internal tooling, or organizational structure.
+            </p>
+        </div>
+    </div>
+
+    {% macro leak_table(title, rows, empty_msg) %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-slate-800">
+            <h3 class="font-semibold text-white text-sm">{{ title }}</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-3">Value</th>
+                        <th class="px-6 py-3">Seen In</th>
+                        <th class="px-6 py-3 text-right">Targets</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for row in rows %}
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-6 py-3 font-mono text-slate-200">{{ row.value }}</td>
+                        <td class="px-6 py-3 text-xs">{{ row.targets[:3]|join(', ') }}{% if row.targets|length > 3 %} +{{ row.targets|length - 3 }} more{% endif %}</td>
+                        <td class="px-6 py-3 text-right font-semibold {{ 'text-red-400' if row.target_count > 1 else 'text-slate-200' }}">{{ row.target_count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="px-6 py-10 text-center text-slate-500">{{ empty_msg }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endmacro %}
+
+    {{ leak_table("Authors / Usernames", authors, "No author metadata found yet — run the metadata_scanner module.") }}
+    {{ leak_table("Software / Tooling", software, "No software metadata found yet.") }}
+    {{ leak_table("Internal File Paths", internal_paths, "No internal paths found yet.") }}
+</div>
+{% endblock %}

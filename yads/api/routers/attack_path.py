@@ -41,7 +41,30 @@ _RECON_MODULES = {"dns_scanner", "axfr_scanner", "banner_grabber", "security_txt
 _INITIAL_ACCESS_MODULES = {"ssl_scanner", "cloud_scanner", "email_security"}
 _CRED_MODULES = {"cookie_scanner"}
 
-def _att_phase_for_finding(module_name: str, severity: str) -> str:
+# MITRE Enterprise tactic ID -> this graph's 5 coarse phase buckets (#51).
+# The graph/frontend only understand these 5 phases; mapping real TAxxxx IDs
+# onto them keeps _att_phase_for_finding's output format unchanged while
+# replacing the guesswork underneath with yads.core.mitre_mapping's real
+# module+issue -> technique lookup (Welle 0/5).
+_TACTIC_TO_PHASE = {
+    "TA0043": "recon", "TA0042": "recon", "TA0007": "recon",
+    "TA0001": "initial_access",
+    "TA0002": "execution", "TA0003": "execution", "TA0005": "execution",
+    "TA0006": "credential_access",
+    "TA0004": "impact", "TA0009": "impact", "TA0011": "impact", "TA0040": "impact",
+}
+
+# Kill-chain order for real exploit-chaining (#53): a finding in an earlier
+# tactic can plausibly "enable" one in a later tactic, never the reverse.
+_TACTIC_ORDER = ["TA0043", "TA0042", "TA0001", "TA0002", "TA0003", "TA0004",
+                  "TA0005", "TA0006", "TA0007", "TA0009", "TA0011", "TA0040"]
+
+
+def _att_phase_for_finding(module_name: str, severity: str, issue: str = "") -> str:
+    from yads.core.mitre_mapping import get_mitre_mapping
+    mitre = get_mitre_mapping(module_name, issue)
+    if mitre:
+        return _TACTIC_TO_PHASE.get(mitre["tactic_id"], "execution")
     if module_name in _RECON_MODULES:
         return "recon"
     if module_name in _INITIAL_ACCESS_MODULES:
@@ -248,7 +271,9 @@ def _build_finding_nodes(
 
         if nid not in node_ids:
             node_ids.add(nid)
-            phase = _att_phase_for_finding(module_name, severity)
+            from yads.core.mitre_mapping import get_mitre_mapping
+            mitre = get_mitre_mapping(module_name, issue)
+            phase = _TACTIC_TO_PHASE.get(mitre["tactic_id"], "execution") if mitre else _att_phase_for_finding(module_name, severity)
             is_ep = (module_name == "cloud_scanner" and "public" in issue.lower())
             nodes.append({
                 "id": nid,
@@ -257,6 +282,9 @@ def _build_finding_nodes(
                 "risk": _risk(severity),
                 "att_phase": phase,
                 "is_entry_point": is_ep,
+                "mitre_tactic_id": mitre["tactic_id"] if mitre else None,
+                "mitre_technique_id": mitre["technique_id"] if mitre else None,
+                "mitre_technique_name": mitre["technique_name"] if mitre else None,
                 "metadata": {
                     "severity": severity,
                     "module": module_name,
@@ -284,21 +312,56 @@ def _chain_critical_findings(
     edges: List[Dict],
 ) -> None:
     """
-    Link critical/high findings together to represent chained attack paths.
-    High-severity findings that co-exist imply a multi-step exploitation chain.
+    Link high+ findings that plausibly enable each other (#53).
+
+    Previously: every high+ finding was linked to the next in list order
+    ("co-exist implies a chain") — a critical SSL finding and an unrelated
+    critical subdomain-takeover finding would show as a fabricated 2-step
+    attack chain purely because both happened to be in the list.
+
+    Now: only link finding A -> finding B when A's MITRE tactic precedes B's
+    in the kill-chain (_TACTIC_ORDER) — a real "this enables that" causal
+    ordering (e.g. TA0001 Initial Access -> TA0004 Privilege Escalation is
+    plausible; TA0004 -> TA0001 is not). Findings with no resolved MITRE
+    tactic (mapping not yet covering that module) are not chained at all,
+    rather than guessed — no chain is more honest than a fabricated one.
     """
-    # Build index of high+ findings
+    node_by_id = {n["id"]: n for n in nodes}
     high_plus = [
         nid for nid in finding_node_ids
-        if any(n["id"] == nid and n["risk"] >= 8 for n in nodes)
+        if nid in node_by_id and node_by_id[nid]["risk"] >= 8 and node_by_id[nid].get("mitre_tactic_id")
     ]
-    # Create directed chain edges between high+ findings
-    for i in range(len(high_plus) - 1):
-        edges.append({
-            "source": high_plus[i],
-            "target": high_plus[i + 1],
-            "label": "enables",
-        })
+    # Sort by kill-chain rank first — otherwise an earlier-tactic finding
+    # that merely appears later in `finding_node_ids` (module scan order,
+    # not causal order) would never get to point forward to later-tactic
+    # findings, since the pairwise scan below only looks ahead in the list.
+    def _rank(nid: str) -> int:
+        try:
+            return _TACTIC_ORDER.index(node_by_id[nid]["mitre_tactic_id"])
+        except ValueError:
+            return 99
+    high_plus.sort(key=_rank)
+
+    for i, source_id in enumerate(high_plus):
+        source_tactic = node_by_id[source_id]["mitre_tactic_id"]
+        try:
+            source_rank = _TACTIC_ORDER.index(source_tactic)
+        except ValueError:
+            continue
+        for target_id in high_plus[i + 1:]:
+            target_tactic = node_by_id[target_id]["mitre_tactic_id"]
+            try:
+                target_rank = _TACTIC_ORDER.index(target_tactic)
+            except ValueError:
+                continue
+            if target_rank > source_rank:
+                technique = node_by_id[source_id].get("mitre_technique_name", "")
+                edges.append({
+                    "source": source_id,
+                    "target": target_id,
+                    "label": f"enables ({technique})" if technique else "enables",
+                })
+                break  # one plausible next step per source is enough to avoid a dense fan-out
 
 
 # ---------------------------------------------------------------------------
@@ -349,13 +412,18 @@ def _process_web_analyzer(
         nid = f"finding_cve_{cve_id.lower().replace('-', '_')}"
         if nid not in node_ids:
             node_ids.add(nid)
+            from yads.core.mitre_mapping import get_mitre_mapping
+            mitre = get_mitre_mapping("web_analyzer", cve_id)
             nodes.append({
                 "id": nid,
                 "label": cve_id,
                 "type": "finding",
                 "risk": _risk(severity),
-                "att_phase": _att_phase_for_finding("web_analyzer", severity),
+                "att_phase": _TACTIC_TO_PHASE.get(mitre["tactic_id"], "execution") if mitre else _att_phase_for_finding("web_analyzer", severity),
                 "is_entry_point": False,
+                "mitre_tactic_id": mitre["tactic_id"] if mitre else None,
+                "mitre_technique_id": mitre["technique_id"] if mitre else None,
+                "mitre_technique_name": mitre["technique_name"] if mitre else None,
                 "metadata": {
                     "severity": severity,
                     "module": "web_analyzer",
@@ -393,13 +461,18 @@ def _process_nuclei_scanner(
         nid = f"finding_nuclei_{safe}_{idx}"
         if nid not in node_ids:
             node_ids.add(nid)
+            from yads.core.mitre_mapping import get_mitre_mapping
+            mitre = get_mitre_mapping("nuclei_scanner", name)
             nodes.append({
                 "id": nid,
                 "label": name[:60],
                 "type": "finding",
                 "risk": _risk(severity),
-                "att_phase": _att_phase_for_finding("nuclei_scanner", severity),
+                "att_phase": _TACTIC_TO_PHASE.get(mitre["tactic_id"], "execution") if mitre else _att_phase_for_finding("nuclei_scanner", severity),
                 "is_entry_point": False,
+                "mitre_tactic_id": mitre["tactic_id"] if mitre else None,
+                "mitre_technique_id": mitre["technique_id"] if mitre else None,
+                "mitre_technique_name": mitre["technique_name"] if mitre else None,
                 "metadata": {
                     "severity": severity,
                     "module": "nuclei_scanner",

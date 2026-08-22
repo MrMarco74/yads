@@ -61,6 +61,29 @@ def _validate_integration_url(url: str, field: str = "URL") -> None:
             detail=f"Integration {field} hostname is not allowed: {hostname}",
         )
 
+
+def _probe_url_no_redirect_ssrf(url: str, max_hops: int = 5):
+    """
+    SSRF-safe HEAD probe for the integration health-check (#57).
+
+    requests(..., allow_redirects=True) validates only the ORIGINAL url —
+    a malicious/compromised endpoint can then 30x-redirect the request to
+    an internal/metadata host and requests will follow it blindly, bypassing
+    _validate_integration_url() entirely. Fix: follow redirects manually,
+    one hop at a time, re-validating the Location header against the same
+    allowlist check before every request.
+    """
+    _validate_integration_url(url, "Integration URL")
+    current = url
+    for _ in range(max_hops):
+        resp = requests.head(current, timeout=8, allow_redirects=False)
+        if resp.is_redirect and resp.headers.get("Location"):
+            current = resp.headers["Location"]
+            _validate_integration_url(current, "Integration URL (redirect target)")
+            continue
+        return resp
+    return resp
+
 # ─────────────────────────────────────────
 # CEF / ECS formatting helpers
 # ─────────────────────────────────────────
@@ -329,6 +352,49 @@ async def integrations_page(
         "config_map": config_map,
         "page_title": "Integrations",
     })
+
+
+@router.post("/integrations/{integration_type}/test")
+async def test_integration(
+    integration_type: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+):
+    """
+    Integrations health check (#57) — mirrors #19's BYOK key health-check
+    pattern (Baustein 2, Welle 0) but for notification integrations. A
+    non-invasive reachability check (no test message sent) against the
+    configured webhook/API URL.
+    """
+    from yads.core.integration_health import record_health_check
+
+    ic = session.exec(
+        select(IntegrationConfig).where(
+            IntegrationConfig.tenant_id == user.tenant_id,
+            IntegrationConfig.integration_type == integration_type,
+        )
+    ).first()
+    if not ic:
+        raise HTTPException(status_code=404, detail="Integration not configured")
+
+    url = ic.config.get("url") or ic.config.get("webhook_url") or ic.config.get("api_url")
+    ok, message = False, "No URL configured to test"
+    if url:
+        try:
+            resp = _probe_url_no_redirect_ssrf(url)
+            # Many webhook endpoints reject bare HEAD/GET with 4xx but are
+            # still reachable — anything that isn't a connection failure or
+            # 5xx counts as "reachable".
+            ok = resp.status_code < 500
+            message = f"Reachable (HTTP {resp.status_code})" if ok else f"Server error (HTTP {resp.status_code})"
+        except Exception as e:
+            ok, message = False, f"Unreachable: {e}"
+    else:
+        ok = True
+        message = "No URL field for this integration type — presence check only"
+
+    record_health_check(session, ic, ok, message)
+    return {"integration_type": integration_type, "status": "ok" if ok else "failed", "message": message}
 
 
 @router.post("/integrations/{integration_type}/save", response_class=HTMLResponse)

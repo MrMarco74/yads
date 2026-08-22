@@ -68,10 +68,12 @@ class NmapScanner(BaseScannerModule):
                 "Nmap binary not found — falling back to socket-based scanning. "
                 "Install nmap for stealth/evasion capabilities."
             )
-            return self._socket_fallback_scan(target)
+            results = self._socket_fallback_scan(target)
+            self._add_port_delta(results, target_id)
+            return results
 
         self.logger.info(f"Starting stealth Nmap scan for {target}...")
-        
+
         try:
             nmap_results = self._stealth_nmap_scan(target)
             results["open_ports"] = nmap_results["ports"]
@@ -96,8 +98,32 @@ class NmapScanner(BaseScannerModule):
         except Exception as e:
             self.logger.error(f"Nmap scan failed: {e}")
             results["error"] = str(e)
-            
+
+        self._add_port_delta(results, target_id)
         return results
+
+    def _add_port_delta(self, results: Dict[str, Any], target_id: Optional[int]) -> None:
+        """
+        Attack-surface delta (#24): diff this scan's open ports against the
+        last-seen set (shared snapshot key with port_scanner.py) so the
+        ASR/ports view can show "newly exposed" / "closed since last scan"
+        instead of only a flat snapshot.
+        """
+        if not target_id:
+            return
+        try:
+            from yads.database import engine as _engine
+            from sqlmodel import Session as _Session
+            from yads.core.baseline_diff import diff_against_last
+            port_numbers = [p.get("port") for p in results.get("open_ports", []) if isinstance(p, dict) and p.get("port")]
+            with _Session(_engine) as _db:
+                diff = diff_against_last(_db, "open_ports", port_numbers, target_id=target_id)
+            results["port_delta"] = {
+                "newly_exposed": diff["added"],
+                "closed_since_last": diff["removed"],
+            }
+        except Exception as e:
+            self.logger.warning(f"Port delta computation failed: {e}")
 
     def _stealth_nmap_scan(self, target: str) -> Dict[str, Any]:
         """

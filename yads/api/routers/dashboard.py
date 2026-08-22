@@ -15,6 +15,12 @@ from yads.api.utils.update_checker import UpdateService
 
 logger = logging.getLogger(__name__)
 
+# Compliance display needs cve_scanner/infrastructure_scanner too, beyond
+# what the scorer itself reads — merge rather than replace (#34: the old
+# hardcoded 5-module list silently excluded graphql_scanner/websocket_scanner
+# and everything else calculate_target_score() actually looks at).
+_COMPLIANCE_EXTRA_MODULES = ["cve_scanner", "infrastructure_scanner"]
+
 try:
     from yads.modules.compliance import ComplianceScorer
 except ImportError:
@@ -23,7 +29,7 @@ except ImportError:
         def calculate_score(self, *args, **kwargs):
             return {"score": 0, "grade": "N/A", "passing_controls": 0, "failures": []}
 
-from yads.core.scoring import calculate_target_score, get_grade
+from yads.core.scoring import calculate_target_score, get_grade, SCORED_MODULE_NAMES
 
 
 def _get_redis_queue_len(session, tenant_id) -> int:
@@ -141,9 +147,9 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
                     s.target_id, s.module_name, s.data 
                 FROM scanresult s
                 JOIN target t ON s.target_id = t.id
-                WHERE s.module_name IN ('ssl_scanner', 'web_analyzer', 'cve_scanner', 'infrastructure_scanner', 'port_scanner')
+                WHERE s.module_name = ANY(:module_names)
             """
-            params = {}
+            params = {"module_names": list(set(SCORED_MODULE_NAMES) | set(_COMPLIANCE_EXTRA_MODULES))}
             if user.tenant_id is not None:
                 query_compliance_str += " AND t.tenant_id = :tenant_id"
                 params["tenant_id"] = user.tenant_id
@@ -309,6 +315,21 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
         # Don't fail dashboard load on trend error
         logger.error(f"Error snapshotting trend: {e}")
 
+    # MFA-Enforcement-Reminder (#97): tenant admins get nudged about users
+    # in their own tenant who still have MFA disabled. Platform admins
+    # (tenant_id=None) are out of scope here — no single tenant to report on.
+    mfa_gap_count = 0
+    if user.tenant_id is not None and user.role in ("tenant_admin", "admin"):
+        try:
+            mfa_gap_count = session.exec(
+                select(func.count()).select_from(User).where(
+                    User.tenant_id == user.tenant_id,
+                    User.mfa_enabled == False,
+                )
+            ).one()
+        except Exception as e:
+            logger.warning(f"MFA gap count failed: {e}")
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "critical_targets": critical_targets, # Added
@@ -336,7 +357,8 @@ async def dashboard(request: Request, session: Session = Depends(get_session), u
             "end_item": min(limit, total_targets)
         },
         "user": user, # Pass user to context
-        "update_info": update_info
+        "update_info": update_info,
+        "mfa_gap_count": mfa_gap_count,
     })
 
 
@@ -371,9 +393,9 @@ async def dashboard_stats(request: Request, session: Session = Depends(get_sessi
                     s.target_id, s.module_name, s.data 
                 FROM scanresult s
                 JOIN target t ON s.target_id = t.id
-                WHERE s.module_name IN ('ssl_scanner', 'web_analyzer', 'cve_scanner', 'infrastructure_scanner', 'port_scanner')
+                WHERE s.module_name = ANY(:module_names)
             """
-            params = {}
+            params = {"module_names": list(set(SCORED_MODULE_NAMES) | set(_COMPLIANCE_EXTRA_MODULES))}
             if user.tenant_id is not None:
                 query_security_str += " AND t.tenant_id = :tenant_id"
                 params["tenant_id"] = user.tenant_id

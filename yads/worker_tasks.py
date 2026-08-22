@@ -78,7 +78,7 @@ def auto_dns_cleanup():
 @celery_app.task(name="yads.worker.calculate_security_trends")
 def calculate_security_trends():
     """Calculates and stores daily security score averages for each tenant."""
-    from yads.core.scoring import calculate_target_score, get_grade
+    from yads.core.scoring import calculate_target_score, get_grade, SCORED_MODULE_NAMES
     from sqlmodel import text
 
     logger.info("[Worker] Starting daily security trend calculation...")
@@ -104,10 +104,10 @@ def calculate_security_trends():
                             module_name, data
                         FROM scanresult
                         WHERE target_id = :target_id
-                          AND module_name IN ('ssl_scanner', 'web_analyzer', 'port_scanner')
+                          AND module_name = ANY(:module_names)
                         ORDER BY module_name, scanned_at DESC
                     """)
-                    latest_rows = session.execute(query, {"target_id": t.id}).all()
+                    latest_rows = session.execute(query, {"target_id": t.id, "module_names": SCORED_MODULE_NAMES}).all()
 
                     class MockRes:
                         def __init__(self, data): self.data = data
@@ -197,6 +197,37 @@ def calculate_compliance_trends():
                         session.add(trend)
                         logger.info(f"[Worker] Recorded {framework_id} trend for tenant {tenant.name}: {stats.get('score')}%")
 
+                        # Per-control gap tracking (#13): ComplianceTrend only
+                        # ever stored the aggregate score — this diffs which
+                        # *specific* controls flipped PASS<->FAIL since the
+                        # last run, so "what changed since last report" is a
+                        # real answer instead of just a score delta.
+                        try:
+                            from yads.core.baseline_diff import diff_against_last
+                            breakdown = stats.get("detailed_breakdown") or {}
+                            passing_ids = [cid for cid, c in breakdown.items() if c.get("status") == "PASS"]
+                            diff = diff_against_last(
+                                session, f"compliance_passing_controls:{framework_id}",
+                                passing_ids, tenant_id=tenant.id,
+                            )
+                            if not diff["is_first"]:
+                                newly_closed = diff["added"]       # now passing, wasn't before
+                                newly_failing = diff["removed"]    # was passing, now failing
+                                if newly_closed or newly_failing:
+                                    logger.info(
+                                        f"[Worker] Compliance gap change for {tenant.name}/{framework_id}: "
+                                        f"closed={newly_closed} reopened={newly_failing}"
+                                    )
+                                    if newly_failing:
+                                        webhook_service.trigger_event(tenant.id, "security_alert", {
+                                            "module": "compliance",
+                                            "severity": "medium",
+                                            "title": f"{len(newly_failing)} {framework_id.upper()} control(s) newly failing",
+                                            "detail": f"Controls: {', '.join(newly_failing)}",
+                                        })
+                        except Exception as ce:
+                            logger.warning(f"[Worker] Compliance control-gap diff failed (non-fatal): {ce}")
+
                     except Exception as fw_e:
                         logger.warning(f"[Worker] Failed to calculate {framework_id} trend: {fw_e}")
 
@@ -265,6 +296,151 @@ def send_daily_digests():
                 logger.info(f"[Worker] Daily digest queued for tenant {tenant.name}")
     except Exception as e:
         logger.error(f"[Worker] send_daily_digests failed: {e}")
+
+
+@celery_app.task(name="yads.worker.send_recurring_reports")
+def send_recurring_reports():
+    """
+    Recurring report delivery (#45): checks all active ReportSubscriptions
+    and emails the ones due today (weekly on their configured weekday,
+    monthly on their configured day-of-month), independent of ScanSchedule
+    and the fixed daily digest.
+    """
+    from yads.models import ReportSubscription
+    from yads.core.email_service import EmailService
+    logger.info("[Worker] Checking recurring report subscriptions...")
+    try:
+        today = datetime.utcnow().date()
+        with Session(engine) as session:
+            subs = session.exec(select(ReportSubscription).where(ReportSubscription.is_active == True)).all()
+            for sub in subs:
+                if not sub.recipients:
+                    continue
+                due = False
+                if sub.frequency == "weekly" and today.weekday() == sub.day_of_week:
+                    due = True
+                elif sub.frequency == "monthly" and today.day == sub.day_of_month:
+                    due = True
+                # Don't re-send twice on the same calendar day (e.g. beat retries).
+                if due and sub.last_sent_at and sub.last_sent_at.date() == today:
+                    due = False
+                if not due:
+                    continue
+
+                tenant = session.get(Tenant, sub.tenant_id)
+                base_url_conf = session.get(SystemConfig, "BASE_URL")
+                base_url = base_url_conf.value if base_url_conf else ""
+                report_url = f"{base_url}/security-findings/" if sub.report_type == "findings_csv" else f"{base_url}/executive-report"
+
+                try:
+                    EmailService().send_mail(
+                        to_addr=sub.recipients,
+                        subject=f"YADS Recurring Report: {sub.name} ({tenant.name if tenant else sub.tenant_id})",
+                        body_text=f"Your scheduled '{sub.name}' report is ready: {report_url}",
+                        body_html=f"<p>Your scheduled report <strong>{sub.name}</strong> is ready.</p><p><a href='{report_url}'>View report</a></p>",
+                    )
+                    sub.last_sent_at = datetime.utcnow()
+                    session.add(sub)
+                    logger.info(f"[Worker] Sent recurring report '{sub.name}' to {len(sub.recipients)} recipient(s)")
+                except Exception as se:
+                    logger.warning(f"[Worker] Failed to send recurring report '{sub.name}': {se}")
+            session.commit()
+    except Exception as e:
+        logger.error(f"[Worker] send_recurring_reports failed: {e}")
+
+
+@celery_app.task(name="yads.worker.check_archived_target_reactivation")
+def check_archived_target_reactivation():
+    """
+    Reactivation suggestion for archived targets (#65). dns_cleanup_scanner
+    archives domains that stop resolving, but never rechecks them — a
+    reactivated domain (renewed after expiry, service moved back) stays
+    silently archived forever. Periodically re-resolve DNS-dead-archived
+    targets and flag the ones that respond again, via the same webhook
+    channel other modules use — doesn't auto-unarchive (a human should
+    confirm this wasn't a squatter/different owner before resuming scans).
+    """
+    import dns.resolver
+    logger.info("[Worker] Checking archived (dns_dead) targets for reactivation...")
+    try:
+        with Session(engine) as session:
+            archived = session.exec(
+                select(Target).where(Target.is_archived == True, Target.archived_reason == "dns_dead")
+            ).all()
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 3.0
+            resolver.lifetime = 5.0
+            reactivation_candidates = 0
+            for t in archived:
+                try:
+                    resolver.resolve(t.domain, "A")
+                    resolves = True
+                except Exception:
+                    resolves = False
+                if resolves:
+                    reactivation_candidates += 1
+                    logger.info(f"[Worker] Archived target {t.domain} resolves again — suggesting reactivation")
+                    webhook_service.trigger_event(t.tenant_id, "new_asset", {
+                        "domain": t.domain,
+                        "source": "archived_target_reactivation",
+                        "detail": f"{t.domain} was archived as DNS-dead but now resolves again — review and reactivate if legitimate.",
+                    })
+            if reactivation_candidates:
+                logger.info(f"[Worker] {reactivation_candidates} archived target(s) flagged for reactivation review")
+    except Exception as e:
+        logger.error(f"[Worker] check_archived_target_reactivation failed: {e}")
+
+
+@celery_app.task(name="yads.worker.check_cert_expiry_alerts")
+def check_cert_expiry_alerts():
+    """
+    Proactive cert-expiry alerting (#22). `cert_timeline.py` already computes
+    days-until-expiry, but only when a user happens to open that page — there
+    was no active alert. Walks every target's latest ssl_scanner result and
+    fires a webhook the first time a cert crosses the 30-day-to-expiry window
+    (dedup via baseline_diff keyed on the cert's own notAfter date, so a
+    renewed cert re-arms the alert instead of going permanently silent).
+    """
+    from yads.core.baseline_diff import diff_against_last
+    logger.info("[Worker] Starting cert-expiry alert sweep...")
+    try:
+        with Session(engine) as session:
+            targets = session.exec(select(Target).where(Target.is_archived == False)).all()
+            for t in targets:
+                latest = session.exec(
+                    select(ScanResult).where(
+                        ScanResult.target_id == t.id,
+                        ScanResult.module_name == "ssl_scanner",
+                    ).order_by(ScanResult.scanned_at.desc())
+                ).first()
+                if not latest or not latest.data:
+                    continue
+                not_after = latest.data.get("notAfter")
+                if not not_after:
+                    continue
+                try:
+                    expiry_dt = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+                except Exception:
+                    continue
+                days_left = (expiry_dt - datetime.utcnow()).days
+                if days_left > 30:
+                    continue
+
+                diff = diff_against_last(session, "cert_expiry_alerted", [not_after], target_id=t.id)
+                if not_after in diff["added"]:
+                    webhook_service.trigger_event(t.tenant_id, "security_alert", {
+                        "domain": t.domain,
+                        "module": "ssl_scanner",
+                        "severity": "critical" if days_left <= 0 else "medium",
+                        "title": (
+                            f"Certificate expired {abs(days_left)} day(s) ago" if days_left <= 0
+                            else f"Certificate expires in {days_left} day(s)"
+                        ),
+                        "detail": f"{t.domain} — expires {not_after}",
+                    })
+                    logger.info(f"[Worker] Cert-expiry alert fired for {t.domain} ({days_left} days left)")
+    except Exception as e:
+        logger.error(f"[Worker] check_cert_expiry_alerts failed: {e}")
 
 
 # ── Scan Heartbeat ────────────────────────────────────────────────────────────
@@ -463,20 +639,42 @@ def run_all_scans(
     domain: str,
     scan_types: list[str] = None,
     tenant_id: int = None,
-    ignore_queue_pause: bool = False
+    ignore_queue_pause: bool = False,
+    light_subdomain_scan: bool = False,
 ):
     """
     Main orchestration task.
     Runs configured scanners for the given target.
     If scan_types is None, runs all available scanners.
     tenant_id is passed for queue filtering purposes (actual tenant is derived from target in DB).
+    light_subdomain_scan caps subdomain_scanner's wordlist brute-force to a small
+    sample (CT logs still run in full) — used by run_discovery_scan, where this
+    task is dispatched once per candidate per depth and an unbounded wordlist
+    scan per candidate is the main cost driver on large discovery sessions.
     """
     from yads.worker_core import _worker_client
 
     if scan_types is None:
-        scan_types = ["dns_cleanup", "subdomain_scanner", "dns_scanner"]
+        scan_types = ["dns_cleanup", "dns_scanner"]
 
     logger.info(f"[Worker] Starting scan for {domain} (ID: {target_id}) with types: {scan_types}")
+
+    # Cancellation check independent of Celery's in-memory revoke state.
+    # This task uses acks_late+reject_on_worker_lost, so a SIGTERM'd
+    # (Stop/Purge/Cancel) task is redelivered by the broker; if the
+    # redelivery lands on an autoscaled worker child that never saw the
+    # revoke broadcast, it would otherwise silently re-run. queue.py's
+    # mark_task_cancelled() writes here before revoking, so we can catch
+    # it up front regardless of which process picks up the redelivery.
+    _celery_task_id = self.request.id if hasattr(self, 'request') and self.request else None
+    if _celery_task_id:
+        try:
+            from yads.database import redis_client as _redis_client
+            if _redis_client.exists(f"yads:cancelled_task:{_celery_task_id}"):
+                logger.info(f"[Worker] Task {_celery_task_id} for {domain} was cancelled — skipping redelivered execution.")
+                return
+        except Exception as e:
+            logger.warning(f"[Worker] Cancellation check failed for task {_celery_task_id}: {e}")
 
     def check_port(host, port, timeout=2):
         try:
@@ -638,8 +836,9 @@ def run_all_scans(
 
                     from yads.modules.dns_scanner import SubdomainScanner
                     use_ct = "ssl_scanner" in scan_types
-                    sub_scan = SubdomainScanner(db_session=session, use_ct_logs=use_ct)
-                    logger.info(f"[Worker] Running {sub_scan.module_name} (CRT.sh: {use_ct})...")
+                    wordlist_limit = 100 if light_subdomain_scan else None
+                    sub_scan = SubdomainScanner(db_session=session, use_ct_logs=use_ct, wordlist_limit=wordlist_limit)
+                    logger.info(f"[Worker] Running {sub_scan.module_name} (CRT.sh: {use_ct}, wordlist_limit: {wordlist_limit})...")
 
                     with LogCapture() as logs:
                         logger.info(f"Starting {sub_scan.module_name} for {domain}")
@@ -1180,6 +1379,7 @@ def run_all_scans(
                         subs = sub_res.data["subdomains"]
                         new_targets_count = 0
                         queued_count = 0
+                        review_count = 0
 
                         for entry in subs:
                             sub_domain = entry.get("subdomain")
@@ -1197,24 +1397,44 @@ def run_all_scans(
                                     session.refresh(new_target)
                                     new_targets_count += 1
 
-                                    if auto_queue_enabled:
+                                    # Pre-scoring: only auto-queue a real scan when the
+                                    # subdomain was independently surfaced by >=2 signals
+                                    # (e.g. CT logs AND wordlist match). A single-signal
+                                    # candidate (typically a plain wordlist guess) is kept
+                                    # as a Target but only proposed for manual review —
+                                    # this is what kept the queue-explosion incident from
+                                    # recurring (see #9 in TODO_VIBE_SESSIONS.md).
+                                    signal_count = len(entry.get("sources") or [])
+                                    high_confidence = signal_count >= 2
+
+                                    if auto_queue_enabled and high_confidence:
                                         subdomain_scan_types = ['dns_scanner']
                                         celery_app.send_task(
                                             "yads.worker.run_all_scans",
                                             args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id]
                                         )
                                         queued_count += 1
-                                        logger.info(f"[Worker] Auto-queued new subdomain: {sub_domain} with types: {subdomain_scan_types}")
+                                        logger.info(
+                                            f"[Worker] Auto-queued new subdomain: {sub_domain} "
+                                            f"(signals={signal_count}) with types: {subdomain_scan_types}"
+                                        )
                                     else:
-                                        logger.info(f"[Worker] Discovered new subdomain: {sub_domain} (Auto-queue disabled)")
+                                        reason = "Auto-queue disabled" if not auto_queue_enabled else f"only {signal_count} signal(s), needs manual review"
+                                        review_count += 1
+                                        logger.info(f"[Worker] Discovered new subdomain: {sub_domain} ({reason})")
                                         webhook_service.trigger_event(parent_tenant_id, "new_asset", {
                                             "domain": sub_domain,
                                             "source": "subdomain_discovery",
-                                            "parent": domain
+                                            "parent": domain,
+                                            "signal_count": signal_count,
+                                            "needs_review": not high_confidence,
                                         })
 
                         if new_targets_count > 0:
-                            logger.info(f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. Queued: {queued_count}.")
+                            logger.info(
+                                f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. "
+                                f"Auto-queued: {queued_count}. Pending manual review: {review_count}."
+                            )
 
                 except Exception as e:
                     logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
@@ -1441,7 +1661,7 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
             blocked_patterns = [e.pattern for e in blocklist_entries]
 
         # ── Phase 1: structured scanner modules ───────────────────────────────
-        run_all_scans(target_id, domain, DISCOVERY_SCAN_TYPES, None)
+        run_all_scans(target_id, domain, DISCOVERY_SCAN_TYPES, None, light_subdomain_scan=True)
 
         adapter = DiscoveryScannerAdapter(include_typosquats=include_typosquats)
 
@@ -1466,6 +1686,30 @@ def run_discovery_scan(session_id: int, target_id: int, domain: str, depth: int)
         if passive_hunting:
             logger.info(f"[Discovery] Running passive hunters for {domain}")
             passive = run_all_passive_hunters(domain, vt_key, shodan_key)
+
+            # CT-log SANs behave incrementally rather than as a flat snapshot:
+            # diff against the last-seen set for this target so repeated/scheduled
+            # discovery runs only surface newly-issued certs (see baseline_diff.py),
+            # closer to live CT-log streaming than a one-off crt.sh query.
+            ct_signals = {"ct_log", "ct_san_cohost"}
+            ct_hosts = [d for d, sig in passive if sig in ct_signals]
+            other = [(d, sig) for d, sig in passive if sig not in ct_signals]
+
+            if ct_hosts:
+                from yads.core.baseline_diff import diff_against_last
+                with Session(engine) as db:
+                    ct_diff = diff_against_last(
+                        db, "ct_log_sans", ct_hosts,
+                        tenant_id=sess.tenant_id, target_id=target_id,
+                    )
+                new_ct_hosts = set(ct_diff["added"])
+                passive = other + [(d, sig) for d, sig in passive if sig in ct_signals and d in new_ct_hosts]
+                logger.info(
+                    f"[Discovery] CT-log SANs for {domain}: {len(ct_hosts)} total, "
+                    f"{len(new_ct_hosts)} new since last check"
+                )
+            else:
+                passive = other
 
             with Session(engine) as db:
                 for cand_domain, signal in passive:

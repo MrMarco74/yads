@@ -37,6 +37,7 @@ manager_only = RoleChecker(["admin", "tenant_admin"])
 @router.get("/discovery", response_class=HTMLResponse)
 async def discovery_list(
     request: Request,
+    prefill_seeds: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user_html),
 ):
@@ -50,6 +51,7 @@ async def discovery_list(
         "sessions": sessions,
         "user": current_user,
         "current_user": current_user,
+        "prefill_seeds": prefill_seeds,
     })
 
 

@@ -17,7 +17,11 @@
 
   <!-- Session List -->
   {% if sessions %}
-  <div class="grid grid-cols-1 gap-4">
+  <div id="session-list" class="grid grid-cols-1 gap-4"
+       {% if sessions|selectattr("status", "equalto", "running")|list %}
+       hx-get="/discovery" hx-select="#session-list" hx-target="#session-list" hx-swap="outerHTML"
+       hx-trigger="every 5s"
+       {% endif %}>
     {% for sess in sessions %}
     <div class="relative bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors" id="sess-{{ sess.id }}">
       <a href="/discovery/{{ sess.id }}" class="block p-5">
@@ -96,7 +100,7 @@
         <div>
           <label class="block text-sm font-medium text-slate-300 mb-1">Seed Domains <span class="text-slate-500 font-normal">(one per line)</span></label>
           <textarea name="seed_domains_raw" required rows="4" placeholder="example.com&#10;example.de"
-                    class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                    class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent">{{ prefill_seeds or '' }}</textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -168,6 +172,16 @@
     </div>
   </div>
 </div>
+
+{% if prefill_seeds %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('wizard-modal').classList.remove('hidden');
+  var nameInput = document.querySelector('#wizard-modal input[name="name"]');
+  if (nameInput) nameInput.focus();
+});
+</script>
+{% endif %}
 
 <script>
 function _csrfToken() {

@@ -729,6 +729,29 @@ async def view_report(
     })
 
 
+@router.post("/{report_id}/review")
+async def save_report_review_notes(
+    report_id: int,
+    review_notes: str = Form(""),
+    user: User = Depends(get_current_user_html),
+    session: Session = Depends(get_session),
+):
+    """Internal reviewer annotations before send (#49) — never shown to the
+    report's external recipient."""
+    report = session.get(GeneratedReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.tenant_id != user.tenant_id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    report.review_notes = review_notes or None
+    report.reviewed_by = user.username
+    report.reviewed_at = datetime.utcnow()
+    session.add(report)
+    session.commit()
+    return RedirectResponse(url=f"/reports/{report_id}?msg=Review+notes+saved", status_code=303)
+
+
 @router.get("/{report_id}/edit", response_class=HTMLResponse)
 async def edit_report(
     report_id: int,

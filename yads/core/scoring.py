@@ -2,6 +2,19 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Any
 import json
 
+# Every module_name calculate_target_score() actually reads below. Several
+# callers historically pre-filtered their ScanResult query to a stale, much
+# shorter hardcoded list (missing graphql_scanner/websocket_scanner and other
+# newer modules — #34), silently starving the scorer of their findings. Use
+# this as the single source of truth for "which modules affect the score" so
+# adding a new scoring factor here doesn't require hunting down every caller.
+SCORED_MODULE_NAMES = [
+    "ssl_scanner", "port_scanner", "web_analyzer", "leaked_credentials",
+    "phishing_scanner", "open_redirect_scanner", "tls_deep_scanner",
+    "dependency_confusion", "api_security_scanner", "subdomain_takeover",
+    "waf_detector", "graphql_scanner", "websocket_scanner", "password_spray_mapper",
+]
+
 def get_grade(score: int) -> str:
     """Maps a numeric score (0-100) to a letter grade."""
     if score >= 90: return "A"

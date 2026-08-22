@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">NIS2 Art. 21 — Mindestmaßnahmen</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Deckung der 10 NIS2-Mindestmaßnahmen durch tatsächliche Scan-Daten der letzten 90 Tage — kein statisches Klemmbrett.
+            </p>
+        </div>
+        <span class="inline-flex items-center rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-400 ring-1 ring-inset ring-cyan-400/20">
+            {{ covered_count }}/{{ total_count }} abgedeckt
+        </span>
+    </div>
+
+    <div class="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4 text-sm text-blue-200/80">
+        <p class="font-medium text-blue-300 mb-1">Hinweis</p>
+        <p>"Abgedeckt" bedeutet: die zugehörigen Scan-Module haben in den letzten 90 Tagen tatsächlich Daten geliefert — kein Ersatz für eine rechtliche NIS2-Bewertung, sondern ein technischer Nachweis-Anhaltspunkt.</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3">
+        {% for m in measures %}
+        <div class="bg-slate-900 border rounded-xl p-4 flex items-start gap-4
+            {% if m.status == 'covered' %}border-emerald-800/50
+            {% elif m.status == 'partial' %}border-amber-800/50
+            {% elif m.status == 'gap' %}border-red-800/50
+            {% else %}border-slate-800{% endif %}">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+                {% if m.status == 'covered' %}bg-emerald-500/20 text-emerald-400
+                {% elif m.status == 'partial' %}bg-amber-500/20 text-amber-400
+                {% elif m.status == 'gap' %}bg-red-500/20 text-red-400
+                {% else %}bg-slate-700 text-slate-400{% endif %}">
+                {{ m.number }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-semibold text-white text-sm">{{ m.title }}</h3>
+                    {% if m.status == 'covered' %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">Abgedeckt</span>
+                    {% elif m.status == 'partial' %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Teilweise</span>
+                    {% elif m.status == 'gap' %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Lücke</span>
+                    {% else %}
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Nicht scan-basiert erfassbar</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-slate-400 mt-1">{{ m.description }}</p>
+                {% if m.evidence_modules %}
+                <p class="text-[11px] text-slate-500 mt-1">Nachweis-Module: <span class="font-mono">{{ m.evidence_modules|join(', ') }}</span></p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -42,7 +42,11 @@ class SplunkHECLogger:
     def _spool_to_disk(self, payload: Dict[str, Any]) -> None:
         """Saves unsent payload to local NDJSON disk spool."""
         try:
-            with open(self.spool_file, "a") as f:
+            # 0600 on creation (B108): this spool can hold security event
+            # payloads (findings, IOCs, tenant/user identifiers) that
+            # shouldn't sit world-readable in a shared /tmp.
+            fd = os.open(self.spool_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            with os.fdopen(fd, "a") as f:
                 f.write(json.dumps(payload) + "\n")
         except Exception as e:
             logger.error(f"Failed to spool Splunk event to disk: {e}")

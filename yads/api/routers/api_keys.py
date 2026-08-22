@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 # Management permissions: Admins and Tenant Admins
 manager_only = RoleChecker(["admin", "tenant_admin"])
 
-VALID_SCOPES = {"read", "write", "scan_execute"}
+VALID_SCOPES = {"read", "write", "scan_execute", "provision_tenant"}
 
 @router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(manager_only)])
 async def create_key(
@@ -35,6 +35,14 @@ async def create_key(
         raise HTTPException(status_code=400, detail=f"Invalid scopes: {sorted(invalid)}. Valid: {sorted(VALID_SCOPES)}")
     if not requested:
         raise HTTPException(status_code=400, detail="At least one scope must be selected.")
+
+    # provision_tenant lets a key create arbitrary new tenants via POST /tenants/provision —
+    # restrict granting it to Platform Admins so a tenant_admin can't self-escalate.
+    if "provision_tenant" in requested and current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only Platform Admins can create API keys with the 'provision_tenant' scope.",
+        )
 
     plain_key, prefix, key_hash = generate_api_key()
 

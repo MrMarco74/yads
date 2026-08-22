@@ -92,7 +92,33 @@ class WhoisHistoryScanner(BaseScannerModule):
                         data_json=whois_data,
                         severity="low" if is_change else "info"
                     ))
-                     
+
+                    # Ownership-change correlation (#66): a WHOIS registrar change
+                    # alone is a weak signal (registrars migrate, privacy services
+                    # rotate); a DNS-history event (new hosts/certs/IPs recorded by
+                    # dns_history_scanner) landing in the same window makes it a
+                    # much stronger "this domain likely changed hands" signal.
+                    if is_change and current_registrar != latest_registrar:
+                        from datetime import timedelta
+                        from yads.models import OSINTIntelligence as _OI
+                        window_start = datetime.utcnow() - timedelta(days=14)
+                        recent_dns_change = self.db.query(_OI).filter(
+                            _OI.target_id == target_id,
+                            _OI.module_name == "dns_history_scanner",
+                            _OI.timestamp >= window_start,
+                        ).first()
+                        if recent_dns_change:
+                            result["findings"].append({
+                                "severity": "high",
+                                "title": f"Likely domain ownership change: registrar changed AND DNS history shifted within 14 days",
+                                "description": (
+                                    f"Registrar changed from '{latest_registrar}' to '{current_registrar}', "
+                                    f"and dns_history_scanner recorded new DNS/certificate data for {domain} "
+                                    "in the same window. Combined, this is a much stronger ownership-transfer "
+                                    "signal than either change alone — verify this was an intentional transfer."
+                                ),
+                            })
+
         except Exception as e:
             logger.debug(f"WHOIS lookup failed for {domain}: {e}")
             result["error"] = str(e)

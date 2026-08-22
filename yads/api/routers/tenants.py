@@ -1,13 +1,18 @@
 
+import base64
+import re
+import secrets
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Request, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, func, text
 
 from yads.database import get_session as get_db_session
-from yads.models import Tenant, User, Target
-from yads.auth.deps import PlatformAdminChecker, get_current_user_html, RoleChecker
+from yads.models import Tenant, User, Target, APIKey
+from yads.auth.deps import PlatformAdminChecker, get_current_user_html, RoleChecker, RequireScope
+from yads.auth.security import get_password_hash, generate_api_key
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 from yads.api.templating import templates
@@ -43,6 +48,116 @@ async def list_tenants(request: Request, session: Session = Depends(get_db_sessi
         "user": user,
         "all_users": all_users
     })
+
+class TenantProvisionRequest(BaseModel):
+    name: str
+    admin_username: Optional[str] = None
+    admin_email: Optional[str] = None
+
+    # Optional initial config bundle, reusing the existing .ytcfg
+    # export/import mechanism (yads/core/tenant_config.py) instead of a
+    # bespoke field list: BYOK keys, LLM config, report branding, webhooks,
+    # scan automation and scan profiles all travel in one already-encrypted
+    # artifact. Build one with GET /tenant-settings/export-config on any
+    # tenant (or a throwaway one) and pass its bytes/password through here.
+    # ytcfg stays ciphertext end-to-end -- decrypted only in-memory below.
+    ytcfg_b64: Optional[str] = None
+    ytcfg_password: Optional[str] = None
+
+
+def _slugify_username(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+    return f"{slug or 'tenant'}-admin"
+
+
+@router.post("/provision", status_code=status.HTTP_201_CREATED, dependencies=[Depends(RequireScope("provision_tenant"))])
+async def provision_tenant(
+    body: TenantProvisionRequest,
+    session: Session = Depends(get_db_session),
+):
+    """
+    Create a new tenant with its initial tenant_admin user and API key.
+
+    Machine-to-machine endpoint (X-API-Key auth, 'provision_tenant' scope) meant to be
+    called from automation (e.g. an Ansible playbook), not the browser UI.
+
+    All generated secrets (admin password, API key) are returned ONLY in this response.
+    Nothing is logged, printed, or persisted anywhere in plaintext.
+    """
+    existing = session.exec(select(Tenant).where(Tenant.name == body.name)).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Tenant '{body.name}' already exists")
+
+    username = body.admin_username or _slugify_username(body.name)
+    if session.exec(select(User).where(User.username == username)).first():
+        raise HTTPException(status_code=409, detail=f"Username '{username}' already taken")
+
+    if bool(body.ytcfg_b64) != bool(body.ytcfg_password):
+        raise HTTPException(status_code=400, detail="ytcfg_b64 and ytcfg_password must be provided together")
+
+    config = None
+    if body.ytcfg_b64:
+        from yads.core.tenant_config import parse_ytcfg
+        try:
+            ytcfg_bytes = base64.b64decode(body.ytcfg_b64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="ytcfg_b64 is not valid base64")
+        try:
+            config = parse_ytcfg(ytcfg_bytes, body.ytcfg_password)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid .ytcfg: {e}")
+
+    tenant = Tenant(name=body.name)
+    session.add(tenant)
+    session.flush()  # assign tenant.id without committing yet
+
+    plain_password = secrets.token_urlsafe(24)
+    admin_user = User(
+        username=username,
+        email=body.admin_email,
+        password_hash=get_password_hash(plain_password),
+        role="tenant_admin",
+        tenant_id=tenant.id,
+        force_password_change=True,
+    )
+    session.add(admin_user)
+
+    plain_key, prefix, key_hash = generate_api_key()
+    api_key = APIKey(
+        tenant_id=tenant.id,
+        name="Initial provisioning key",
+        key_prefix=prefix,
+        key_hash=key_hash,
+        scopes=["read", "write"],
+    )
+    session.add(api_key)
+    session.flush()
+
+    import_summary = None
+    if config is not None:
+        from yads.core.tenant_config import apply_config
+        # apply_config() commits the session itself -- this is the single
+        # commit point for tenant + admin_user + api_key + imported config,
+        # so a bad/corrupt ytcfg rolls back the whole provision atomically.
+        import_summary = apply_config(config, tenant.id, session)
+    else:
+        session.commit()
+
+    session.refresh(tenant)
+    session.refresh(admin_user)
+    session.refresh(api_key)
+
+    return {
+        "tenant_id": tenant.id,
+        "tenant_name": tenant.name,
+        "admin_username": admin_user.username,
+        "admin_password": plain_password,  # VITAL: shown only now, forced reset on first login
+        "api_key": plain_key,              # VITAL: shown only now
+        "api_key_prefix": api_key.key_prefix,
+        "config_imported": import_summary,
+        "msg": "Store these credentials now. They will not be shown again.",
+    }
+
 
 @router.post("/add", dependencies=[Depends(RoleChecker(["admin"]))])
 async def add_tenant(request: Request, name: str = Form(...), session: Session = Depends(get_db_session)):

@@ -45,6 +45,40 @@ class AXFRScanner(BaseScannerModule):
                 "recommendation": "Restrict AXFR to trusted IP ranges in nameserver config (BIND: allow-transfer)",
             }
 
+        # Continuous monitoring (#70): nameserver config can change between scans
+        # (a misconfigured secondary added, a firewall rule dropped), so this
+        # module already reruns on every normal rescan cycle via ScanSchedule --
+        # what was missing was an active alert on the moment it *newly* becomes
+        # exploitable, rather than only a passive finding row. Diff against the
+        # last-seen state (baseline_diff, Welle 0) and fire a webhook only on
+        # the not-vulnerable -> vulnerable transition.
+        if target_id:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+                from yads.core.webhook_service import WebhookService
+                from yads.models import Target as _Target
+
+                with _Session(_engine) as _db:
+                    diff = diff_against_last(
+                        _db, "axfr_vulnerable",
+                        ["vulnerable"] if vulnerable else [],
+                        target_id=target_id,
+                    )
+                    if "vulnerable" in diff["added"]:
+                        t = _db.get(_Target, target_id)
+                        if t:
+                            WebhookService().trigger_event(t.tenant_id, "security_alert", {
+                                "domain": target,
+                                "module": "axfr_scanner",
+                                "severity": "critical",
+                                "title": "DNS zone transfer (AXFR) newly exposed",
+                                "detail": finding["issue"] if finding else "",
+                            })
+            except Exception as e:
+                logger.warning(f"[AXFR] Continuous-monitoring diff/webhook failed (non-fatal): {e}")
+
         return {
             "nameservers_checked": nameservers,
             "vulnerable": vulnerable,

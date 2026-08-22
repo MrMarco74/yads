@@ -59,6 +59,12 @@
     <div class="bg-indigo-900/40 border border-indigo-500/50 text-indigo-200 p-4 rounded-lg flex items-center gap-2 mb-6" id="msg-box">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
         <span>{{ request.query_params.get('msg') }}</span>
+        {% if request.query_params.get('undo_batch') %}
+        <form method="POST" action="/targets/bulk/undo-delete" class="inline">
+            <input type="hidden" name="undo_batch" value="{{ request.query_params.get('undo_batch') }}">
+            <button type="submit" class="ml-2 underline font-semibold hover:text-white">Undo</button>
+        </form>
+        {% endif %}
         <button onclick="document.getElementById('msg-box').remove()" class="ml-auto hover:text-white">&times;</button>
     </div>
     {% endif %}
@@ -117,15 +123,35 @@
                 </select>
             </div>
 
-            <!-- Filter: Root Domain -->
+            <!-- Filter: Root Domain (multi-select) -->
             <div class="relative">
-                 <select name="filter_root_domain" onchange="submitFilter()" class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 p-2.5">
-                    <option value="" {% if not filter_root_domain %}selected{% endif %}>Root Domain...</option>
+                <button type="button" onclick="document.getElementById('root-domain-dropdown').classList.toggle('hidden')"
+                        class="bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-48 p-2.5 text-left flex items-center justify-between">
+                    <span>Root Domain{% if filter_root_domain %} ({{ filter_root_domain|length }}){% endif %}</span>
+                    <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="root-domain-dropdown" class="hidden absolute top-full left-0 mt-1 w-64 bg-slate-900 border border-slate-600 rounded shadow-xl z-50 p-2 max-h-72 overflow-y-auto">
                     {% for root in unique_root_domains %}
-                        <option value="{{ root }}" {% if filter_root_domain == root %}selected{% endif %}>{{ root }}</option>
+                    <label class="flex items-center gap-2 px-1 py-1 hover:bg-slate-800 rounded cursor-pointer">
+                        <input type="checkbox" name="filter_root_domain" value="{{ root }}"
+                               {% if root in filter_root_domain %}checked{% endif %}
+                               onchange="submitFilter()"
+                               class="rounded bg-slate-950 border-slate-600 text-blue-500 focus:ring-0 w-3.5 h-3.5">
+                        <span class="text-xs text-slate-200">{{ root }}</span>
+                    </label>
                     {% endfor %}
-                </select>
+                </div>
             </div>
+
+            <!-- Filter: Roots Only (hide subdomains, show just the root domains) -->
+            <label class="flex items-center gap-2 bg-slate-950 border border-slate-700 text-sm rounded-lg px-3 py-2.5 cursor-pointer hover:border-slate-600"
+                   title="Show only root-domain rows, hide their subdomains">
+                <input type="checkbox" name="filter_roots_only" value="true"
+                       {% if filter_roots_only %}checked{% endif %}
+                       onchange="submitFilter()"
+                       class="rounded bg-slate-950 border-slate-600 text-blue-500 focus:ring-0 w-3.5 h-3.5">
+                <span class="text-slate-300 whitespace-nowrap">Roots only</span>
+            </label>
 
             {% if filter_server %}
             <div class="flex items-center gap-1.5 px-3 py-1 bg-indigo-900/50 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium">
@@ -159,7 +185,7 @@
             {% endif %}
 
             <div class="ml-auto flex items-center gap-2">
-                 {% if filter_online != 'all' or filter_last_scan != 'all' or filter_tag or filter_server or filter_asn or filter_domain or filter_web_probe != 'all' %}
+                 {% if filter_online != 'all' or filter_last_scan != 'all' or filter_tag or filter_server or filter_asn or filter_domain or filter_web_probe != 'all' or filter_root_domain or filter_scope != 'all' or filter_roots_only %}
                     <a href="/targets/table" class="text-xs text-red-400 hover:text-red-300 underline">Clear Filters</a>
                  {% endif %}
             </div>
@@ -290,6 +316,15 @@
                         Add Tag
                     </button>
                 </div>
+
+                <div class="h-4 w-px bg-slate-800 mx-2"></div>
+
+                <button type="submit" formaction="/targets/bulk/to-discovery"
+                        title="Send selected targets' domains into a new Discovery session"
+                        class="px-3 py-1.5 bg-slate-800 hover:bg-blue-900 text-blue-300 text-xs font-medium rounded border border-slate-600 hover:border-blue-800 transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Send to Discovery
+                </button>
             </div>
             <div class="overflow-x-auto rounded-b-xl">
                 <table class="w-full text-left border-collapse">

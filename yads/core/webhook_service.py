@@ -58,12 +58,24 @@ def _validate_webhook_url(url: str) -> None:
 
 
 class WebhookService:
+    # Alert-dedup (#16): protects against a large domain estate flooding
+    # webhooks with near-identical events in a short window (e.g. the same
+    # finding pattern firing across hundreds of subdomains). Does NOT delay
+    # or batch normal-volume alerts — the first few within the window still
+    # send immediately; only once a (tenant, event_type) pair exceeds the
+    # burst threshold do further occurrences get suppressed and folded into
+    # one summary event when the window closes.
+    _DEDUP_WINDOW_SECONDS = 600
+    _DEDUP_BURST_THRESHOLD = 5
+
     def trigger_event(self, tenant_id: int, event_type: str, payload: dict):
         """
         Triggers all active webhooks for a given tenant and event type.
         """
+        if self._is_rate_limited(tenant_id, event_type, payload):
+            return
         logger.info(f"Triggering webhook event '{event_type}' for tenant {tenant_id}")
-        
+
         try:
             with Session(engine) as session:
                 # Fetch active webhooks for this tenant
@@ -84,6 +96,61 @@ class WebhookService:
                         
         except Exception as e:
             logger.error(f"Error triggering webhooks: {e}")
+
+    def _is_rate_limited(self, tenant_id: int, event_type: str, payload: dict) -> bool:
+        """
+        True if this event should be suppressed (burst threshold exceeded).
+        Uses a Redis counter per (tenant, event_type); on the call that first
+        crosses the threshold, sends one "N similar alerts in the last window"
+        summary event instead of the individual payload, then keeps
+        suppressing (silently counting) until the window expires.
+        """
+        try:
+            from yads.database import redis_client
+            key = f"yads:webhook_dedup:{tenant_id}:{event_type}"
+            count = redis_client.incr(key)
+            if count == 1:
+                redis_client.expire(key, self._DEDUP_WINDOW_SECONDS)
+                return False
+            if count <= self._DEDUP_BURST_THRESHOLD:
+                return False
+            if count == self._DEDUP_BURST_THRESHOLD + 1:
+                logger.warning(
+                    f"[WebhookDedup] tenant={tenant_id} event={event_type} exceeded burst "
+                    f"threshold ({self._DEDUP_BURST_THRESHOLD}) — suppressing further individual "
+                    f"alerts for {self._DEDUP_WINDOW_SECONDS}s, will send one summary."
+                )
+                self._send_summary_later(tenant_id, event_type, payload)
+            return True
+        except Exception as e:
+            logger.debug(f"[WebhookDedup] rate-limit check failed (allowing send): {e}")
+            return False
+
+    def _send_summary_later(self, tenant_id: int, event_type: str, payload: dict):
+        """Fires one immediate summary alert marking that a burst started; the
+        exact final count is only visible in the dedup Redis key while the
+        window is open (kept simple — no separate flush task/scheduling)."""
+        summary_payload = {
+            **payload,
+            "title": f"[Bundled] Multiple '{event_type}' alerts suppressed",
+            "detail": (
+                f"More than {self._DEDUP_BURST_THRESHOLD} '{event_type}' alerts fired for this "
+                f"tenant within {self._DEDUP_WINDOW_SECONDS // 60} minute(s) — likely a large-estate "
+                "finding affecting many targets at once. Individual alerts suppressed for the rest "
+                "of this window; see Unified Findings for the full list."
+            ),
+        }
+        try:
+            with Session(engine) as session:
+                webhooks = session.exec(select(Webhook).where(
+                    Webhook.tenant_id == tenant_id,
+                    Webhook.is_active == True
+                )).all()
+                for hook in webhooks:
+                    if event_type in hook.event_types:
+                        self._send_payload(hook.url, event_type, summary_payload)
+        except Exception as e:
+            logger.error(f"[WebhookDedup] Failed to send summary alert: {e}")
 
     def trigger_osint_alert(self, payload: dict):
         """

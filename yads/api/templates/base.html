@@ -25,6 +25,21 @@
         color: #e5e7eb;
       }
 
+      /* ── Print CSS (#83) ──────────────────────────────────────────────────
+         Findings/reports pages are meant to be printable straight from the
+         browser (Ctrl+P) instead of forcing a PDF export round-trip. Hides
+         chrome (sidebar/header/buttons), forces light/high-contrast text,
+         and lets wide tables/cards break across pages instead of clipping.
+         ------------------------------------------------------------------- */
+      @media print {
+        #app-sidebar, #app-header, .no-print { display: none !important; }
+        main { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+        body, html { background: #fff !important; color: #111 !important; }
+        * { box-shadow: none !important; text-shadow: none !important; }
+        a[href]:after { content: none !important; }
+        table, .card, .rounded-lg, .rounded-xl { break-inside: avoid; }
+      }
+
       /* ── Light Mode Overrides ──────────────────────────────────────────────
          Applied when .dark is removed from <html>.
          Maps dark slate/gray palette → clean light palette.
@@ -204,7 +219,7 @@
         
         {% if user %}
         <!-- Top Header -->
-        <header class="h-16 z-30 flex items-center justify-between px-4 sm:px-6 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0">
+        <header id="app-header" class="h-16 z-30 flex items-center justify-between px-4 sm:px-6 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0">
             <!-- Left: Mobile Toggle & Title/Breadcrumb Placeholder -->
             <div class="flex items-center gap-4">
                 <button data-drawer-target="sidebar-multi-level-sidebar" data-drawer-toggle="sidebar-multi-level-sidebar" aria-controls="sidebar-multi-level-sidebar" type="button" class="inline-flex items-center p-2 text-sm text-slate-500 rounded-lg sm:hidden hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-600">
@@ -502,6 +517,68 @@
                 }, { once: true });
                 // Fallback: hide after 60s
                 setTimeout(() => overlay.classList.add('hidden'), 60000);
+            }
+        });
+    })();
+    </script>
+
+    <!-- Keyboard shortcuts for power users (#42): "g" then a letter to jump
+         to a common page, "/" to focus the global search input, "?" to show
+         this help. Ignored while typing in a form field. Cmd/Ctrl+K (command
+         palette) already exists separately in components/command_palette.html. -->
+    <div id="shortcuts-help" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this) this.classList.add('hidden')">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-semibold text-white">Keyboard Shortcuts</h2>
+                <button onclick="document.getElementById('shortcuts-help').classList.add('hidden')" class="text-slate-400 hover:text-white">&times;</button>
+            </div>
+            <div class="space-y-2 text-sm text-slate-300">
+                <div class="flex justify-between"><span>Command palette</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">Ctrl/Cmd+K</kbd></div>
+                <div class="flex justify-between"><span>Focus search</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">/</kbd></div>
+                <div class="flex justify-between"><span>Go to Dashboard</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">g d</kbd></div>
+                <div class="flex justify-between"><span>Go to Targets</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">g t</kbd></div>
+                <div class="flex justify-between"><span>Go to Queue</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">g q</kbd></div>
+                <div class="flex justify-between"><span>Go to Findings</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">g f</kbd></div>
+                <div class="flex justify-between"><span>Go to Reports</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">g r</kbd></div>
+                <div class="flex justify-between"><span>This help</span><kbd class="px-2 py-0.5 bg-slate-800 rounded text-xs">?</kbd></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const NAV_KEYS = { d: '/', t: '/targets/table', q: '/queue', f: '/security-findings/', r: '/reports' };
+        let gPressed = false;
+        let gTimeout = null;
+
+        function isTyping() {
+            const el = document.activeElement;
+            if (!el) return false;
+            const tag = el.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (isTyping() || e.ctrlKey || e.metaKey || e.altKey) return;
+
+            if (gPressed) {
+                gPressed = false;
+                clearTimeout(gTimeout);
+                const target = NAV_KEYS[e.key];
+                if (target) { e.preventDefault(); window.location.href = target; }
+                return;
+            }
+
+            if (e.key === 'g') {
+                gPressed = true;
+                gTimeout = setTimeout(() => { gPressed = false; }, 1500);
+            } else if (e.key === '/') {
+                const searchInput = document.getElementById('main-search-input') || document.querySelector('input[type="search"], input[name="q"]');
+                if (searchInput) { e.preventDefault(); searchInput.focus(); }
+                else { window.location.href = '/search'; }
+            } else if (e.key === '?') {
+                document.getElementById('shortcuts-help').classList.toggle('hidden');
+            } else if (e.key === 'Escape') {
+                document.getElementById('shortcuts-help').classList.add('hidden');
             }
         });
     })();

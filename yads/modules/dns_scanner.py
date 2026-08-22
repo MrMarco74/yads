@@ -201,9 +201,17 @@ class DNSRecordScanner(BaseScannerModule):
             return False
 
 class SubdomainScanner(DNSRecordScanner):
-    def __init__(self, db_session, use_ct_logs=True):
+    def __init__(self, db_session, use_ct_logs=True, wordlist_limit: Optional[int] = None):
         super().__init__(db_session)
         self.use_ct_logs = use_ct_logs
+        # Caps how many wordlist-guess candidates get DNS-verified per run.
+        # Discovery sessions pass a small limit (e.g. 100) since CT logs already
+        # provide the high-value candidates and discovery dispatches one of these
+        # scans per candidate at every depth — an unbounded wordlist brute-force
+        # (tens of thousands of entries) per candidate is what made large-estate
+        # discovery sessions slow (see #8 in TODO_VIBE_SESSIONS.md). A regular,
+        # non-discovery full scan still uses the complete wordlist (limit=None).
+        self.wordlist_limit = wordlist_limit
 
     @property
     def module_name(self) -> str:
@@ -228,11 +236,18 @@ class SubdomainScanner(DNSRecordScanner):
             logger.info(f"[Subdomain] Wildcard DNS detected — {len(wildcard_ips)} wildcard IP(s) will be filtered out")
 
         # 2. Enumeration Prep
-        potential_full_domains = set()
+        # Maps candidate FQDN -> set of independent signals that surfaced it
+        # (used downstream to gate auto-queueing on multi-signal confidence).
+        potential_full_domains: Dict[str, Set[str]] = {}
+
+        def _add_candidates(cand_domains, source):
+            for d in cand_domains:
+                potential_full_domains.setdefault(d, set()).add(source)
+
         if self.use_ct_logs:
             logger.info(f"[Subdomain] Step 2/5: Fetching Certificate Transparency logs (crt.sh)...")
             ct_domains = self._fetch_ct_logs(target)
-            potential_full_domains.update(ct_domains)
+            _add_candidates(ct_domains, "ct_log")
             logger.info(f"[Subdomain] CT logs: {len(ct_domains)} candidate(s) found")
 
             logger.info(f"[Subdomain] Step 3/5: CT org cross-query (related apex domains)...")
@@ -242,8 +257,12 @@ class SubdomainScanner(DNSRecordScanner):
             results["ct_related_domains"] = []
 
         wordlist_subs = self._load_subdomain_wordlist()
-        for sub in wordlist_subs:
-            potential_full_domains.add(target if sub == '@' else f"{sub}.{target}")
+        if self.wordlist_limit:
+            wordlist_subs = wordlist_subs[: self.wordlist_limit]
+        _add_candidates(
+            (target if sub == '@' else f"{sub}.{target}" for sub in wordlist_subs),
+            "wordlist",
+        )
         logger.info(f"[Subdomain] Step 4/5: Verifying {len(potential_full_domains)} candidate(s) via parallel DNS resolution...")
 
         # 3. Parallel Discovery
@@ -280,20 +299,28 @@ class SubdomainScanner(DNSRecordScanner):
                 pass
         return defaults
 
-    def _verify_subdomains_parallel(self, domains: Set[str], wildcard_ips: Set[str], custom_ns: List[str], logger: logging.Logger) -> List[Dict[str, Any]]:
-        """Verifies subdomains in parallel."""
+    def _verify_subdomains_parallel(self, domains: Dict[str, Set[str]], wildcard_ips: Set[str], custom_ns: List[str], logger: logging.Logger) -> List[Dict[str, Any]]:
+        """
+        Verifies subdomains in parallel.
+        `domains` maps each candidate FQDN to the set of independent signals that
+        surfaced it (e.g. {"ct_log", "wordlist"}) — carried through into each
+        verified entry's "sources" field so downstream consumers (e.g. the
+        auto-queue scoring in worker_tasks.py) can tell a candidate confirmed by
+        multiple independent methods from a single wordlist guess.
+        """
         import concurrent.futures
         verified = []
         res = dns.resolver.Resolver()
         if custom_ns: res.nameservers = custom_ns
-        
+
         def check(d):
+            sources = sorted(domains.get(d, set()))
             try:
                 ans = res.resolve(d, 'A')
                 ips = [str(r) for r in ans]
                 if wildcard_ips and any(ip in wildcard_ips for ip in ips): return None
-                return {"subdomain": d, "ips": ips}
-            except dns.resolver.NoAnswer: return {"subdomain": d, "ips": []}
+                return {"subdomain": d, "ips": ips, "sources": sources}
+            except dns.resolver.NoAnswer: return {"subdomain": d, "ips": [], "sources": sources}
             except (dns.resolver.NXDOMAIN, Exception): return None
 
         total = len(domains)

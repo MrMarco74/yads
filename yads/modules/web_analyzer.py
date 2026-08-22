@@ -593,17 +593,51 @@ class WebAnalyzer(BaseScannerModule):
 
     def _check_https_vitals_and_headers(self, target: str, timeout: int, target_id: Optional[int], results: Dict[str, Any]):
         """Checks HTTPS and analyzes response headers."""
+        results.setdefault("redirect_chain_issues", [])
         try:
             req_start = time.time()
             r = requests.get(f"https://{target}", timeout=timeout, allow_redirects=True, verify=False)  # nosec B501 - intentional: scanner probes potentially invalid/self-signed certs
             results["https_status"] = r.status_code
             if self.db and target_id: self._log_traffic(target_id, r, req_start)
-            results.update({"http_headers": dict(r.headers), "redirect_chain": [res.url for res in r.history] + [r.url], "status_code": r.status_code})
+            chain = [res.url for res in r.history] + [r.url]
+            results.update({"http_headers": dict(r.headers), "redirect_chain": chain, "status_code": r.status_code})
             self._fingerprint_headers(r.headers, results)
+            self._check_redirect_chain_health(chain, r.status_code, results)
+        except requests.exceptions.TooManyRedirects:
+            # Redirect-chain health check (#28): requests itself detects circular/
+            # excessive chains by hitting its internal redirect cap — surface that
+            # as its own finding category instead of a generic connection error.
+            results["https_status"] = 0
+            results["redirect_chain_issues"].append({
+                "severity": "medium",
+                "title": "Circular or excessive redirect chain",
+                "detail": f"https://{target} exceeded the redirect limit — likely a redirect loop or an unreasonably long chain.",
+                "category": "redirect_chain",
+            })
+            if results["http_status"] == 0:
+                results["error"] = "Both HTTP/HTTPS failed: circular/excessive redirects"
         except requests.RequestException as e:
             results["https_status"] = 0
             if results["http_status"] == 0: results["error"] = f"Both HTTP/HTTPS failed: {e}"
             else: results["status_code"] = results["http_status"]
+
+    def _check_redirect_chain_health(self, chain: List[str], final_status: int, results: Dict[str, Any]) -> None:
+        """Flags a successfully-resolved but unhealthy redirect chain: too long
+        (SEO + latency + phishing-obfuscation relevance) or ending in an error."""
+        if len(chain) > 5:
+            results["redirect_chain_issues"].append({
+                "severity": "low",
+                "title": f"Excessive redirect chain: {len(chain)} hops",
+                "detail": f"Chain: {' -> '.join(chain[:8])}{' ...' if len(chain) > 8 else ''}",
+                "category": "redirect_chain",
+            })
+        if final_status >= 400:
+            results["redirect_chain_issues"].append({
+                "severity": "medium",
+                "title": f"Redirect chain ends in HTTP {final_status}",
+                "detail": f"Final hop {chain[-1] if chain else '?'} returns {final_status} — a broken/dead-end redirect.",
+                "category": "redirect_chain",
+            })
 
     def _fingerprint_headers(self, headers, results):
         """Extracts technology information from headers."""

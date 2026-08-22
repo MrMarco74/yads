@@ -266,6 +266,29 @@ class BannerGrabber(BaseScannerModule):
         # Sort by port
         open_services.sort(key=lambda x: x["port"])
 
+        # CVE lookup for identified service+version pairs (#69: banner_grabber
+        # already extracts service/version from banners but never queried CVEs
+        # for them — only web_analyzer's tech-stack detections were wired to
+        # cve_lookup.lookup_cves; this closes that gap for network services).
+        from yads.modules.cve_lookup import lookup_cves
+        for svc in open_services:
+            service, version = svc.get("service"), svc.get("version")
+            if not service or not version:
+                continue
+            try:
+                cves = lookup_cves(service, version)
+            except Exception as e:
+                logger.debug(f"[BannerGrabber] CVE lookup failed for {service} {version}: {e}")
+                cves = []
+            for cve in cves:
+                svc.setdefault("findings", []).append({
+                    "id": f"cve_{svc['port']}_{cve.get('id', 'unknown')}",
+                    "title": f"{cve.get('id', 'Unknown CVE')} — {service} {version} on port {svc['port']}",
+                    "severity": "high",
+                    "score_penalty": -15,
+                    "detail": cve.get("summary", ""),
+                })
+
         # Collect all findings, deduplicate by id
         all_findings = []
         seen_ids = set()

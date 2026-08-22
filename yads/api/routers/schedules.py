@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from datetime import datetime, timedelta
 
 from yads.database import get_session
-from yads.models import User, Target, ScanSchedule, Tenant
+from yads.models import User, Target, ScanSchedule, Tenant, ReportSubscription
 from yads.auth.deps import get_current_user_html, RoleChecker
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
@@ -57,12 +57,57 @@ async def list_schedules(
         
     candidates = session.exec(t_query).all()
 
+    # Recurring report subscriptions (#45) — independent scheduling layer.
+    report_subs = []
+    if user.tenant_id:
+        report_subs = session.exec(
+            select(ReportSubscription).where(ReportSubscription.tenant_id == user.tenant_id)
+        ).all()
+
     return templates.TemplateResponse("schedules.html", {
         "request": request,
         "user": user,
         "schedules": schedules_data,
-        "targets": candidates
+        "targets": candidates,
+        "report_subscriptions": report_subs,
     })
+
+
+@router.post("/reports/add")
+async def add_report_subscription(
+    name: str = Form(...),
+    report_type: str = Form("executive_summary"),
+    recipients: str = Form(...),
+    frequency: str = Form("weekly"),
+    day_of_week: int = Form(0),
+    day_of_month: int = Form(1),
+    session: Session = Depends(get_session),
+    user: User = Depends(manager_only),
+):
+    if not user.tenant_id:
+        return RedirectResponse(url="/schedules?error=Platform+admins+have+no+tenant+context+for+report+subscriptions", status_code=303)
+    recipient_list = [r.strip() for r in recipients.replace(";", ",").split(",") if r.strip()]
+    sub = ReportSubscription(
+        tenant_id=user.tenant_id, name=name, report_type=report_type,
+        recipients=recipient_list, frequency=frequency,
+        day_of_week=day_of_week, day_of_month=day_of_month, created_by=user.id,
+    )
+    session.add(sub)
+    session.commit()
+    return RedirectResponse(url="/schedules?msg=Report+subscription+created", status_code=303)
+
+
+@router.post("/reports/delete/{sub_id}")
+async def delete_report_subscription(
+    sub_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(manager_only),
+):
+    sub = session.get(ReportSubscription, sub_id)
+    if sub and sub.tenant_id == user.tenant_id:
+        session.delete(sub)
+        session.commit()
+    return RedirectResponse(url="/schedules?msg=Report+subscription+deleted", status_code=303)
 
 @router.post("/add")
 async def add_schedule(

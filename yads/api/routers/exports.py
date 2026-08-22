@@ -119,7 +119,11 @@ async def analyze_backup(
     # Not thread safe for multiple admins restoring same time, but acceptable for this scope.
     import os
     tmp_path = "/tmp/yads_restore_pending.zip"
-    with open(tmp_path, "wb") as f:
+    # Explicit 0600 perms (B108): this holds a full DB backup, potentially
+    # spanning multiple tenants, awaiting confirmation — don't leave it
+    # world-readable in a shared /tmp for the duration of that window.
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
         f.write(contents)
     logger.info(f"Backup saved to temporary path: {tmp_path}")
         

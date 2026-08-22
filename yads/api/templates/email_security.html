@@ -107,6 +107,7 @@
                     <tr>
                         <th class="px-6 py-4">Domain</th>
                         <th class="px-6 py-4">Overall Status</th>
+                        <th class="px-6 py-4">Resilience Score</th>
                         <th class="px-6 py-4">SPF</th>
                         <th class="px-6 py-4">DMARC Policy</th>
                         <th class="px-6 py-4">Action</th>
@@ -125,6 +126,20 @@
                                 <span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-1 rounded-full text-xs font-medium">Monitoring</span>
                             {% else %}
                                 <span class="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-full text-xs font-medium">Vulnerable</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if row.score is not none %}
+                                {% if row.score >= 80 %}
+                                    <span class="font-mono font-semibold text-emerald-400">{{ row.score }}/100</span>
+                                {% elif row.score >= 50 %}
+                                    <span class="font-mono font-semibold text-yellow-400">{{ row.score }}/100</span>
+                                {% else %}
+                                    <span class="font-mono font-semibold text-red-400">{{ row.score }}/100</span>
+                                {% endif %}
+                                <span class="block text-[10px] text-slate-500">DKIM: {{ row.dkim.count }} selector{{ 's' if row.dkim.count != 1 else '' }}</span>
+                            {% else %}
+                                <span class="text-slate-600 text-xs">—</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4">
@@ -165,7 +180,7 @@
                     </tr>
                     {% else %}
                      <tr>
-                         <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                         <td colspan="6" class="px-6 py-8 text-center text-slate-500">
                             No data found. Ensure "DNS Scanner" is enabled and has run on your targets.
                         </td>
                     </tr>

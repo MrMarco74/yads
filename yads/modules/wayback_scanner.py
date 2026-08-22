@@ -117,6 +117,25 @@ class WaybackScanner(BaseScannerModule):
                     })
                     break
 
+        # Secret-diff (#72): a sensitive URL still live today is already covered
+        # by the active scanners (content_discovery, git_exposure_scanner, etc.)
+        # — the genuinely novel signal here is a secret the org believes it
+        # removed, but which archive.org still serves. Check liveness only for
+        # critical/high findings (bounded set) and flag the removed-but-archived
+        # ones as their own, more urgent category.
+        for f in findings:
+            if f["severity"] not in ("critical", "high"):
+                continue
+            still_live = self._is_still_live(f["url"])
+            f["still_live"] = still_live
+            if still_live is False:
+                f["category"] = "removed_but_archived"
+                f["title"] = f"REMOVED BUT STILL ARCHIVED: {f['title']}"
+                f["detail"] = (
+                    f"{f['detail']} — no longer reachable on the live site, but still "
+                    "retrievable via Wayback Machine. The org likely believes this was deleted."
+                )
+
         result["total_urls_checked"] = len(seen)
         result["findings"] = findings
 
@@ -146,6 +165,19 @@ class WaybackScanner(BaseScannerModule):
         result["summary"]["findings_count"] = len(findings)
 
         return result
+
+    def _is_still_live(self, url: str) -> Optional[bool]:
+        """True if the URL still resolves live, False if it's gone (404/refused),
+        None if we couldn't determine (network error — don't claim removed)."""
+        try:
+            resp = requests.head(url, timeout=8, allow_redirects=True)
+            if resp.status_code == 404:
+                return False
+            if resp.status_code < 400:
+                return True
+            return None
+        except Exception:
+            return None
 
     def _query_cdx(self, domain: str) -> List[Dict]:
         try:

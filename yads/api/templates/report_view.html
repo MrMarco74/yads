@@ -46,6 +46,24 @@
         </div>
     </div>
 
+    <!-- Internal Review Notes (#49) — never shown to the external recipient -->
+    <div class="bg-slate-900 border border-amber-800/40 rounded-xl p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-amber-300 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Internal Review Notes (not visible to recipient)
+            </h3>
+            {% if report.reviewed_by %}
+            <span class="text-xs text-slate-500">Last reviewed by {{ report.reviewed_by }}{% if report.reviewed_at %} on {{ report.reviewed_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}</span>
+            {% endif %}
+        </div>
+        <form method="POST" action="/reports/{{ report.id }}/review" class="flex gap-2">
+            <textarea name="review_notes" rows="2" placeholder="Notes for reviewers before this report goes out to the client..."
+                      class="flex-1 bg-slate-950 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none">{{ report.review_notes or '' }}</textarea>
+            <button type="submit" class="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium rounded-lg self-start">Save</button>
+        </form>
+    </div>
+
     <!-- Report Content -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <!-- Branding Header -->

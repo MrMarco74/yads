@@ -169,6 +169,105 @@ def virustotal_passive_dns(domain: str, api_key: str) -> List[Tuple[str, str]]:
     return results
 
 
+# ── AXFR Zone Transfer ─────────────────────────────────────────────────────────
+
+def axfr_zone_transfer(domain: str) -> List[Tuple[str, str]]:
+    """
+    Attempt a DNS zone transfer (AXFR) against each of the domain's authoritative
+    nameservers. Succeeds only when a nameserver is misconfigured to allow public
+    zone transfers — when it works, it reveals every host record in the zone in a
+    single query, a far stronger signal than piecemeal subdomain guessing.
+    Safe: read-only DNS protocol operation. A correctly configured nameserver
+    refuses AXFR to unauthorized clients, in which case this returns no candidates
+    (the vulnerability itself, if found, is separately covered by axfr_scanner.py
+    as a security finding — this hunter only reuses a successful transfer as a
+    discovery signal).
+    """
+    try:
+        import dns.resolver
+        import dns.zone
+        import dns.query
+    except ImportError:
+        logger.warning("[Hunter AXFR] dnspython not available")
+        return []
+
+    results: List[Tuple[str, str]] = []
+    seen: set = set()
+
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
+    resolver.lifetime = 5
+
+    try:
+        nameservers = [str(ns.target).rstrip(".") for ns in resolver.resolve(domain, "NS")]
+    except Exception as e:
+        logger.debug(f"[Hunter AXFR] NS lookup failed for {domain}: {e}")
+        return []
+
+    for ns in nameservers:
+        try:
+            ns_ip = str(resolver.resolve(ns, "A")[0])
+        except Exception:
+            continue
+        try:
+            zone = dns.zone.from_xfr(dns.query.xfr(ns_ip, domain, timeout=8, lifetime=15))
+            for name in zone.nodes:
+                host = str(name)
+                fqdn = domain if host == "@" else f"{host}.{domain}"
+                fqdn = fqdn.lower().rstrip(".")
+                if fqdn and fqdn != domain and fqdn not in seen and _is_valid_domain(fqdn):
+                    seen.add(fqdn)
+                    results.append((fqdn, "axfr_zone_transfer"))
+        except Exception as e:
+            logger.debug(f"[Hunter AXFR] {ns} ({ns_ip}): refused/failed ({e})")
+            continue
+
+        if results:
+            logger.warning(
+                f"[Hunter AXFR] Zone transfer SUCCEEDED against {ns} ({ns_ip}) for "
+                f"{domain} — {len(results)} hosts exposed. This is a misconfiguration."
+            )
+
+    return results
+
+
+# ── Certificate Transparency: cross-domain SAN cohosting ───────────────────────
+
+def ct_log_sans(domain: str) -> List[Tuple[str, str]]:
+    """
+    Query crt.sh for all certificates covering `domain` and extract every SAN
+    (Subject Alternative Name) entry — including names on *other* domains that
+    share the same certificate. Multi-domain certs are a strong relatedness
+    signal that pure subdomain enumeration misses (e.g. a shared marketing-site
+    cert covering both example.com and a rebrand/acquisition's domain).
+    Distinct from the CT lookup already used by subdomain_scanner.py, which only
+    extracts names ending in `.domain` — this one deliberately keeps cross-domain
+    SANs too. The caller is expected to diff results against the last run via
+    yads.core.baseline_diff (see run_discovery_scan) so repeated discovery runs
+    on a schedule behave like incremental/live CT monitoring instead of a flat
+    on-demand snapshot.
+    Safe: read-only public API (crt.sh).
+    """
+    url = f"https://crt.sh/?q={urllib.parse.quote('%.' + domain)}&output=json"
+    data = _http_get_json(url, timeout=20)
+    if not data or not isinstance(data, list):
+        return []
+
+    results: List[Tuple[str, str]] = []
+    seen: set = set()
+
+    for entry in data:
+        name_value = entry.get("name_value", "") if isinstance(entry, dict) else ""
+        for raw in name_value.split("\n"):
+            host = raw.strip().lower().lstrip("*.")
+            if host and host != domain and host not in seen and _is_valid_domain(host):
+                seen.add(host)
+                signal = "ct_san_cohost" if not host.endswith("." + domain) else "ct_log"
+                results.append((host, signal))
+
+    return results
+
+
 # ── SRV Record Enumeration ─────────────────────────────────────────────────────
 
 _SRV_RECORDS = [
@@ -421,6 +520,8 @@ def run_all_passive_hunters(
         ("SRV enumeration",   lambda: srv_enumeration(domain)),
         ("CORS/CSP headers",  lambda: cors_csp_headers(domain)),
         ("Robots/Sitemap",    lambda: robots_sitemap(domain)),
+        ("AXFR zone transfer", lambda: axfr_zone_transfer(domain)),
+        ("CT log SANs",        lambda: ct_log_sans(domain)),
     ]
     if virustotal_api_key:
         hunters.append(("VirusTotal passive DNS", lambda: virustotal_passive_dns(domain, virustotal_api_key)))

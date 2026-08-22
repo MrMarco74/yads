@@ -1,4 +1,5 @@
-<aside 
+<aside
+    id="app-sidebar"
     class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0 border-r border-slate-800 bg-slate-900 flex flex-col"
     aria-label="Sidebar"
 >
@@ -86,7 +87,7 @@
                     </details>
                 </li>
                 <li>
-                    <details class="group" {% if '/attack-path' in request.path or '/waf-analysis' in request.path or '/email-security' in request.path or '/ports' in request.path or '/targets/graph' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/attack-path' in request.path or '/waf-analysis' in request.path or '/email-security' in request.path or '/ports' in request.path or '/targets/graph' in request.path or '/mitre-navigator' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
                             <svg class="w-4 h-4 text-red-500 group-hover:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             <span class="ml-3 text-sm font-medium flex-1">Vulnerability Profiling</span>
@@ -94,6 +95,7 @@
                         </summary>
                         <ul class="pl-9 mt-1 space-y-1">
                             <li><a href="/attack-path" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/attack-path' in request.path %}text-cyan-400 font-semibold{% endif %}">Attack Path Visualizer</a></li>
+                            <li><a href="/mitre-navigator/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/mitre-navigator' in request.path %}text-cyan-400 font-semibold{% endif %}">ATT&amp;CK Navigator</a></li>
                             <li><a href="/ports" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/ports' in request.path %}text-cyan-400 font-semibold{% endif %}">Port Exposure</a></li>
                             <li><a href="/waf-analysis" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/waf-analysis' in request.path %}text-cyan-400 font-semibold{% endif %}">WAF / IDS / IPS</a></li>
                             <li><a href="/email-security" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/email-security' in request.path %}text-cyan-400 font-semibold{% endif %}">Email Security</a></li>
@@ -111,7 +113,7 @@
             <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg> AUDIT</p>
             <ul class="space-y-1">
                 <li>
-                    <details class="group" {% if '/security-findings' in request.path or '/tenant-settings/findings' in request.path or '/secrets' in request.path or '/asr' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/security-findings' in request.path or '/tenant-settings/findings' in request.path or '/secrets' in request.path or '/asr' in request.path or '/third-party-domains' in request.path or '/metadata-leaks' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
                             <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                             <span class="ml-3 text-sm font-medium flex-1">Core Findings</span>
@@ -119,6 +121,8 @@
                         </summary>
                         <ul class="pl-9 mt-1 space-y-1">
                             <li><a href="/security-findings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/security-findings' in request.path %}text-cyan-400 font-semibold{% endif %}">Unified Findings</a></li>
+                            <li><a href="/third-party-domains/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/third-party-domains' in request.path %}text-cyan-400 font-semibold{% endif %}">Third-Party Domains</a></li>
+                            <li><a href="/metadata-leaks/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/metadata-leaks' in request.path %}text-cyan-400 font-semibold{% endif %}">Metadata Leaks</a></li>
                             <li><a href="/secrets" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/secrets' in request.path %}text-cyan-400 font-semibold{% endif %}">Exposed Secrets</a></li>
                             <li><a href="/asr" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/asr' in request.path %}text-cyan-400 font-semibold{% endif %}">Cleanup Recommendations</a></li>
                             {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
@@ -128,7 +132,7 @@
                     </details>
                 </li>
                 <li>
-                    <details class="group" {% if '/compliance' in request.path or '/executive-report' in request.path or '/leak-monitor' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/compliance' in request.path or '/executive-report' in request.path or '/leak-monitor' in request.path or '/nis2-measures' in request.path or '/dora-register' in request.path or '/dora-evidence' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
                             <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             <span class="ml-3 text-sm font-medium flex-1">Frameworks</span>
@@ -138,6 +142,9 @@
                             <li><a href="/compliance" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/compliance' in request.path %}text-cyan-400 font-semibold{% endif %}">Compliance DB</a></li>
                             <li><a href="/executive-report" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/executive-report' in request.path %}text-cyan-400 font-semibold{% endif %}">Executive Report</a></li>
                             <li><a href="/leak-monitor" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/leak-monitor' in request.path %}text-cyan-400 font-semibold{% endif %}">Leak Monitor</a></li>
+                            <li><a href="/nis2-measures/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/nis2-measures' in request.path %}text-cyan-400 font-semibold{% endif %}">NIS2 Art. 21</a></li>
+                            <li><a href="/third-party-domains/dora-register" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/dora-register' in request.path %}text-cyan-400 font-semibold{% endif %}">DORA ICT Register</a></li>
+                            <li><a href="/dora-evidence/export/pdf" class="block py-1.5 text-[13px] text-slate-400 hover:text-white">DORA Testing Evidence (PDF)</a></li>
                         </ul>
                     </details>
                 </li>

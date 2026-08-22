@@ -29,6 +29,7 @@ passlib[bcrypt]
 bcrypt==3.2.2
 pyotp
 markdown
+bleach
 croniter==6.0.0
 networkx
 matplotlib

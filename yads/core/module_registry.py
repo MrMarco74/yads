@@ -189,7 +189,10 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         worker_note="Analyzing web application...",
         requires_http=True,
         default_on=True,
-        finding_module=False,
+        # Redirect-chain health issues (#28) are the only thing this module
+        # surfaces to Unified Findings — see the narrowly-scoped web_analyzer
+        # branch in security_findings.py's _extract_findings().
+        finding_module=True,
         custom_dispatch=True,
     )),
     ("ssl_scanner", ModuleDef(
@@ -752,7 +755,9 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         module_path="yads.modules.api_discovery:ApiDiscoveryScanner",
         worker_note="Running API discovery...",
         requires_http=True,
-        finding_module=False,
+        # New/vanished endpoint findings (#63) are the only thing surfaced —
+        # see the narrowly-scoped api_discovery branch in security_findings.py.
+        finding_module=True,
     )),
     ("form_discovery", ModuleDef(
         name="form_discovery",

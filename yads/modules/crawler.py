@@ -64,7 +64,9 @@ class Crawler(BaseScannerModule):
 
                 self._crawl_url(current_url, depth, headers, config, target_id, p_page, visited, nodes, edges, external_counts, traffic_log, queue)
 
-            return self._analyze_crawl_results(nodes, edges, external_counts, visited, config["DEPTH_LIMIT"], traffic_log)
+            result = self._analyze_crawl_results(nodes, edges, external_counts, visited, config["DEPTH_LIMIT"], traffic_log)
+            result["traffic_anomalies"] = self._detect_traffic_anomalies(traffic_log, target_id)
+            return result
 
         finally:
             if playwright_data.get("browser"): playwright_data["browser"].close()
@@ -145,6 +147,49 @@ class Crawler(BaseScannerModule):
                 "duration": round(duration, 3), "request_headers": redact_headers(headers)
             }
             raise e
+
+    def _detect_traffic_anomalies(self, traffic_log: List[Dict[str, Any]], target_id: Optional[int]) -> Dict[str, Any]:
+        """
+        HTTP-traffic anomaly detection (#26): flags sudden status-code spikes
+        and newly-appeared API-like endpoints (shadow-API indicator) by diffing
+        this crawl against the last one via baseline_diff (Welle 0).
+        """
+        import re
+        anomalies: Dict[str, Any] = {"status_code_spike": False, "error_rate": 0.0, "new_endpoints": []}
+        if not traffic_log or not target_id:
+            return anomalies
+
+        total = len(traffic_log)
+        errors = sum(1 for t in traffic_log if t.get("status", 0) >= 400)
+        error_rate = round(errors / total, 3) if total else 0.0
+        anomalies["error_rate"] = error_rate
+
+        interesting_re = re.compile(r"/(api|admin|graphql|v[0-9]+)(/|$)|\.(php|aspx|jsp)$", re.IGNORECASE)
+        try:
+            from urllib.parse import urlparse
+            current_paths = {
+                urlparse(t["url"]).path for t in traffic_log
+                if t.get("url") and interesting_re.search(urlparse(t["url"]).path)
+            }
+
+            from yads.database import engine as _engine
+            from sqlmodel import Session as _Session
+            from yads.core.baseline_diff import diff_against_last
+
+            with _Session(_engine) as _db:
+                path_diff = diff_against_last(_db, "crawler_api_like_paths", current_paths, target_id=target_id)
+                # Error-rate bucket: only flag a spike once per NEW bucket, not every crawl.
+                bucket = "high" if error_rate > 0.3 else "medium" if error_rate > 0.1 else "low"
+                rate_diff = diff_against_last(_db, "crawler_error_rate_bucket", [bucket], target_id=target_id)
+
+            if not path_diff["is_first"]:
+                anomalies["new_endpoints"] = path_diff["added"]
+            if not rate_diff["is_first"] and bucket in rate_diff["added"] and bucket in ("medium", "high"):
+                anomalies["status_code_spike"] = True
+        except Exception as e:
+            logger.warning(f"[Crawler] Traffic anomaly detection failed: {e}")
+
+        return anomalies
 
     def _log_traffic(self, traffic: Dict[str, Any], target_id: int):
         """Saves traffic record to DB."""

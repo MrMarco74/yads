@@ -126,10 +126,61 @@ class RpkiScanner(BaseScannerModule):
                     "prefix": prefix,
                 })
 
+        # Continuous route-origin monitoring (#36): a BGP hijack shows up as
+        # the announcing ASN for one of the target's IPs suddenly changing
+        # between scans — a much more time-critical signal than the static
+        # RPKI-valid/invalid check above, which only catches hijacks that
+        # violate an existing ROA (no ROA = no protection either way). Diff
+        # each IP's ASN against the last-seen value via baseline_diff.
+        if target_id:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+                for route in result["routes"]:
+                    ip, asn = route["ip"], route["asn"]
+                    with _Session(_engine) as _db:
+                        diff = diff_against_last(_db, f"rpki_origin_asn:{ip}", [asn], target_id=target_id)
+                    if not diff["is_first"] and diff["removed"]:
+                        old_asn = diff["removed"][0]
+                        result["findings"].append({
+                            "severity": "critical",
+                            "title": f"Route origin changed for {ip}: AS{old_asn} → AS{asn}",
+                            "detail": (
+                                f"{ip} was previously announced by AS{old_asn} and is now announced by "
+                                f"AS{asn} ({route.get('org', '')}). An unexpected origin-ASN change is a "
+                                "primary indicator of a BGP hijack — verify this was an intentional "
+                                "provider/ASN migration."
+                            ),
+                            "category": "rpki_origin_change",
+                            "asn": asn,
+                            "previous_asn": old_asn,
+                            "ip": ip,
+                        })
+                        try:
+                            from yads.core.webhook_service import webhook_service
+                            from yads.models import Target as _Target
+                            with _Session(_engine) as _db2:
+                                t = _db2.get(_Target, target_id)
+                            if t:
+                                webhook_service.trigger_event(t.tenant_id, "security_alert", {
+                                    "domain": domain,
+                                    "module": "rpki_scanner",
+                                    "severity": "critical",
+                                    "title": f"Route origin changed for {ip}: AS{old_asn} → AS{asn}",
+                                    "detail": f"Possible BGP hijack on {domain} ({ip}).",
+                                })
+                        except Exception as e:
+                            logger.warning(f"[RPKI] Route-change webhook failed (non-fatal): {e}")
+            except Exception as e:
+                logger.warning(f"[RPKI] Route-origin monitoring failed: {e}")
+
         # Score
         score = 100
         for f in result["findings"]:
-            if f["severity"] == "high":
+            if f["severity"] == "critical":
+                score -= 40
+            elif f["severity"] == "high":
                 score -= 25
             elif f["severity"] == "medium":
                 score -= 8

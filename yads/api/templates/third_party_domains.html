@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">Third-Party Domains</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                External scripts, styles, and iframes loaded by your targets' pages — aggregated across your whole estate.
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="inline-flex items-center rounded-md bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-400 ring-1 ring-inset ring-cyan-400/20">
+                Scope: {{ scope_count }} target{{ 's' if scope_count != 1 else '' }}
+            </span>
+            <span class="inline-flex items-center rounded-md bg-pink-400/10 px-2 py-1 text-xs font-medium text-pink-400 ring-1 ring-inset ring-pink-400/20">
+                Found: {{ origins|length }} origin{{ 's' if origins|length != 1 else '' }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div class="text-sm text-blue-200/80 space-y-1">
+            <p class="font-medium text-blue-300">About this View</p>
+            <p>
+                Sourced from the <code class="text-blue-300">external_resources</code> scanner (latest result per target).
+                Also useful for GDPR/DSGVO reporting: which third-party services actually load on your tenant's pages.
+            </p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-800 text-xs">
+        <span class="font-medium text-slate-400 pl-2">Filter:</span>
+        <button type="button" onclick="filterOrigins('all')" data-filter="all" class="tpd-filter-btn px-3 py-1 rounded bg-slate-800 text-slate-200">All</button>
+        <button type="button" onclick="filterOrigins('untrusted')" data-filter="untrusted" class="tpd-filter-btn px-3 py-1 rounded text-slate-400 hover:bg-slate-800">Untrusted only</button>
+        <button type="button" onclick="filterOrigins('script')" data-filter="script" class="tpd-filter-btn px-3 py-1 rounded text-slate-400 hover:bg-slate-800">Loads scripts</button>
+        <button type="button" onclick="filterOrigins('iframe')" data-filter="iframe" class="tpd-filter-btn px-3 py-1 rounded text-slate-400 hover:bg-slate-800">Loads iframes</button>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-4">Origin Domain</th>
+                        <th class="px-6 py-4">Trust</th>
+                        <th class="px-6 py-4">Resource Types</th>
+                        <th class="px-6 py-4">Loaded By</th>
+                        <th class="px-6 py-4 text-right">Targets</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for o in origins %}
+                    <tr class="tpd-row hover:bg-slate-800/30" data-trusted="{{ 'true' if o.trusted else 'false' }}" data-types="{{ o.resource_types|join(',') }}">
+                        <td class="px-6 py-3 font-mono text-slate-200">{{ o.domain }}</td>
+                        <td class="px-6 py-3">
+                            {% if o.trusted %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-400 ring-1 ring-inset ring-emerald-400/20">Trusted</span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-inset ring-amber-400/20">Untrusted</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3">
+                            {% for rt in o.resource_types %}
+                            <span class="inline-block mr-1 mb-1 rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-slate-300">{{ rt }}</span>
+                            {% endfor %}
+                        </td>
+                        <td class="px-6 py-3 text-xs">{{ o.targets[:3]|join(', ') }}{% if o.targets|length > 3 %} +{{ o.targets|length - 3 }} more{% endif %}</td>
+                        <td class="px-6 py-3 text-right font-semibold text-slate-200">{{ o.target_count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-16 text-center text-slate-500">
+                            No external resources recorded yet — run the <code class="text-slate-400">external_resources</code> scanner module on your targets.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterOrigins(mode) {
+    document.querySelectorAll('.tpd-filter-btn').forEach(function (btn) {
+        var active = btn.dataset.filter === mode;
+        btn.classList.toggle('bg-slate-800', active);
+        btn.classList.toggle('text-slate-200', active);
+        btn.classList.toggle('text-slate-400', !active);
+    });
+    document.querySelectorAll('.tpd-row').forEach(function (row) {
+        var show = true;
+        if (mode === 'untrusted') show = row.dataset.trusted === 'false';
+        else if (mode === 'script' || mode === 'iframe') show = (row.dataset.types || '').split(',').includes(mode);
+        row.style.display = show ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

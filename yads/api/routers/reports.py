@@ -241,10 +241,41 @@ async def view_traffic_history(
     # Fetch latest 500 entries for performance
     traffic = session.exec(query.order_by(HTTPTraffic.timestamp.desc()).limit(500)).all()
 
+    # Anomaly summary (#26): latest crawler result per in-scope target already
+    # carries a "traffic_anomalies" block (status-code spikes, new API-like
+    # endpoints) computed at crawl time — surface it here rather than
+    # recomputing from the raw traffic log on every page view.
+    anomalies = []
+    target_ids = {t.target_id for t in traffic}
+    if target_ids:
+        target_domains = {
+            t.id: t.domain for t in session.exec(select(Target).where(Target.id.in_(target_ids))).all()
+        }
+        crawler_results = session.exec(
+            select(ScanResult).where(
+                ScanResult.module_name == "crawler",
+                ScanResult.target_id.in_(target_ids),
+            ).order_by(ScanResult.scanned_at.desc())
+        ).all()
+        seen_targets = set()
+        for r in crawler_results:
+            if r.target_id in seen_targets or not r.data:
+                continue
+            seen_targets.add(r.target_id)
+            a = r.data.get("traffic_anomalies") or {}
+            if a.get("status_code_spike") or a.get("new_endpoints"):
+                anomalies.append({
+                    "domain": target_domains.get(r.target_id, "?"),
+                    "status_code_spike": a.get("status_code_spike", False),
+                    "error_rate": a.get("error_rate", 0),
+                    "new_endpoints": a.get("new_endpoints", []),
+                })
+
     return templates.TemplateResponse("reports_traffic.html", {
         "request": request,
         "user": user,
         "traffic": traffic,
+        "anomalies": anomalies,
         "date_range_display": date_range_display
     })
 

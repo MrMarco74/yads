@@ -293,3 +293,78 @@ def generate_traffic_pdf(data: List[Any], target_domain: str, filename_prefix: s
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+def generate_csv(data: List[Dict[str, Any]], filename_prefix: str) -> Response:
+    """Generic CSV export for a flat list of dicts (#46)."""
+    import csv
+    output = io.StringIO()
+    if data:
+        writer = csv.DictWriter(output, fieldnames=list(data[0].keys()))
+        writer.writeheader()
+        writer.writerows(data)
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+def generate_json(data: List[Dict[str, Any]], filename_prefix: str) -> Response:
+    """Generic JSON export for a flat list of dicts (#46)."""
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.json"
+    return Response(
+        content=json.dumps(data, default=str, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+def generate_sarif(findings: List[Dict[str, Any]], filename_prefix: str = "yads_findings") -> Response:
+    """
+    SARIF 2.1.0 export for security findings (#46) — lets YADS results feed
+    into GitHub Code Scanning and other SARIF consumers. Each finding dict
+    is expected to have: issue/title, severity, module, domain, yf_id.
+    """
+    _SARIF_LEVEL = {"critical": "error", "high": "error", "medium": "warning", "low": "note", "info": "note"}
+
+    rules = {}
+    results = []
+    for f in findings:
+        module = f.get("module", "yads")
+        rule_id = f"{module}/{(f.get('issue') or f.get('title') or 'finding')[:60]}"
+        rule_id = rule_id.replace(" ", "_")
+        if rule_id not in rules:
+            rules[rule_id] = {
+                "id": rule_id,
+                "name": f.get("issue") or f.get("title") or "YADS Finding",
+                "shortDescription": {"text": f.get("issue") or f.get("title") or "YADS Finding"},
+                "helpUri": "https://yads-security.com",
+            }
+        results.append({
+            "ruleId": rule_id,
+            "level": _SARIF_LEVEL.get((f.get("severity") or "info").lower(), "note"),
+            "message": {"text": f"{f.get('issue') or f.get('title') or ''} ({f.get('yf_id', '')})"},
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": f.get("domain", "unknown")}
+                }
+            }],
+        })
+
+    sarif_doc = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {"driver": {"name": "YADS", "informationUri": "https://yads-security.com", "rules": list(rules.values())}},
+            "results": results,
+        }],
+    }
+
+    filename = f"{filename_prefix}_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.sarif"
+    return Response(
+        content=json.dumps(sarif_doc, default=str, indent=2),
+        media_type="application/sarif+json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

@@ -279,6 +279,42 @@ class WafDetector(BaseScannerModule):
             })
             score -= 20
 
+        # Cross-reference against real nuclei_scanner findings (#23): the
+        # synthetic probe above uses a handful of generic attack-like payloads.
+        # nuclei_scanner sends actual, comprehensive exploit-style requests —
+        # if it still found real vulnerabilities on a WAF-protected target,
+        # that's much stronger evidence the WAF isn't effectively blocking
+        # real attacks than the synthetic probe passing/failing alone.
+        if detected and target_id and self.db:
+            try:
+                from yads.models import ScanResult
+                latest_nuclei = (
+                    self.db.query(ScanResult)
+                    .filter(ScanResult.target_id == target_id, ScanResult.module_name == "nuclei_scanner")
+                    .order_by(ScanResult.scanned_at.desc())
+                    .first()
+                )
+                if latest_nuclei and latest_nuclei.data:
+                    real_hits = [
+                        f for f in (latest_nuclei.data.get("findings") or [])
+                        if f.get("severity") in ("critical", "high", "medium")
+                    ]
+                    if real_hits:
+                        findings.append({
+                            "severity": "high",
+                            "title": f"WAF bypass confirmed by real scan: {len(real_hits)} nuclei finding(s) got through",
+                            "description": (
+                                f"A WAF/CDN ({providers_str}) is present, but nuclei_scanner still found "
+                                f"{len(real_hits)} real medium+ severity finding(s) on this target — the WAF is "
+                                "not effectively blocking actual exploit attempts, regardless of what the "
+                                "synthetic probe above reported."
+                            ),
+                            "nuclei_findings": [f.get("name") or f.get("template_id") for f in real_hits[:5]],
+                        })
+                        score -= 25
+            except Exception as e:
+                logger.debug(f"[WAF] nuclei cross-reference failed: {e}")
+
         protection_level = "strong" if (detected and waf_blocking and not bypass_ips) else \
                            "partial" if detected else "none"
         result["summary"]["protection_level"] = protection_level

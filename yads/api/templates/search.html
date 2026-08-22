@@ -52,6 +52,33 @@
             </div>
         </div>
 
+        <!-- Tags (#38) -->
+        <div id="tags-matches" class="hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                Tags
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="tags-list"></div>
+        </div>
+
+        <!-- Discovery Candidates (#38) -->
+        <div id="discovery-matches" class="hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                Discovery Candidates
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="discovery-list"></div>
+        </div>
+
+        <!-- Changelog (#38) -->
+        <div id="changelog-matches" class="hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"></path></svg>
+                Changelog
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="changelog-list"></div>
+        </div>
+
         <!-- No Results -->
         <div id="no-results" class="hidden text-center py-12">
             <svg class="w-16 h-16 text-gray-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -67,6 +94,14 @@
 </div>
 
 <script>
+// XSS guard for the innerHTML-templated result cards below: search results
+// embed server data (domains, finding titles, tags, ...) that can originate
+// from scanned external targets — not fully trusted. Escape every ${...}
+// interpolation with this before it goes into an innerHTML template literal.
+function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const mainInput = document.getElementById('main-search-input');
     const resultsContainer = document.getElementById('results-container');
@@ -111,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetSection.classList.remove('hidden');
                 data.targets.forEach(t => {
                     tList.innerHTML += `
-                        <a href="/targets/${t.id}" class="block p-4 bg-gray-800 border border-indigo-500/30 rounded-lg hover:bg-gray-700 hover:border-indigo-400 transition group">
-                            <h3 class="text-lg font-bold text-white group-hover:text-indigo-300">${t.domain}</h3>
+                        <a href="/targets/${encodeURIComponent(t.id)}" class="block p-4 bg-gray-800 border border-indigo-500/30 rounded-lg hover:bg-gray-700 hover:border-indigo-400 transition group">
+                            <h3 class="text-lg font-bold text-white group-hover:text-indigo-300">${escHtml(t.domain)}</h3>
                             <p class="text-sm text-gray-500">View Details &rarr;</p>
                         </a>
                     `;
@@ -130,12 +165,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     fList.innerHTML += `
                         <tr class="hover:bg-white/5 transition">
                             <td class="px-6 py-4">
-                                <span class="px-2 py-1 rounded text-xs font-mono bg-gray-700 text-gray-300 border border-gray-600">${f.module}</span>
+                                <span class="px-2 py-1 rounded text-xs font-mono bg-gray-700 text-gray-300 border border-gray-600">${escHtml(f.module)}</span>
                             </td>
-                            <td class="px-6 py-4 font-medium text-white">${f.target}</td>
+                            <td class="px-6 py-4 font-medium text-white">${escHtml(f.target)}</td>
                             <td class="px-6 py-4 text-gray-400 text-sm">Content Match</td>
                             <td class="px-6 py-4 text-right">
-                                <a href="/targets/${f.target_id}" class="text-indigo-400 hover:text-indigo-300 text-sm hover:underline">View Target</a>
+                                <a href="/targets/${encodeURIComponent(f.target_id)}" class="text-indigo-400 hover:text-indigo-300 text-sm hover:underline">View Target</a>
                             </td>
                         </tr>
                     `;
@@ -144,7 +179,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 findingSection.classList.add('hidden');
             }
             
-            if ((!data.targets || data.targets.length === 0) && (!data.findings || data.findings.length === 0)) {
+            // Render Tags (#38)
+            const tagsSection = document.getElementById('tags-matches');
+            const tagsList = document.getElementById('tags-list');
+            tagsList.innerHTML = '';
+            if (data.tags && data.tags.length > 0) {
+                tagsSection.classList.remove('hidden');
+                data.tags.forEach(t => {
+                    tagsList.innerHTML += `
+                        <a href="/targets/${encodeURIComponent(t.target_id)}" class="block p-4 bg-gray-800 border border-amber-500/30 rounded-lg hover:bg-gray-700 hover:border-amber-400 transition group">
+                            <h3 class="text-base font-bold text-white group-hover:text-amber-300">${escHtml(t.domain)}</h3>
+                            <p class="text-xs text-gray-500">${escHtml((t.tags || []).join(', '))}</p>
+                        </a>
+                    `;
+                });
+            } else { tagsSection.classList.add('hidden'); }
+
+            // Render Discovery Candidates (#38)
+            const discSection = document.getElementById('discovery-matches');
+            const discList = document.getElementById('discovery-list');
+            discList.innerHTML = '';
+            if (data.discovery_candidates && data.discovery_candidates.length > 0) {
+                discSection.classList.remove('hidden');
+                data.discovery_candidates.forEach(d => {
+                    discList.innerHTML += `
+                        <a href="/discovery/${encodeURIComponent(d.session_id)}" class="block p-4 bg-gray-800 border border-cyan-500/30 rounded-lg hover:bg-gray-700 hover:border-cyan-400 transition group">
+                            <h3 class="text-base font-bold text-white group-hover:text-cyan-300">${escHtml(d.domain)}</h3>
+                            <p class="text-xs text-gray-500">Status: ${escHtml(d.status)}</p>
+                        </a>
+                    `;
+                });
+            } else { discSection.classList.add('hidden'); }
+
+            // Render Changelog (#38)
+            const changelogSection = document.getElementById('changelog-matches');
+            const changelogList = document.getElementById('changelog-list');
+            changelogList.innerHTML = '';
+            if (data.changelog && data.changelog.length > 0) {
+                changelogSection.classList.remove('hidden');
+                data.changelog.forEach(c => {
+                    changelogList.innerHTML += `
+                        <a href="/changes/" class="block p-4 bg-gray-800 border border-violet-500/30 rounded-lg hover:bg-gray-700 hover:border-violet-400 transition group">
+                            <h3 class="text-base font-bold text-white group-hover:text-violet-300">${escHtml(c.title)}</h3>
+                            <p class="text-xs text-gray-500">v${escHtml(c.version)} &middot; ${escHtml((c.published_at || '').slice(0,10))}</p>
+                        </a>
+                    `;
+                });
+            } else { changelogSection.classList.add('hidden'); }
+
+            const anyResults = (data.targets && data.targets.length) || (data.findings && data.findings.length) ||
+                (data.tags && data.tags.length) || (data.discovery_candidates && data.discovery_candidates.length) ||
+                (data.changelog && data.changelog.length);
+            if (!anyResults) {
                 noResults.classList.remove('hidden');
             } else {
                 noResults.classList.add('hidden');

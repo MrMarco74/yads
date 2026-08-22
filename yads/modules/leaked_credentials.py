@@ -301,6 +301,39 @@ class LeakedCredentialsScanner(BaseScannerModule):
 
                 result["breach_details"] = breach_details
 
+                # New-breach diffing (#32): the aggregate "found in N breaches"
+                # finding below re-fires whenever the count changes, but that
+                # conflates "one more breach appeared" with a re-alert of the
+                # same known breaches. Diff breach *names* against the last
+                # scan and only webhook-alert for genuinely new ones.
+                if target_id and hibp.get("breaches"):
+                    try:
+                        from yads.database import engine as _engine
+                        from sqlmodel import Session as _Session
+                        from yads.core.baseline_diff import diff_against_last
+                        with _Session(_engine) as _db:
+                            breach_diff = diff_against_last(_db, "leaked_credentials_breaches", hibp["breaches"], target_id=target_id)
+                        new_breaches = breach_diff["added"]
+                        if new_breaches and not breach_diff["is_first"]:
+                            result["new_breaches"] = new_breaches
+                            try:
+                                from yads.core.webhook_service import webhook_service
+                                from yads.models import Target as _Target
+                                with _Session(_engine) as _db2:
+                                    t = _db2.get(_Target, target_id)
+                                if t:
+                                    webhook_service.trigger_event(t.tenant_id, "security_alert", {
+                                        "domain": domain,
+                                        "module": "leaked_credentials",
+                                        "severity": "high",
+                                        "title": f"{len(new_breaches)} new breach(es) for {domain}",
+                                        "detail": f"Newly appeared: {', '.join(new_breaches[:5])}",
+                                    })
+                            except Exception as e:
+                                logger.warning(f"[LeakedCreds] New-breach webhook failed (non-fatal): {e}")
+                    except Exception as e:
+                        logger.debug(f"[LeakedCreds] Breach diffing failed: {e}")
+
         # 2. DeHashed (BYOK)
         dh_email, dh_key = _get_dehashed_key(target_id)
         if dh_email and dh_key:

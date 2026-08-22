@@ -281,6 +281,38 @@ class LoginScanner(BaseScannerModule):
                 "description": "A password reset flow was discovered.",
             })
 
+        # Credential-stuffing correlation (#33): a live login form is only a
+        # real credential-stuffing risk when combined with leaked credentials
+        # for this domain — leaked_credentials.py and this module currently
+        # never look at each other's results.
+        if login_pages and target_id and self.db:
+            try:
+                from yads.models import ScanResult
+                latest_leaks = (
+                    self.db.query(ScanResult)
+                    .filter(ScanResult.target_id == target_id, ScanResult.module_name == "leaked_credentials")
+                    .order_by(ScanResult.scanned_at.desc())
+                    .first()
+                )
+                if latest_leaks and latest_leaks.data:
+                    leak_summary = latest_leaks.data.get("summary") or {}
+                    breach_count = leak_summary.get("breach_count", 0)
+                    if breach_count > 0:
+                        sev = "critical" if leak_summary.get("has_passwords") else "high"
+                        findings.append({
+                            "severity": sev,
+                            "title": f"Credential-stuffing risk: {breach_count} breach(es) + live login form",
+                            "description": (
+                                f"leaked_credentials.py found {breach_count} breach(es) associated with this "
+                                f"domain{' including plaintext/hashed passwords' if leak_summary.get('has_passwords') else ''}, "
+                                f"and this scan found {len(login_pages)} live, reachable login form(s). "
+                                "Attackers can directly test the leaked credentials against this login form."
+                            ),
+                        })
+                        score -= 30 if sev == "critical" else 20
+            except Exception as e:
+                logger.debug(f"[LoginScanner] leaked_credentials correlation failed: {e}")
+
         result["findings"] = findings
         result["summary"]["score"] = max(0, score)
         return result

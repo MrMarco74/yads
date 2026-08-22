@@ -83,6 +83,15 @@ ENDPOINT_PATTERNS = [
 _COMPILED_SECRETS = [(name, re.compile(pat), sev, desc) for name, pat, sev, desc in SECRET_PATTERNS]
 _COMPILED_ENDPOINTS = [re.compile(pat, re.IGNORECASE) for pat in ENDPOINT_PATTERNS]
 
+# Scoped npm package references in require()/import statements — feeds
+# dependency_confusion.py's continuous monitoring (#31).
+PACKAGE_IMPORT_PATTERNS = [
+    r"""require\(\s*['\"](@[a-z0-9][a-z0-9\-_.]*\/[a-z0-9][a-z0-9\-_.]*)['\"]\s*\)""",
+    r"""from\s+['\"](@[a-z0-9][a-z0-9\-_.]*\/[a-z0-9][a-z0-9\-_.]*)['\"]""",
+    r"""import\s*\(\s*['\"](@[a-z0-9][a-z0-9\-_.]*\/[a-z0-9][a-z0-9\-_.]*)['\"]\s*\)""",
+]
+_COMPILED_PACKAGE_IMPORTS = [re.compile(pat, re.IGNORECASE) for pat in PACKAGE_IMPORT_PATTERNS]
+
 
 class JsSecretsScanner(BaseScannerModule):
     """Fetch and analyze JavaScript files for hardcoded secrets and internal endpoints."""
@@ -126,6 +135,7 @@ class JsSecretsScanner(BaseScannerModule):
         # 2. Scan each JS file
         all_secrets: List[Dict] = []
         all_endpoints: Set[str] = set()
+        all_packages: Set[str] = set()
         scanned = 0
 
         for js_url in js_urls[:self.MAX_JS_FILES]:
@@ -140,9 +150,14 @@ class JsSecretsScanner(BaseScannerModule):
             endpoints = self._extract_endpoints(content)
             all_endpoints.update(endpoints)
 
+            all_packages.update(self._extract_package_names(content))
+
         result["js_files_scanned"] = scanned
         result["secrets"] = all_secrets
         result["endpoints"] = sorted(all_endpoints)[:100]
+        # Feeds dependency_confusion.py's continuous package monitoring (#31):
+        # scoped/internal-looking import identifiers found in bundled JS.
+        result["discovered_packages"] = sorted(all_packages)
 
         # 3. Build findings
         for secret in all_secrets:
@@ -280,3 +295,20 @@ class JsSecretsScanner(BaseScannerModule):
                 if len(ep) > 3 and len(ep) < 200:
                     endpoints.add(ep)
         return endpoints
+
+    def _extract_package_names(self, content: str) -> Set[str]:
+        """
+        Extract scoped npm-style package identifiers referenced via
+        require()/import from bundled JS — e.g. `require("@acme/auth-utils")`
+        or `from "@acme/logger"`. Only scoped packages (@org/name) are kept:
+        they're the ones registrable under someone else's org on the public
+        npm registry if the "acme" org name isn't claimed there, which is
+        exactly what dependency_confusion.py checks for.
+        """
+        packages: Set[str] = set()
+        for regex in _COMPILED_PACKAGE_IMPORTS:
+            for match in regex.finditer(content):
+                pkg = match.group(1)
+                if pkg and len(pkg) < 100:
+                    packages.add(pkg)
+        return packages

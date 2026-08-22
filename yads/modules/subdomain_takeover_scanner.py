@@ -90,6 +90,35 @@ for sig in TAKEOVER_SIGNATURES:
     cname_pat, body_sig, sev, svc = sig
     CNAME_LOOKUP.setdefault(cname_pat, []).append((body_sig, sev, svc))
 
+# Provider-specific remediation guidance (#30). Every entry: delete the
+# dangling CNAME (safe, always correct) *or* reclaim the resource at the
+# provider before an attacker does. Providers not listed here get a generic
+# fallback in _remediation_for().
+REMEDIATION_GUIDES: Dict[str, str] = {
+    "AWS S3": "Delete the CNAME record, or recreate the S3 bucket with the exact same name in the same region before an attacker claims it. https://docs.aws.amazon.com/AmazonS3/latest/userguide/dev-test-domain-names.html",
+    "AWS S3 Website": "Delete the CNAME record, or recreate the S3 bucket with the exact same name before an attacker claims it. https://docs.aws.amazon.com/AmazonS3/latest/userguide/dev-test-domain-names.html",
+    "GitHub Pages": "Delete the CNAME record, or re-add the custom domain in the repository's GitHub Pages settings. https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site",
+    "Heroku": "Delete the CNAME record, or reclaim the Heroku app name via `heroku domains:add`. https://devcenter.heroku.com/articles/custom-domains",
+    "Heroku DNS": "Delete the CNAME record, or reclaim the Heroku app name via `heroku domains:add`. https://devcenter.heroku.com/articles/custom-domains",
+    "Netlify": "Delete the CNAME record, or re-add the custom domain in Netlify's site settings. https://docs.netlify.com/domains-https/custom-domains/",
+    "Azure Web Apps": "Delete the CNAME record, or re-add the custom domain in the Azure App Service portal. https://learn.microsoft.com/en-us/azure/app-service/app-service-web-tutorial-custom-domain",
+    "Azure CDN": "Delete the CNAME record, or re-associate the custom domain with the Azure CDN endpoint. https://learn.microsoft.com/en-us/azure/cdn/cdn-map-content-to-custom-domain",
+    "Azure Cloud": "Delete the CNAME record, or reclaim the cloud service before an attacker does.",
+    "Azure Traffic Manager": "Delete the CNAME record, or re-add the custom domain to the Traffic Manager profile.",
+    "Shopify": "Delete the CNAME record, or reconnect the domain in Shopify's Domains settings. https://help.shopify.com/en/manual/domains",
+    "Fastly": "Delete the CNAME record, or re-add the domain to the correct Fastly service.",
+    "Pantheon": "Delete the CNAME record, or re-add the domain in the Pantheon site's Domain/HTTPS settings.",
+    "Bitbucket": "Delete the CNAME record, or re-publish the site via Bitbucket Pages with the same repo name.",
+    "WordPress.com": "Delete the CNAME record, or re-map the domain in WordPress.com's domain settings.",
+}
+
+
+def _remediation_for(service: str) -> str:
+    return REMEDIATION_GUIDES.get(
+        service,
+        f"Delete the dangling CNAME record, or reclaim/re-register the resource at {service} before an attacker does.",
+    )
+
 
 class SubdomainTakeoverScanner(BaseScannerModule):
     """Scan domain and known subdomains for CNAME/NS-based takeover opportunities."""
@@ -136,16 +165,19 @@ class SubdomainTakeoverScanner(BaseScannerModule):
                     "subdomain": subdomain,
                     "service": check["service"],
                     "cname": check["cname_target"],
+                    "remediation": _remediation_for(check["service"]),
                 })
             elif check["dangling"]:
                 result["potentially_vulnerable"].append(check)
+                service = check.get("service", "Unknown")
                 result["findings"].append({
                     "severity": "medium",
                     "title": f"Dangling CNAME detected: {subdomain}",
                     "detail": f"CNAME → {check['cname_target']} but HTTP check inconclusive.",
                     "subdomain": subdomain,
-                    "service": check.get("service", "Unknown"),
+                    "service": service,
                     "cname": check["cname_target"],
+                    "remediation": _remediation_for(service),
                 })
 
         # Score
@@ -159,25 +191,25 @@ class SubdomainTakeoverScanner(BaseScannerModule):
                 score -= 10
 
         # Persist findings to OSINTIntelligence model
-        if target_id and self.db_session:
+        if target_id and self.db:
             from yads.models import OSINTIntelligence
             import datetime
             for f in result["findings"]:
                 sub = f["subdomain"]
-                existing = self.db_session.query(OSINTIntelligence).filter_by(
+                existing = self.db.query(OSINTIntelligence).filter_by(
                     target_id=target_id, module_name=self.module_name, data_type="dangling_cname"
                 ).filter(OSINTIntelligence.data_json["subdomain"].astext == sub).first()
                 if not existing:
-                    self.db_session.add(OSINTIntelligence(
+                    self.db.add(OSINTIntelligence(
                         target_id=target_id, module_name=self.module_name, data_type="dangling_cname",
                         data_json={"subdomain": sub, "cname": f["cname"], "service": f["service"]},
                         severity=f["severity"], timestamp=datetime.datetime.utcnow()
                     ))
             try:
-                self.db_session.commit()
+                self.db.commit()
             except Exception as e:
                 logger.error(f"[TakeoverScanner] DB Commit failed: {e}")
-                self.db_session.rollback()
+                self.db.rollback()
 
         result["summary"]["score"] = max(0, score)
         result["summary"]["vulnerable_count"] = len(result["vulnerable"])
@@ -206,10 +238,10 @@ class SubdomainTakeoverScanner(BaseScannerModule):
             candidates.add(f"{prefix}.{domain}")
 
         # Try to get existing subdomains from the database if target_id given
-        if target_id and self.db_session:
+        if target_id and self.db:
             from yads.models import ScanResult
             from sqlmodel import select
-            dns_result = self.db_session.exec(
+            dns_result = self.db.exec(
                 select(ScanResult)
                 .where(ScanResult.target_id == target_id)
                 .where(ScanResult.module_name == "dns_scanner")

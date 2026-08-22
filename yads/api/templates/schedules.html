@@ -94,7 +94,96 @@
             </table>
         </div>
     </div>
+
+    <!-- Recurring Report Subscriptions (#45) -->
+    <div class="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden mt-6">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-white">Recurring Report Delivery</h3>
+            <button type="button" onclick="document.getElementById('addReportSubModal').showModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg">+ Add Subscription</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-3">Name</th>
+                        <th class="px-6 py-3">Type</th>
+                        <th class="px-6 py-3">Recipients</th>
+                        <th class="px-6 py-3">Frequency</th>
+                        <th class="px-6 py-3">Last Sent</th>
+                        <th class="px-6 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for sub in report_subscriptions %}
+                    <tr>
+                        <td class="px-6 py-3 text-slate-200">{{ sub.name }}</td>
+                        <td class="px-6 py-3 text-xs">{{ sub.report_type }}</td>
+                        <td class="px-6 py-3 text-xs">{{ sub.recipients|join(', ') }}</td>
+                        <td class="px-6 py-3 text-xs">{{ sub.frequency }}{% if sub.frequency == 'weekly' %} (day {{ sub.day_of_week }}){% else %} (day {{ sub.day_of_month }}){% endif %}</td>
+                        <td class="px-6 py-3 text-xs">{{ sub.last_sent_at.strftime('%Y-%m-%d') if sub.last_sent_at else 'Never' }}</td>
+                        <td class="px-6 py-3 text-right">
+                            <form method="POST" action="/schedules/reports/delete/{{ sub.id }}" class="inline">
+                                <button type="submit" class="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500 italic">No recurring report subscriptions.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
+<!-- Add Report Subscription Modal -->
+<dialog id="addReportSubModal" class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-0 backdrop:bg-black/80">
+    <form method="POST" action="/schedules/reports/add" class="p-6 w-full max-w-md">
+        <h2 class="text-lg font-bold text-white mb-4">New Report Subscription</h2>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-300">Name</label>
+                <input type="text" name="name" required placeholder="Weekly Exec Summary" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300">Report Type</label>
+                <select name="report_type" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+                    <option value="executive_summary">Executive Summary</option>
+                    <option value="findings_csv">Findings (CSV)</option>
+                    <option value="compliance">Compliance</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300">Recipients <span class="text-slate-500">(comma-separated)</span></label>
+                <input type="text" name="recipients" required placeholder="ciso@example.com, security@example.com" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300">Frequency</label>
+                    <select name="frequency" id="reportSubFrequency" onchange="document.getElementById('dowField').classList.toggle('hidden', this.value!=='weekly'); document.getElementById('domField').classList.toggle('hidden', this.value!=='monthly');" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div id="dowField">
+                    <label class="block text-sm font-medium text-slate-300">Day of Week</label>
+                    <select name="day_of_week" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+                        <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
+                        <option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+                    </select>
+                </div>
+                <div id="domField" class="hidden">
+                    <label class="block text-sm font-medium text-slate-300">Day of Month</label>
+                    <input type="number" name="day_of_month" min="1" max="28" value="1" class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 text-white rounded-md text-sm">
+                </div>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" onclick="document.getElementById('addReportSubModal').close()" class="px-4 py-2 border border-gray-600 rounded-md text-sm font-medium text-slate-300 hover:bg-gray-700">Cancel</button>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Save Subscription</button>
+        </div>
+    </form>
+</dialog>
 
 <!-- Add Schedule Modal -->
 <dialog id="addScheduleModal" class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-0 backdrop:bg-black/80">

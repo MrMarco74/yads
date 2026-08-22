@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select, or_, text
 from yads.database import get_session
 from yads.core.module_registry import REGISTRY, CATEGORIES
-from yads.models import Target, ScanResult, User
+from yads.models import Target, ScanResult, User, ChangelogEntry, DiscoveryCandidate, DiscoverySession
 from yads.auth.deps import get_current_user_html
 from yads.config import settings
 
@@ -190,8 +190,43 @@ async def global_search(
             "module": f[2],
             "target": f[3]
         })
-        
+
+    # 3. Search Tags (#38): Target.tags is a JSONB list, no dedicated Tag
+    # table — match targets whose tag list contains a tag matching the query.
+    tags_sql = text("""
+        SELECT id, domain, tags FROM target
+        WHERE tenant_id = :tenant_id
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS tag WHERE tag ILIKE :query)
+        LIMIT 10
+    """)
+    tag_matches = session.exec(tags_sql, params={"tenant_id": user.tenant_id, "query": f"%{query}%"}).all()
+    tags = [{"target_id": t[0], "domain": t[1], "tags": t[2]} for t in tag_matches]
+
+    # 4. Search Discovery Candidates (#38)
+    disc_stmt = (
+        select(DiscoveryCandidate.id, DiscoveryCandidate.domain, DiscoveryCandidate.session_id, DiscoveryCandidate.status)
+        .join(DiscoverySession, DiscoveryCandidate.session_id == DiscoverySession.id)
+        .where(DiscoverySession.tenant_id == user.tenant_id, DiscoveryCandidate.domain.contains(query))
+        .limit(10)
+    )
+    discovery_candidates = [
+        {"id": r[0], "domain": r[1], "session_id": r[2], "status": r[3]}
+        for r in session.exec(disc_stmt).all()
+    ]
+
+    # 5. Search Changelog Entries (#38) — platform-wide, not tenant-scoped
+    changelog_stmt = select(ChangelogEntry).where(
+        or_(ChangelogEntry.title.contains(query), ChangelogEntry.content.contains(query))
+    ).order_by(ChangelogEntry.published_at.desc()).limit(10)
+    changelog = [
+        {"id": c.id, "title": c.title, "version": c.version, "published_at": c.published_at.isoformat()}
+        for c in session.exec(changelog_stmt).all()
+    ]
+
     return {
         "targets": target_results,
-        "findings": findings
+        "findings": findings,
+        "tags": tags,
+        "discovery_candidates": discovery_candidates,
+        "changelog": changelog,
     }

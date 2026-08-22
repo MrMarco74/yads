@@ -268,9 +268,43 @@ class DependencyConfusionScanner(BaseScannerModule):
         result["private_registry_configs"] = private_configs
         result["summary"]["files_exposed"] = len(exposed_files)
 
+        # Continuous monitoring (#31): pull in scoped package names discovered
+        # by js_secrets_scanner's JS-bundle analysis (require()/import), and
+        # accumulate the candidate set across scans via baseline_diff rather
+        # than resetting to only-what-this-scan-found each time — an internal
+        # package name seen once in a JS bundle stays monitored even if a
+        # later crawl doesn't happen to re-fetch that particular bundle.
+        js_discovered: List[str] = []
+        if target_id and self.db:
+            try:
+                from yads.models import ScanResult
+                latest_js = (
+                    self.db.query(ScanResult)
+                    .filter(ScanResult.target_id == target_id, ScanResult.module_name == "js_secrets")
+                    .order_by(ScanResult.scanned_at.desc())
+                    .first()
+                )
+                if latest_js and latest_js.data:
+                    js_discovered = latest_js.data.get("discovered_packages") or []
+            except Exception as e:
+                logger.debug(f"[DepConfusion] js_secrets_scanner lookup failed: {e}")
+
+        candidate_scoped = set(p for p in npm_packages if p.startswith("@")) | set(js_discovered)
+        if target_id and candidate_scoped:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+                with _Session(_engine) as _db:
+                    diff = diff_against_last(_db, "dependency_confusion_monitored_packages", candidate_scoped, target_id=target_id)
+                # Union of everything ever seen (added + unchanged), not just this run's delta.
+                candidate_scoped = set(diff["added"]) | set(diff["unchanged"])
+            except Exception as e:
+                logger.debug(f"[DepConfusion] Monitored-package accumulation failed: {e}")
+
         # Check npm scoped/internal packages against public registry
         vulnerable: List[Dict] = []
-        scoped_npm = [p for p in npm_packages if p.startswith("@")]
+        scoped_npm = sorted(candidate_scoped)
         internal_npm = [p for p in npm_packages if _looks_internal(p) and not p.startswith("@")]
 
         # Check if scoped packages exist publicly (potential confusion if private scope)

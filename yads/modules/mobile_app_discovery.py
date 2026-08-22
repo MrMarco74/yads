@@ -303,6 +303,37 @@ class MobileAppDiscovery(BaseScannerModule):
                 "description": f"No iOS or Android apps were found associated with {domain}.",
             })
 
+        # Version-drift check (#77): diff "bundle_id@version" pairs against the
+        # last scan's snapshot via the shared baseline_diff utility. A bundle_id
+        # appearing in both added and removed means its version changed.
+        if target_id:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+
+                versioned = [
+                    f"{a.get('bundle_id') or a.get('app_id') or a.get('name')}@{a.get('version')}"
+                    for a in itunes_apps if a.get("version")
+                ]
+                if versioned:
+                    with _Session(_engine) as _db:
+                        diff = diff_against_last(_db, "mobile_app_versions", versioned, target_id=target_id)
+                    if not diff["is_first"]:
+                        added_ids = {item.rsplit("@", 1)[0] for item in diff["added"]}
+                        removed_ids = {item.rsplit("@", 1)[0] for item in diff["removed"]}
+                        for app_id in added_ids & removed_ids:
+                            old_v = next((i.rsplit("@", 1)[1] for i in diff["removed"] if i.startswith(app_id + "@")), "?")
+                            new_v = next((i.rsplit("@", 1)[1] for i in diff["added"] if i.startswith(app_id + "@")), "?")
+                            findings.append({
+                                "severity": "info",
+                                "title": f"App store version changed: {app_id} ({old_v} → {new_v})",
+                                "description": "The App Store listing version differs from what was recorded on the previous scan.",
+                                "app_id": app_id,
+                            })
+            except Exception as e:
+                logger.warning(f"[{self.module_name}] Version baseline diff failed: {e}")
+
         result["summary"]["score"] = max(0, score)
         result["summary"]["issues"] = len([f for f in findings if f["severity"] not in ("info",)])
         result["findings"] = findings

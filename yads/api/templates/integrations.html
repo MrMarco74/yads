@@ -63,6 +63,8 @@
                 <div class="flex gap-2">
                     <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">Save</button>
                     {% if jc and jc.is_active %}
+                    <button type="button" onclick="testIntegration('jira', this)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">Test</button>
+                    <span id="inttest-jira" class="text-xs self-center"></span>
                     <form action="/integrations/jira/disable" method="POST" class="inline">
                         {{ csrf_token() }}
 
@@ -114,6 +116,8 @@
                 <div class="flex gap-2">
                     <button type="submit" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">Save</button>
                     {% if ghc and ghc.is_active %}
+                    <button type="button" onclick="testIntegration('github', this)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">Test</button>
+                    <span id="inttest-github" class="text-xs self-center"></span>
                     <form action="/integrations/github/disable" method="POST" class="inline">
                         {{ csrf_token() }}
 
@@ -218,6 +222,30 @@
 <script>
 function toggle(id) {
     document.getElementById(id).classList.toggle('hidden');
+}
+
+async function testIntegration(type, btn) {
+    const badge = document.getElementById('inttest-' + type);
+    badge.textContent = 'Testing...';
+    badge.className = 'text-xs self-center text-slate-400';
+    try {
+        const csrf = (document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/) || [])[1];
+        const res = await fetch(`/integrations/${type}/test`, {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrf ? decodeURIComponent(csrf) : '' },
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+            badge.textContent = '✓ ' + data.message;
+            badge.className = 'text-xs self-center text-emerald-400';
+        } else {
+            badge.textContent = '✗ ' + (data.message || data.detail || 'failed');
+            badge.className = 'text-xs self-center text-red-400';
+        }
+    } catch (e) {
+        badge.textContent = 'Error: ' + e.message;
+        badge.className = 'text-xs self-center text-red-400';
+    }
 }
 </script>
 {% endblock %}

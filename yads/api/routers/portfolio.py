@@ -14,7 +14,7 @@ from yads.api.templating import templates
 from yads.auth.deps import PlatformAdminChecker
 from yads.database import get_session
 from yads.models import ScanResult, Target, Tenant, User
-from yads.core.scoring import calculate_target_score, get_grade
+from yads.core.scoring import calculate_target_score, get_grade, SCORED_MODULE_NAMES
 
 router = APIRouter(tags=["portfolio"])
 ui_router = APIRouter(tags=["portfolio"])
@@ -142,9 +142,7 @@ def _compute_tenant_stats(
         for target in active_targets:
             target_results = {
                 module: latest_map[(target.id, module)]
-                for module in [
-                    "ssl_scanner", "port_scanner", "web_analyzer"
-                ]
+                for module in SCORED_MODULE_NAMES
                 if (target.id, module) in latest_map
             }
             if target_results:

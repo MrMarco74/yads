@@ -98,7 +98,36 @@ class ApiDiscoveryScanner(BaseScannerModule):
 
         # Deduplicate endpoints
         results["endpoints"] = list(set(results["endpoints"]))
-        
+
+        # Continuous baseline diffing (#63): api_discovery previously only
+        # probed once per scan with no memory of prior results — diff
+        # endpoints against the last scan so new/vanished endpoints become
+        # their own finding instead of being silently re-discovered forever.
+        if target_id:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+                with _Session(_engine) as _db:
+                    diff = diff_against_last(_db, "api_discovery_endpoints", results["endpoints"], target_id=target_id)
+                results["endpoint_delta"] = {"new": diff["added"], "vanished": diff["removed"]}
+                if not diff["is_first"] and (diff["added"] or diff["removed"]):
+                    findings = results.setdefault("findings", [])
+                    if diff["added"]:
+                        findings.append({
+                            "severity": "medium",
+                            "title": f"{len(diff['added'])} new API endpoint(s) discovered since last scan",
+                            "description": f"New: {', '.join(diff['added'][:10])}",
+                        })
+                    if diff["removed"]:
+                        findings.append({
+                            "severity": "info",
+                            "title": f"{len(diff['removed'])} API endpoint(s) no longer responding",
+                            "description": f"Vanished: {', '.join(diff['removed'][:10])}",
+                        })
+            except Exception as e:
+                logger.warning(f"[{self.module_name}] Endpoint baseline diff failed: {e}")
+
         return results
 
     def _probe_paths(self, base_url: str, paths: List[str], target: str) -> List[Dict]:

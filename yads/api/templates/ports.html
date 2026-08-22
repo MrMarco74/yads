@@ -166,6 +166,7 @@
                         <th class="px-6 py-4">Target</th>
                         <th class="px-6 py-4">IP Address</th>
                         <th class="px-6 py-4">Open Ports</th>
+                        <th class="px-6 py-4">Delta Since Last Scan</th>
                         <th class="px-6 py-4">Last Scanned</th>
                     </tr>
                 </thead>
@@ -200,12 +201,27 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 text-xs">
+                            {% if row.newly_exposed %}
+                                <span class="inline-flex items-center gap-1 bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-xs font-mono" title="Newly exposed ports">
+                                    ↑ {{ row.newly_exposed|join(', ') }}
+                                </span>
+                            {% endif %}
+                            {% if row.closed_since_last %}
+                                <span class="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-mono" title="Closed since last scan">
+                                    ↓ {{ row.closed_since_last|join(', ') }}
+                                </span>
+                            {% endif %}
+                            {% if not row.newly_exposed and not row.closed_since_last %}
+                                <span class="text-slate-600">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-xs">
                              {{ row.last_scanned }}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                         <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                         <td colspan="5" class="px-6 py-8 text-center text-slate-500">
                             No port scan data found for this tenant. Run a "Port Scan" or "Full Scan" on your targets.
                         </td>
                     </tr>

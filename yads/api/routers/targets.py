@@ -320,14 +320,99 @@ async def bulk_delete_targets(
     if not safe_ids:
         return RedirectResponse(url="/targets/table?msg=Error:+No+owned+targets+found", status_code=303)
 
+    # Undo window (#79): the domain/tags/tenant are cheap to snapshot and are
+    # what people actually panic about losing ("I deleted the wrong target"),
+    # unlike the full scan history which is genuinely gone either way. Cache
+    # a restorable snapshot in Redis before the irreversible cascade delete.
+    import uuid
+    undo_batch_id = uuid.uuid4().hex[:12]
+    targets_to_delete = session.exec(select(Target).where(Target.id.in_(safe_ids))).all()
+    snapshot = [
+        {
+            "domain": t.domain, "tenant_id": t.tenant_id, "tags": t.tags,
+            "discovery_reason": t.discovery_reason,
+        }
+        for t in targets_to_delete
+    ]
+    try:
+        redis_client.setex(f"yads:undo_delete:{undo_batch_id}", 60, json.dumps(snapshot))
+    except Exception as e:
+        logger.warning(f"Failed to cache undo snapshot: {e}")
+        undo_batch_id = None
+
     _perform_bulk_delete_from_db(session, safe_ids)
     session.commit()
-    
+
     msg = f"Deleted+{len(safe_ids)}+targets"
     if revoked_count > 0:
         msg += f"+(Stopped+{revoked_count}+scans)"
-        
-    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
+    redirect_url = f"/targets/table?msg={msg}"
+    if undo_batch_id:
+        redirect_url += f"&undo_batch={undo_batch_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@router.post("/targets/bulk/undo-delete")
+async def undo_bulk_delete_targets(
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))],
+    undo_batch: str = Form(...),
+):
+    """
+    Recreates targets from a delete snapshot within the 60s undo window
+    (#79). Restores the domain/tags/tenant only — historical scan data is
+    not recoverable, that cascade delete already happened.
+    """
+    key = f"yads:undo_delete:{undo_batch}"
+    raw = redis_client.get(key)
+    if not raw:
+        return RedirectResponse(url="/targets/table?error=Undo+window+expired", status_code=303)
+
+    snapshot = json.loads(raw)
+    restored = 0
+    for entry in snapshot:
+        if entry.get("tenant_id") != user.tenant_id:
+            continue  # never let a tenant restore another tenant's snapshot
+        existing = session.exec(select(Target).where(
+            Target.domain == entry["domain"], Target.tenant_id == entry["tenant_id"]
+        )).first()
+        if existing:
+            continue  # already re-added (e.g. double-click) — skip
+        session.add(Target(
+            domain=entry["domain"], tenant_id=entry["tenant_id"],
+            tags=entry.get("tags"), discovery_reason=entry.get("discovery_reason"),
+        ))
+        restored += 1
+    session.commit()
+    redis_client.delete(key)
+
+    return RedirectResponse(url=f"/targets/table?msg=Restored+{restored}+target(s)", status_code=303)
+
+
+@router.post("/targets/bulk/to-discovery")
+async def bulk_send_to_discovery(
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))],
+    target_ids: List[int] = Form(default=[]),
+):
+    """
+    Resolves selected target IDs to domains and hands them off as seed
+    domains to the Discovery session wizard. Does not create a session
+    itself -- the user still reviews/names the session there.
+    """
+    if not target_ids:
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+
+    safe_ids = _get_owned_target_ids(session, user, set(target_ids))
+    if not safe_ids:
+        return RedirectResponse(url="/targets/table?msg=Error:+No+owned+targets+found", status_code=303)
+
+    domains = session.exec(select(Target.domain).where(Target.id.in_(safe_ids))).all()
+    seeds = list(dict.fromkeys(domains))  # de-dupe, preserve order
+
+    from urllib.parse import quote
+    return RedirectResponse(url=f"/discovery?prefill_seeds={quote(chr(10).join(seeds))}", status_code=303)
 
 
 def _revoke_tasks_for_targets(target_ids: set) -> int:
@@ -823,7 +908,8 @@ async def view_target_table(
     
     # New: Sorting & Scope
     filter_scope: str = "all", # "all", "external", "internal"
-    filter_root_domain: Optional[str] = None, # For the dedicated root filter
+    filter_root_domain: List[str] = Query(default=[]), # For the dedicated root filter (multi-select)
+    filter_roots_only: bool = False, # Show only root-domain rows, hide their subdomains
     filter_archived: str = "no", # "yes", "no", "only"
     
     session: Session = Depends(get_session),
@@ -848,6 +934,17 @@ async def view_target_table(
 
     # Base Query (Tenant Scoped)
     query = select(Target).where(Target.tenant_id == user.tenant_id)
+
+    # -- Extract Unique Root Domains (used by the Root Domain filter dropdown
+    # and by the "Roots only" filter below) --
+    all_domains = session.exec(select(Target.domain).where(Target.tenant_id == user.tenant_id)).all()
+    unique_roots = set()
+    for d in all_domains:
+        ext = tldextract.extract(d)
+        if ext.domain and ext.suffix:
+            unique_roots.add(f"{ext.domain}.{ext.suffix}")
+
+    unique_roots_list = sorted(list(unique_roots))
 
     # -- Filter: Archived --
     if filter_archived == "no":
@@ -1079,16 +1176,19 @@ async def view_target_table(
         conditions = [func.lower(Target.domain).like(f"%{tld}") for tld in INTERNAL_TLDS]
         query = query.where(or_(*conditions))
 
-    # -- Filter: Root Domain --
+    # -- Filter: Root Domain (multi-select) --
     if filter_root_domain:
-        # Match EXACT root OR anything ending in .root
+        # Match EXACT root OR anything ending in .root, for each selected root
         # This covers example-client.de and sub.example-client.de
-        query = query.where(
-            or_(
-                Target.domain == filter_root_domain,
-                Target.domain.like(f"%.{filter_root_domain}")
-            )
-        )
+        root_conditions = []
+        for root in filter_root_domain:
+            root_conditions.append(Target.domain == root)
+            root_conditions.append(Target.domain.like(f"%.{root}"))
+        query = query.where(or_(*root_conditions))
+
+    # -- Filter: Roots Only (hide subdomain rows, show just the root domains) --
+    if filter_roots_only:
+        query = query.where(Target.domain.in_(unique_roots_list))
 
     # Calculate offset
 
@@ -1286,19 +1386,6 @@ async def view_target_table(
         
         table_rows.append(row_data)
 
-    # -- Extract Unique Root Domains for Filter --
-    # Optimization: If list is huge, this might be slow. 
-    # Query all domains ONLY if we need to populate the filter?
-    # Let's do a lightweight query for all domains to build the dropdown. (Tenant Scoped)
-    all_domains = session.exec(select(Target.domain).where(Target.tenant_id == user.tenant_id)).all()
-    unique_roots = set()
-    for d in all_domains:
-        ext = tldextract.extract(d)
-        if ext.domain and ext.suffix:
-            unique_roots.add(f"{ext.domain}.{ext.suffix}")
-    
-    unique_roots_list = sorted(list(unique_roots))
-
     return templates.TemplateResponse("target_table.html", {
         "user": user,
         "request": request, 
@@ -1319,6 +1406,7 @@ async def view_target_table(
         
         "filter_scope": filter_scope,
         "filter_root_domain": filter_root_domain,
+        "filter_roots_only": filter_roots_only,
         "unique_root_domains": unique_roots_list,
         
         "limit": limit,

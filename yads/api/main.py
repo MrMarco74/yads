@@ -287,6 +287,59 @@ app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 async def health_check():
     return {"status": "ok"}
 
+
+@app.get("/health/detailed")
+async def health_check_detailed():
+    """
+    Per-subsystem health for external monitoring (#94, Baustein 2 pattern:
+    "test connection, report status" — same idea as integration_health.py,
+    applied to core infra instead of tenant integrations). Unauthenticated,
+    like /health, so it stays usable from an external Prometheus/Grafana probe.
+    """
+    subsystems: dict = {}
+    overall_ok = True
+
+    try:
+        with Session(engine) as s:
+            s.exec(text("SELECT 1"))
+        subsystems["database"] = {"status": "ok"}
+    except Exception as e:
+        subsystems["database"] = {"status": "failed", "error": str(e)}
+        overall_ok = False
+
+    try:
+        redis_client.ping()
+        subsystems["redis"] = {"status": "ok"}
+    except Exception as e:
+        subsystems["redis"] = {"status": "failed", "error": str(e)}
+        overall_ok = False
+
+    try:
+        from yads.worker_core import celery_app
+        conn = celery_app.connection()
+        conn.ensure_connection(max_retries=1)
+        conn.release()
+        subsystems["rabbitmq"] = {"status": "ok"}
+    except Exception as e:
+        subsystems["rabbitmq"] = {"status": "failed", "error": str(e)}
+        overall_ok = False
+
+    try:
+        from yads.models import WorkerNode
+        with Session(engine) as s:
+            active_workers = s.exec(select(func.count()).select_from(WorkerNode).where(WorkerNode.status == "active")).one()
+        subsystems["worker_pool"] = {"status": "ok" if active_workers else "degraded", "active_workers": active_workers}
+        if not active_workers:
+            overall_ok = False
+    except Exception as e:
+        subsystems["worker_pool"] = {"status": "failed", "error": str(e)}
+        overall_ok = False
+
+    return JSONResponse(
+        status_code=200 if overall_ok else 503,
+        content={"status": "ok" if overall_ok else "degraded", "subsystems": subsystems},
+    )
+
 # -- Static & Templates --
 app.mount("/static", StaticFiles(directory="yads/api/static"), name="static")
 from yads.api.templating import templates, csrf_token, csrf_token_value
@@ -453,7 +506,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports, third_party_domains, metadata_leaks, mitre_navigator, nis2_measures, dora_evidence
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
 
@@ -487,6 +540,13 @@ app.include_router(report_builder.router)
 app.include_router(ports.router)
 app.include_router(email_security.router)
 app.include_router(security_findings.router)
+app.include_router(third_party_domains.router)
+app.include_router(third_party_domains.ui_router)
+app.include_router(metadata_leaks.router)
+app.include_router(metadata_leaks.ui_router)
+app.include_router(mitre_navigator.router)
+app.include_router(nis2_measures.router)
+app.include_router(dora_evidence.router)
 app.include_router(changes.router)
 app.include_router(attack_surface.router)
 app.include_router(attack_path.router)

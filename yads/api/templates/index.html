@@ -3,7 +3,22 @@
 {% block content %}
 <div class="space-y-6">
     <script src="/static/vendor/chart.js"></script>
-    
+
+    <!-- Customizable Dashboard Widgets (#44): per-browser show/hide for the
+         three main dashboard sections, persisted in localStorage. -->
+    <div class="flex justify-end">
+        <div class="relative" id="widgetCustomizeWrap">
+            <button onclick="document.getElementById('widgetCustomizeMenu').classList.toggle('hidden')" class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-indigo-600 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                Customize
+            </button>
+            <div id="widgetCustomizeMenu" class="hidden absolute right-0 mt-1 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-20 p-3 space-y-2">
+                <p class="text-xs font-semibold text-slate-400 mb-1">Visible Widgets</p>
+                <div id="widgetToggleList" class="space-y-1.5"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Row -1: System Update Notification -->
     {% if update_info %}
     <div class="bg-indigo-900/40 border border-indigo-500/50 rounded-xl p-4 mb-8 shadow-lg shadow-indigo-500/10 animate-fade-in group">
@@ -27,8 +42,21 @@
     </div>
     {% endif %}
 
+    <!-- MFA-Enforcement-Reminder (#97): nudge tenant admins about users without MFA -->
+    {% if mfa_gap_count and mfa_gap_count > 0 %}
+    <div class="bg-amber-900/30 border border-amber-700/50 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-amber-400 text-lg">🔐</span>
+            <p class="text-sm text-amber-200">
+                <strong>{{ mfa_gap_count }}</strong> user{{ 's' if mfa_gap_count != 1 else '' }} in your tenant {{ 'have' if mfa_gap_count != 1 else 'has' }} not enabled MFA yet.
+            </p>
+        </div>
+        <a href="/users/" class="px-3 py-1.5 text-xs font-medium bg-amber-700/40 hover:bg-amber-700/60 text-amber-100 rounded-lg border border-amber-600/50">Review Users</a>
+    </div>
+    {% endif %}
+
     <!-- Row 0: Critical Attention (Moved to Top) -->
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden mb-8">
+    <div id="widget-critical-attention" data-widget-name="Critical Attention" class="rounded-xl border border-slate-800 bg-slate-900/50 shadow-sm overflow-hidden mb-8">
         <div class="p-4 border-b border-slate-800 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-white flex items-center gap-2">
                 <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -88,10 +116,12 @@
     </div>
 
     <!-- Row 1: Key Metrics (Cockpit Header) -->
+    <div id="widget-key-metrics" data-widget-name="Key Metrics">
     {% include "_dashboard_stats.html" %}
+    </div>
 
     <!-- Row 2: Operational View -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div id="widget-operational-view" data-widget-name="Operational View" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- Left Column: Critical Attention (2/3 width) -->
         <div class="lg:col-span-2 space-y-6">
@@ -296,6 +326,105 @@
             });
         });
         observer.observe(document.getElementById('modal-container'), { childList: true });
+    </script>
+
+    <!-- First-visit onboarding tour (#43) — shown once per browser, a short
+         sequential walkthrough of the UI itself (not scan-config specific,
+         that's onboarding.py's recon-preview flow, item #25). -->
+    <div id="onboarding-tour" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-indigo-700/50 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div id="tour-step-content"></div>
+            <div class="flex items-center justify-between mt-6">
+                <button onclick="skipTour()" class="text-xs text-slate-500 hover:text-slate-300">Skip tour</button>
+                <div class="flex items-center gap-3">
+                    <span id="tour-progress" class="text-xs text-slate-500"></span>
+                    <button onclick="nextTourStep()" id="tour-next-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        const TOUR_STEPS = [
+            { title: 'Welcome to YADS', body: 'This quick tour highlights the four places you\'ll use most. You can restart it anytime with <kbd class="px-1 bg-slate-800 rounded">?</kbd> &rarr; not yet, but skipping is always fine.' },
+            { title: 'Targets', body: 'The sidebar\'s <strong>Recon</strong> section is where you add and scan domains — start here to onboard a new target.' },
+            { title: 'Unified Findings', body: 'Under <strong>Audit &rarr; Core Findings</strong> you\'ll find every security finding across all targets, with triage (ack/snooze/assign) built in.' },
+            { title: 'Command Palette', body: 'Press <kbd class="px-1 bg-slate-800 rounded">Ctrl/Cmd+K</kbd> anywhere to jump to any page or action instantly — faster than clicking through the sidebar.' },
+        ];
+        let step = 0;
+
+        function render() {
+            const s = TOUR_STEPS[step];
+            document.getElementById('tour-step-content').innerHTML =
+                `<h2 class="text-lg font-bold text-white mb-2">${s.title}</h2><p class="text-sm text-slate-400 leading-relaxed">${s.body}</p>`;
+            document.getElementById('tour-progress').textContent = `${step + 1} / ${TOUR_STEPS.length}`;
+            document.getElementById('tour-next-btn').textContent = (step === TOUR_STEPS.length - 1) ? 'Done' : 'Next';
+        }
+
+        window.nextTourStep = function () {
+            step++;
+            if (step >= TOUR_STEPS.length) { endTour(); return; }
+            render();
+        };
+        window.skipTour = window.endTour = function () {
+            document.getElementById('onboarding-tour').classList.add('hidden');
+            try { localStorage.setItem('yads_onboarding_tour_done', '1'); } catch (e) {}
+        };
+
+        try {
+            if (!localStorage.getItem('yads_onboarding_tour_done')) {
+                document.getElementById('onboarding-tour').classList.remove('hidden');
+                render();
+            }
+        } catch (e) {}
+    })();
+    </script>
+
+    <script>
+    (function () {
+        const WIDGET_PREFS_KEY = 'yads_dashboard_widgets';
+        const widgets = Array.from(document.querySelectorAll('[data-widget-name]'));
+
+        function loadPrefs() {
+            try { return JSON.parse(localStorage.getItem(WIDGET_PREFS_KEY) || '{}'); }
+            catch (e) { return {}; }
+        }
+
+        function applyPrefs() {
+            const prefs = loadPrefs();
+            widgets.forEach(w => {
+                w.style.display = (prefs[w.id] === false) ? 'none' : '';
+            });
+        }
+
+        function renderToggleList() {
+            const prefs = loadPrefs();
+            const list = document.getElementById('widgetToggleList');
+            list.innerHTML = widgets.map(w => `
+                <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" data-widget-id="${w.id}" ${prefs[w.id] === false ? '' : 'checked'}
+                           onchange="toggleWidget('${w.id}', this.checked)"
+                           class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0">
+                    ${w.dataset.widgetName}
+                </label>
+            `).join('');
+        }
+
+        window.toggleWidget = function (id, visible) {
+            const prefs = loadPrefs();
+            prefs[id] = visible;
+            localStorage.setItem(WIDGET_PREFS_KEY, JSON.stringify(prefs));
+            applyPrefs();
+        };
+
+        document.addEventListener('click', function (e) {
+            const wrap = document.getElementById('widgetCustomizeWrap');
+            if (wrap && !wrap.contains(e.target)) document.getElementById('widgetCustomizeMenu').classList.add('hidden');
+        });
+
+        applyPrefs();
+        renderToggleList();
+    })();
     </script>
 </div>
 {% endblock %}

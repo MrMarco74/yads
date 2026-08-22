@@ -123,4 +123,44 @@
     </div>
 
 </div>
+
+<!-- Undo-purge toast (#79) — kept outside the auto-refreshed #queue-live-view
+     div so htmx's 5s poll doesn't wipe it before the 60s undo window closes. -->
+<div id="undo-purge-toast"></div>
+<script>
+(function () {
+    var params = new URLSearchParams(window.location.search);
+    var undoBatch = params.get('undo_batch');
+    var msg = params.get('msg');
+    if (!undoBatch && !msg) return;
+
+    var box = document.createElement('div');
+    box.className = 'fixed bottom-6 right-6 z-50 bg-indigo-900/90 border border-indigo-500/50 text-indigo-100 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3';
+    box.innerHTML = '<span>' + (msg || 'Queue Cleared').replace(/\+/g, ' ') + '</span>';
+
+    if (undoBatch) {
+        var btn = document.createElement('button');
+        btn.textContent = 'Undo';
+        btn.className = 'underline font-semibold hover:text-white';
+        btn.onclick = function () {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/queue/undo-purge';
+            var input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'undo_batch'; input.value = undoBatch;
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        };
+        box.appendChild(btn);
+        setTimeout(function () { box.remove(); }, 60000);
+    } else {
+        setTimeout(function () { box.remove(); }, 6000);
+    }
+
+    document.getElementById('undo-purge-toast').appendChild(box);
+    // Clean the URL so a manual refresh doesn't re-show the stale toast.
+    window.history.replaceState({}, '', '/queue');
+})();
+</script>
 {% endblock %}

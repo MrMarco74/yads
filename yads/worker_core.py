@@ -88,6 +88,18 @@ celery_app.conf.beat_schedule = {
         'task': 'yads.worker.check_splunk_hec_health',
         'schedule': 15 * 60.0, # every 15 minutes
     },
+    'cert-expiry-alerts': {
+        'task': 'yads.worker.check_cert_expiry_alerts',
+        'schedule': 24 * 3600.0,
+    },
+    'recurring-report-delivery': {
+        'task': 'yads.worker.send_recurring_reports',
+        'schedule': 24 * 3600.0,
+    },
+    'archived-target-reactivation-check': {
+        'task': 'yads.worker.check_archived_target_reactivation',
+        'schedule': 7 * 24 * 3600.0,  # weekly — DNS-dead targets don't need daily re-checks
+    },
 }
 
 from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked

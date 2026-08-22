@@ -138,13 +138,16 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False, q: s
                 all_open_ports.extend(open_ports)
             
             if res or not for_export:
+                 delta = (data.get("port_delta") or {}) if res else {}
                  rows.append({
                     "target_id": t.id,
                     "domain": t.domain,
                     "ip": ip,
                     "ports": open_ports, # List of ints
                     "ports_str": ", ".join(map(str, open_ports)), # Helper for export
-                    "last_scanned": last_scanned
+                    "last_scanned": last_scanned,
+                    "newly_exposed": delta.get("newly_exposed", []),
+                    "closed_since_last": delta.get("closed_since_last", []),
                 })
     
     # Sort rows: Exposed first, then by domain
@@ -160,7 +163,8 @@ def _get_ports_data(session: Session, user: User, for_export: bool = False, q: s
         "total_tenant_targets": len(targets),
         "exposed_targets": exposed_targets_count,
         "top_port": top_port,
-        "top_ports_list": port_counts.most_common(5)
+        "top_ports_list": port_counts.most_common(5),
+        "newly_exposed_targets": sum(1 for r in rows if r.get("newly_exposed")),
     }
     
     return rows, stats

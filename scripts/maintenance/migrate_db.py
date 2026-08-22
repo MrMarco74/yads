@@ -1139,6 +1139,131 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # ── Welle 0 (2026-08-22): shared infra for the 100-item backlog ────
+
+        # SecurityFinding: triage snooze + real MITRE ATT&CK mapping
+        print(">> Adding snoozed_until/mitre_* columns to securityfinding table...")
+        try:
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS mitre_tactic_id VARCHAR;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS mitre_technique_id VARCHAR;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS mitre_technique_name VARCHAR;'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_securityfinding_mitre_tactic_id ON securityfinding(mitre_tactic_id)'))
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_securityfinding_mitre_technique_id ON securityfinding(mitre_technique_id)'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # TenantApiKey + IntegrationConfig: shared health-check badge columns
+        print(">> Adding health-check columns to tenant_api_key table...")
+        try:
+            conn.execute(text('ALTER TABLE tenant_api_key ADD COLUMN IF NOT EXISTS last_check_at TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE tenant_api_key ADD COLUMN IF NOT EXISTS last_check_status VARCHAR;'))
+            conn.execute(text('ALTER TABLE tenant_api_key ADD COLUMN IF NOT EXISTS last_check_message VARCHAR;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        print(">> Adding health-check columns to integrationconfig table...")
+        try:
+            conn.execute(text('ALTER TABLE integrationconfig ADD COLUMN IF NOT EXISTS last_check_at TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE integrationconfig ADD COLUMN IF NOT EXISTS last_check_status VARCHAR;'))
+            conn.execute(text('ALTER TABLE integrationconfig ADD COLUMN IF NOT EXISTS last_check_message VARCHAR;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # BaselineSnapshot: generic "diff against last time" store
+        print(">> Creating baseline_snapshot table...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS baseline_snapshot (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER REFERENCES tenant(id) ON DELETE CASCADE,
+                    target_id INTEGER REFERENCES target(id) ON DELETE CASCADE,
+                    snapshot_key VARCHAR NOT NULL,
+                    data JSONB DEFAULT '{}'::jsonb,
+                    updated_at TIMESTAMP,
+                    CONSTRAINT uq_baseline_snapshot UNIQUE (tenant_id, target_id, snapshot_key)
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_baseline_snapshot_tenant_id ON baseline_snapshot(tenant_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_baseline_snapshot_target_id ON baseline_snapshot(target_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_baseline_snapshot_snapshot_key ON baseline_snapshot(snapshot_key)"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating baseline_snapshot table: {e}")
+
+        # ── Welle 6 (2026-08-22): NIS2 incident-reporting timer ────────────
+        print(">> Adding NIS2 incident-timer columns to securityfinding table...")
+        try:
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS nis2_marked_at TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS nis2_deadline_24h TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS nis2_deadline_72h TIMESTAMP;'))
+            conn.execute(text('ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS nis2_marked_by VARCHAR;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        # ── Welle 8 (2026-08-22): recurring report delivery ────────────────
+        print(">> Adding review columns to generatedreport table...")
+        try:
+            conn.execute(text('ALTER TABLE generatedreport ADD COLUMN IF NOT EXISTS review_notes TEXT;'))
+            conn.execute(text('ALTER TABLE generatedreport ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR;'))
+            conn.execute(text('ALTER TABLE generatedreport ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        print(">> Adding hide_yads_branding column to tenant table...")
+        try:
+            conn.execute(text('ALTER TABLE tenant ADD COLUMN IF NOT EXISTS hide_yads_branding BOOLEAN DEFAULT FALSE;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
+        print(">> Creating reportsubscription table...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS reportsubscription (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+                    name VARCHAR NOT NULL,
+                    report_type VARCHAR DEFAULT 'executive_summary',
+                    recipients JSONB DEFAULT '[]'::jsonb,
+                    frequency VARCHAR DEFAULT 'weekly',
+                    day_of_week INTEGER DEFAULT 0,
+                    day_of_month INTEGER DEFAULT 1,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    last_sent_at TIMESTAMP,
+                    created_by INTEGER REFERENCES "user"(id),
+                    created_at TIMESTAMP
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reportsubscription_tenant_id ON reportsubscription(tenant_id)"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating reportsubscription table: {e}")
+
+        # ── Cleanup pass (2026-08-22): allow Platform Admins to own API keys ──
+        # apikey.tenant_id was NOT NULL, so a Platform Admin (User.tenant_id=NULL)
+        # could never create their own API key (INSERT violated the constraint).
+        print(">> Relaxing apikey.tenant_id to nullable (Platform Admin keys)...")
+        try:
+            conn.execute(text('ALTER TABLE apikey ALTER COLUMN tenant_id DROP NOT NULL;'))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

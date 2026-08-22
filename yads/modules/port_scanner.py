@@ -128,6 +128,24 @@ class PortScanner(BaseScannerModule):
                 except Exception:
                     pass
 
+        # Attack-surface delta (#24): diff this scan's open ports against the
+        # last-seen set so the ASR/ports view can show "newly exposed" /
+        # "closed since last scan" instead of only a flat snapshot.
+        if target_id:
+            try:
+                from yads.database import engine as _engine
+                from sqlmodel import Session as _Session
+                from yads.core.baseline_diff import diff_against_last
+                port_numbers = [p.get("port") for p in results["open_ports"] if p.get("port")]
+                with _Session(_engine) as _db:
+                    diff = diff_against_last(_db, "open_ports", port_numbers, target_id=target_id)
+                results["port_delta"] = {
+                    "newly_exposed": diff["added"],
+                    "closed_since_last": diff["removed"],
+                }
+            except Exception as e:
+                self.logger.warning(f"Port delta computation failed: {e}")
+
         return results
 
     def _probe_web(self, target: str, port: int) -> Dict[str, Any]:

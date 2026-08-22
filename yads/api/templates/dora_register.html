@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white/90 font-display">DORA ICT Third-Party Register</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                Art. 28–30: register of ICT third-party providers, fed from third-party domains + cloud asset discovery.
+            </p>
+        </div>
+        <a href="/third-party-domains/dora-register/export" class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium rounded-lg border border-slate-700 transition-colors">
+            Export CSV
+        </a>
+    </div>
+
+    {% if concentration %}
+    <div class="bg-amber-900/20 border border-amber-800/50 rounded-lg p-4 space-y-2">
+        <p class="font-medium text-amber-300 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            Concentration Risk
+        </p>
+        {% for c in concentration %}
+        <p class="text-sm text-amber-200/80">
+            <span class="font-mono font-semibold text-white">{{ c.apex }}</span> is referenced by
+            <span class="font-semibold">{{ c.pct }}%</span> of targets with any third-party dependency ({{ c.target_count }} target(s)).
+        </p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-950/50 text-xs uppercase font-semibold text-slate-500">
+                    <tr>
+                        <th class="px-6 py-4">Provider</th>
+                        <th class="px-6 py-4">Category</th>
+                        <th class="px-6 py-4">Affected Targets</th>
+                        <th class="px-6 py-4 text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/50">
+                    {% for row in register %}
+                    <tr class="hover:bg-slate-800/30">
+                        <td class="px-6 py-3 font-mono text-slate-200">{{ row.provider }}</td>
+                        <td class="px-6 py-3 text-xs">{{ row.category }}</td>
+                        <td class="px-6 py-3 text-xs">{{ row.affected_targets[:3]|join(', ') }}{% if row.affected_targets|length > 3 %} +{{ row.affected_targets|length - 3 }} more{% endif %}</td>
+                        <td class="px-6 py-3 text-right font-semibold text-slate-200">{{ row.target_count }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="px-6 py-16 text-center text-slate-500">No ICT third-party providers found yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

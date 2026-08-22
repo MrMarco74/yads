@@ -115,6 +115,7 @@ async def update_tenant_settings(
     report_secondary_color: Optional[str] = Form(None),
     report_header_text: Optional[str] = Form(None),
     report_footer_text: Optional[str] = Form(None),
+    hide_yads_branding: Optional[str] = Form(None),
     # LLM Settings
     llm_provider: Optional[str] = Form(None),
     llm_api_url: Optional[str] = Form(None),
@@ -215,6 +216,7 @@ async def update_tenant_settings(
     tenant.report_secondary_color = report_secondary_color if report_secondary_color and report_secondary_color.strip() else "#64748b"
     tenant.report_header_text = report_header_text if report_header_text and report_header_text.strip() else None
     tenant.report_footer_text = report_footer_text if report_footer_text and report_footer_text.strip() else None
+    tenant.hide_yads_branding = bool(hide_yads_branding)
 
     session.add(tenant)
     session.commit()
@@ -727,3 +729,55 @@ async def export_findings_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=findings_export.csv"},
     )
+
+
+# BYOK API-key health check (#19). Real validation for the providers with a
+# cheap, well-known "who am I" endpoint; a generic presence check otherwise
+# (better than nothing, honest about the difference — see status message).
+_KEY_TEST_ENDPOINTS = {
+    "shodan_api_key": "https://api.shodan.io/api-info?key={key}",
+    "virustotal_api_key": "https://www.virustotal.com/api/v3/users/current",
+    "hibp_api_key": "https://haveibeenpwned.com/api/v3/subscription/status",
+}
+
+
+@router.post("/api-keys/test/{key_name}")
+async def test_api_key(
+    key_name: str,
+    user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
+    session: Session = Depends(get_session),
+):
+    """Test a BYOK key against its provider's API (#19) and persist the
+    result via the shared health-check helper (Baustein 2, Welle 0)."""
+    from yads.models import TenantApiKey
+    from yads.core.integration_health import record_health_check
+
+    row = session.exec(
+        select(TenantApiKey).where(TenantApiKey.tenant_id == user.tenant_id, TenantApiKey.key_name == key_name)
+    ).first()
+    if not row or not row.value:
+        raise HTTPException(status_code=404, detail="Key not configured")
+
+    ok, message = False, "No live test available for this provider — key is present."
+    endpoint = _KEY_TEST_ENDPOINTS.get(key_name)
+    if endpoint:
+        try:
+            import requests
+            headers = {}
+            url = endpoint
+            if key_name == "shodan_api_key":
+                url = endpoint.format(key=row.value)
+            elif key_name == "virustotal_api_key":
+                headers = {"x-apikey": row.value}
+            elif key_name == "hibp_api_key":
+                headers = {"hibp-api-key": row.value}
+            resp = requests.get(url, headers=headers, timeout=10)
+            ok = resp.status_code < 400
+            message = f"HTTP {resp.status_code}" if not ok else "Key is valid"
+        except Exception as e:
+            ok, message = False, f"Request failed: {e}"
+    else:
+        ok = True  # can't verify, don't falsely mark it failed
+
+    record_health_check(session, row, ok, message)
+    return {"key_name": key_name, "status": "ok" if ok else "failed", "message": message}

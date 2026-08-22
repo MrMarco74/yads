@@ -437,6 +437,36 @@
                 {% else %}<p class="text-gray-500 italic text-sm">No data. Run "ASN / IP Range Discovery" scan.</p>{% endif %}
             </div>
 
+            <!-- CREDENTIAL-ATTACK RESILIENCE SCORE (#37) -->
+            {% set car_lsc = login_scanner_result.data if login_scanner_result and login_scanner_result.data else none %}
+            {% set car_pss = password_spray_result.data if password_spray_result and password_spray_result.data else none %}
+            {% if car_lsc or car_pss %}
+            {% set car_score = ((car_lsc.summary.score if car_lsc else 100) + (car_pss.summary.score if car_pss else 100)) // ((1 if car_lsc else 0) + (1 if car_pss else 0)) %}
+            <div class="bg-gray-800/50 border {% if car_score < 50 %}border-red-500/40{% elif car_score < 80 %}border-amber-500/30{% else %}border-emerald-500/20{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Credential-Attack Resilience</h2>
+                        <p class="text-xs text-gray-400">Combined score: login/auth surface (login_scanner) + brute-force/spray surface (password_spray_mapper) — {{ "both scanned" if (car_lsc and car_pss) else "partial data, run both modules for a complete score" }}.</p>
+                    </div>
+                    <div class="text-2xl font-bold {% if car_score < 50 %}text-red-400{% elif car_score < 80 %}text-amber-400{% else %}text-emerald-400{% endif %}">{{ car_score }}<span class="text-sm text-gray-500">/100</span></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-gray-900/40 rounded p-2 flex items-center justify-between">
+                        <span class="text-gray-400">MFA detected</span>
+                        <span class="font-bold {% if car_lsc and car_lsc.summary.has_2fa %}text-emerald-400{% elif car_pss and car_pss.mfa_detected %}text-emerald-400{% else %}text-red-400{% endif %}">
+                            {{ "Yes" if (car_lsc and car_lsc.summary.has_2fa) or (car_pss and car_pss.mfa_detected) else "No" }}
+                        </span>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2 flex items-center justify-between">
+                        <span class="text-gray-400">Exposed admin panel</span>
+                        <span class="font-bold {% if car_lsc and car_lsc.summary.exposed_admin %}text-red-400{% else %}text-emerald-400{% endif %}">
+                            {{ "Yes" if (car_lsc and car_lsc.summary.exposed_admin) else "No" }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- LOGIN & AUTH SURFACE CARD -->
             {% set lsc = login_scanner_result.data if login_scanner_result and login_scanner_result.data else none %}
             <div class="bg-gray-800/50 border {% if lsc and lsc.findings %}border-amber-500/30{% else %}border-sky-500/10{% endif %} rounded-xl p-6 shadow-lg backdrop-blur-sm">

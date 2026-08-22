@@ -22,6 +22,22 @@ router = APIRouter(
 # from fastapi.templating import Jinja2Templates
 from yads.api.templating import templates
 
+def mark_task_cancelled(task_id: str):
+    """
+    Persist cancellation in Redis (independent of Celery's in-memory revoke
+    state) so a redelivered copy of an acks_late task aborts on startup even
+    if it lands on a worker process that never received the revoke broadcast
+    (e.g. a child freshly spawned by --autoscale after the original was
+    SIGTERM'd). See run_all_scans' cancellation check in worker_tasks.py.
+    """
+    if not task_id:
+        return
+    try:
+        redis_client.setex(f"yads:cancelled_task:{task_id}", 3600, "1")
+    except Exception as e:
+        scan_logger.warning(f"Failed to persist cancellation for task {task_id}: {e}")
+
+
 def get_all_tenants():
     from sqlmodel import Session, select
     from yads.database import engine
@@ -345,6 +361,7 @@ async def control_queue(
                 for tasks in list(reserved.values()) + list(active.values()):
                     for task in tasks:
                         # terminate=True sends SIGTERM to the worker subprocess
+                        mark_task_cancelled(task["id"])
                         celery_app.control.revoke(task["id"], terminate=True, signal="SIGTERM")
             except Exception as exc:
                 log.warning(f"[Stop] revoke broadcast failed: {exc}")
@@ -520,6 +537,7 @@ async def cancel_single_task(
             scan_logger.info(f"Removed task {task_id} from Redis queue")
 
         # Always send revoke signal (works for reserved/active, harmless for already-removed)
+        mark_task_cancelled(task_id)
         celery_app.control.revoke(task_id, terminate=True)
         scan_logger.info(f"Revoked task {task_id} (state: {task_state})")
 
@@ -583,18 +601,20 @@ async def purge_queue(
         # - Keep items NOT belonging to this tenant
         # - Remove items belonging to this tenant
         purged_count = 0
-        
+        undo_tasks = []  # Undo window (#79): args of purged-but-not-yet-run tasks
+
         queue_len = r.llen("celery")
         if queue_len > 0:
             # Get all items
             all_items = r.lrange("celery", 0, -1)
             items_to_keep = []
-            
+
             for raw in all_items:
                 try:
                     item_data = json.loads(raw)
                     task_tenant_id = None
-                    
+                    task_args = None
+
                     body_b64 = item_data.get('body')
                     if body_b64:
                         try:
@@ -602,17 +622,23 @@ async def purge_queue(
                             body_json = json.loads(body_str)
                             if isinstance(body_json, list) and len(body_json) > 0:
                                 args = body_json[0]
+                                task_args = args
                                 if len(args) > 3:
                                     task_tenant_id = args[3]
                         except Exception as e:
                             scan_logger.debug(f"Failed to decode body in purge: {e}")
-                    
+
                     # Keep if NOT this tenant's task
                     if task_tenant_id != user.tenant_id:
                         items_to_keep.append(raw)
                     else:
                         purged_count += 1
-                        
+                        if task_args and len(task_args) >= 3:
+                            undo_tasks.append({
+                                "target_id": task_args[0], "domain": task_args[1],
+                                "scan_types": task_args[2], "tenant_id": task_tenant_id,
+                            })
+
                 except Exception as e:
                     scan_logger.debug(f"Error parsing queue item for purge: {e}")
                     # If we can't parse, keep it to be safe
@@ -642,6 +668,7 @@ async def purge_queue(
                         if task_tenant == user.tenant_id:
                             t_id = task.get("id")
                             scan_logger.info(f"Revoking RESERVED task: {t_id}")
+                            mark_task_cancelled(t_id)
                             celery_app.control.revoke(t_id, terminate=True)
                             revoked_count += 1
 
@@ -655,6 +682,7 @@ async def purge_queue(
                         if task_tenant == user.tenant_id:
                             t_id = task.get("id")
                             scan_logger.info(f"Revoking ACTIVE task: {t_id}")
+                            mark_task_cancelled(t_id)
                             celery_app.control.revoke(t_id, terminate=True)
                             revoked_count += 1
         else:
@@ -684,6 +712,17 @@ async def purge_queue(
         session.commit()
         scan_logger.warning(f"Reset {reset_count} zombie targets in DB for tenant {user.tenant_id}.")
 
+        # Cache purged (queued-but-not-started) tasks for the undo window.
+        undo_batch_id = None
+        if undo_tasks:
+            import uuid as _uuid
+            undo_batch_id = _uuid.uuid4().hex[:12]
+            try:
+                r.setex(f"yads:undo_purge:{undo_batch_id}", 60, json.dumps(undo_tasks))
+            except Exception as e:
+                scan_logger.warning(f"Failed to cache purge-undo snapshot: {e}")
+                undo_batch_id = None
+
     except Exception as e:
         scan_logger.error(f"Failed to purge queue: {e}")
         if request.headers.get("HX-Request"):
@@ -702,5 +741,39 @@ async def purge_queue(
             _widget_context(request, session, user, queue_active)
         )
 
-    return RedirectResponse(url="/queue?msg=Queue+Cleared", status_code=303)
+    redirect_url = "/queue?msg=Queue+Cleared"
+    if undo_batch_id:
+        redirect_url += f"&undo_batch={undo_batch_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@router.post("/undo-purge")
+async def undo_purge_queue(
+    user: User = Depends(get_current_user_html),
+    undo_batch: str = Form(...),
+):
+    """Re-dispatches the queued-but-not-yet-started tasks captured by the
+    last purge, within the 60s undo window (#79). Tasks that were already
+    ACTIVE when purged (mid-scan) are not restorable — only the ones that
+    hadn't started yet."""
+    import json
+    key = f"yads:undo_purge:{undo_batch}"
+    raw = redis_client.get(key)
+    if not raw:
+        return RedirectResponse(url="/queue?error=Undo+window+expired", status_code=303)
+
+    tasks = json.loads(raw)
+    requeued = 0
+    celery_app = Celery("yads_undo_purge", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
+    for t in tasks:
+        if t.get("tenant_id") != user.tenant_id:
+            continue
+        celery_app.send_task(
+            "yads.worker.run_all_scans",
+            args=[t["target_id"], t["domain"], t["scan_types"], t["tenant_id"]],
+        )
+        requeued += 1
+    redis_client.delete(key)
+
+    return RedirectResponse(url=f"/queue?msg=Re-queued+{requeued}+task(s)", status_code=303)
 

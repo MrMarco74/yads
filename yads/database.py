@@ -5,8 +5,21 @@ import logging
 from yads.config import settings
 import redis
 
-# engine is a global connection pool
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+# engine is a global connection pool.
+#
+# idle_in_transaction_session_timeout: defends against the recurring
+# "yads.scheduler leaves a session idle in transaction" issue (a SELECT
+# that opens a transaction never gets an explicit commit/rollback if the
+# scheduler thread's process is killed non-gracefully mid-tick). Without
+# this, such a session can sit open indefinitely and block the next
+# container restart's `ALTER TABLE` migrations. Postgres now force-kills
+# any connection idle-in-transaction past 5 minutes, which is far longer
+# than any legitimate transaction in this codebase takes.
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"options": "-c idle_in_transaction_session_timeout=300000"},
+)
 
 # Centralized Redis connection pool
 # decode_responses=True is standard for our usage (HTMX, version strings, logic)
