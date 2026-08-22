@@ -1024,8 +1024,12 @@ async function yadsFetchOllamaModels() {
     statusEl.textContent = 'Fetching models…';
     statusEl.className = 'text-[11px] mt-1 text-gray-400';
     try {
-        var params = new URLSearchParams({ llm_provider: provider, llm_api_url: apiUrl, llm_api_key: apiKey });
-        var res = await fetch('/tenant-settings/llm/ollama-models?' + params.toString());
+        var body = new URLSearchParams({ llm_provider: provider, llm_api_url: apiUrl, llm_api_key: apiKey });
+        var res = await fetch('/tenant-settings/llm/ollama-models', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body,
+        });
         var data = await res.json();
         if (res.ok && data.status === 'ok') {
             datalist.innerHTML = '';

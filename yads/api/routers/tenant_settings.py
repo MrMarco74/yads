@@ -830,11 +830,11 @@ async def test_llm_connection(
         return {"status": "failed", "message": f"Connection failed ({type(e).__name__}) — check provider settings."}
 
 
-@router.get("/llm/ollama-models")
+@router.post("/llm/ollama-models")
 async def list_ollama_models(
-    llm_api_url: str,
-    llm_provider: str = "ollama",
-    llm_api_key: str = "",
+    llm_api_url: str = Form(...),
+    llm_provider: str = Form("ollama"),
+    llm_api_key: str = Form(""),
     user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
 ):
     """
