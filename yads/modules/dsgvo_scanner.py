@@ -142,7 +142,14 @@ GOOGLE_FONTS_PATTERNS = [
 ]
 
 PRIVACY_POLICY_PATTERNS = re.compile(
-    r"(privacy|datenschutz|privatsph[äa]re|cookie.policy|legal.notice|impressum|rechtliches)",
+    r"(privacy|datenschutz|privatsph[äa]re|cookie.policy)",
+    re.IGNORECASE,
+)
+# Impressum/legal-notice is a separate legal requirement from the GDPR privacy
+# notice above (German TMG/DDG §5 vs. GDPR Art. 13/14) -- tracked as its own
+# signal rather than folded into "privacy policy found".
+IMPRESSUM_PATTERNS = re.compile(
+    r"(impressum|legal.notice|rechtliches)",
     re.IGNORECASE,
 )
 
@@ -169,6 +176,8 @@ class DsgvoScanner(BaseScannerModule):
             "google_fonts": False,
             "privacy_policy_found": False,
             "privacy_policy_url": None,
+            "impressum_found": False,
+            "impressum_url": None,
             "findings": [],
             "summary": {
                 "score": 100,
@@ -199,6 +208,11 @@ class DsgvoScanner(BaseScannerModule):
         pp_url = self._find_privacy_policy(html, domain)
         result["privacy_policy_found"] = pp_url is not None
         result["privacy_policy_url"] = pp_url
+
+        # 3b. Impressum / legal notice link (separate legal basis from GDPR privacy policy)
+        imp_url = self._find_impressum(html, domain)
+        result["impressum_found"] = imp_url is not None
+        result["impressum_url"] = imp_url
 
         # 4. Third-party processors
         processors = self._detect_processors(html, html_lower)
@@ -249,6 +263,19 @@ class DsgvoScanner(BaseScannerModule):
                     "publicly accessible privacy notice."
                 ),
                 "category": "no_privacy_policy",
+            })
+
+        if not result["impressum_found"]:
+            result["findings"].append({
+                "severity": "medium",
+                "title": "No Impressum / legal notice found",
+                "detail": (
+                    "No link to an Impressum or legal notice was found on the main "
+                    "page. German TMG/DDG §5 requires a separate legal notice on "
+                    "commercial websites, independent of the GDPR privacy policy "
+                    "requirement above."
+                ),
+                "category": "no_impressum",
             })
 
         if google_fonts:
@@ -330,10 +357,10 @@ class DsgvoScanner(BaseScannerModule):
                     break
         return found
 
-    def _find_privacy_policy(self, html: str, domain: str) -> Optional[str]:
+    def _find_link(self, html: str, domain: str, pattern: "re.Pattern") -> Optional[str]:
         for m in re.finditer(r'href=["\']([^"\']+)["\']', html, re.IGNORECASE):
             href = m.group(1)
-            if PRIVACY_POLICY_PATTERNS.search(href) or PRIVACY_POLICY_PATTERNS.search(
+            if pattern.search(href) or pattern.search(
                 html[max(0, m.start() - 50): m.end() + 100]
             ):
                 if href.startswith("http"):
@@ -341,6 +368,12 @@ class DsgvoScanner(BaseScannerModule):
                 elif href.startswith("/"):
                     return f"https://{domain}{href}"
         return None
+
+    def _find_privacy_policy(self, html: str, domain: str) -> Optional[str]:
+        return self._find_link(html, domain, PRIVACY_POLICY_PATTERNS)
+
+    def _find_impressum(self, html: str, domain: str) -> Optional[str]:
+        return self._find_link(html, domain, IMPRESSUM_PATTERNS)
 
     def _detect_processors(self, html: str, html_lower: str) -> List[str]:
         found: List[str] = []

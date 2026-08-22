@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Dormant Domains</h1>
+            <p class="text-sm text-slate-400">Domains still registered/monitored, but showing no meaningful activity — candidates for review.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/dormant-domains/export/excel" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </a>
+            <a href="/dormant-domains/export/pdf" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="bg-indigo-900/20 border border-indigo-800/50 rounded-lg p-4 flex gap-3">
+        <svg class="w-5 h-5 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <div class="text-sm text-indigo-200/80 space-y-1">
+            <p class="font-medium text-indigo-300">Registered but unused</p>
+            <p>
+                Combines 8 independent signals (no recent changes, no live web service, expiring/expired certs,
+                stale DNS, missing Impressum, never archived by Wayback, no analytics infrastructure, and —
+                if <a href="/integrations" class="underline hover:text-indigo-100">SearXNG is configured</a> —
+                not indexed by search engines) into a weighted dormancy score. Domains scoring high are still
+                claimed/renewed but effectively forgotten — good candidates to review for decommissioning.
+            </p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="rounded-xl border border-indigo-500/50 bg-indigo-900/10 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.dormant_count }}</h4>
+                    <p class="text-xs text-indigo-400 font-medium">Dormant Domains</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.not_yet_analyzed_count }}</h4>
+                    <p class="text-xs text-slate-400 font-medium">Not Yet Analyzed</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                </div>
+                <div>
+                    <h4 class="text-2xl font-bold text-white">{{ stats.total_targets }}</h4>
+                    <p class="text-xs text-slate-400 font-medium">Total Targets</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dormant List -->
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+        <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white">Dormant Candidates</h3>
+            <span class="text-xs text-slate-500">Sorted by dormancy score, highest first.</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="bg-slate-800/50 text-xs uppercase font-medium text-slate-300">
+                    <tr>
+                        <th class="px-6 py-4">Domain</th>
+                        <th class="px-6 py-4">Score</th>
+                        <th class="px-6 py-4">Signals</th>
+                        <th class="px-6 py-4">Last Activity</th>
+                        <th class="px-6 py-4">WHOIS Created</th>
+                        <th class="px-6 py-4">WHOIS Expires</th>
+                        <th class="px-6 py-4">Detected</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for item in items %}
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/targets/{{ item.target_id }}" class="text-white font-medium hover:underline">{{ item.domain }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="bg-slate-700/30 text-slate-200 px-2 py-1 rounded text-xs border border-slate-600/30 font-mono font-medium">{{ item.score }}/13</span>
+                        </td>
+                        <td class="px-6 py-4 text-slate-300">
+                            <div class="flex flex-wrap gap-1">
+                                {% for s in item.signals %}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">{{ s }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-xs font-mono">{{ item.last_activity_at[:10] if item.last_activity_at else '—' }}</td>
+                        <td class="px-6 py-4 text-xs font-mono">{{ item.whois_creation_date[:10] if item.whois_creation_date else '—' }}</td>
+                        <td class="px-6 py-4 text-xs font-mono">{{ item.whois_expiration_date[:10] if item.whois_expiration_date else '—' }}</td>
+                        <td class="px-6 py-4 text-xs font-mono">{{ item.detected_at.strftime('%Y-%m-%d') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                            <div class="flex flex-col items-center">
+                                <svg class="w-12 h-12 mb-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <p class="text-lg text-slate-400">No dormant domains found.</p>
+                                <p class="text-sm">Run the Dormant Domain Detector scan module against your targets to populate this report.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Not Yet Analyzed -->
+    {% if not_yet_analyzed %}
+    <details class="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden">
+        <summary class="p-4 cursor-pointer text-sm font-medium text-slate-400 hover:text-slate-200">
+            {{ stats.not_yet_analyzed_count }} target(s) not yet analyzed — Dormant Domain Detector hasn't run for them yet
+        </summary>
+        <div class="px-4 pb-4 flex flex-wrap gap-2">
+            {% for item in not_yet_analyzed %}
+            <a href="/targets/{{ item.target_id }}" class="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500">{{ item.domain }}</a>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+</div>
+{% endblock %}

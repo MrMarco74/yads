@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import requests
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 logger = logging.getLogger("yads.modules.osint_utils")
 
@@ -644,3 +644,52 @@ class EmailPatternDetector:
             emails.append(email)
 
         return emails
+
+
+def search_searxng(
+    db_session: Session,
+    tenant_id: Optional[int],
+    query: str,
+    http: "RateLimitedClient",
+    max_results: int = 10,
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Query a tenant's configured SearXNG instance (?format=json).
+
+    Returns None if SearXNG isn't configured/active for this tenant --
+    callers must treat None as "not checked", distinct from [] which means
+    "checked, zero results". Never raises; SSRF-validates the stored URL at
+    read time (defense in depth, independent of the save-time check in
+    yads/api/routers/integrations.py) and never follows redirects.
+    """
+    if not tenant_id:
+        return None
+
+    from yads.models import IntegrationConfig
+    from yads.utils.ssrf import validate_integration_url
+
+    ic = db_session.exec(
+        select(IntegrationConfig).where(
+            IntegrationConfig.tenant_id == tenant_id,
+            IntegrationConfig.integration_type == "searxng",
+            IntegrationConfig.is_active == True,
+        )
+    ).first()
+    base_url = ic.config.get("url") if ic else None
+    if not base_url:
+        return None
+
+    try:
+        validate_integration_url(base_url, "url")
+        resp = http.get(
+            "searxng",
+            f"{base_url.rstrip('/')}/search",
+            params={"q": query, "format": "json"},
+            allow_redirects=False,
+        )
+        if resp.status_code != 200:
+            return []
+        return resp.json().get("results", [])[:max_results]
+    except Exception as e:
+        logger.debug(f"SearXNG search failed: {e}")
+        return []

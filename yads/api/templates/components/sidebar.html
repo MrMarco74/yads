@@ -114,7 +114,7 @@
             <p class="flex items-center gap-2 px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-1"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg> AUDIT</p>
             <ul class="space-y-1">
                 <li>
-                    <details class="group" {% if '/security-findings' in request.path or '/tenant-settings/findings' in request.path or '/secrets' in request.path or '/asr' in request.path or '/third-party-domains' in request.path or '/metadata-leaks' in request.path %}open{% endif %}>
+                    <details class="group" {% if '/security-findings' in request.path or '/tenant-settings/findings' in request.path or '/secrets' in request.path or '/asr' in request.path or '/dormant-domains' in request.path or '/third-party-domains' in request.path or '/metadata-leaks' in request.path %}open{% endif %}>
                         <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
                             <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                             <span class="ml-3 text-sm font-medium flex-1">Core Findings</span>
@@ -126,6 +126,7 @@
                             <li><a href="/metadata-leaks/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/metadata-leaks' in request.path %}text-cyan-400 font-semibold{% endif %}">Metadata Leaks</a></li>
                             <li><a href="/secrets" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/secrets' in request.path %}text-cyan-400 font-semibold{% endif %}">Exposed Secrets</a></li>
                             <li><a href="/asr" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/asr' in request.path %}text-cyan-400 font-semibold{% endif %}">Cleanup Recommendations</a></li>
+                            <li><a href="/dormant-domains" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/dormant-domains' in request.path %}text-cyan-400 font-semibold{% endif %}">Dormant Domains</a></li>
                             {% if user and (user.role == 'admin' or user.role == 'tenant_admin') %}
                             <li><a href="/tenant-settings/findings" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/tenant-settings/findings' in request.path %}text-cyan-400 font-semibold{% endif %}">Finding Management</a></li>
                             {% endif %}

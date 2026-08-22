@@ -1453,6 +1453,7 @@ async def view_target_table(
         port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
         nuclei_scan = next((r for r in results if r.module_name == 'nuclei_scanner'), None)
         catchall = next((r for r in results if r.module_name == 'catchall_detector'), None)
+        dormant = next((r for r in results if r.module_name == 'dormant_detector'), None)
         
         # Security Score Calculation
         # Convert results list to dict {module_name: result} for scorer
@@ -1510,6 +1511,8 @@ async def view_target_table(
             "nuclei_stats": nuclei_scan.data.get("stats") if (nuclei_scan and nuclei_scan.data) else None,
             "is_catch_all": catchall.data.get("is_catch_all") if (catchall and catchall.data) else None,
             "catch_all_method": catchall.data.get("detection_method") if (catchall and catchall.data) else None,
+            "is_dormant": dormant.data.get("is_dormant") if (dormant and dormant.data) else None,
+            "dormancy_score": dormant.data.get("dormancy_score") if (dormant and dormant.data) else None,
             "last_scan": results[0].scanned_at if results else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results])),

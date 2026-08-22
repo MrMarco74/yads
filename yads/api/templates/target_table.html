@@ -349,6 +349,7 @@
                             <th class="p-2">Redir</th>
                             <th class="p-2">Wildcard</th>
                             <th class="p-2">Catch-All</th>
+                            <th class="p-2">Dormant</th>
                             <th class="p-2">TLDs</th>
                             <th class="p-2">Status</th>
                             <th class="p-2">Last Scan</th>
@@ -429,6 +430,8 @@
                                 </select>
                             </th>
                             <!-- Catch-All -->
+                            <th class="p-2"></th>
+                            <!-- Dormant -->
                             <th class="p-2"></th>
                             <!-- TLDs -->
                             <th class="p-2"></th>
@@ -674,6 +677,15 @@
                                 {% if row.is_catch_all %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900 text-amber-200" title="{{ row.catch_all_method }}">
                                         Catch-All
+                                    </span>
+                                {% else %}
+                                    <span class="text-slate-600 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-2">
+                                {% if row.is_dormant %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-slate-200" title="Dormancy score: {{ row.dormancy_score }}">
+                                        Dormant
                                     </span>
                                 {% else %}
                                     <span class="text-slate-600 text-xs">-</span>

@@ -178,6 +178,20 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         finding_module=True,
         extractor="generic",
     )),
+    ("dormant_detector", ModuleDef(
+        name="dormant_detector",
+        label="Dormant Domain Detector",
+        label_de="Erkennung inaktiver Domains",
+        category="recon",
+        module_path="yads.modules.dormant_detector:DormantDetectorScanner",
+        worker_note="Analyzing activity signals for dormancy...",
+        requires_http=False,
+        requires_https=False,
+        default_on=True,
+        finding_module=False,
+        passive=True,
+        report_view="/dormant-domains",
+    )),
 
     # ── Web Analysis ───────────────────────────────────────────────────────
     ("web_analyzer", ModuleDef(

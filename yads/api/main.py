@@ -427,7 +427,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports, third_party_domains, metadata_leaks, mitre_navigator, nis2_measures, dora_evidence
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports, third_party_domains, metadata_leaks, mitre_navigator, nis2_measures, dora_evidence, dormant_domains
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
 
@@ -485,6 +485,7 @@ app.include_router(secrets.router)
 app.include_router(tech_drift.router)
 app.include_router(cert_timeline.router)
 app.include_router(asr.router)
+app.include_router(dormant_domains.router)
 app.include_router(cloud_assets.router)
 app.include_router(pqc.router)
 app.include_router(search.router)
@@ -509,6 +510,15 @@ app.include_router(waf_analysis.router)
 
 @app.exception_handler(LoginRequiredException)
 async def login_required_handler(request: Request, exc: LoginRequiredException):
+    # An HTMX request (polling fragments, hx-get/hx-post partial swaps) that
+    # hits this on session expiry must NOT get a normal 3xx -- the browser's
+    # underlying XHR/fetch would just follow it and swap the /login page's
+    # HTML into whatever small target element triggered the request, leaving
+    # the rest of the stale app visible behind it. HX-Redirect is HTMX's
+    # documented mechanism for telling the client to do a full top-level
+    # navigation instead of a partial swap.
+    if request.headers.get("HX-Request") == "true":
+        return Response(status_code=200, headers={"HX-Redirect": "/login"})
     return RedirectResponse(url="/login")
 
 @app.exception_handler(MFARequiredException)

@@ -76,6 +76,48 @@
         </div>
     </div>
 
+    <!-- SearXNG -->
+    <div class="bg-gray-800/50 border border-gray-700/40 rounded-xl mb-4 overflow-hidden">
+        <button onclick="toggle('searxng-body')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-700/20 transition-colors">
+            <div class="flex items-center gap-3">
+                <span class="text-lg">🔎</span>
+                <div class="text-left">
+                    <div class="text-sm font-bold text-white">SearXNG</div>
+                    <div class="text-xs text-gray-400">Self-hosted metasearch — used by recon modules (e.g. Dormant Domain Detector) when configured</div>
+                </div>
+                {% if config_map.get('searxng') and config_map['searxng'].is_active %}
+                <span class="text-[10px] bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">Active</span>
+                {% endif %}
+            </div>
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="searxng-body" class="hidden border-t border-gray-700/40 px-5 py-4">
+            {% set sc = config_map.get('searxng') %}
+            <form action="/integrations/searxng/save" method="POST" class="space-y-3">
+                {{ csrf_token() }}
+
+                <div>
+                    <label class="text-[11px] text-gray-500 uppercase tracking-wider block mb-1">SearXNG URL</label>
+                    <input type="url" name="url" value="{{ sc.config.get('url', '') if sc else '' }}" placeholder="http://searxng.internal:8080"
+                        class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                    <p class="text-[11px] text-gray-500 mt-1">No API key needed for a typical self-hosted instance. Optional — recon modules that can use it (e.g. checking whether a domain is indexed at all) degrade gracefully and skip that signal entirely if this isn't configured.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">Save</button>
+                    {% if sc and sc.is_active %}
+                    <button type="button" onclick="testIntegration('searxng', this)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">Test</button>
+                    <span id="inttest-searxng" class="text-xs self-center"></span>
+                    <form action="/integrations/searxng/disable" method="POST" class="inline">
+                        {{ csrf_token() }}
+
+                        <button type="submit" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">Disable</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- GitHub -->
     <div class="bg-gray-800/50 border border-gray-700/40 rounded-xl mb-4 overflow-hidden">
         <button onclick="toggle('github-body')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-700/20 transition-colors">

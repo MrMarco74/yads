@@ -34,32 +34,14 @@ router = APIRouter()
 
 TIMEOUT = 15
 
-# Cloud metadata endpoints that must never be reachable via admin-supplied URLs
-_BLOCKED_INTEGRATION_HOSTS: frozenset = frozenset({
-    "169.254.169.254",           # AWS / GCP / Azure instance metadata
-    "metadata.google.internal",
-    "169.254.170.2",             # AWS ECS task metadata
-    "100.100.100.200",           # Alibaba Cloud metadata
-})
-
 
 def _validate_integration_url(url: str, field: str = "URL") -> None:
     """Reject non-http(s) schemes and known cloud metadata hosts in integration URLs."""
-    if not url:
-        return
-    from urllib.parse import urlparse
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Integration {field} must use http or https scheme.",
-        )
-    hostname = (parsed.hostname or "").lower()
-    if hostname in _BLOCKED_INTEGRATION_HOSTS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Integration {field} hostname is not allowed: {hostname}",
-        )
+    from yads.utils.ssrf import validate_integration_url
+    try:
+        validate_integration_url(url, field)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 def _probe_url_no_redirect_ssrf(url: str, max_hops: int = 5):
@@ -404,7 +386,7 @@ async def save_integration(
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(["admin", "tenant_admin"])),
 ):
-    valid_types = {"jira", "github", "siem_syslog", "siem_http"}
+    valid_types = {"jira", "github", "siem_syslog", "siem_http", "searxng"}
     if integration_type not in valid_types:
         raise HTTPException(status_code=400, detail="Invalid integration type")
 
@@ -416,6 +398,8 @@ async def save_integration(
         _validate_integration_url(config.get("base_url", ""), "base_url")
     elif integration_type == "siem_http":
         _validate_integration_url(config.get("endpoint", ""), "endpoint")
+    elif integration_type == "searxng":
+        _validate_integration_url(config.get("url", ""), "url")
 
     existing = session.exec(
         select(IntegrationConfig).where(

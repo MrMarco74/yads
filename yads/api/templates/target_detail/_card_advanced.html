@@ -91,6 +91,10 @@
                         <div class="text-gray-500 mt-0.5">Privacy Policy</div>
                     </div>
                     <div class="bg-gray-900/40 rounded p-2">
+                        <div class="{% if dsgvo.impressum_found %}text-emerald-400{% else %}text-red-400{% endif %} font-bold">{% if dsgvo.impressum_found %}✓{% else %}✗{% endif %}</div>
+                        <div class="text-gray-500 mt-0.5">Impressum</div>
+                    </div>
+                    <div class="bg-gray-900/40 rounded p-2">
                         <div class="{% if not dsgvo.google_fonts %}text-emerald-400{% else %}text-amber-400{% endif %} font-bold">{% if not dsgvo.google_fonts %}✓{% else %}⚠{% endif %}</div>
                         <div class="text-gray-500 mt-0.5">Google Fonts</div>
                     </div>

@@ -15,6 +15,27 @@
         document.addEventListener('htmx:afterSwap', function(e) {
             if (window.Alpine) Alpine.initTree(e.detail.elt);
         });
+
+        // Session-expiry full redirect for plain fetch()/XHR calls (the many
+        // manual `fetch('/api/...')` polling/status/test-button calls spread
+        // across templates). HTMX requests are handled server-side via the
+        // HX-Redirect response header instead -- this only covers non-HTMX
+        // fetch() calls, which by default silently follow the server's login
+        // redirect and hand the /login page's HTML back as the "response",
+        // leaving the stale app visible behind whatever small element the
+        // caller swaps that into. Force a real top-level navigation instead.
+        (function() {
+            var _fetch = window.fetch;
+            window.fetch = function() {
+                return _fetch.apply(this, arguments).then(function(res) {
+                    if (res.redirected && new URL(res.url).pathname === '/login') {
+                        window.location.href = res.url;
+                        return new Promise(function() {}); // never resolve -- navigating away
+                    }
+                    return res;
+                });
+            };
+        })();
     </script>
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css" />
     <script src="/static/vendor/leaflet/leaflet.js"></script>
