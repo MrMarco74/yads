@@ -641,6 +641,7 @@ def _perform_bulk_delete_from_db(session: Session, target_ids: List[int]):
     session.execute(text("DELETE FROM scanschedule WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM workertask WHERE target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM securityfinding WHERE target_id = ANY(:ids)"), params)
+    session.execute(text("DELETE FROM baseline_snapshot WHERE target_id = ANY(:ids)"), params)
     session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = ANY(:ids)"), params)
     session.execute(text("DELETE FROM target WHERE id = ANY(:ids)"), params)
 
@@ -941,6 +942,8 @@ async def delete_target(target_id: int, request: Request, session: Session = Dep
     session.exec(text("DELETE FROM remediationtask WHERE target_id = :tid"), p)
     session.exec(text("DELETE FROM scanschedule WHERE target_id = :tid"), p)
     session.exec(text("DELETE FROM workertask WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM securityfinding WHERE target_id = :tid"), p)
+    session.exec(text("DELETE FROM baseline_snapshot WHERE target_id = :tid"), p)
     session.exec(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id = :tid"), p)
 
     session.delete(target)

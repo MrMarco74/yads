@@ -230,10 +230,22 @@ async def delete_tenant(tenant_id: int = Form(...), session: Session = Depends(g
     # 1a. ChangeEvents (sub-dependency of ScanResult)
     session.execute(text("DELETE FROM changeevent WHERE scan_result_id IN (SELECT id FROM scanresult WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid))"), {"tid": tenant_id})
 
-    # 1b. ScanResults & ModuleStates & Schedules
+    # 1b. ScanResults & ModuleStates & Schedules & every other table with a
+    # target_id FK (this list must stay in sync with _perform_bulk_delete_from_db
+    # and delete_target in api/routers/targets.py -- all three drifted apart
+    # before, causing a ForeignKeyViolation 500 whenever a target had rows in
+    # a table missing from whichever list was used)
     session.execute(text("DELETE FROM scanresult WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
     session.execute(text("DELETE FROM modulestate WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
     session.execute(text("DELETE FROM scanschedule WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM osintintelligence WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM compliancetargetstatus WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM httptraffic WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM remediationtask WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM workertask WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM securityfinding WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("DELETE FROM baseline_snapshot WHERE target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
+    session.execute(text("UPDATE discoverycandidate SET source_target_id = NULL WHERE source_target_id IN (SELECT id FROM target WHERE tenant_id = :tid)"), {"tid": tenant_id})
 
     # 1c. Targets
     session.execute(text("DELETE FROM target WHERE tenant_id = :tid"), {"tid": tenant_id})
