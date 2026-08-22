@@ -38,11 +38,11 @@
 ### 7. Passive-Hunter-Phase erweitern 🕸️ ✅ implementiert (Welle 1, 2026-08-22)
 - `discovery_passive_hunters.py`: aktuell SPF-Traversal, Wayback-CDX, VirusTotal-Passive-DNS, SRV, CORS/CSP, Robots/Sitemap, Favicon/Shodan
 - Ergänzen: Certificate-Transparency-Log-Streaming (live statt on-demand crt.sh-Abfrage), DNS-Zone-Transfer-Versuche
-- Umgesetzt: `axfr_zone_transfer()` (Zone-Transfer-Versuch gegen alle NS, read-only) + `ct_log_sans()` (crt.sh SAN-Extraktion inkl. Cross-Domain-Cohosting). "Live" statt on-demand: `run_discovery_scan` diffed CT-SAN-Ergebnisse jetzt gegen `BaselineSnapshot` (Welle 0) — wiederholte/geplante Discovery-Läufe melden nur noch neu hinzugekommene Zertifikate statt der vollen Liste jedes Mal. Verifiziert gegen example.internal (Dev): AXFR korrekt verweigert (0 Kandidaten), CT-SAN-Hunter fehlerfrei durchgelaufen.
+- Umgesetzt: `axfr_zone_transfer()` (Zone-Transfer-Versuch gegen alle NS, read-only) + `ct_log_sans()` (crt.sh SAN-Extraktion inkl. Cross-Domain-Cohosting). "Live" statt on-demand: `run_discovery_scan` diffed CT-SAN-Ergebnisse jetzt gegen `BaselineSnapshot` (Welle 0) — wiederholte/geplante Discovery-Läufe melden nur noch neu hinzugekommene Zertifikate statt der vollen Liste jedes Mal. Verifiziert gegen test-tenant.example (Dev): AXFR korrekt verweigert (0 Kandidaten), CT-SAN-Hunter fehlerfrei durchgelaufen.
 
 ### 8. Discovery-Session parallelisieren ⚡ ✅ analysiert + gefixt (Welle 1, 2026-08-22)
 - `run_discovery_scan` läuft aktuell sequenziell durch die Kandidatenliste (ein Target nach dem anderen, siehe `remaining=N` Logs)
-- Mehrere Kandidaten gleichzeitig verarbeiten → deutlich schnellere Discovery-Sessions bei großen Zielen (z.B. musterbank.* mit hunderten Subdomains)
+- Mehrere Kandidaten gleichzeitig verarbeiten → deutlich schnellere Discovery-Sessions bei großen Zielen (z.B. examplecorp.* mit hunderten Subdomains)
 - Befund: `DiscoveryOrchestrator._dispatch_depth` dispatcht bereits alle Kandidaten einer Tiefe async über `celery_app.send_task` (keine echte Sequenzialität im Code) — der `remaining=N`-Eindruck kam vom tatsächlichen Flaschenhals: `run_discovery_scan` brute-forcte pro dispatchtem Kandidat die **volle** Subdomain-Wordlist (50001 Einträge im Test) über `SubdomainScanner`. Fix: neuer `wordlist_limit`-Parameter auf `SubdomainScanner` + `light_subdomain_scan`-Flag auf `run_all_scans`, von `run_discovery_scan` gesetzt → Wordlist auf 100 Einträge gekappt (CT-Logs laufen unverändert vollständig). Verifiziert: 50001 → 103 Kandidaten pro Discovery-Scan, Laufzeit von ~274s auf <1s für den Wordlist-Teil.
 
 ### 9. Scoring/Dedup vor Auto-Queue 🎯 ✅ implementiert (Welle 1, 2026-08-22)
@@ -54,7 +54,7 @@
 ### 9a. Auto-Refresh auf `/discovery/` fehlt 🔄 ✅ implementiert (Welle 0, 2026-08-22)
 - Seite unter `/discovery/` (discovery_sessions.html) aktualisiert sich nicht automatisch, während eine Session läuft (`remaining=N` zählt im Log runter, UI zeigt das nicht live)
 - HTMX-Polling (`hx-trigger="every Ns"`) o.ä. ergänzen, damit Fortschritt sichtbar ist ohne manuelles Reload
-- Umgesetzt: `#session-list` pollt alle 5s (`hx-get="/discovery" hx-select hx-swap`), nur solange mindestens eine Session `status == running` ist — stoppt sich selbst, sobald abgeschlossen. Verifiziert gegen Tenant FRISCHKORN/example.internal (Dev).
+- Umgesetzt: `#session-list` pollt alle 5s (`hx-get="/discovery" hx-select hx-swap`), nur solange mindestens eine Session `status == running` ist — stoppt sich selbst, sobald abgeschlossen. Verifiziert gegen Tenant FRISCHKORN/test-tenant.example (Dev).
 
 ---
 
@@ -98,7 +98,7 @@
 
 ### 16. Alert-Dedup für Webhooks/Digests 🔔 ✅ implementiert (Welle 4, 2026-08-22)
 - `webhook_service.py` + `send_daily_digests` schicken vermutlich eine Notification pro Finding/Target
-- Bei großen Domain-Estates (z.B. musterbank.* mit hunderten Subdomains) führt das zu Alert-Fatigue
+- Bei großen Domain-Estates (z.B. examplecorp.* mit hunderten Subdomains) führt das zu Alert-Fatigue
 - Umgesetzt: `WebhookService.trigger_event` zählt (tenant, event_type) über ein Redis-Fenster (600s); bis zu 5 Alerts gehen normal raus, danach wird eine einzelne "[Bundled]"-Sammel-Nachricht gesendet und weitere Einzel-Alerts im Fenster unterdrückt. Kein Delay für die ersten Alerts, kein Eingriff in dringende Einzel-Events bei normalem Volumen.
 - Ähnliche Findings über mehrere Targets zu einer Sammel-Notification bündeln
 
@@ -135,7 +135,7 @@
 - Die bestehende "External Links"-Analytics-Seite (`analytics_external_links.html`) liest nur `crawler`- und `dns_scanner`-Daten — `external_resources`-Ergebnisse fließen da nicht ein
 - Neue Seite analog zu External-Links bauen, gespeist aus `external_resources`: sortier-/filterbar nach Trust-Level, Ressourcentyp, Anzahl betroffener Targets
 - Zusatznutzen: DSGVO-Reporting (welche Drittanbieter laden die Seiten der Tenants)
-- Umgesetzt: neuer Router `third_party_domains.py` (+ `third_party_domains.html`), unter "Audit → Core Findings" in die Sidebar verlinkt. Verifiziert gegen example.internal (Dev): Seite lädt, Trust-/Typ-Filter funktionieren, Leerzustand korrekt (Domain lädt keine externen Ressourcen).
+- Umgesetzt: neuer Router `third_party_domains.py` (+ `third_party_domains.html`), unter "Audit → Core Findings" in die Sidebar verlinkt. Verifiziert gegen test-tenant.example (Dev): Seite lädt, Trust-/Typ-Filter funktionieren, Leerzustand korrekt (Domain lädt keine externen Ressourcen).
 
 ---
 
@@ -157,7 +157,7 @@
 - `asr.py` trackt exponierte Ports/Services vermutlich nur als Snapshot
 - "seit letztem Scan geschlossen" / "neu exponiert"-Diff-Ansicht ergänzen
 - Macht Attack-Surface-Wachstum bzw. -Reduktion über Zeit sichtbar
-- Befund: `asr.py` ist tatsächlich das "Cleanup Candidates"-Modul (dead endpoints, expired certs) — Ports/Services werden in `ports.py`/`port_scanner.py`/`nmap_scanner.py` getrackt. Umgesetzt dort: beide Scanner diffen offene Ports via `baseline_diff` (gemeinsamer Snapshot-Key), `ports.py` zeigt neue Spalte "Delta Since Last Scan" (↑ neu exponiert / ↓ geschlossen). Verifiziert gegen example.internal.
+- Befund: `asr.py` ist tatsächlich das "Cleanup Candidates"-Modul (dead endpoints, expired certs) — Ports/Services werden in `ports.py`/`port_scanner.py`/`nmap_scanner.py` getrackt. Umgesetzt dort: beide Scanner diffen offene Ports via `baseline_diff` (gemeinsamer Snapshot-Key), `ports.py` zeigt neue Spalte "Delta Since Last Scan" (↑ neu exponiert / ↓ geschlossen). Verifiziert gegen test-tenant.example.
 
 ### 25. Onboarding mit Recon-Vorschau 🧭 ⏸️ zurückgestellt (Welle 9, 2026-08-22)
 - `onboarding.py`: beim Anlegen eines neuen Tenants/Targets aktuell vermutlich Blanko-Konfiguration
@@ -387,7 +387,7 @@
 ### 63. API-Discovery mit kontinuierlichem Baseline-Diffing 🔄 ✅ implementiert (Welle 9, 2026-08-22)
 - `api_discovery.py` parst Swagger/OpenAPI und probt Pfade nur einmalig pro Scan
 - Baseline speichern und bei Folgescans dagegen diffen — neue/verschwundene Endpoints als eigenes Finding (ergänzt Punkt 26)
-- Umgesetzt: nutzt Baustein 1 (`baseline_diff.py`, Welle 0). `api_discovery.py` diffed entdeckte Endpoints gegen den letzten Snapshot, erzeugt `medium`-Finding bei neuen und `info`-Finding bei verschwundenen Endpoints. `module_registry.py`: `api_discovery` als `finding_module=True` markiert, `security_findings.py` liest den neuen `findings`-Key. Code-Review + Syntax-Check bestanden; Live-Verifikation gegen example.internal an einem transienten Netzwerkfehler im Worker-Container gescheitert ("Network is unreachable" bei direktem `requests.get()`-Test) — keine Codeursache, identisches Pattern an anderer Stelle bereits erfolgreich verifiziert.
+- Umgesetzt: nutzt Baustein 1 (`baseline_diff.py`, Welle 0). `api_discovery.py` diffed entdeckte Endpoints gegen den letzten Snapshot, erzeugt `medium`-Finding bei neuen und `info`-Finding bei verschwundenen Endpoints. `module_registry.py`: `api_discovery` als `finding_module=True` markiert, `security_findings.py` liest den neuen `findings`-Key. Code-Review + Syntax-Check bestanden; Live-Verifikation gegen test-tenant.example an einem transienten Netzwerkfehler im Worker-Container gescheitert ("Network is unreachable" bei direktem `requests.get()`-Test) — keine Codeursache, identisches Pattern an anderer Stelle bereits erfolgreich verifiziert.
 
 ### 64. Changes/Changelog als durchsuchbare Timeline mit Rollback-Vorschau 🕰️ ⏸️ zurückgestellt (Welle 9, 2026-08-22)
 - `changes.py`/`changelog.py` zeigen vermutlich rohe Diffs
@@ -409,7 +409,7 @@
 
 ### 67. E-Mail-Spoofing-Resilience-Score 📧 ✅ bereits vorhanden, jetzt sichtbar (Welle 2, 2026-08-22)
 - SPF/DKIM/DMARC + `email_security_scanner.py`-Einzelbefunde zu einem Gesamt-Score kombinieren
-- Befund: `_compute_score()` berechnete den kombinierten 0-100-Score bereits, er wurde nur nirgends angezeigt (`email_security.py` gab ihn an das Template durch, das Template zeigte ihn nie). Fix: neue "Resilience Score"-Spalte in `email_security.html` (inkl. DKIM-Selector-Count). Verifiziert: example.internal zeigt korrekt 15/100 (SPF `?all`, kein DMARC, kein DKIM).
+- Befund: `_compute_score()` berechnete den kombinierten 0-100-Score bereits, er wurde nur nirgends angezeigt (`email_security.py` gab ihn an das Template durch, das Template zeigte ihn nie). Fix: neue "Resilience Score"-Spalte in `email_security.html` (inkl. DKIM-Selector-Count). Verifiziert: test-tenant.example zeigt korrekt 15/100 (SPF `?all`, kein DMARC, kein DKIM).
 
 ### 68. IPv6-Parity-Check 🌐 ✅ bereits implementiert (verifiziert, Welle 2, 2026-08-22)
 - `ipv6_scanner.py` prüft IPv6-Erreichbarkeit separat; Abgleich mit IPv4-Findings, ob dieselben Schwachstellen auch über IPv6 exponiert sind (oft übersehene Angriffsfläche)
@@ -425,7 +425,7 @@
 
 ### 71. Metadata-Leak-Aggregation über alle Targets 📎 ✅ implementiert (Welle 2, 2026-08-22)
 - `metadata_scanner.py` findet vermutlich EXIF/Dokument-Metadaten pro Dokument; tenant-weit aggregieren ("diese internen Usernamen/Software-Versionen sind über Metadaten geleakt")
-- Umgesetzt: neuer Router `metadata_leaks.py` (+ `metadata_leaks.html`), aggregiert Autoren/Software/interne Pfade über alle Targets, sortiert nach Anzahl betroffener Targets (Wiederholung über mehrere Targets = stärkeres Leak-Signal). In Sidebar verlinkt. Verifiziert gegen example.internal (Dev): Seite lädt, korrekter Leerzustand (keine Dokumente auf dieser Domain gefunden).
+- Umgesetzt: neuer Router `metadata_leaks.py` (+ `metadata_leaks.html`), aggregiert Autoren/Software/interne Pfade über alle Targets, sortiert nach Anzahl betroffener Targets (Wiederholung über mehrere Targets = stärkeres Leak-Signal). In Sidebar verlinkt. Verifiziert gegen test-tenant.example (Dev): Seite lädt, korrekter Leerzustand (keine Dokumente auf dieser Domain gefunden).
 
 ### 72. Wayback-Scanner Secret-Diff 🕸️ ✅ implementiert (Welle 2, 2026-08-22)
 - `wayback_scanner.py` nutzt archive.org; alte, aus dem Web entfernte aber weiterhin in Wayback erreichbare Secrets/Endpoints als eigene Kategorie hervorheben
@@ -453,7 +453,7 @@
 
 ### 77. Mobile-App-Version-Drift-Alert 📦 ✅ implementiert (Welle 10, 2026-08-22)
 - App-Store-Version vs. zuletzt von `mobile_app_discovery.py` gescannte Version — Alert bei Abweichung
-- Umgesetzt: nutzt Baustein 1 (`baseline_diff.py`, Welle 0), analog zum Ports-Delta-Pattern aus #24 — iTunes-App-Versionen werden als `bundle_id@version`-Paare snapshotted; taucht dieselbe App-ID in `added` und `removed` wieder auf, hat sich die Version geändert → `info`-Finding mit Alt-/Neu-Version. Live gegen example.internal zweimal ausgeführt: läuft fehlerfrei durch (0 gefundene Apps für diese Domain → korrekter No-Op, `versioned`-Liste bleibt leer, der Diff-Zweig wird dadurch nicht durchlaufen). Diff-Logik selbst folgt 1:1 dem bereits an anderer Stelle (Ports-Delta, #24) live verifizierten Muster.
+- Umgesetzt: nutzt Baustein 1 (`baseline_diff.py`, Welle 0), analog zum Ports-Delta-Pattern aus #24 — iTunes-App-Versionen werden als `bundle_id@version`-Paare snapshotted; taucht dieselbe App-ID in `added` und `removed` wieder auf, hat sich die Version geändert → `info`-Finding mit Alt-/Neu-Version. Live gegen test-tenant.example zweimal ausgeführt: läuft fehlerfrei durch (0 gefundene Apps für diese Domain → korrekter No-Op, `versioned`-Liste bleibt leer, der Diff-Zweig wird dadurch nicht durchlaufen). Diff-Logik selbst folgt 1:1 dem bereits an anderer Stelle (Ports-Delta, #24) live verifizierten Muster.
 
 ---
 
