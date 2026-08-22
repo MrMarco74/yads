@@ -400,6 +400,87 @@ async def get_osint_analysis(
 
 
 
+def _build_page_classification_prompt(
+    page_title: Optional[str],
+    text_snippet: str,
+    http_status: int,
+    server_header: Optional[str],
+) -> str:
+    return (
+        "You are classifying a scanned web page for a domain-inventory tool. "
+        "Decide whether this page is a real, distinct website, or a generic "
+        "placeholder — a registrar/marketplace parking page (\"domain for sale\"), "
+        "a default web-server splash page, or a catch-all page a hosting "
+        "provider serves for any hostname pointed at it.\n\n"
+        f"HTTP status: {http_status}\n"
+        f"Server header: {server_header or 'unknown'}\n"
+        f"Page title: {page_title or '(none)'}\n"
+        f"Visible text (truncated): {text_snippet[:1500]}\n\n"
+        "Respond with a single valid JSON object, no markdown, no code blocks:\n"
+        "{\n"
+        '  "verdict": "parked" | "catch_all" | "real_site" | "uncertain",\n'
+        '  "confidence": <float 0.0-1.0>,\n'
+        '  "reasoning": "<one short sentence>"\n'
+        "}\n"
+        '"parked" = registrar/marketplace sale page. "catch_all" = generic '
+        'default/placeholder server page not specific to this domain. '
+        '"real_site" = an actual distinct website. "uncertain" = not enough '
+        "signal to tell."
+    )
+
+
+async def get_page_classification(
+    page_title: Optional[str],
+    text_snippet: str,
+    http_status: int,
+    server_header: Optional[str],
+    config: Dict[str, str],
+) -> Optional[Dict[str, Any]]:
+    """
+    Classify a fetched web page as parked/catch-all/real-site/uncertain.
+    Used by the catchall_detector scanner module as an opt-in fallback layer
+    when its free heuristics (signature match, vhost comparison) are
+    inconclusive.
+
+    config keys: LLM_PROVIDER, LLM_API_URL, LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
+
+    Returns a dict with keys: verdict, confidence, reasoning
+    or None if LLM is disabled / fails.
+    """
+    provider = (config.get("LLM_PROVIDER") or "disabled").strip().lower()
+    if provider == "disabled" or not provider:
+        return None
+
+    api_key = config.get("LLM_API_KEY", "")
+    api_url = config.get("LLM_API_URL", "")
+    model = config.get("LLM_MODEL", "") or _DEFAULT_MODELS.get(provider, "")
+    timeout = int(config.get("LLM_TIMEOUT", _DEFAULT_TIMEOUT))
+    prompt = _build_page_classification_prompt(page_title, text_snippet, http_status, server_header)
+
+    try:
+        loop = asyncio.get_event_loop()
+        raw = await loop.run_in_executor(
+            None, _run_sync, provider, api_key, api_url, model, prompt, timeout
+        )
+
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        result = json.loads(raw)
+        if "verdict" not in result:
+            raise ValueError("Missing key in LLM response: verdict")
+        result.setdefault("confidence", None)
+        result.setdefault("reasoning", None)
+        return result
+
+    except Exception as exc:
+        logger.error(f"[LLM PageClassification] Failed ({provider}/{model}): {type(exc).__name__}: {exc}")
+        return None
+
+
 def load_llm_config(session, tenant_id: int = None) -> Dict[str, str]:
     """
     Load LLM config with priority: Tenant fields > global SystemConfig.

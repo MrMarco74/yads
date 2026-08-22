@@ -79,6 +79,11 @@ class Tenant(SQLModel, table=True):
     llm_api_url: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     llm_api_key: Optional[str] = Field(default=None, sa_column=Column(EncryptedString))
     llm_model: Optional[str] = Field(default=None)
+    # Dedicated opt-in for the catchall_detector module's LLM fallback layer —
+    # deliberately separate from llm_provider being configured, since that key
+    # may already be set for report analysis and a tenant might not want it
+    # spent automatically on a per-target scan-time classification call.
+    catchall_llm_fallback_enabled: bool = Field(default=False)
 
     # Target quota
     max_targets: int = Field(default=500)

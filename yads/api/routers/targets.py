@@ -162,7 +162,10 @@ def _get_final_scan_types(selected_types: List[str]) -> List[str]:
     valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
     final = [t for t in selected_types if t in valid_types]
     if "full_scan" in final:
-        return [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
+        # subdomain_scanner: mass-queue risk (unbounded wordlist brute-force).
+        # catchall_detector: extra outbound requests + optional per-call LLM cost.
+        # Both must always be an explicit, individual choice.
+        return [n for n in REGISTRY.keys() if n not in ("subdomain_scanner", "catchall_detector")]
     return final
 
 
@@ -186,6 +189,171 @@ def _queue_single_bulk_target(session: Session, user: User, tid_str: str, scan_t
         return True
     except Exception as e:
         logger.error(f"Failed to queue target {tid_str}: {e}")
+
+
+# -- Criteria-based bulk scan (selects targets server-side, never renders a
+#    full table just so 5000+ checkboxes can be clicked) --
+
+def _build_bulk_criteria_query(
+    session: Session, user: User, *,
+    only_roots: bool = False,
+    online_only: bool = False,
+    scanned_before: Optional[datetime] = None,
+):
+    """
+    Build a Target.id query from the criteria-page's filters (combinable, AND'd
+    together). Deliberately a separate, small helper rather than extracting
+    view_target_table's much larger inline filter chain — that function already
+    covers a dozen+ per-column filters unrelated to this page; duplicating just
+    the two subquery patterns actually needed here (online-status, roots-only)
+    keeps this low-risk to add without touching the existing, working table view.
+    """
+    from sqlmodel import and_
+
+    query = select(Target.id).where(
+        Target.tenant_id == user.tenant_id,
+        Target.is_archived == False,
+    )
+
+    if only_roots:
+        all_domains = session.exec(select(Target.domain).where(Target.tenant_id == user.tenant_id)).all()
+        unique_roots = set()
+        for d in all_domains:
+            ext = _extract_root(d)
+            if ext.domain and ext.suffix:
+                unique_roots.add(f"{ext.domain}.{ext.suffix}")
+        query = query.where(Target.domain.in_(sorted(unique_roots)))
+
+    if online_only:
+        # Same "online" definition as view_target_table's filter_online == "online".
+        online_criteria = or_(
+            and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
+            and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0")),
+            and_(ScanResult.module_name == 'port_scanner', text("data->>'is_active' = 'true'")),
+        )
+        sub_online = select(ScanResult.target_id).where(online_criteria).distinct()
+        query = query.where(Target.id.in_(sub_online))
+
+    if scanned_before is not None:
+        # "Last scanned before <date>, or never scanned" -- same never-scanned
+        # bucket semantics as view_target_table's filter_last_scan == "never".
+        sub_recent = select(ScanResult.target_id).where(ScanResult.scanned_at >= scanned_before).distinct()
+        query = query.where(Target.id.notin_(sub_recent))
+
+    return query
+
+
+def _get_scan_dates_for_tenant(session: Session, user: User, limit: int = 60) -> List[datetime]:
+    """Distinct days (most recent first) any target of this tenant was scanned."""
+    target_ids_sub = select(Target.id).where(Target.tenant_id == user.tenant_id)
+    day_col = func.date_trunc("day", ScanResult.scanned_at)
+    rows = session.exec(
+        select(day_col)
+        .where(ScanResult.target_id.in_(target_ids_sub))
+        .distinct()
+        .order_by(day_col.desc())
+        .limit(limit)
+    ).all()
+    return rows
+
+
+def _parse_bulk_criteria(only_roots: bool, online_only: bool, scanned_before: Optional[str]):
+    """Parse the criteria-page's raw query/form params into typed values."""
+    cutoff = None
+    if scanned_before:
+        try:
+            cutoff = datetime.fromisoformat(scanned_before)
+        except ValueError:
+            cutoff = None
+    return bool(only_roots), bool(online_only), cutoff
+
+
+@router.get("/targets/bulk-scan", response_class=HTMLResponse)
+async def view_bulk_scan_by_criteria(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Pick scan types once, then a target-selection criterion (all / root-domains
+    -only / online-only / last-scanned-before-date, combinable) -- resolved to a
+    target-ID list server-side, so this page never has to render a 5000+ row table
+    just so its targets can be selected."""
+    scan_dates = _get_scan_dates_for_tenant(session, user)
+    return templates.TemplateResponse("bulk_scan_by_criteria.html", {
+        "request": request,
+        "user": user,
+        "scan_categories": _get_scan_categories_for_user(session, user, "bc"),
+        "unavailable_modules": get_unavailable_modules(),
+        "degraded_modules": get_degraded_modules(),
+        "scan_dates": scan_dates,
+    })
+
+
+@router.get("/targets/bulk-scan/preview-count")
+async def preview_bulk_scan_count(
+    only_roots: bool = False,
+    online_only: bool = False,
+    scanned_before: Optional[str] = None,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    """Live count of targets matching the current criteria -- COUNT-only, never
+    fetches rows, so it stays cheap even at 5000+ targets."""
+    only_roots, online_only, cutoff = _parse_bulk_criteria(only_roots, online_only, scanned_before)
+    query = _build_bulk_criteria_query(session, user, only_roots=only_roots, online_only=online_only, scanned_before=cutoff)
+    count = session.exec(select(func.count()).select_from(query.subquery())).one()
+    return JSONResponse({"count": count})
+
+
+@router.post("/targets/bulk-scan", response_class=HTMLResponse)
+async def submit_bulk_scan_by_criteria(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"])),
+):
+    form = await request.form()
+    scan_types = form.getlist("scan_types")
+    only_roots = form.get("only_roots") == "true"
+    online_only = form.get("online_only") == "true"
+    scanned_before = form.get("scanned_before") or None
+
+    final_types = _get_final_scan_types(scan_types)
+    if not final_types:
+        return RedirectResponse(url="/targets/table?msg=Error:+No+valid+scan+types+selected", status_code=303)
+
+    only_roots, online_only, cutoff = _parse_bulk_criteria(only_roots, online_only, scanned_before)
+    query = _build_bulk_criteria_query(session, user, only_roots=only_roots, online_only=online_only, scanned_before=cutoff)
+    matched_ids = session.exec(query).all()
+
+    # Same soft cap as the checkbox-based bulk toolbar (bulk_scan_targets) --
+    # never flood the broker with thousands of tasks from a single click.
+    already_active = 0
+    if user.tenant_id:
+        already_active = session.exec(
+            select(func.count(Target.id)).where(
+                Target.tenant_id == user.tenant_id,
+                Target.scan_status.in_(["queued", "running"])
+            )
+        ).first() or 0
+    max_new = max(0, 50 - already_active) if user.tenant_id else len(matched_ids)
+
+    count = 0
+    for tid in matched_ids:
+        if count >= max_new:
+            break
+        if _queue_single_bulk_target(session, user, str(tid), final_types):
+            count += 1
+
+    session.commit()
+    _audit_scan_trigger(session, user, [str(t) for t in matched_ids[:50]], final_types, "bulk_scan_by_criteria", request)
+
+    deferred = len(matched_ids) - count
+    msg_parts = [f"Queued {count} scans"]
+    if deferred > 0:
+        msg_parts.append(f"{deferred} deferred (queue cap, {already_active + count}/50 active)")
+    msg = ", ".join(msg_parts).replace(" ", "+")
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
 
 @router.post("/targets/import", response_class=HTMLResponse)
 async def bulk_import_targets(
@@ -577,9 +745,10 @@ async def trigger_scan(target_id: int, request: Request, session: Session = Depe
     selected_types = [t for t in scan_types if t in valid_types]
 
     if "full_scan" in selected_types:
-        # Expand to all modules EXCEPT subdomain_scanner — it triggers
-        # mass auto-queuing of subdomains and must always be an explicit choice.
-        selected_types = [n for n in REGISTRY.keys() if n != "subdomain_scanner"]
+        # Expand to all modules EXCEPT subdomain_scanner (mass auto-queuing of
+        # subdomains) and catchall_detector (extra requests + optional per-call
+        # LLM cost) — both must always be an explicit, individual choice.
+        selected_types = [n for n in REGISTRY.keys() if n not in ("subdomain_scanner", "catchall_detector")]
     
     if not selected_types:
         msg = "Error: No valid scan types selected."
@@ -1283,6 +1452,7 @@ async def view_target_table(
         tld_scan = next((r for r in results if r.module_name == 'tld_scanner'), None)
         port_scan = next((r for r in results if r.module_name == 'port_scanner'), None)
         nuclei_scan = next((r for r in results if r.module_name == 'nuclei_scanner'), None)
+        catchall = next((r for r in results if r.module_name == 'catchall_detector'), None)
         
         # Security Score Calculation
         # Convert results list to dict {module_name: result} for scorer
@@ -1338,6 +1508,8 @@ async def view_target_table(
             "tld_stats": tld_scan.data if (tld_scan and tld_scan.data) else None,
             "port_scan": port_scan.data if (port_scan and port_scan.data) else None,
             "nuclei_stats": nuclei_scan.data.get("stats") if (nuclei_scan and nuclei_scan.data) else None,
+            "is_catch_all": catchall.data.get("is_catch_all") if (catchall and catchall.data) else None,
+            "catch_all_method": catchall.data.get("detection_method") if (catchall and catchall.data) else None,
             "last_scan": results[0].scanned_at if results else None,
             "last_scan": results[0].scanned_at if results else None,
             "modules": list(set([r.module_name for r in results])),

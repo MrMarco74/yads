@@ -25,6 +25,10 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Export Excel
              </a>
+             <a href="/targets/bulk-scan" title="Scan by criteria (all / root-domains-only / online-only / last-scanned-before) without loading the full table — for large target sets" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2 px-4 rounded-lg border border-slate-700 transition-colors flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                Bulk Scan by Criteria
+             </a>
              <button type="submit" form="bulk-form" class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg border border-slate-600 shadow-md transition-all flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 Scan Selected
@@ -241,9 +245,10 @@
                                     {% for mod in cat.modules %}
                                     {% set _unavail = mod.name in unavailable_modules %}
                                     {% set _degraded = mod.name in degraded_modules %}
-                                    {% set _explicit_only = mod.name == 'subdomain_scanner' %}
+                                    {% set _explicit_only = mod.name in ('subdomain_scanner', 'catchall_detector') %}
+                                    {% set _explicit_only_reason = "brute-forces a 50k wordlist" if mod.name == 'subdomain_scanner' else "extra requests + optional per-call LLM cost" %}
                                     <label class="flex items-center gap-1.5 px-1 py-0.5 {% if _unavail %}opacity-40 cursor-not-allowed{% else %}hover:bg-slate-800 cursor-pointer{% endif %} rounded"
-                                        {% if _unavail %}title="{{ mod.requires_binary }} not installed — run: apt-get install {{ mod.requires_binary }}"{% elif _degraded %}title="{{ mod.degraded_without_binary }} not installed — running in socket fallback mode (limited)"{% elif _explicit_only %}title="Not included by category select-all or Full Scan — brute-forces a 50k wordlist, must be checked individually"{% endif %}>
+                                        {% if _unavail %}title="{{ mod.requires_binary }} not installed — run: apt-get install {{ mod.requires_binary }}"{% elif _degraded %}title="{{ mod.degraded_without_binary }} not installed — running in socket fallback mode (limited)"{% elif _explicit_only %}title="Not included by category select-all or Full Scan — {{ _explicit_only_reason }}, must be checked individually"{% endif %}>
                                         <input type="checkbox" name="scan_types" value="{{ mod.name }}"
                                             {% if not _unavail and (mod.name in selected_scan_types or mod.default_on) %}checked{% endif %}
                                             {% if _unavail %}disabled{% endif %}
@@ -343,6 +348,7 @@
                             <th class="p-2">HTTPS</th>
                             <th class="p-2">Redir</th>
                             <th class="p-2">Wildcard</th>
+                            <th class="p-2">Catch-All</th>
                             <th class="p-2">TLDs</th>
                             <th class="p-2">Status</th>
                             <th class="p-2">Last Scan</th>
@@ -422,6 +428,8 @@
                                     <option value="no" {% if filter_wildcard == 'no' %}selected{% endif %}>No</option>
                                 </select>
                             </th>
+                            <!-- Catch-All -->
+                            <th class="p-2"></th>
                             <!-- TLDs -->
                             <th class="p-2"></th>
                             <!-- Status -->
@@ -657,6 +665,15 @@
                                 {% if row.wildcard_detected %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-900 text-purple-200">
                                         Wildcard
+                                    </span>
+                                {% else %}
+                                    <span class="text-slate-600 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-2">
+                                {% if row.is_catch_all %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900 text-amber-200" title="{{ row.catch_all_method }}">
+                                        Catch-All
                                     </span>
                                 {% else %}
                                     <span class="text-slate-600 text-xs">-</span>

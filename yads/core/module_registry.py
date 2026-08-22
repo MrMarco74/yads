@@ -262,6 +262,18 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         finding_module=True,
         extractor="security_txt",
     )),
+    ("catchall_detector", ModuleDef(
+        name="catchall_detector",
+        label="Catch-All Page Detector",
+        label_de="Catch-All-Seiten-Erkennung",
+        category="web",
+        module_path="yads.modules.catchall_detector:CatchallDetectorScanner",
+        worker_note="Checking for parked/catch-all landing page...",
+        requires_http=True,
+        default_on=False,      # explicit opt-in — extra requests + optional LLM cost
+        finding_module=False,  # recon/triage signal, not a vulnerability
+        passive=True,
+    )),
     ("cert_mismatch", ModuleDef(
         name="cert_mismatch",
         label="Cert Mismatch",

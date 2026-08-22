@@ -601,6 +601,14 @@
                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 font-mono"
                                    placeholder="e.g. llama3.2 / gpt-4o-mini / claude-haiku-4-5-20251001">
                         </div>
+                        <div class="mt-4 flex items-center gap-3">
+                            <input type="checkbox" name="catchall_llm_fallback_enabled" id="catchall_llm_fallback_enabled" value="1" {% if tenant.catchall_llm_fallback_enabled %}checked{% endif %}
+                                   class="w-4 h-4 rounded bg-gray-900 border-gray-700 text-cyan-500 focus:ring-0">
+                            <label for="catchall_llm_fallback_enabled" class="text-xs text-gray-300">
+                                Use LLM to classify ambiguous catch-all/parked pages during scans
+                                <span class="block text-[10px] text-gray-500">Separate from the provider config above being set — this specifically allows the Catch-All Page Detector module to spend an LLM call (and OSINT-style quota is NOT used here; this can run per-target on every scan) when its free heuristics are inconclusive. Leave off to keep that module fully free/heuristic-only.</span>
+                            </label>
+                        </div>
                     </div>
 
                 </div><!-- /tab reports -->

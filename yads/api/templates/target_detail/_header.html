@@ -258,15 +258,17 @@
                                     {% for mod in cat.modules %}
                                     {% set _unavail = mod.name in unavailable_modules %}
                                     {% set _degraded = mod.name in degraded_modules %}
+                                    {% set _explicit_only = mod.name in ('subdomain_scanner', 'catchall_detector') %}
+                                    {% set _explicit_only_reason = "brute-forces a 50k wordlist" if mod.name == 'subdomain_scanner' else "extra requests + optional per-call LLM cost" %}
                                     <label class="flex items-center gap-1.5 px-1 py-0.5 {% if _unavail %}opacity-40 cursor-not-allowed{% else %}hover:bg-gray-700/30 cursor-pointer{% endif %} rounded"
-                                        {% if _unavail %}title="{{ mod.requires_binary }} not installed — run: apt-get install {{ mod.requires_binary }}"{% elif _degraded %}title="{{ mod.degraded_without_binary }} not installed — running in socket fallback mode (limited)"{% endif %}>
+                                        {% if _unavail %}title="{{ mod.requires_binary }} not installed — run: apt-get install {{ mod.requires_binary }}"{% elif _degraded %}title="{{ mod.degraded_without_binary }} not installed — running in socket fallback mode (limited)"{% elif _explicit_only %}title="Not included by category select-all or Full Scan — {{ _explicit_only_reason }}, must be checked individually"{% endif %}>
                                         <input type="checkbox" name="scan_types" value="{{ mod.name }}"
                                             {% if mod.default_on and not _unavail %}checked{% endif %}
                                             {% if _unavail %}disabled{% endif %}
-                                            data-group="{{ cat.group_id }}" data-passive="{{ 'true' if mod.passive else 'false' }}"
+                                            {% if not _explicit_only %}data-group="{{ cat.group_id }}"{% endif %} data-passive="{{ 'true' if mod.passive else 'false' }}"
                                             onchange="yadsScanUpdateGroup('{{ cat.group_id }}')"
                                             class="rounded bg-gray-900 border-gray-600 {{ _cc.input }} focus:ring-0 w-3 h-3 flex-shrink-0">
-                                        <span class="text-xs {% if _unavail %}text-gray-500{% else %}text-gray-300{% endif %} flex-1">{{ mod.label }}</span>
+                                        <span class="text-xs {% if _unavail %}text-gray-500{% else %}text-gray-300{% endif %} flex-1">{{ mod.label }}{% if _explicit_only %} <span class="text-[9px] text-gray-500">(manual only)</span>{% endif %}</span>
                                         {% if _unavail %}
                                         <span class="text-[9px] px-1 py-px rounded bg-gray-800 text-gray-500 border border-gray-700 flex-shrink-0">not installed</span>
                                         {% elif _degraded %}

@@ -121,6 +121,7 @@ async def update_tenant_settings(
     llm_api_url: Optional[str] = Form(None),
     llm_api_key: Optional[str] = Form(None),
     llm_model: Optional[str] = Form(None),
+    catchall_llm_fallback_enabled: Optional[str] = Form(None),
     # SLA Settings (same Optional[str]-not-int reasoning as session_timeout_minutes above)
     sla_critical: Optional[str] = Form(None),
     sla_high: Optional[str] = Form(None),
@@ -200,6 +201,7 @@ async def update_tenant_settings(
     tenant.llm_api_url = llm_api_url if llm_api_url and llm_api_url.strip() else None
     tenant.llm_api_key = llm_api_key if llm_api_key and llm_api_key.strip() else None
     tenant.llm_model = llm_model if llm_model and llm_model.strip() else None
+    tenant.catchall_llm_fallback_enabled = bool(catchall_llm_fallback_enabled)
 
     # Finding SLA
     if sla_critical is not None: tenant.sla_critical = sla_critical

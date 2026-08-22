@@ -1264,6 +1264,15 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        # ── catchall_detector LLM fallback opt-in (dedicated tenant toggle) ──
+        print(">> Adding tenant.catchall_llm_fallback_enabled column...")
+        try:
+            conn.execute(text("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS catchall_llm_fallback_enabled BOOLEAN DEFAULT FALSE;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Skipped/Error: {e}")
+
         print("\nMigration Complete!")
 
 

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6 max-w-3xl">
+    <div>
+        <h1 class="text-3xl font-bold text-white">Bulk Scan by Criteria</h1>
+        <p class="text-slate-400 text-sm">
+            Pick scan types, then a target-selection criterion — the server resolves this
+            to a target list itself, without ever rendering a full table. Use this instead
+            of selecting all rows on <a href="/targets/table" class="text-indigo-400 hover:underline">Target Overview</a>
+            when working with a large domain set.
+        </p>
+    </div>
+
+    <form method="POST" action="/targets/bulk-scan" id="bulk-criteria-form" class="space-y-6">
+        {{ csrf_token() }}
+
+        <div class="bg-slate-900 border border-slate-700 rounded-lg p-4">
+            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider mb-3">1. Scan Types</h2>
+            {% include "_scan_type_selector.html" %}
+        </div>
+
+        <div class="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-3">
+            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider mb-1">2. Target Selection</h2>
+            <p class="text-xs text-slate-500 mb-2">Leave everything unchecked to target all (non-archived) targets. Checked criteria combine (AND).</p>
+
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="hidden" name="only_roots" value="false">
+                <input type="checkbox" id="only_roots" onchange="document.querySelector('input[name=only_roots]').value = this.checked" class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                <span class="text-sm text-slate-200">Only root domains <span class="text-slate-500 text-xs">(hide subdomain rows)</span></span>
+            </label>
+
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="hidden" name="online_only" value="false">
+                <input type="checkbox" id="online_only" onchange="document.querySelector('input[name=online_only]').value = this.checked" class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                <span class="text-sm text-slate-200">Online only</span>
+            </label>
+
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="use_scanned_before" onchange="document.getElementById('scanned_before_select').disabled = !this.checked" class="rounded bg-slate-950 border-slate-600 text-indigo-500 focus:ring-0 w-3.5 h-3.5">
+                <label for="use_scanned_before" class="text-sm text-slate-200">Last scanned before</label>
+                <select name="scanned_before" id="scanned_before_select" disabled
+                        class="bg-slate-950 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:border-indigo-500">
+                    <option value="">Select a date…</option>
+                    {% for d in scan_dates %}
+                    <option value="{{ d.isoformat() }}">{{ d.strftime('%Y-%m-%d') }}</option>
+                    {% endfor %}
+                </select>
+                <span class="text-slate-500 text-xs">(includes targets never scanned)</span>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-700 rounded-lg p-4 flex items-center justify-between">
+            <div class="text-sm text-slate-300">
+                Matches: <span id="preview-count" class="font-bold text-white">—</span> targets
+            </div>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                Queue Scans
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function(){
+    var form = document.getElementById('bulk-criteria-form');
+    var countEl = document.getElementById('preview-count');
+    var timer = null;
+
+    function refreshCount() {
+        var params = new URLSearchParams();
+        params.set('only_roots', document.getElementById('only_roots').checked);
+        params.set('online_only', document.getElementById('online_only').checked);
+        var useScannedBefore = document.getElementById('use_scanned_before').checked;
+        var scannedBeforeVal = document.getElementById('scanned_before_select').value;
+        if (useScannedBefore && scannedBeforeVal) {
+            params.set('scanned_before', scannedBeforeVal);
+        }
+        countEl.textContent = '…';
+        fetch('/targets/bulk-scan/preview-count?' + params.toString())
+            .then(function(r){ return r.json(); })
+            .then(function(d){ countEl.textContent = d.count; })
+            .catch(function(){ countEl.textContent = '?'; });
+    }
+
+    function scheduleRefresh() {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(refreshCount, 150);
+    }
+
+    ['only_roots', 'online_only', 'use_scanned_before', 'scanned_before_select'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', scheduleRefresh);
+    });
+
+    refreshCount();
+})();
+</script>
+{% endblock %}
