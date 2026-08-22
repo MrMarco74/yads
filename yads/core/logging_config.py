@@ -3,10 +3,20 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
+import urllib3
+
 def configure_logging(service_name: str):
     """
     Configures logging to write to console and a shared file.
     """
+    # Recon/scanner modules intentionally use verify=False (targets are
+    # arbitrary external hosts, often with self-signed/expired/misconfigured
+    # certs -- that's exactly what's being scanned for). Only a handful of
+    # modules called urllib3.disable_warnings() individually, so every other
+    # verify=False request flooded the logs with a multi-line
+    # InsecureRequestWarning per call. Suppress it once, process-wide, here
+    # instead of requiring every module to remember to do it locally.
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     log_dir = os.getenv("LOG_DIR", "logs")
     os.makedirs(log_dir, exist_ok=True)
     # Use service name for distinct log files to avoid locking issues
