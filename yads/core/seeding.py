@@ -67872,6 +67872,21 @@ def seed_changelog():
             )
             session.add(entry_260)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "2.6.1").first():
+            entry_261 = ChangelogEntry(
+                title="YADS v2.6.1: Extension Hub Fix",
+                version="2.6.1",
+                content="""
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Patch</span>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed the Extension Hub catalog's "Installieren" button — it opened a blank manual-upload dialog instead of installing the module, so a not-yet-installed addon could not be added without already having its ZIP file. It now installs directly from the catalog, same as the existing update flow.</li>
+                    <li>Fixed a missing dependency that could crash the API container's startup on a fresh build.</li>
+                </ul>
+                """
+            )
+            session.add(entry_261)
+
 
 
 
