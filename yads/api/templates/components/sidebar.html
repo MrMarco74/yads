@@ -41,6 +41,7 @@
                         <ul class="pl-9 mt-1 space-y-1">
                             <li><a href="/discovery" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/discovery' in request.path and 'blocklist' not in request.path %}text-cyan-400 font-semibold{% endif %}">Discovery Core</a></li>
                             <li><a href="/targets/table" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/targets/table' in request.path %}text-cyan-400 font-semibold{% endif %}">Manage Targets</a></li>
+                            <li><a href="/targets/bulk-scan" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/targets/bulk-scan' in request.path %}text-cyan-400 font-semibold{% endif %}">Bulk Scan by Criteria</a></li>
                             <li><a href="/attack-surface/" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/attack-surface' in request.path %}text-cyan-400 font-semibold{% endif %}">Attack Surface</a></li>
                             <li><a href="/cloud-assets" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/cloud-assets' in request.path %}text-cyan-400 font-semibold{% endif %}">Cloud Assets</a></li>
                             <li><a href="/osint" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/osint' in request.path %}text-cyan-400 font-semibold{% endif %}">OSINT & Brand</a></li>
