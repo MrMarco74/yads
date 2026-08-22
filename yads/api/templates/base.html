@@ -28,7 +28,11 @@
             var _fetch = window.fetch;
             window.fetch = function() {
                 return _fetch.apply(this, arguments).then(function(res) {
-                    if (res.redirected && new URL(res.url).pathname === '/login') {
+                    // Guard against a redirect ping-pong: if we're already on
+                    // /login (e.g. an unguarded background poll fired there),
+                    // don't force another navigation to the page we're on.
+                    if (res.redirected && new URL(res.url).pathname === '/login'
+                        && window.location.pathname !== '/login') {
                         window.location.href = res.url;
                         return new Promise(function() {}); // never resolve -- navigating away
                     }

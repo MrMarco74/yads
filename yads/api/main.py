@@ -518,6 +518,14 @@ async def login_required_handler(request: Request, exc: LoginRequiredException):
     # documented mechanism for telling the client to do a full top-level
     # navigation instead of a partial swap.
     if request.headers.get("HX-Request") == "true":
+        # Guard against a redirect ping-pong: if the browser is already on
+        # /login (e.g. an unguarded background poll fired there, or the
+        # user is mid-navigation), don't tell it to navigate to /login
+        # again -- htmx sends the current URL on every request via
+        # HX-Current-URL, so this is reliable without needing session state.
+        current_url = request.headers.get("HX-Current-URL", "")
+        if current_url and current_url.rstrip("/").endswith("/login"):
+            return Response(status_code=204)
         return Response(status_code=200, headers={"HX-Redirect": "/login"})
     return RedirectResponse(url="/login")
 
