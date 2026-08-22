@@ -37,6 +37,7 @@ pyotp
 
 # Misc
 markdown
+bleach
 croniter==6.0.0
 
 # Metrics & system monitoring
