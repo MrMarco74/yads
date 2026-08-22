@@ -1,4 +1,4 @@
-# YADS (Yet Another Domain Scanner) — v1.20.0
+# YADS (Yet Another Domain Scanner) — v1.27.0
 
 YADS is a powerful, automated domain intelligence and security scanner. It aggregates data from multiple sources to provide a comprehensive view of a target domain's attack surface, with AI-powered analysis, attack path visualization, and full vulnerability lifecycle management.
 
@@ -23,17 +23,15 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 *   **Reporting**: Export full audit reports as PDF with cover page, chapter intros, and AI executive summary.
 *   **Disaster Recovery**: Built-in Backup & Restore functionality (encrypted, password-protected).
 
-## 🆕 What's New in v1.20.0
+## 🆕 What's New in v1.27.0
 
-*   **AI Assistant** — Finding prioritization, remediation steps, and NL search via OpenAI/Anthropic (BYOK). Rule-based fallbacks for all three features. Full DE/EN multilanguage output.
-*   **Attack Path Visualizer** — D3.js force-directed graph mapping exploitation chains per target.
-*   **Executive Report (C-Level)** — Non-technical security dashboard with grade, trend, KPIs, and recommended actions.
-*   **Finding Management** — Lifecycle tracking (Open/Acknowledged/False Positive/Fixed), analyst notes, CSV export.
-*   **Asset Tagging UI** — Tag cloud, bulk operations, inline editing, central tag management.
-*   **Portfolio View** — Cross-tenant security overview for platform administrators.
-*   **Extended Cloud Scanner** — DigitalOcean Spaces (NYC3/AMS3), Cloudflare R2, Shadow IT detection across 8 PaaS platforms.
-*   **Multilanguage Exports** — PDF and Excel with `?lang=de` support for full German output.
-*   **Parallel Scan Execution** — ThreadPoolExecutor with up to 6 concurrent modules per scan.
+*   **Recon Correlation** — Third-party domain risk aggregation, attack-surface delta views (newly opened/closed ports), WAF-bypass verification against real findings, Whois × DNS ownership-change detection, and baseline diffing for API/mobile-app discovery.
+*   **Compliance Suite** — Real Finding → MITRE ATT&CK mapping with an interactive Navigator heatmap, a NIS2 Article 21 measures dashboard, NIS2 24h/72h incident-reporting timers, and a DORA ICT third-party register with resilience-testing evidence export.
+*   **Notifications, Triage & UX** — Finding triage workflow (acknowledge/snooze/assign/ticket), an undo window for destructive actions, global search, command palette, saved filter views, bulk actions, and an onboarding tour.
+*   **Reporting & Platform Ops** — CSV/JSON/SARIF export, recurring report delivery, MSSP white-labeling, Mean-Time-To-Remediate (MTTR) tracking, and a detailed `/health` endpoint for external monitoring.
+*   **Security Hardening** — Closed an IDOR on finding-status endpoints, an SSRF gap in integration health checks, and a reflected XSS vector in search; replaced a regex-based HTML sanitizer with a proper HTML parser in the report generator.
+
+See the [full release notes](https://github.com/MrMarco74/yads/releases/tag/v1.27.0) for the complete list of ~90 changes.
 
 ## 🚀 Quick Start & Installation
 
@@ -45,8 +43,8 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
     known-working combination (see a release's notes for the full compatible tag list):
 
     ```bash
-    git clone --branch v1.20.0 https://github.com/MrMarco74/yads.git
-    git clone --branch v1.20.0 https://github.com/MrMarco74/yads-infra.git
+    git clone --branch v1.27.0 https://github.com/MrMarco74/yads.git
+    git clone --branch v1.27.0 https://github.com/MrMarco74/yads-infra.git
     cd yads-infra
     docker compose up -d
     ```
@@ -91,9 +89,9 @@ YADS is a powerful, automated domain intelligence and security scanner. It aggre
 
 | Version | Status | Highlights |
 |---------|--------|------------|
-| **v1.19.x** | ✅ Shipped | AI Risk Analysis, ZIP Export, Executive PDF with Cover Page |
-| **v1.20.0** | ✅ Current | AI Intelligence Suite, Attack Path Visualizer, Finding Management, Portfolio View, Asset Tagging, Parallel Scans |
-| **v1.21.x** | 🔄 Planned | ServiceNow Integration, Cortex XSOAR, Proxy Support (Zscaler) |
+| **v1.20.0** | ✅ Shipped | AI Intelligence Suite, Attack Path Visualizer, Finding Management, Portfolio View, Asset Tagging, Parallel Scans |
+| **v1.21.x – v1.26.x** | ✅ Shipped | Splunk/SIEM integration suite, distributed workers, custom module system, module signing, NIS2/DORA compliance groundwork |
+| **v1.27.0** | ✅ Current | Recon correlation, MITRE ATT&CK mapping, NIS2/DORA compliance suite, finding triage, MTTR tracking, security hardening pass |
 | **v2.0** | 💡 Vision | Mobile App, Advanced SOAR Playbooks, ML-based Anomaly Detection |
 
 ## License
