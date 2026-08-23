@@ -46,6 +46,7 @@ jobs:
             exit 1
           fi
           echo "tag=$RAW_TAG" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -64,6 +65,7 @@ jobs:
           push: true
           build-args: |
             YADS_GIT_SHA=${{ github.sha }}
+            YADS_BUILD_TIME=${{ steps.version.outputs.build_time }}
           tags: |
             ghcr.io/mrmarco74/yads-${{ matrix.target }}:${{ steps.version.outputs.tag }}
             ghcr.io/mrmarco74/yads-${{ matrix.target }}:latest
