@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_, and_, text
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from yads.database import get_session
@@ -370,8 +371,29 @@ async def confirm_shadow_domain(
     else:
         new_target = Target(domain=candidate.discovered_domain, tenant_id=tenant_id)
         session.add(new_target)
-        session.commit()
-        session.refresh(new_target)
+        try:
+            session.commit()
+        except IntegrityError:
+            # Lost a race: another request inserted this exact domain between
+            # our check above and this insert. Re-fetch and handle it exactly
+            # like the existing_target branch above, rather than 500ing.
+            session.rollback()
+            new_target = session.exec(
+                select(Target).where(Target.domain == candidate.discovered_domain)
+            ).first()
+            if new_target is None:
+                return HTMLResponse(
+                    "<p class=\"text-red-400\">Could not confirm this domain due to a conflicting update. Please retry.</p>",
+                    status_code=409,
+                )
+            if new_target.tenant_id != tenant_id:
+                return HTMLResponse(
+                    "<p class=\"text-red-400\">This domain is already tracked as a target by another tenant "
+                    "and cannot be confirmed here. Please investigate before proceeding.</p>",
+                    status_code=409,
+                )
+        else:
+            session.refresh(new_target)
 
     candidate.status = "confirmed"
     candidate.resolved_target_id = new_target.id

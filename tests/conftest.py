@@ -115,5 +115,16 @@ def test_tenant(db_session):
     db_session.commit()
     db_session.refresh(tenant)
     yield tenant
+
+    # On a genuinely fresh test DB (first run against a new container), this
+    # branch actually executes -- on a reused persistent container, "Test
+    # Tenant" already exists and the early return above skips teardown
+    # entirely, which is why this FK issue can stay latent for a long time.
+    # Various tests write SecurityAuditLog rows referencing this tenant_id
+    # (e.g. run_brand_watch_scan's audit log, _audit_scan_trigger); clean
+    # those up first so the Tenant delete doesn't fail on the FK.
+    from yads.models import SecurityAuditLog
+    db_session.query(SecurityAuditLog).filter(SecurityAuditLog.tenant_id == tenant.id).delete()
+    db_session.commit()
     db_session.delete(tenant)
     db_session.commit()

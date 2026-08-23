@@ -98,32 +98,40 @@ class TestWizardStep1:
         target = db_session.exec(
             select(Target).where(Target.tenant_id == test_tenant.id)
         ).first()
+        created_target = None
         if not target:
             target = Target(domain="wizard-step1-test.example.com", tenant_id=test_tenant.id)
             db_session.add(target)
             db_session.commit()
             db_session.refresh(target)
+            created_target = target
 
-        r = admin_client.post(
-            "/compliance-wizard/start",
-            data={"criteria": "all"},
-            follow_redirects=True,
-        )
-        assert r.status_code == 200
+        run = None
+        try:
+            r = admin_client.post(
+                "/compliance-wizard/start",
+                data={"criteria": "all"},
+                follow_redirects=True,
+            )
+            assert r.status_code == 200
 
-        run = db_session.exec(
-            select(ComplianceScanRun)
-            .where(ComplianceScanRun.tenant_id == test_tenant.id)
-            .order_by(ComplianceScanRun.id.desc())
-        ).first()
-        assert run is not None
-        assert run.current_step == 2
-        assert run.targets_total >= 1
-        assert target.id in run.target_ids
-        assert run.created_by_user_id is not None  # finding #4: must be populated
-
-        db_session.delete(run)
-        db_session.commit()
+            run = db_session.exec(
+                select(ComplianceScanRun)
+                .where(ComplianceScanRun.tenant_id == test_tenant.id)
+                .order_by(ComplianceScanRun.id.desc())
+            ).first()
+            assert run is not None
+            assert run.current_step == 2
+            assert run.targets_total >= 1
+            assert target.id in run.target_ids
+            assert run.created_by_user_id is not None  # finding #4: must be populated
+        finally:
+            if run:
+                db_session.delete(run)
+                db_session.commit()
+            if created_target:
+                db_session.delete(created_target)
+                db_session.commit()
 
     def test_effective_tenant_id_ambiguous_with_multiple_tenants(self, admin_client, db_session):
         """When a platform admin (user.tenant_id is None) has no unambiguous
@@ -177,15 +185,16 @@ class TestWizardStep2:
         db_session.commit()
         db_session.refresh(run)
 
-        r = admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
-        assert r.status_code < 500
+        try:
+            r = admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
+            assert r.status_code < 500
 
-        db_session.refresh(run)
-        assert run.current_step == 3
-
-        db_session.delete(run)
-        db_session.delete(target)
-        db_session.commit()
+            db_session.refresh(run)
+            assert run.current_step == 3
+        finally:
+            db_session.delete(run)
+            db_session.delete(target)
+            db_session.commit()
 
 
 @pytest.mark.compliance_wizard
@@ -687,4 +696,194 @@ class TestTriage:
             db_session.delete(candidate)
             db_session.commit()
             db_session.delete(watch)
+            db_session.commit()
+
+    def test_confirm_toctou_race_handled_gracefully(self, app, admin_client, test_tenant, db_session, monkeypatch):
+        """Between confirm_shadow_domain's existing_target check and its own
+        Target insert, a concurrent request can win the race and insert the
+        same domain for a DIFFERENT tenant first -- Target.domain's unique
+        constraint then makes our insert raise IntegrityError. This must be
+        caught and handled (re-fetch + correct-tenant-check), not crash."""
+        from yads.database import get_session, engine
+        from yads.models import Tenant, Target, BrandWatch, ShadowDomainCandidate
+        from yads.api.routers import compliance_wizard as cw_module
+        from sqlmodel import Session as SQLModelSession, select
+        from sqlalchemy.exc import IntegrityError
+
+        other_tenant = Tenant(name="TOCTOU Race Test Other Tenant")
+        db_session.add(other_tenant)
+        db_session.commit()
+        db_session.refresh(other_tenant)
+
+        # Pin tenant resolution deterministically: with a second Tenant row
+        # now present, admin's own single-tenant auto-resolve fallback would
+        # become ambiguous (returns None) -- not what this test is about.
+        monkeypatch.setattr(cw_module, "_effective_tenant_id", lambda session, user: test_tenant.id)
+
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        db_session.add(watch)
+        db_session.commit()
+        db_session.refresh(watch)
+
+        domain = "musterbank-toctou-race-test.example.net"
+        candidate = ShadowDomainCandidate(
+            brand_watch_id=watch.id, tenant_id=test_tenant.id,
+            discovered_domain=domain, source="ct_log",
+        )
+        db_session.add(candidate)
+        db_session.commit()
+        db_session.refresh(candidate)
+
+        # Override the request-scoped session with one whose first commit()
+        # simulates losing the race: a separate connection inserts the same
+        # domain for `other_tenant` right then, and this commit fails exactly
+        # like Postgres's real unique-constraint violation would.
+        def flaky_get_session():
+            with SQLModelSession(engine) as session:
+                original_commit = session.commit
+                state = {"raised": False}
+
+                def commit_once_failing():
+                    if not state["raised"]:
+                        state["raised"] = True
+                        with SQLModelSession(engine) as other:
+                            other.add(Target(domain=domain, tenant_id=other_tenant.id))
+                            other.commit()
+                        raise IntegrityError("INSERT", {}, Exception(
+                            "duplicate key value violates unique constraint"
+                        ))
+                    return original_commit()
+
+                session.commit = commit_once_failing
+                yield session
+
+        app.dependency_overrides[get_session] = flaky_get_session
+        try:
+            r = admin_client.post(f"/compliance-wizard/shadow-domains/{candidate.id}/confirm", follow_redirects=True)
+        finally:
+            del app.dependency_overrides[get_session]
+
+        try:
+            assert r.status_code < 500
+            assert r.status_code == 409
+
+            db_session.refresh(candidate)
+            assert candidate.status == "new"
+            assert candidate.resolved_target_id is None
+
+            targets_with_domain = db_session.exec(select(Target).where(Target.domain == domain)).all()
+            assert len(targets_with_domain) == 1
+            assert targets_with_domain[0].tenant_id == other_tenant.id
+        finally:
+            db_session.delete(candidate)
+            db_session.commit()
+            db_session.delete(watch)
+            for t in db_session.exec(select(Target).where(Target.domain == domain)).all():
+                db_session.delete(t)
+            db_session.commit()
+            db_session.delete(other_tenant)
+            db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestAuditLogTenantResolution:
+    """_audit_scan_trigger reads user.tenant_id directly, which is None for
+    a platform admin -- exactly the case _effective_tenant_id exists to
+    resolve. start_run/dispatch_step2/dispatch_step3 must pass a
+    tenant-resolved stand-in, not the raw user, so the DORA audit trail
+    never carries a NULL tenant_id for these events."""
+
+    def test_wizard_dispatch_audit_logs_have_resolved_tenant_id(self, app, admin_client, test_tenant, db_session, monkeypatch):
+        from yads.models import SecurityAuditLog, Target, ComplianceScanRun, ScanResult
+        from yads.api.routers import compliance_wizard as cw_module
+        from sqlmodel import select
+
+        # Pin tenant resolution deterministically regardless of how many
+        # Tenant rows exist in the shared test DB at this point.
+        monkeypatch.setattr(cw_module, "_effective_tenant_id", lambda session, user: test_tenant.id)
+
+        target = Target(domain="audit-tenant-resolution-test.example.com", tenant_id=test_tenant.id)
+        db_session.add(target)
+        db_session.commit()
+        db_session.refresh(target)
+
+        run = None
+        try:
+            r = admin_client.post("/compliance-wizard/start", data={"criteria": "all"}, follow_redirects=True)
+            assert r.status_code == 200
+
+            run = db_session.exec(
+                select(ComplianceScanRun).where(ComplianceScanRun.tenant_id == test_tenant.id)
+                .order_by(ComplianceScanRun.id.desc())
+            ).first()
+            assert run is not None
+
+            r2 = admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
+            assert r2.status_code == 200
+
+            # _audit_scan_trigger always writes event_type="scan_triggered";
+            # the specific action lives in details["trigger"].
+            entries = db_session.exec(
+                select(SecurityAuditLog)
+                .where(SecurityAuditLog.event_type == "scan_triggered")
+                .order_by(SecurityAuditLog.id.desc())
+            ).all()
+            by_trigger = {}
+            for e in entries:
+                trigger = (e.details or {}).get("trigger")
+                if trigger in ("compliance_wizard_start", "compliance_wizard_step2") and trigger not in by_trigger:
+                    by_trigger[trigger] = e
+
+            assert "compliance_wizard_start" in by_trigger
+            assert by_trigger["compliance_wizard_start"].tenant_id == test_tenant.id
+            assert by_trigger["compliance_wizard_start"].tenant_id is not None
+
+            assert "compliance_wizard_step2" in by_trigger
+            assert by_trigger["compliance_wizard_step2"].tenant_id == test_tenant.id
+            assert by_trigger["compliance_wizard_step2"].tenant_id is not None
+        finally:
+            if run:
+                db_session.query(ScanResult).filter(ScanResult.target_id == target.id).delete()
+                db_session.delete(run)
+            db_session.delete(target)
+            db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestBrandWatchScanErrorIsolation:
+    """run_brand_watch_scan's per-watch loop must isolate failures: one
+    watch raising must not abort processing of the remaining watches in the
+    same run (or lose their last_run_at update)."""
+
+    def test_one_watch_failure_does_not_abort_others(self, monkeypatch, db_session, test_tenant):
+        from yads import worker_tasks
+        from yads.models import BrandWatch
+        from sqlmodel import select
+
+        failing_watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank-error-isolation-failing")
+        ok_watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank-error-isolation-ok")
+        db_session.add(failing_watch)
+        db_session.add(ok_watch)
+        db_session.commit()
+        db_session.refresh(failing_watch)
+        db_session.refresh(ok_watch)
+
+        def raising_ct_search(keyword):
+            if keyword == failing_watch.keyword:
+                raise RuntimeError("simulated failure while processing this watch")
+            return []
+
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", raising_ct_search)
+        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: [])
+
+        try:
+            worker_tasks.run_brand_watch_scan()  # must not raise/propagate
+
+            db_session.refresh(failing_watch)
+            db_session.refresh(ok_watch)
+            assert failing_watch.last_run_at is None, "failing watch's own processing should have rolled back"
+            assert ok_watch.last_run_at is not None, "the OTHER watch must still be processed despite the failure"
+        finally:
+            db_session.delete(failing_watch)
+            db_session.delete(ok_watch)
             db_session.commit()
