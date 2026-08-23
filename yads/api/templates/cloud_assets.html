@@ -225,7 +225,7 @@
                         <td class="px-4 py-4">
                             {% set item_data = {"domain": item.domain, "bucket_name": item.bucket_name, "target_id": item.target_id, "provider": item.provider, "url": item.url} %}
                             <div class="flex items-center gap-1.5" id="actions-{{ item.finding_hash }}"
-                                 data-item="{{ item_data | tojson | e }}"
+                                 data-item='{{ item_data | tojson }}'
                                  data-hash="{{ item.finding_hash }}"
                                  data-triage="{{ item.triage_status }}">
                                 {% if item.triage_status != "acknowledged" %}
