@@ -127,8 +127,14 @@ def _check_uribl(domain: str) -> bool:
     """DNS-based blacklist check via URIBL."""
     try:
         check = URIBL_DNS.format(domain=domain)
-        socket.getaddrinfo(check, None)
-        return True  # Listed
+        results = socket.getaddrinfo(check, None)
+        # A real URIBL listing always resolves to a 127.0.0.0/8 loopback
+        # address (the specific octet encodes which sub-list matched). Any
+        # other address means the query didn't actually reach URIBL's zone
+        # as expected -- a resolver rewriting NXDOMAIN into a "no results"
+        # page, a search-domain suffix match, or similar -- and must NOT be
+        # treated as a listing, or every scanned domain false-positives.
+        return any(res[4][0].startswith("127.") for res in results)
     except socket.gaierror:
         return False  # Not listed (NXDOMAIN = clean)
     except Exception:
