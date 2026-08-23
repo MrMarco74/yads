@@ -171,6 +171,18 @@
                         </ul>
                     </details>
                 </li>
+                <li>
+                    <details class="group" {% if '/compliance-wizard' in request.path %}open{% endif %}>
+                        <summary class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 cursor-pointer list-none transition-colors">
+                            <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="ml-3 text-sm font-medium flex-1">Compliance</span>
+                            <svg class="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <ul class="pl-9 mt-1 space-y-1">
+                            <li><a href="/compliance-wizard" class="block py-1.5 text-[13px] text-slate-400 hover:text-white {% if '/compliance-wizard' in request.path %}text-cyan-400 font-semibold{% endif %}">Domain Compliance</a></li>
+                        </ul>
+                    </details>
+                </li>
             </ul>
         </div>
 
