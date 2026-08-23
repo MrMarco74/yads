@@ -59,6 +59,49 @@
         </div>
     </div>
 
+    <!-- Finding Detail Modal -->
+    <div id="findingDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-semibold text-white">Finding Details</h2>
+                <div class="flex items-center gap-2">
+                    <span id="fdYfId" class="text-xs font-mono text-indigo-400"></span>
+                    <button onclick="fdCopyId(event)" title="ID kopieren" class="text-slate-500 hover:text-indigo-300 text-xs border border-slate-700 rounded px-1.5 py-0.5">Copy</button>
+                </div>
+            </div>
+            <div class="space-y-3 text-sm">
+                <div>
+                    <span id="fdSeverity" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"></span>
+                    <span id="fdModule" class="ml-2 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded"></span>
+                </div>
+                <p id="fdIssue" class="text-slate-200"></p>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-400">
+                    <div><span class="text-slate-500">Domain:</span> <a id="fdDomainLink" href="#" class="text-indigo-400 hover:text-indigo-300 font-mono"></a></div>
+                    <div><span class="text-slate-500">Status:</span> <span id="fdStatus"></span></div>
+                    <div><span class="text-slate-500">Erstmals gefunden:</span> <span id="fdFirstFound"></span></div>
+                    <div><span class="text-slate-500">Zuletzt gesehen:</span> <span id="fdLastSeen"></span></div>
+                    <div><span class="text-slate-500">Fällig:</span> <span id="fdDueDate"></span></div>
+                    <div><span class="text-slate-500">Wiedereröffnet:</span> <span id="fdReopened"></span>x</div>
+                    <div><span class="text-slate-500">Zuständig:</span> <span id="fdAssigned"></span></div>
+                    <div><span class="text-slate-500">Ticket:</span> <span id="fdTicket"></span></div>
+                </div>
+                <div id="fdNoteWrap" class="hidden">
+                    <span class="text-xs text-slate-500">Notiz:</span>
+                    <p id="fdNote" class="text-xs text-slate-300 italic"></p>
+                </div>
+                <div id="fdMitreWrap" class="hidden">
+                    <span class="text-xs text-slate-500">MITRE ATT&amp;CK:</span>
+                    <p id="fdMitre" class="text-xs text-slate-300 font-mono"></p>
+                </div>
+                <div id="fdNis2Wrap" class="hidden bg-amber-900/20 border border-amber-800/40 rounded-lg px-3 py-2 text-xs text-amber-300"></div>
+            </div>
+            <div class="flex gap-3 mt-5 justify-end">
+                <button onclick="closeFindingDetail()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Schließen</button>
+                <button onclick="fdOpenEdit()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Bearbeiten</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -216,9 +259,30 @@
                         <p class="text-xs text-slate-200">{{ f.issue }}</p>
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                             {% if f.yf_id %}
-                            <button onclick="navigator.clipboard.writeText('{{ f.yf_id }}').then(()=>this.textContent='Copied!').catch(()=>{}); setTimeout(()=>this.textContent='{{ f.yf_id }}',1200)"
+                            <button onclick="openFindingDetail(this)"
+                                    data-yfid="{{ f.yf_id }}"
+                                    data-hash="{{ f.finding_hash }}"
+                                    data-domain="{{ entry.target.domain }}"
+                                    data-target-id="{{ entry.target.id }}"
+                                    data-module="{{ f.module.replace('_scanner','').replace('_',' ') }}"
+                                    data-severity="{{ f.severity }}"
+                                    data-issue="{{ f.issue | e }}"
+                                    data-status="{{ f.status }}"
+                                    data-note="{{ f.status_note | e if f.status_note else '' }}"
+                                    data-first-found="{{ f.first_found or '' }}"
+                                    data-last-seen="{{ f.last_seen or '' }}"
+                                    data-due="{{ f.due_date or '' }}"
+                                    data-reopened="{{ f.reopened_count or 0 }}"
+                                    data-assigned="{{ f.assigned_to | e if f.assigned_to else '' }}"
+                                    data-ticket="{{ f.ticket_ref | e if f.ticket_ref else '' }}"
+                                    data-mitre-tactic="{{ f.mitre_tactic_id or '' }}"
+                                    data-mitre-technique="{{ f.mitre_technique_id or '' }}"
+                                    data-mitre-technique-name="{{ f.mitre_technique_name | e if f.mitre_technique_name else '' }}"
+                                    data-nis2="{{ f.nis2_marked_at or '' }}"
+                                    data-nis2-24h="{{ f.nis2_deadline_24h or '' }}"
+                                    data-nis2-72h="{{ f.nis2_deadline_72h or '' }}"
                                     class="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
-                                    title="Klicken zum Kopieren">{{ f.yf_id }}</button>
+                                    title="Klicken für Details">{{ f.yf_id }}</button>
                             {% endif %}
                             {% if f.first_found %}<span class="text-[10px] text-slate-500">Erstmals: {{ f.first_found.strftime('%Y-%m-%d') if f.first_found.strftime is defined else f.first_found | string | truncate(10, False, '') }}</span>{% endif %}
                             {% if f.last_seen %}<span class="text-[10px] text-slate-500">Zuletzt: {{ f.last_seen.strftime('%Y-%m-%d') if f.last_seen.strftime is defined else f.last_seen | string | truncate(10, False, '') }}</span>{% endif %}
@@ -323,6 +387,84 @@ function openStatusModal(btn) {
 
 function closeStatusModal() {
     document.getElementById('statusModal').classList.add('hidden');
+}
+
+let _fdCurrentBtn = null;
+
+function _fdSeverityClass(sev) {
+    switch (sev) {
+        case 'critical': return 'bg-red-900/60 text-red-200 border border-red-700/50';
+        case 'high': return 'bg-orange-900/60 text-orange-200 border border-orange-700/50';
+        case 'medium': return 'bg-amber-900/60 text-amber-200 border border-amber-700/50';
+        case 'low': return 'bg-blue-900/60 text-blue-200 border border-blue-700/50';
+        default: return 'bg-slate-800 text-slate-400 border border-slate-700';
+    }
+}
+
+function openFindingDetail(btn) {
+    _fdCurrentBtn = btn;
+    const d = btn.dataset;
+    document.getElementById('fdYfId').textContent = d.yfid || '';
+    document.getElementById('fdIssue').textContent = d.issue || '';
+    const sevEl = document.getElementById('fdSeverity');
+    sevEl.textContent = d.severity || '';
+    sevEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ' + _fdSeverityClass(d.severity);
+    document.getElementById('fdModule').textContent = d.module || '';
+    const domainLink = document.getElementById('fdDomainLink');
+    domainLink.textContent = d.domain || '';
+    domainLink.href = d.targetId ? `/targets/${d.targetId}` : '#';
+    document.getElementById('fdStatus').textContent = d.status || '';
+    document.getElementById('fdFirstFound').textContent = d.firstFound || '—';
+    document.getElementById('fdLastSeen').textContent = d.lastSeen || '—';
+    document.getElementById('fdDueDate').textContent = d.due || '—';
+    document.getElementById('fdReopened').textContent = d.reopened || '0';
+    document.getElementById('fdAssigned').textContent = d.assigned || '—';
+    document.getElementById('fdTicket').textContent = d.ticket || '—';
+
+    const noteWrap = document.getElementById('fdNoteWrap');
+    if (d.note) {
+        document.getElementById('fdNote').textContent = d.note;
+        noteWrap.classList.remove('hidden');
+    } else {
+        noteWrap.classList.add('hidden');
+    }
+
+    const mitreWrap = document.getElementById('fdMitreWrap');
+    if (d.mitreTechnique) {
+        document.getElementById('fdMitre').textContent =
+            `${d.mitreTactic || ''} / ${d.mitreTechnique}${d.mitreTechniqueName ? ' — ' + d.mitreTechniqueName : ''}`;
+        mitreWrap.classList.remove('hidden');
+    } else {
+        mitreWrap.classList.add('hidden');
+    }
+
+    const nis2Wrap = document.getElementById('fdNis2Wrap');
+    if (d.nis2) {
+        nis2Wrap.textContent = `NIS2-meldepflichtig markiert: ${d.nis2}. Frist 24h: ${d.nis224h || '—'}, 72h: ${d.nis272h || '—'}`;
+        nis2Wrap.classList.remove('hidden');
+    } else {
+        nis2Wrap.classList.add('hidden');
+    }
+
+    document.getElementById('findingDetailModal').classList.remove('hidden');
+}
+
+function closeFindingDetail() {
+    document.getElementById('findingDetailModal').classList.add('hidden');
+}
+
+function fdCopyId(e) {
+    const id = document.getElementById('fdYfId').textContent;
+    navigator.clipboard.writeText(id).catch(() => {});
+    const btn = (e && e.target) || event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+}
+
+function fdOpenEdit() {
+    closeFindingDetail();
+    if (_fdCurrentBtn) openStatusModal(_fdCurrentBtn);
 }
 
 // Saved Filter Views (#40) — per-browser via localStorage, keyed per page

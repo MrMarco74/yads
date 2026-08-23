@@ -441,6 +441,9 @@ async def security_findings_overview(
                 "nis2_marked_at": sf.nis2_marked_at.isoformat() if sf.nis2_marked_at else "",
                 "nis2_deadline_24h": sf.nis2_deadline_24h.isoformat() if sf.nis2_deadline_24h else "",
                 "nis2_deadline_72h": sf.nis2_deadline_72h.isoformat() if sf.nis2_deadline_72h else "",
+                "mitre_tactic_id": sf.mitre_tactic_id or "",
+                "mitre_technique_id": sf.mitre_technique_id or "",
+                "mitre_technique_name": sf.mitre_technique_name or "",
             })
             mod = rf["module"]
             if mod not in modules_scanned:

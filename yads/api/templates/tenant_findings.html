@@ -72,6 +72,48 @@
     </div>
   </div>
 
+  {# ── Finding Detail Modal ─────────────────────────────────────────────── #}
+  <div id="tfDetailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-white">Finding Details</h2>
+        <div class="flex items-center gap-2">
+          <span id="tfdYfId" class="text-xs font-mono text-indigo-400"></span>
+          <button onclick="tfdCopyId(event)" title="ID kopieren" class="text-slate-500 hover:text-indigo-300 text-xs border border-slate-700 rounded px-1.5 py-0.5">Copy</button>
+        </div>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div>
+          <span id="tfdSeverity" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"></span>
+          <span id="tfdModule" class="ml-2 text-[10px] text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded"></span>
+        </div>
+        <p id="tfdIssue" class="text-slate-200"></p>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-400">
+          <div><span class="text-slate-500">Domain:</span> <a id="tfdDomainLink" href="#" class="text-indigo-400 hover:text-indigo-300 font-mono"></a></div>
+          <div><span class="text-slate-500">Status:</span> <span id="tfdStatus"></span></div>
+          <div><span class="text-slate-500">Erstmals gefunden:</span> <span id="tfdFirstFound"></span></div>
+          <div><span class="text-slate-500">Zuletzt gesehen:</span> <span id="tfdLastSeen"></span></div>
+          <div><span class="text-slate-500">Fällig:</span> <span id="tfdDueDate"></span></div>
+          <div><span class="text-slate-500">Wiedereröffnet:</span> <span id="tfdReopened"></span>x</div>
+          <div><span class="text-slate-500">Zuständig:</span> <span id="tfdAssigned"></span></div>
+          <div><span class="text-slate-500">Ticket:</span> <span id="tfdTicket"></span></div>
+        </div>
+        <div id="tfdNoteWrap" class="hidden">
+          <span class="text-xs text-slate-500">Notiz:</span>
+          <p id="tfdNote" class="text-xs text-slate-300 italic"></p>
+        </div>
+        <div id="tfdMitreWrap" class="hidden">
+          <span class="text-xs text-slate-500">MITRE ATT&amp;CK:</span>
+          <p id="tfdMitre" class="text-xs text-slate-300 font-mono"></p>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5 justify-end">
+        <button onclick="tfdClose()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Schließen</button>
+        <button onclick="tfdOpenEdit()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Bearbeiten</button>
+      </div>
+    </div>
+  </div>
+
   {# ── Bulk-Action Bar (hidden until selection) ────────────────────────── #}
   <div id="tfBulkBar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
     <span id="tfBulkCount" class="text-sm font-medium text-white"></span>
@@ -218,8 +260,26 @@
               <input type="checkbox" class="tf-cb rounded border-slate-600 bg-slate-800 text-indigo-500" value="{{ sf.finding_hash }}" onchange="tfUpdateBulkBar()">
             </td>
             <td class="px-3 py-2">
-              <button onclick="navigator.clipboard.writeText('{{ sf.yf_id }}').then(()=>this.textContent='✓').catch(()=>{}); setTimeout(()=>this.textContent='{{ sf.yf_id }}',1200)"
-                      class="font-mono text-indigo-400 hover:text-indigo-300" title="Kopieren">{{ sf.yf_id }}</button>
+              <button onclick="tfdOpen(this)"
+                      data-yfid="{{ sf.yf_id }}"
+                      data-hash="{{ sf.finding_hash }}"
+                      data-domain="{{ sf.domain }}"
+                      data-target-id="{{ sf.target_id }}"
+                      data-module="{{ sf.module.replace('_scanner','').replace('_',' ') }}"
+                      data-severity="{{ sf.severity }}"
+                      data-issue="{{ sf.issue | e }}"
+                      data-status="{{ sf.status }}"
+                      data-note="{{ sf.status_note | e if sf.status_note else '' }}"
+                      data-first-found="{{ sf.first_found.strftime('%Y-%m-%d') if sf.first_found else '' }}"
+                      data-last-seen="{{ sf.last_seen.strftime('%Y-%m-%d') if sf.last_seen else '' }}"
+                      data-due="{{ sf.due_date.strftime('%Y-%m-%d') if sf.due_date else '' }}"
+                      data-reopened="{{ sf.reopened_count or 0 }}"
+                      data-assigned="{{ sf.assigned_to | e if sf.assigned_to else '' }}"
+                      data-ticket="{{ sf.ticket_ref | e if sf.ticket_ref else '' }}"
+                      data-mitre-tactic="{{ sf.mitre_tactic_id or '' }}"
+                      data-mitre-technique="{{ sf.mitre_technique_id or '' }}"
+                      data-mitre-technique-name="{{ sf.mitre_technique_name | e if sf.mitre_technique_name else '' }}"
+                      class="font-mono text-indigo-400 hover:text-indigo-300" title="Klicken für Details">{{ sf.yf_id }}</button>
             </td>
             <td class="px-3 py-2">
               <a href="/targets/{{ sf.target_id }}" class="text-slate-300 hover:text-indigo-300 font-mono">{{ sf.domain }}</a>
@@ -363,6 +423,80 @@ function tfCloseModal() {
 
 document.getElementById('tfModal').addEventListener('click', function(e) {
   if (e.target === this) tfCloseModal();
+});
+
+let _tfdCurrentBtn = null;
+
+function _tfdSeverityClass(sev) {
+  switch (sev) {
+    case 'critical': return 'bg-red-900/60 text-red-200 border border-red-700/50';
+    case 'high': return 'bg-orange-900/60 text-orange-200 border border-orange-700/50';
+    case 'medium': return 'bg-amber-900/60 text-amber-200 border border-amber-700/50';
+    case 'low': return 'bg-blue-900/60 text-blue-200 border border-blue-700/50';
+    default: return 'bg-slate-800 text-slate-400 border border-slate-700';
+  }
+}
+
+function tfdOpen(btn) {
+  _tfdCurrentBtn = btn;
+  const d = btn.dataset;
+  document.getElementById('tfdYfId').textContent = d.yfid || '';
+  document.getElementById('tfdIssue').textContent = d.issue || '';
+  const sevEl = document.getElementById('tfdSeverity');
+  sevEl.textContent = d.severity || '';
+  sevEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ' + _tfdSeverityClass(d.severity);
+  document.getElementById('tfdModule').textContent = d.module || '';
+  const domainLink = document.getElementById('tfdDomainLink');
+  domainLink.textContent = d.domain || '';
+  domainLink.href = d.targetId ? `/targets/${d.targetId}` : '#';
+  document.getElementById('tfdStatus').textContent = d.status || '';
+  document.getElementById('tfdFirstFound').textContent = d.firstFound || '—';
+  document.getElementById('tfdLastSeen').textContent = d.lastSeen || '—';
+  document.getElementById('tfdDueDate').textContent = d.due || '—';
+  document.getElementById('tfdReopened').textContent = d.reopened || '0';
+  document.getElementById('tfdAssigned').textContent = d.assigned || '—';
+  document.getElementById('tfdTicket').textContent = d.ticket || '—';
+
+  const noteWrap = document.getElementById('tfdNoteWrap');
+  if (d.note) {
+    document.getElementById('tfdNote').textContent = d.note;
+    noteWrap.classList.remove('hidden');
+  } else {
+    noteWrap.classList.add('hidden');
+  }
+
+  const mitreWrap = document.getElementById('tfdMitreWrap');
+  if (d.mitreTechnique) {
+    document.getElementById('tfdMitre').textContent =
+      `${d.mitreTactic || ''} / ${d.mitreTechnique}${d.mitreTechniqueName ? ' — ' + d.mitreTechniqueName : ''}`;
+    mitreWrap.classList.remove('hidden');
+  } else {
+    mitreWrap.classList.add('hidden');
+  }
+
+  document.getElementById('tfDetailModal').classList.remove('hidden');
+}
+
+function tfdClose() {
+  document.getElementById('tfDetailModal').classList.add('hidden');
+}
+
+function tfdCopyId(e) {
+  const id = document.getElementById('tfdYfId').textContent;
+  navigator.clipboard.writeText(id).catch(() => {});
+  const btn = (e && e.target) || event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓';
+  setTimeout(() => { btn.textContent = orig; }, 1200);
+}
+
+function tfdOpenEdit() {
+  tfdClose();
+  if (_tfdCurrentBtn) tfOpenModal(_tfdCurrentBtn);
+}
+
+document.getElementById('tfDetailModal').addEventListener('click', function(e) {
+  if (e.target === this) tfdClose();
 });
 
 async function tfSave() {
