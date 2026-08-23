@@ -22,6 +22,13 @@ os.environ.setdefault("DEBUG", "true")          # disables TLS-enforcement middl
 os.environ.setdefault("LOG_DIR", "/tmp/yads-test-logs")
 os.environ.setdefault("WORKER_MODE", "standalone")
 os.environ.setdefault("YADS_ENCRYPTION_KEY", "test-encryption-key-bsi-compliant-123!")
+# yads/api/main.py's lifespan only auto-seeds a default admin user on a fresh
+# install (no users yet) when YADS_ADMIN_USER/YADS_ADMIN_PASS are set — a
+# bare fresh DB otherwise skips seeding entirely and expects /setup/create-admin.
+# Without this, admin_client below authenticates as a username with no matching
+# User row and every protected route 401s.
+os.environ.setdefault("YADS_ADMIN_USER", "admin")
+os.environ.setdefault("YADS_ADMIN_PASS", "test-admin-password-for-yads-testing!")
 
 import pytest
 from starlette.testclient import TestClient
@@ -63,8 +70,19 @@ def admin_cookies():
 
 @pytest.fixture(scope="session")
 def admin_client(client, admin_cookies):
-    """TestClient pre-loaded with admin credentials."""
+    """TestClient pre-loaded with admin credentials.
+
+    Also attaches a valid signed CSRF cookie + matching X-CSRF-Token header
+    to every request, so POST/PUT/PATCH/DELETE calls pass CSRFMiddleware
+    (yads/api/middleware/csrf_middleware.py) — required since that
+    middleware was added after this fixture was originally written.
+    """
+    from yads.core.csrf import generate_csrf_token, CSRF_COOKIE, CSRF_HEADER
+
     client.cookies.set("access_token", admin_cookies["access_token"])
+    csrf_token = generate_csrf_token()
+    client.cookies.set(CSRF_COOKIE, csrf_token)
+    client.headers.update({CSRF_HEADER: csrf_token})
     return client
 
 
