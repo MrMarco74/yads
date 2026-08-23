@@ -24,10 +24,13 @@ _COMPLIANCE_EXTRA_MODULES = ["cve_scanner", "infrastructure_scanner"]
 try:
     from yads.modules.compliance import ComplianceScorer
 except ImportError:
-    logger.warning("Optional module yads.modules.compliance not found. Compliance features will be limited.")
-    class ComplianceScorer:
-        def calculate_score(self, *args, **kwargs):
-            return {"score": 0, "grade": "N/A", "passing_controls": 0, "failures": []}
+    try:
+        from yads.modules.custom.compliance import ComplianceScorer
+    except ImportError:
+        logger.warning("Optional module compliance not found. Compliance features will be limited.")
+        class ComplianceScorer:
+            def calculate_score(self, *args, **kwargs):
+                return {"score": 0, "grade": "N/A", "passing_controls": 0, "failures": []}
 
 from yads.core.scoring import calculate_target_score, get_grade, SCORED_MODULE_NAMES
 

@@ -17,10 +17,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from yads.modules.compliance import ComplianceScorer
-    from yads.modules.compliance_frameworks import (
-        get_framework_scorer, get_all_frameworks, FRAMEWORKS
-    )
+    try:
+        from yads.modules.compliance import ComplianceScorer
+        from yads.modules.compliance_frameworks import (
+            get_framework_scorer, get_all_frameworks, FRAMEWORKS
+        )
+    except ImportError:
+        from yads.modules.custom.compliance import ComplianceScorer
+        from yads.modules.custom.compliance_frameworks import (
+            get_framework_scorer, get_all_frameworks, FRAMEWORKS
+        )
 except ImportError:
     ComplianceScorer = None
     def get_framework_scorer(x):
@@ -498,7 +504,10 @@ async def export_compliance_pdf(
     try:
         from yads.modules.compliance_report_generator import generate_compliance_report
     except ImportError:
-        raise HTTPException(status_code=503, detail="Compliance Report Generator module not available.")
+        try:
+            from yads.modules.custom.compliance_report_generator import generate_compliance_report
+        except ImportError:
+            raise HTTPException(status_code=503, detail="Compliance Report Generator module not available.")
 
     if framework not in FRAMEWORKS:
         raise HTTPException(status_code=404, detail=f"Framework {framework} not found")
