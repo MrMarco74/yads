@@ -694,6 +694,61 @@ async def bulk_archive_targets(
     msg = f"Archived+{count}+targets"
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
+@router.post("/targets/bulk/blocklist", response_class=HTMLResponse)
+async def bulk_blocklist_targets(
+    target_ids: List[int] = Form(default=[]),
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))
+):
+    """
+    Adds the selected targets' domains to the tenant's Discovery blocklist
+    (exact-match pattern) and archives the targets, so they stop being
+    scanned and won't be re-added by future Discovery runs.
+    """
+    from yads.models import DiscoveryDomainBlocklist
+    from datetime import datetime
+
+    if not target_ids:
+        return RedirectResponse(url="/targets/table?msg=No+targets+selected", status_code=303)
+
+    owned_targets = session.exec(
+        select(Target).where(
+            Target.id.in_(set(target_ids)),
+            Target.tenant_id == user.tenant_id,
+        )
+    ).all()
+
+    existing_patterns = set(session.exec(
+        select(DiscoveryDomainBlocklist.pattern).where(
+            DiscoveryDomainBlocklist.tenant_id == user.tenant_id,
+        )
+    ).all())
+
+    blocked = 0
+    archived = 0
+    for target in owned_targets:
+        pattern = target.domain.strip().lower()
+        if pattern and pattern not in existing_patterns:
+            session.add(DiscoveryDomainBlocklist(
+                tenant_id=user.tenant_id,
+                pattern=pattern,
+                created_by=user.id,
+                note="Added from Targets table",
+            ))
+            existing_patterns.add(pattern)
+            blocked += 1
+        if not target.is_archived:
+            target.is_archived = True
+            target.archived_at = datetime.now(timezone.utc)
+            target.archived_reason = "blocklisted"
+            session.add(target)
+            archived += 1
+
+    session.commit()
+
+    msg = f"Blocklisted+{blocked}+domains+({archived}+archived)"
+    return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
+
 @router.post("/targets/{target_id}/scan")
 async def trigger_scan(target_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(RoleChecker(["admin", "tenant_admin", "scanner"]))):
     # Tenant Scope Check
