@@ -67947,6 +67947,32 @@ def seed_changelog():
             )
             session.add(entry_271)
 
+        if not session.query(ChangelogEntry).where(ChangelogEntry.version == "2.7.2").first():
+            entry_272 = ChangelogEntry(
+                title="YADS v2.7.2: Finding Detail View & Evidence Links",
+                version="2.7.2",
+                content="""
+                <span style=\"background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; display: inline-block;\">Patch</span>
+                <h3>✨ New</h3>
+                <ul>
+                    <li>Clicking a YF-ID in Security Findings or Tenant Findings now opens a full finding-detail view (severity, dates, assignee, ticket, MITRE mapping, NIS2 status) instead of just copying the ID — with a dedicated Copy button and an Edit shortcut into the existing status modal.</li>
+                    <li>The finding-detail view now shows the raw scanner evidence behind the finding (offending header/cookie/value/etc.), plus a "Zur Evidence" link that jumps to and highlights the matching scan card on the target page.</li>
+                    <li>Phishing/blacklist findings (URLhaus, URIBL, Google Safe Browsing) now link straight to the flagging provider's own page for that domain.</li>
+                    <li>Added an "Add to Blocklist" bulk action on the Targets table: blocklists the selected domains and archives the targets in one step.</li>
+                </ul>
+                <h3>🐛 Bug Fixes</h3>
+                <ul>
+                    <li>Fixed cloud-assets triage buttons (confirm/reset/false-positive, single and bulk) throwing a JSON parse error and doing nothing — a <code>tojson|e</code> double-escaping bug was corrupting the row's embedded JSON.</li>
+                    <li>Fixed the mobile hamburger menu not opening (sidebar ID mismatch) and removed an artificial 50-item cap on bulk scan queueing.</li>
+                </ul>
+                <h3>🔒 Security Hardening</h3>
+                <ul>
+                    <li>Fixed a reflected-XSS gap where the new evidence deep-link's module name (from a URL query parameter) was inserted unescaped into a toast notification.</li>
+                </ul>
+                """
+            )
+            session.add(entry_272)
+
 
 
 
