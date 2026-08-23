@@ -15,6 +15,7 @@ import json as _json
 import threading
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, wait as _futures_wait, ALL_COMPLETED, as_completed as _as_completed
+import dns.resolver
 
 from sqlmodel import Session, select
 from sqlalchemy import func
@@ -25,13 +26,16 @@ from yads.database import engine
 from yads.models import (
     ScanResult, Target, SystemConfig, Tenant,
     SecurityTrend, ComplianceTrend, ComplianceTargetStatus,
-    SecurityAuditLog, SystemAlertLog, HTTPTraffic, IntegrationConfig, SecurityFinding
+    SecurityAuditLog, SystemAlertLog, HTTPTraffic, IntegrationConfig, SecurityFinding,
+    BrandWatch, ShadowDomainCandidate
 )
 from yads.config import settings
 from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
 from yads.core.base import sanitize_null_bytes
 from yads.core.metrics import get_metrics
+from yads.modules._shared_osint_utils import RateLimitedClient
+from yads.modules.tld_scanner import get_tld_list
 
 logger = logging.getLogger("yads-worker")
 
@@ -1951,6 +1955,120 @@ def sync_external_integrations():
                     cef = _finding_to_cef(finding_stub, sf.domain, status=sf.status)
                     _push_to_siem_syslog(config, cef)
         logger.info(f"[Sync Worker] Processed {len(findings)} findings for external sync.")
+
+
+_CRTSH_KEYWORD_URL = "https://crt.sh/?q={keyword}&output=json"
+
+
+def _ct_search_keyword(keyword: str) -> list:
+    """Substring-search crt.sh for a brand keyword across all issued certs
+    (NOT scoped to a known domain, unlike ct_monitor.py's _fetch_certs)."""
+    client = RateLimitedClient()
+    client.register_service("crtsh", requests_per_second=1.0)
+
+    domains = set()
+    try:
+        resp = client.get("crtsh", _CRTSH_KEYWORD_URL.format(keyword=keyword), timeout=20)
+        if resp.status_code == 200:
+            for entry in resp.json():
+                for name in entry.get("name_value", "").split("\n"):
+                    name = name.strip().lower().lstrip("*.")
+                    if keyword.lower() in name:
+                        domains.add(name)
+    except Exception as e:
+        logger.warning(f"[BrandWatch] crt.sh search failed for '{keyword}': {e}")
+
+    return sorted(domains)
+
+
+def _probe_keyword_across_tlds(keyword: str) -> list:
+    """Check whether <keyword>.<tld> resolves, for every TLD in the shared
+    tld_scanner TLD list. Modeled on tld_scanner.py's threaded check_tld
+    closure, but against a bare keyword rather than a known domain's SLD."""
+    found = []
+
+    def check(tld):
+        candidate = f"{keyword}.{tld}"
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 2
+            resolver.lifetime = 2
+            resolver.resolve(candidate, "A")
+            return candidate
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+            return None
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=30) as executor:
+        futures = [executor.submit(check, tld) for tld in get_tld_list()]
+        for future in _as_completed(futures):
+            result = future.result()
+            if result:
+                found.append(result)
+
+    return sorted(found)
+
+
+@celery_app.task(name="yads.worker.run_brand_watch_scan")
+def run_brand_watch_scan():
+    """Daily beat task: for every active BrandWatch, search CT logs and
+    probe TLDs for the brand keyword, diff against known Targets, and
+    upsert new ShadowDomainCandidate rows for triage."""
+    with Session(engine) as session:
+        watches = session.exec(select(BrandWatch).where(BrandWatch.active == True)).all()
+
+        for watch in watches:
+            ct_domains = _ct_search_keyword(watch.keyword)
+            tld_domains = _probe_keyword_across_tlds(watch.keyword)
+
+            known_domains = set(
+                d.lower() for d in session.exec(
+                    select(Target.domain).where(Target.tenant_id == watch.tenant_id)
+                ).all()
+            )
+            existing_candidates = set(
+                session.exec(
+                    select(ShadowDomainCandidate.discovered_domain)
+                    .where(ShadowDomainCandidate.brand_watch_id == watch.id)
+                ).all()
+            )
+
+            new_count = 0
+            for domain, source in [(d, "ct_log") for d in ct_domains] + [(d, "tld_enum") for d in tld_domains]:
+                if domain in known_domains:
+                    continue
+                if domain in existing_candidates:
+                    continue
+                session.add(ShadowDomainCandidate(
+                    brand_watch_id=watch.id,
+                    tenant_id=watch.tenant_id,
+                    discovered_domain=domain,
+                    source=source,
+                ))
+                existing_candidates.add(domain)
+                new_count += 1
+
+            watch.last_run_at = datetime.utcnow()
+            session.add(watch)
+
+            try:
+                entry = SecurityAuditLog(
+                    event_type="brand_watch_scan",
+                    tenant_id=watch.tenant_id,
+                    success=True,
+                    details={
+                        "keyword": watch.keyword,
+                        "ct_domains_found": len(ct_domains),
+                        "tld_domains_found": len(tld_domains),
+                        "new_candidates": new_count,
+                    },
+                )
+                session.add(entry)
+            except Exception as e:
+                logger.warning(f"[BrandWatch] Failed to write audit log: {e}")
+
+            session.commit()
 
 
 @celery_app.task(name="yads.worker.check_splunk_hec_health")

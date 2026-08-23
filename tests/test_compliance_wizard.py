@@ -293,3 +293,71 @@ class TestWizardStep4:
             if watch:
                 db_session.delete(watch)
                 db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestBrandWatchScan:
+    def test_ct_search_keyword_parses_crtsh_response(self, monkeypatch):
+        from yads import worker_tasks
+
+        class FakeResponse:
+            status_code = 200
+            def json(self):
+                return [
+                    {"name_value": "portal.musterbank-example.com\nwww.musterbank-example.com"},
+                    {"name_value": "unrelated-nothing.example.org"},
+                ]
+
+        class FakeClient:
+            def register_service(self, *a, **kw):
+                pass
+            def get(self, service_name, url, **kw):
+                assert "musterbank" in url
+                return FakeResponse()
+
+        monkeypatch.setattr(worker_tasks, "RateLimitedClient", lambda *a, **kw: FakeClient())
+
+        domains = worker_tasks._ct_search_keyword("musterbank")
+        assert "portal.musterbank-example.com" in domains
+        assert "www.musterbank-example.com" in domains
+        assert "unrelated-nothing.example.org" not in domains
+
+    def test_run_brand_watch_scan_creates_candidates_and_skips_known_targets(self, monkeypatch, db_session, test_tenant):
+        from yads import worker_tasks
+        from yads.models import BrandWatch, ShadowDomainCandidate, Target
+        from sqlmodel import select
+
+        known = Target(domain="musterbank-known.example.com", tenant_id=test_tenant.id)
+        db_session.add(known)
+        db_session.commit()
+        db_session.refresh(known)
+
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        db_session.add(watch)
+        db_session.commit()
+        db_session.refresh(watch)
+
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["musterbank-known.example.com", "musterbank-shadow.example.net"])
+        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: ["musterbank.info"])
+
+        try:
+            worker_tasks.run_brand_watch_scan()
+
+            candidates = db_session.exec(
+                select(ShadowDomainCandidate).where(ShadowDomainCandidate.brand_watch_id == watch.id)
+            ).all()
+            discovered = {c.discovered_domain for c in candidates}
+
+            assert "musterbank-shadow.example.net" in discovered
+            assert "musterbank.info" in discovered
+            assert "musterbank-known.example.com" not in discovered  # already a known Target, not a candidate
+        finally:
+            candidates = db_session.exec(
+                select(ShadowDomainCandidate).where(ShadowDomainCandidate.brand_watch_id == watch.id)
+            ).all()
+            for c in candidates:
+                db_session.delete(c)
+            db_session.commit()
+            db_session.delete(watch)
+            db_session.delete(known)
+            db_session.commit()
