@@ -27,6 +27,13 @@ redis_pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=
 redis_client = redis.Redis(connection_pool=redis_pool)
 
 def create_db_and_tables(engine_override=None):
+    # Import all models to ensure they are registered in SQLModel.metadata
+    # before create_all() is called. This is necessary because SQLModel only
+    # knows about models that have been imported (class definition executed).
+    from yads.models import (  # noqa: F401
+        ComplianceScanRun, BrandWatch, ShadowDomainCandidate
+    )
+
     use_engine = engine_override or engine
     SQLModel.metadata.create_all(use_engine)
 
