@@ -82,3 +82,44 @@ class TestModels:
         db_session.query(ShadowDomainCandidate).filter_by(brand_watch_id=watch.id).delete()
         db_session.delete(watch)
         db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestWizardStep1:
+    def test_wizard_page_loads_with_no_active_run(self, admin_client):
+        r = admin_client.get("/compliance-wizard", follow_redirects=True)
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+
+    def test_start_creates_run_and_advances_to_step_2(self, admin_client, test_tenant, db_session):
+        from yads.models import Target, ComplianceScanRun
+        from sqlmodel import select
+
+        target = db_session.exec(
+            select(Target).where(Target.tenant_id == test_tenant.id)
+        ).first()
+        if not target:
+            target = Target(domain="wizard-step1-test.example.com", tenant_id=test_tenant.id)
+            db_session.add(target)
+            db_session.commit()
+            db_session.refresh(target)
+
+        r = admin_client.post(
+            "/compliance-wizard/start",
+            data={"criteria": "all"},
+            follow_redirects=True,
+        )
+        assert r.status_code == 200
+
+        run = db_session.exec(
+            select(ComplianceScanRun)
+            .where(ComplianceScanRun.tenant_id == test_tenant.id)
+            .order_by(ComplianceScanRun.id.desc())
+        ).first()
+        assert run is not None
+        assert run.current_step == 2
+        assert run.targets_total >= 1
+        assert target.id in run.target_ids
+
+        db_session.delete(run)
+        db_session.commit()

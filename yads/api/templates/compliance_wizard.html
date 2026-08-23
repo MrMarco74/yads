@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-xl font-semibold text-white">Domain Compliance</h1>
+
+    {% if not run %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Step 1: Select targets</h2>
+        <form method="post" action="/compliance-wizard/start" class="space-y-4">
+            <select name="criteria" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+                <option value="all">All known targets</option>
+                <option value="only_roots">Root domains only</option>
+                <option value="online_only">Online only</option>
+            </select>
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded">
+                Start
+            </button>
+        </form>
+    </div>
+    {% else %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Run #{{ run.id }} — step {{ run.current_step }} of 4</h2>
+        <ul class="text-sm text-slate-400 space-y-1">
+            <li>Targets selected: {{ run.targets_total }}</li>
+            <li>Reachable / webserver confirmed: {{ run.targets_reachable }} / {{ run.targets_webserver_confirmed }}</li>
+            <li>Deep-crawled: {{ run.targets_crawled }}</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Brand Watches</h2>
+        {% if watches %}
+        <ul class="text-sm text-slate-400 space-y-1">
+            {% for w in watches %}
+            <li>{{ w.keyword }} — {{ "active" if w.active else "paused" }}, last run {{ w.last_run_at or "never" }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-slate-500">No brand watches configured yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
