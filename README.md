@@ -1,5 +1,7 @@
 # YADS (Yet Another Domain Scanner) — v1.29.0
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Language](https://img.shields.io/badge/language-Python-informational.svg) ![AI generated](https://img.shields.io/badge/AI-generated-8A2BE2.svg)
+
 YADS is a powerful, automated domain intelligence and security scanner. It aggregates data from multiple sources to provide a comprehensive view of a target domain's attack surface, with AI-powered analysis, attack path visualization, and full vulnerability lifecycle management.
 
 ## 📚 Documentation
