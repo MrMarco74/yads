@@ -30,6 +30,10 @@ PHISHTANK_URL = "https://checkurl.phishtank.com/checkurl/"
 OPENPHISH_URL = "https://openphish.com/feed.txt"
 URLHAUS_URL = "https://urlhaus-api.abuse.ch/v1/host/"
 URIBL_DNS = "{domain}.multi.uribl.com"
+# RFC 2606 reserved domain, never actually registered/listed anywhere --
+# used as a canary to detect when URIBL is blocking/rate-limiting us
+# rather than genuinely listing the scanned domain (see _check_uribl).
+_URIBL_CANARY_DOMAIN = "example.com"
 
 # Well-known brands for homograph/lookalike detection
 KNOWN_BRANDS = [
@@ -123,22 +127,42 @@ def _check_urlhaus(domain: str) -> Optional[Dict]:
     return None
 
 
-def _check_uribl(domain: str) -> bool:
-    """DNS-based blacklist check via URIBL."""
+def _uribl_lookup(hostname: str) -> bool:
+    """Raw DNSBL lookup. True only if the zone actually returned a
+    127.0.0.0/8 loopback address (how DNSBLs encode a listing) -- anything
+    else (NXDOMAIN, a resolver rewriting failures, etc.) is not a listing."""
     try:
-        check = URIBL_DNS.format(domain=domain)
-        results = socket.getaddrinfo(check, None)
-        # A real URIBL listing always resolves to a 127.0.0.0/8 loopback
-        # address (the specific octet encodes which sub-list matched). Any
-        # other address means the query didn't actually reach URIBL's zone
-        # as expected -- a resolver rewriting NXDOMAIN into a "no results"
-        # page, a search-domain suffix match, or similar -- and must NOT be
-        # treated as a listing, or every scanned domain false-positives.
+        results = socket.getaddrinfo(hostname, None)
         return any(res[4][0].startswith("127.") for res in results)
     except socket.gaierror:
-        return False  # Not listed (NXDOMAIN = clean)
+        return False
     except Exception:
         return False
+
+
+def _check_uribl(domain: str) -> bool:
+    """
+    DNS-based blacklist check via URIBL.
+
+    URIBL's free public mirror rate-limits/blocks high-volume automated
+    queriers by making multi.uribl.com answer EVERY query with a 127.x
+    "blocked querier" address -- which looks identical to a real listing,
+    since DNSBL hits are 127.x too. Guard against this with a canary probe
+    against a domain that's never actually listed (an RFC 2606 reserved
+    domain): if the canary also comes back "listed", our source IP is
+    being blocked/rate-limited, not the target domain, and the real
+    result can't be trusted.
+    """
+    if _uribl_lookup(f"{_URIBL_CANARY_DOMAIN}.multi.uribl.com"):
+        logger.warning(
+            "URIBL check skipped: canary lookup for '%s' also came back listed -- "
+            "our source IP is likely rate-limited/blocked by URIBL's free mirror, "
+            "not a real signal about the scanned domain.",
+            _URIBL_CANARY_DOMAIN,
+        )
+        return False
+
+    return _uribl_lookup(URIBL_DNS.format(domain=domain))
 
 
 def _check_google_safebrowsing(domain: str, api_key: str) -> Optional[List[str]]:
