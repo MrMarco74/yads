@@ -14,7 +14,7 @@ distinct problems exist:
    detection → deep content scan pass across all of them.
 2. **Shadow domains**: business departments at Musterbank bypass ITDS and
    register new domains carrying Musterbank branding (e.g. containing
-   "musterbank"/"muster-bank") that are never added as YADS targets and thus never
+   "acmecorp"/"muster-bank") that are never added as YADS targets and thus never
    monitored. Finding these is the actual DORA compliance gap — it's not
    "do we know about the domains we track," it's "what don't we know about."
 
@@ -37,7 +37,7 @@ underneath.
 - Stage the known 6000 targets through reachability+webserver-detection,
   then deep content scan, without ever running the expensive crawl step
   against targets that don't have a live webserver.
-- Stand up a recurring "Brand Watch" for the keyword "musterbank"/"muster-bank"
+- Stand up a recurring "Brand Watch" for the keyword "acmecorp"/"muster-bank"
   that periodically searches Certificate Transparency logs and enumerates
   the keyword across a broad TLD list, diffs against known targets, and
   surfaces new candidates for human triage.
@@ -53,7 +53,7 @@ underneath.
   `ShadowDomainCandidate.source` below), but no such integration ships now.
 - Subsidiary/sub-brand keywords (VR-Bank, Union Investment, DZ HYP,
   TeamBank, etc.) — explicitly out of scope per user decision; only the
-  main "musterbank"/"muster-bank" keyword is watched in v1.
+  main "acmecorp"/"muster-bank" keyword is watched in v1.
 - Any new scanning logic. Steps 1–3 of the wizard are orchestration over
   existing `run_all_scans` / bulk-scan machinery; no scanner module
   behavior changes.
@@ -73,7 +73,7 @@ name: "Domain Compliance"):
 3. **Deep content scan** — fires `scan_types=["crawler"]`, scoped only to
    the webserver-confirmed subset from step 2. Never runs against the full
    6000.
-4. **Brand Watch setup** — enter/confirm the keyword ("musterbank"), submit.
+4. **Brand Watch setup** — enter/confirm the keyword ("acmecorp"), submit.
    Creates a `BrandWatch` row; does not run anything synchronously — the
    first scan happens on the next beat tick (see below).
 
@@ -116,7 +116,7 @@ per-target state machine.
 |---|---|---|
 | `id` | int PK | |
 | `tenant_id` | int FK | |
-| `keyword` | str | e.g. "musterbank" — matching is case-insensitive, hyphen-optional |
+| `keyword` | str | e.g. "acmecorp" — matching is case-insensitive, hyphen-optional |
 | `active` | bool | pause/resume without deleting |
 | `last_run_at` | datetime | nullable |
 | `created_by_user_id` | int FK | |

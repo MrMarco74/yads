@@ -30,7 +30,7 @@ class TestModels:
     def test_brand_watch_and_shadow_domain_candidate_roundtrip(self, db_session, test_tenant):
         from yads.models import BrandWatch, ShadowDomainCandidate
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -41,7 +41,7 @@ class TestModels:
         candidate = ShadowDomainCandidate(
             brand_watch_id=watch.id,
             tenant_id=test_tenant.id,
-            discovered_domain="musterbank-portal.example",
+            discovered_domain="acmecorp-portal.example",
             source="ct_log",
         )
         db_session.add(candidate)
@@ -60,7 +60,7 @@ class TestModels:
         from yads.models import BrandWatch, ShadowDomainCandidate
         from sqlalchemy.exc import IntegrityError
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -342,20 +342,20 @@ class TestWizardStep4:
         try:
             r = admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
-                data={"keyword": "musterbank"},
+                data={"keyword": "acmecorp"},
                 follow_redirects=True,
             )
             assert r.status_code == 200
 
             watch = db_session.exec(
-                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
+                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "acmecorp")
             ).first()
             assert watch is not None
             assert watch.active is True
         finally:
             from yads.models import ShadowDomainCandidate
             watch = db_session.exec(
-                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
+                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "acmecorp")
             ).first()
             if watch:
                 db_session.query(ShadowDomainCandidate).filter_by(brand_watch_id=watch.id).delete()
@@ -378,7 +378,7 @@ class TestWizardStep4:
         try:
             r1 = admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
-                data={"keyword": "musterbank-dupe-test"},
+                data={"keyword": "acmecorp-dupe-test"},
                 follow_redirects=True,
             )
             assert r1.status_code == 200
@@ -388,7 +388,7 @@ class TestWizardStep4:
 
             r2 = admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
-                data={"keyword": "musterbank-dupe-test"},
+                data={"keyword": "acmecorp-dupe-test"},
                 follow_redirects=True,
             )
             assert r2.status_code == 200
@@ -396,7 +396,7 @@ class TestWizardStep4:
             watches = db_session.exec(
                 select(BrandWatch).where(
                     BrandWatch.tenant_id == test_tenant.id,
-                    BrandWatch.keyword == "musterbank-dupe-test",
+                    BrandWatch.keyword == "acmecorp-dupe-test",
                 )
             ).all()
             assert len(watches) == 1
@@ -405,7 +405,7 @@ class TestWizardStep4:
             watches = db_session.exec(
                 select(BrandWatch).where(
                     BrandWatch.tenant_id == test_tenant.id,
-                    BrandWatch.keyword == "musterbank-dupe-test",
+                    BrandWatch.keyword == "acmecorp-dupe-test",
                 )
             ).all()
             for w in watches:
@@ -423,7 +423,7 @@ class TestWizardStep4:
         try:
             r = admin_client.post(
                 f"/compliance-wizard/{nonexistent_run_id}/step4",
-                data={"keyword": "musterbank-nonexistent-run"},
+                data={"keyword": "acmecorp-nonexistent-run"},
                 follow_redirects=True,
             )
             assert r.status_code == 200
@@ -431,7 +431,7 @@ class TestWizardStep4:
             watch = db_session.exec(
                 select(BrandWatch).where(
                     BrandWatch.tenant_id == test_tenant.id,
-                    BrandWatch.keyword == "musterbank-nonexistent-run",
+                    BrandWatch.keyword == "acmecorp-nonexistent-run",
                 )
             ).first()
             assert watch is None
@@ -439,7 +439,7 @@ class TestWizardStep4:
             watch = db_session.exec(
                 select(BrandWatch).where(
                     BrandWatch.tenant_id == test_tenant.id,
-                    BrandWatch.keyword == "musterbank-nonexistent-run",
+                    BrandWatch.keyword == "acmecorp-nonexistent-run",
                 )
             ).first()
             if watch:
@@ -456,7 +456,7 @@ class TestBrandWatchScan:
             status_code = 200
             def json(self):
                 return [
-                    {"name_value": "portal.musterbank-example.com\nwww.musterbank-example.com"},
+                    {"name_value": "portal.acmecorp-example.com\nwww.acmecorp-example.com"},
                     {"name_value": "unrelated-nothing.example.org"},
                 ]
 
@@ -464,7 +464,7 @@ class TestBrandWatchScan:
             def register_service(self, *a, **kw):
                 pass
             def get(self, service_name, url, **kw):
-                assert "musterbank" in url
+                assert "acmecorp" in url
                 return FakeResponse()
 
         # _ct_search_keyword uses a module-level singleton client (so rate
@@ -472,9 +472,9 @@ class TestBrandWatchScan:
         # RateLimitedClient() per call -- patch the singleton directly.
         monkeypatch.setattr(worker_tasks, "_brand_watch_ct_client", FakeClient())
 
-        domains = worker_tasks._ct_search_keyword("musterbank")
-        assert "portal.musterbank-example.com" in domains
-        assert "www.musterbank-example.com" in domains
+        domains = worker_tasks._ct_search_keyword("acmecorp")
+        assert "portal.acmecorp-example.com" in domains
+        assert "www.acmecorp-example.com" in domains
         assert "unrelated-nothing.example.org" not in domains
 
     def test_ct_search_keyword_url_encodes_special_characters(self, monkeypatch):
@@ -512,18 +512,18 @@ class TestBrandWatchScan:
         from yads.models import BrandWatch, ShadowDomainCandidate, Target
         from sqlmodel import select
 
-        known = Target(domain="musterbank-known.example.com", tenant_id=test_tenant.id)
+        known = Target(domain="acmecorp-known.example.com", tenant_id=test_tenant.id)
         db_session.add(known)
         db_session.commit()
         db_session.refresh(known)
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
 
-        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["musterbank-known.example.com", "musterbank-shadow.example.net"])
-        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: ["musterbank.info"])
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["acmecorp-known.example.com", "acmecorp-shadow.example.net"])
+        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: ["acmecorp.info"])
 
         try:
             worker_tasks.run_brand_watch_scan()
@@ -533,9 +533,9 @@ class TestBrandWatchScan:
             ).all()
             discovered = {c.discovered_domain for c in candidates}
 
-            assert "musterbank-shadow.example.net" in discovered
-            assert "musterbank.info" in discovered
-            assert "musterbank-known.example.com" not in discovered  # already a known Target, not a candidate
+            assert "acmecorp-shadow.example.net" in discovered
+            assert "acmecorp.info" in discovered
+            assert "acmecorp-known.example.com" not in discovered  # already a known Target, not a candidate
         finally:
             candidates = db_session.exec(
                 select(ShadowDomainCandidate).where(ShadowDomainCandidate.brand_watch_id == watch.id)
@@ -558,7 +558,7 @@ class TestBrandWatchScan:
         from yads.models import BrandWatch, ShadowDomainCandidate
         from sqlmodel import select
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -566,7 +566,7 @@ class TestBrandWatchScan:
         old_time = datetime.utcnow() - timedelta(days=30)
         candidate = ShadowDomainCandidate(
             brand_watch_id=watch.id, tenant_id=test_tenant.id,
-            discovered_domain="musterbank-rediscovered.example.net", source="ct_log",
+            discovered_domain="acmecorp-rediscovered.example.net", source="ct_log",
             status="dismissed", dismissed_reason="false positive",
             first_seen_at=old_time, last_seen_at=old_time,
         )
@@ -574,7 +574,7 @@ class TestBrandWatchScan:
         db_session.commit()
         db_session.refresh(candidate)
 
-        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["musterbank-rediscovered.example.net"])
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["acmecorp-rediscovered.example.net"])
         monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: [])
 
         try:
@@ -598,10 +598,10 @@ class TestBrandWatchScan:
 
 @pytest.mark.compliance_wizard
 class TestTriage:
-    def _make_candidate(self, db_session, test_tenant, domain="musterbank-triage-test.example.net"):
+    def _make_candidate(self, db_session, test_tenant, domain="acmecorp-triage-test.example.net"):
         from yads.models import BrandWatch, ShadowDomainCandidate
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -632,7 +632,7 @@ class TestTriage:
             created_target = db_session.exec(
                 select(Target).where(Target.id == candidate.resolved_target_id)
             ).first()
-            assert created_target.domain == "musterbank-triage-test.example.net"
+            assert created_target.domain == "acmecorp-triage-test.example.net"
         finally:
             db_session.refresh(candidate)
             created_target = None
@@ -668,7 +668,7 @@ class TestTriage:
         db_session.commit()
         db_session.refresh(other_target)
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -712,7 +712,7 @@ class TestTriage:
             db_session.commit()
 
     def test_dismiss_sets_reason_and_status(self, admin_client, test_tenant, db_session):
-        watch, candidate = self._make_candidate(db_session, test_tenant, domain="musterbank-dismiss-test.example.net")
+        watch, candidate = self._make_candidate(db_session, test_tenant, domain="acmecorp-dismiss-test.example.net")
 
         try:
             r = admin_client.post(
@@ -753,12 +753,12 @@ class TestTriage:
         # become ambiguous (returns None) -- not what this test is about.
         monkeypatch.setattr(cw_module, "_effective_tenant_id", lambda session, user: test_tenant.id)
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
 
-        domain = "musterbank-toctou-race-test.example.net"
+        domain = "acmecorp-toctou-race-test.example.net"
         candidate = ShadowDomainCandidate(
             brand_watch_id=watch.id, tenant_id=test_tenant.id,
             discovered_domain=domain, source="ct_log",
@@ -893,8 +893,8 @@ class TestBrandWatchScanErrorIsolation:
         from yads.models import BrandWatch
         from sqlmodel import select
 
-        failing_watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank-error-isolation-failing")
-        ok_watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank-error-isolation-ok")
+        failing_watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp-error-isolation-failing")
+        ok_watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp-error-isolation-ok")
         db_session.add(failing_watch)
         db_session.add(ok_watch)
         db_session.commit()

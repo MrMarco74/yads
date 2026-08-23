@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- v1 brand keyword scope: main "musterbank"/"muster-bank" only, matching case-insensitively, hyphen-optional — no subsidiary-brand support.
+- v1 brand keyword scope: main "acmecorp"/"muster-bank" only, matching case-insensitively, hyphen-optional — no subsidiary-brand support.
 - v1 data sources: crt.sh Certificate Transparency search + TLD enumeration only. No WHOIS/RDAP/passive-DNS integration (schema leaves room via `ShadowDomainCandidate.source`, but no such source ships).
 - No new scanning logic — steps 1–3 of the wizard dispatch existing `run_all_scans` with different `scan_types` subsets; no scanner module behavior changes.
 - Task-name convention: any new Celery task uses `name="yads.worker.<func_name>"` regardless of which file it's defined in (matches existing `worker_tasks.py` convention).
@@ -84,7 +84,7 @@ class TestModels:
     def test_brand_watch_and_shadow_domain_candidate_roundtrip(self, db_session, test_tenant):
         from yads.models import BrandWatch, ShadowDomainCandidate
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -95,7 +95,7 @@ class TestModels:
         candidate = ShadowDomainCandidate(
             brand_watch_id=watch.id,
             tenant_id=test_tenant.id,
-            discovered_domain="musterbank-portal.example",
+            discovered_domain="acmecorp-portal.example",
             source="ct_log",
         )
         db_session.add(candidate)
@@ -113,7 +113,7 @@ class TestModels:
         from yads.models import BrandWatch, ShadowDomainCandidate
         from sqlalchemy.exc import IntegrityError
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -889,13 +889,13 @@ class TestWizardStep4:
 
         r = admin_client.post(
             f"/compliance-wizard/{run.id}/step4",
-            data={"keyword": "musterbank"},
+            data={"keyword": "acmecorp"},
             follow_redirects=True,
         )
         assert r.status_code == 200
 
         watch = db_session.exec(
-            select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
+            select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "acmecorp")
         ).first()
         assert watch is not None
         assert watch.active is True
@@ -938,7 +938,7 @@ async def create_brand_watch(
 {% if run.current_step == 4 %}
 <form method="post" action="/compliance-wizard/{{ run.id }}/step4" class="mt-4 space-y-2">
     <label class="block text-sm text-slate-400">Brand keyword to watch</label>
-    <input type="text" name="keyword" value="musterbank" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+    <input type="text" name="keyword" value="acmecorp" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
     <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded">
         Start watching
     </button>
@@ -983,7 +983,7 @@ class TestBrandWatchScan:
             status_code = 200
             def json(self):
                 return [
-                    {"name_value": "portal.musterbank-example.com\nwww.musterbank-example.com"},
+                    {"name_value": "portal.acmecorp-example.com\nwww.acmecorp-example.com"},
                     {"name_value": "unrelated-nothing.example.org"},
                 ]
 
@@ -991,32 +991,32 @@ class TestBrandWatchScan:
             def register_service(self, *a, **kw):
                 pass
             def get(self, service_name, url, **kw):
-                assert "musterbank" in url
+                assert "acmecorp" in url
                 return FakeResponse()
 
         monkeypatch.setattr(worker_tasks, "RateLimitedClient", lambda *a, **kw: FakeClient())
 
-        domains = worker_tasks._ct_search_keyword("musterbank")
-        assert "portal.musterbank-example.com" in domains
-        assert "www.musterbank-example.com" in domains
+        domains = worker_tasks._ct_search_keyword("acmecorp")
+        assert "portal.acmecorp-example.com" in domains
+        assert "www.acmecorp-example.com" in domains
         assert "unrelated-nothing.example.org" not in domains
 
     def test_run_brand_watch_scan_creates_candidates_and_skips_known_targets(self, monkeypatch, db_session, test_tenant):
         from yads import worker_tasks
         from yads.models import BrandWatch, ShadowDomainCandidate, Target
 
-        known = Target(domain="musterbank-known.example.com", tenant_id=test_tenant.id)
+        known = Target(domain="acmecorp-known.example.com", tenant_id=test_tenant.id)
         db_session.add(known)
         db_session.commit()
         db_session.refresh(known)
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
 
-        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["musterbank-known.example.com", "musterbank-shadow.example.net"])
-        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: ["musterbank.info"])
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["acmecorp-known.example.com", "acmecorp-shadow.example.net"])
+        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: ["acmecorp.info"])
 
         worker_tasks.run_brand_watch_scan()
 
@@ -1025,9 +1025,9 @@ class TestBrandWatchScan:
         ).all()
         discovered = {c.discovered_domain for c in candidates}
 
-        assert "musterbank-shadow.example.net" in discovered
-        assert "musterbank.info" in discovered
-        assert "musterbank-known.example.com" not in discovered  # already a known Target, not a candidate
+        assert "acmecorp-shadow.example.net" in discovered
+        assert "acmecorp.info" in discovered
+        assert "acmecorp-known.example.com" not in discovered  # already a known Target, not a candidate
 
         for c in candidates:
             db_session.delete(c)
@@ -1210,10 +1210,10 @@ git commit -m "feat: add run_brand_watch_scan (CT log + TLD keyword discovery)"
 ```python
 @pytest.mark.compliance_wizard
 class TestTriage:
-    def _make_candidate(self, db_session, test_tenant, domain="musterbank-triage-test.example.net"):
+    def _make_candidate(self, db_session, test_tenant, domain="acmecorp-triage-test.example.net"):
         from yads.models import BrandWatch, ShadowDomainCandidate
 
-        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="acmecorp")
         db_session.add(watch)
         db_session.commit()
         db_session.refresh(watch)
@@ -1243,7 +1243,7 @@ class TestTriage:
         created_target = db_session.exec(
             select(Target).where(Target.id == candidate.resolved_target_id)
         ).first()
-        assert created_target.domain == "musterbank-triage-test.example.net"
+        assert created_target.domain == "acmecorp-triage-test.example.net"
 
         db_session.delete(candidate)
         db_session.delete(created_target)
@@ -1251,7 +1251,7 @@ class TestTriage:
         db_session.commit()
 
     def test_dismiss_sets_reason_and_status(self, admin_client, test_tenant, db_session):
-        watch, candidate = self._make_candidate(db_session, test_tenant, domain="musterbank-dismiss-test.example.net")
+        watch, candidate = self._make_candidate(db_session, test_tenant, domain="acmecorp-dismiss-test.example.net")
 
         r = admin_client.post(
             f"/compliance-wizard/shadow-domains/{candidate.id}/dismiss",
@@ -1432,7 +1432,7 @@ Expected: no new failures compared to the pre-change baseline (targets.py import
 
 - [ ] **Step 3: Manual smoke test**
 
-Start the dev stack, log in as an admin/tenant_admin/scanner user, walk through: Compliance nav item → step 1 (select "all") → step 2 (dispatch, confirm progress numbers update) → step 3 (dispatch, confirm it only queued webserver-confirmed targets) → step 4 (create a "musterbank" brand watch) → confirm re-visiting `/compliance-wizard` shows the dashboard, not step 1 again. Manually trigger `run_brand_watch_scan` via `celery_app.send_task("yads.worker.run_brand_watch_scan")` or a Python shell and confirm candidates appear with working confirm/dismiss buttons.
+Start the dev stack, log in as an admin/tenant_admin/scanner user, walk through: Compliance nav item → step 1 (select "all") → step 2 (dispatch, confirm progress numbers update) → step 3 (dispatch, confirm it only queued webserver-confirmed targets) → step 4 (create a "acmecorp" brand watch) → confirm re-visiting `/compliance-wizard` shows the dashboard, not step 1 again. Manually trigger `run_brand_watch_scan` via `celery_app.send_task("yads.worker.run_brand_watch_scan")` or a Python shell and confirm candidates appear with working confirm/dismiss buttons.
 
 - [ ] **Step 4: Commit (if any fixups were needed)**
 
