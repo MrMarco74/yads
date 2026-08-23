@@ -33,6 +33,13 @@
             </button>
         </form>
         {% endif %}
+        {% if run.current_step == 3 %}
+        <form method="post" action="/compliance-wizard/{{ run.id }}/step3">
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded mt-4">
+                Run deep content scan ({{ run.targets_webserver_confirmed }} targets with a live webserver)
+            </button>
+        </form>
+        {% endif %}
     </div>
     {% endif %}
 

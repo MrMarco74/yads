@@ -56,6 +56,21 @@ def _latest_run(session: Session, user: User) -> Optional[ComplianceScanRun]:
     ).first()
 
 
+def _webserver_confirmed_ids(session: Session, target_ids: list[int]) -> list[int]:
+    if not target_ids:
+        return []
+    rows = session.exec(
+        select(ScanResult.target_id)
+        .where(
+            ScanResult.target_id.in_(target_ids),
+            ScanResult.module_name == 'web_analyzer',
+            text("(data->>'status_code')::int > 0"),
+        )
+        .distinct()
+    ).all()
+    return list(rows)
+
+
 def _compute_step2_progress(session: Session, run: ComplianceScanRun) -> tuple[int, int]:
     if not run.target_ids:
         return (0, 0)
@@ -70,14 +85,8 @@ def _compute_step2_progress(session: Session, run: ComplianceScanRun) -> tuple[i
         .where(ScanResult.target_id.in_(run.target_ids), reachable_criteria)
     ).one()
 
-    webserver = session.exec(
-        select(func.count(func.distinct(ScanResult.target_id)))
-        .where(
-            ScanResult.target_id.in_(run.target_ids),
-            ScanResult.module_name == 'web_analyzer',
-            text("(data->>'status_code')::int > 0"),
-        )
-    ).one()
+    webserver_ids = _webserver_confirmed_ids(session, run.target_ids)
+    webserver = len(webserver_ids)
 
     return (reachable or 0, webserver or 0)
 
@@ -187,5 +196,41 @@ async def dispatch_step2(
     session.commit()
 
     _audit_scan_trigger(session, user, [str(t) for t in run.target_ids[:50]], ["web_analyzer"], "compliance_wizard_step2", request)
+
+    return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+
+@router.post("/{run_id}/step3", response_class=HTMLResponse)
+async def dispatch_step3(
+    run_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
+):
+    tenant_id = _effective_tenant_id(session, user)
+    run = session.exec(
+        select(ComplianceScanRun).where(
+            ComplianceScanRun.id == run_id,
+            ComplianceScanRun.tenant_id == tenant_id,
+        )
+    ).first()
+    if not run:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+    # _queue_single_bulk_target only ever reads user.tenant_id, so for a
+    # platform admin (user.tenant_id is None) resolved to a single tenant
+    # above, pass a stand-in exposing the resolved tenant_id -- same pattern
+    # as start_run's/dispatch_step2's query_user, for the same reason.
+    query_user = user if user.tenant_id is not None else SimpleNamespace(tenant_id=tenant_id)
+    confirmed_ids = _webserver_confirmed_ids(session, run.target_ids)
+    for tid in confirmed_ids:
+        _queue_single_bulk_target(session, query_user, str(tid), ["crawler"])
+
+    run.current_step = 4
+    run.step3_completed_at = datetime.utcnow()
+    session.add(run)
+    session.commit()
+
+    _audit_scan_trigger(session, user, [str(t) for t in confirmed_ids[:50]], ["crawler"], "compliance_wizard_step3", request)
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)

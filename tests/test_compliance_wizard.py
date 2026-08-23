@@ -185,3 +185,45 @@ class TestWizardStep2:
         db_session.delete(run)
         db_session.delete(target)
         db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestWizardStep3:
+    def test_step3_dispatch_only_targets_webserver_confirmed_subset(self, admin_client, test_tenant, db_session):
+        from yads.models import Target, ComplianceScanRun, ScanResult
+        from sqlmodel import select
+
+        with_server = Target(domain="wizard-step3-with-server.example.com", tenant_id=test_tenant.id)
+        without_server = Target(domain="wizard-step3-without-server.example.com", tenant_id=test_tenant.id)
+        db_session.add(with_server)
+        db_session.add(without_server)
+        db_session.commit()
+        db_session.refresh(with_server)
+        db_session.refresh(without_server)
+
+        db_session.add(ScanResult(
+            target_id=with_server.id, module_name="web_analyzer",
+            data={"status_code": 200}, result_hash="x",
+        ))
+        db_session.commit()
+
+        run = ComplianceScanRun(
+            tenant_id=test_tenant.id, criteria="all", current_step=3,
+            target_ids=[with_server.id, without_server.id], targets_total=2,
+        )
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        try:
+            r = admin_client.post(f"/compliance-wizard/{run.id}/step3", follow_redirects=True)
+            assert r.status_code < 500
+
+            db_session.refresh(run)
+            assert run.current_step == 4
+        finally:
+            db_session.delete(run)
+            db_session.query(ScanResult).filter_by(target_id=with_server.id).delete()
+            db_session.delete(with_server)
+            db_session.delete(without_server)
+            db_session.commit()
