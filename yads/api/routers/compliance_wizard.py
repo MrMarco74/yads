@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from yads.database import get_session
 from yads.auth.deps import RoleChecker
-from yads.models import User, Target, Tenant, ComplianceScanRun, BrandWatch, ShadowDomainCandidate, ScanResult
+from yads.models import User, Target, Tenant, ComplianceScanRun, BrandWatch, ShadowDomainCandidate, ScanResult, SecurityAuditLog
 from yads.api.templating import templates
 from yads.api.routers.targets import _build_bulk_criteria_query, _audit_scan_trigger, _queue_single_bulk_target
 
@@ -110,11 +110,23 @@ async def wizard_or_dashboard(
         select(BrandWatch).where(BrandWatch.tenant_id == tenant_id)
     ).all() if tenant_id is not None else []
 
+    pending_candidates = []
+    if watches:
+        pending_candidates = session.exec(
+            select(ShadowDomainCandidate)
+            .where(
+                ShadowDomainCandidate.tenant_id == tenant_id,
+                ShadowDomainCandidate.status == "new",
+            )
+            .order_by(ShadowDomainCandidate.first_seen_at.desc())
+        ).all()
+
     return templates.TemplateResponse("compliance_wizard.html", {
         "request": request,
         "user": user,
         "run": run,
         "watches": watches,
+        "pending_candidates": pending_candidates,
     })
 
 
@@ -266,6 +278,82 @@ async def create_brand_watch(
 
     watch = BrandWatch(tenant_id=tenant_id, keyword=keyword, created_by_user_id=user.id)
     session.add(watch)
+    session.commit()
+
+    return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+
+@router.post("/shadow-domains/{candidate_id}/confirm", response_class=HTMLResponse)
+async def confirm_shadow_domain(
+    candidate_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
+):
+    tenant_id = _effective_tenant_id(session, user)
+    candidate = session.exec(
+        select(ShadowDomainCandidate).where(
+            ShadowDomainCandidate.id == candidate_id,
+            ShadowDomainCandidate.tenant_id == tenant_id,
+        )
+    ).first()
+    if not candidate:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+    new_target = Target(domain=candidate.discovered_domain, tenant_id=tenant_id)
+    session.add(new_target)
+    session.commit()
+    session.refresh(new_target)
+
+    candidate.status = "confirmed"
+    candidate.resolved_target_id = new_target.id
+    session.add(candidate)
+
+    entry = SecurityAuditLog(
+        event_type="shadow_domain_confirmed",
+        username=user.username, user_id=user.id, tenant_id=tenant_id,
+        source_ip=request.client.host if request.client else None,
+        success=True,
+        details={"discovered_domain": candidate.discovered_domain, "new_target_id": new_target.id},
+    )
+    session.add(entry)
+    session.commit()
+
+    return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+
+@router.post("/shadow-domains/{candidate_id}/dismiss", response_class=HTMLResponse)
+async def dismiss_shadow_domain(
+    candidate_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
+):
+    form = await request.form()
+    reason = (form.get("reason") or "").strip()
+
+    tenant_id = _effective_tenant_id(session, user)
+    candidate = session.exec(
+        select(ShadowDomainCandidate).where(
+            ShadowDomainCandidate.id == candidate_id,
+            ShadowDomainCandidate.tenant_id == tenant_id,
+        )
+    ).first()
+    if not candidate:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+    candidate.status = "dismissed"
+    candidate.dismissed_reason = reason
+    session.add(candidate)
+
+    entry = SecurityAuditLog(
+        event_type="shadow_domain_dismissed",
+        username=user.username, user_id=user.id, tenant_id=tenant_id,
+        source_ip=request.client.host if request.client else None,
+        success=True,
+        details={"discovered_domain": candidate.discovered_domain, "reason": reason},
+    )
+    session.add(entry)
     session.commit()
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)

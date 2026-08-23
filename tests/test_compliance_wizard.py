@@ -361,3 +361,75 @@ class TestBrandWatchScan:
             db_session.delete(watch)
             db_session.delete(known)
             db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestTriage:
+    def _make_candidate(self, db_session, test_tenant, domain="musterbank-triage-test.example.net"):
+        from yads.models import BrandWatch, ShadowDomainCandidate
+
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        db_session.add(watch)
+        db_session.commit()
+        db_session.refresh(watch)
+
+        candidate = ShadowDomainCandidate(
+            brand_watch_id=watch.id, tenant_id=test_tenant.id,
+            discovered_domain=domain, source="ct_log",
+        )
+        db_session.add(candidate)
+        db_session.commit()
+        db_session.refresh(candidate)
+        return watch, candidate
+
+    def test_confirm_creates_target_and_updates_status(self, admin_client, test_tenant, db_session):
+        from yads.models import ShadowDomainCandidate, Target
+        from sqlmodel import select
+
+        watch, candidate = self._make_candidate(db_session, test_tenant)
+
+        try:
+            r = admin_client.post(f"/compliance-wizard/shadow-domains/{candidate.id}/confirm", follow_redirects=True)
+            assert r.status_code == 200
+
+            db_session.refresh(candidate)
+            assert candidate.status == "confirmed"
+            assert candidate.resolved_target_id is not None
+
+            created_target = db_session.exec(
+                select(Target).where(Target.id == candidate.resolved_target_id)
+            ).first()
+            assert created_target.domain == "musterbank-triage-test.example.net"
+        finally:
+            db_session.refresh(candidate)
+            created_target = None
+            if candidate.resolved_target_id is not None:
+                created_target = db_session.exec(
+                    select(Target).where(Target.id == candidate.resolved_target_id)
+                ).first()
+            db_session.delete(candidate)
+            if created_target:
+                db_session.delete(created_target)
+            db_session.commit()
+            db_session.delete(watch)
+            db_session.commit()
+
+    def test_dismiss_sets_reason_and_status(self, admin_client, test_tenant, db_session):
+        watch, candidate = self._make_candidate(db_session, test_tenant, domain="musterbank-dismiss-test.example.net")
+
+        try:
+            r = admin_client.post(
+                f"/compliance-wizard/shadow-domains/{candidate.id}/dismiss",
+                data={"reason": "unrelated third party, false positive substring match"},
+                follow_redirects=True,
+            )
+            assert r.status_code == 200
+
+            db_session.refresh(candidate)
+            assert candidate.status == "dismissed"
+            assert "false positive" in candidate.dismissed_reason
+        finally:
+            db_session.delete(candidate)
+            db_session.commit()
+            db_session.delete(watch)
+            db_session.commit()
