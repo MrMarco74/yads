@@ -976,6 +976,12 @@ class SecurityFinding(SQLModel, table=True):
     mitre_technique_id: Optional[str] = Field(default=None, index=True)   # e.g. "T1190"
     mitre_technique_name: Optional[str] = Field(default=None)
 
+    # Raw per-item evidence dict from the scanner module that produced this
+    # finding (e.g. the offending header/cookie/value), as returned by
+    # _extract_findings() in security_findings.py. Refreshed on every scan
+    # that still reports the finding.
+    evidence: dict = Field(default={}, sa_column=Column(JSONB))
+
     # NIS2 incident-reporting timer (#58): 24h early-warning / 72h detailed
     # notification deadlines, started explicitly by a user marking this
     # finding as a reportable incident. Not automatic — NIS2 reportability

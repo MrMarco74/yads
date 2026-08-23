@@ -108,6 +108,7 @@ def _upsert_findings(
         if fhash in existing_map:
             row = existing_map[fhash]
             row.last_seen = now
+            row.evidence = f.get("evidence") or {}
             session.add(row)
         else:
             counter += 1
@@ -133,6 +134,7 @@ def _upsert_findings(
                 mitre_tactic_id=mitre["tactic_id"] if mitre else None,
                 mitre_technique_id=mitre["technique_id"] if mitre else None,
                 mitre_technique_name=mitre["technique_name"] if mitre else None,
+                evidence=f.get("evidence") or {},
             )
             session.add(row)
             existing_map[fhash] = row
@@ -208,6 +210,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "info"),
                 "issue": f"[{f.get('section','')}] {f.get('issue','')}",
                 "score": data.get("score"),
+                "evidence": f,
             })
 
     elif module == "axfr_scanner":
@@ -217,6 +220,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": "critical",
                 "issue": f.get("issue", "Zone transfer succeeded"),
                 "score": 0,
+                "evidence": f,
             })
 
     elif module == "web_analyzer":
@@ -227,6 +231,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "info"),
                 "issue": f.get("title", ""),
                 "score": None,
+                "evidence": f,
             })
 
     elif module == "api_discovery":
@@ -237,6 +242,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "info"),
                 "issue": f.get("title", ""),
                 "score": None,
+                "evidence": f,
             })
 
     elif module == "security_txt":
@@ -245,6 +251,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": "low" if data.get("found") else "medium",
                 "issue": issue,
                 "score": data.get("score"),
+                "evidence": {"issue": issue, "found": data.get("found"), "location": data.get("location")},
             })
 
     elif module == "http_headers":
@@ -254,6 +261,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                     "severity": f.get("severity", "low"),
                     "issue": f"{f.get('header','')}: {f.get('issue','')}",
                     "score": data.get("score"),
+                    "evidence": f,
                 })
 
     elif module == "cookie_scanner":
@@ -262,6 +270,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "low"),
                 "issue": f"[{f.get('cookie','')}] {f.get('issue','')}",
                 "score": data.get("score"),
+                "evidence": f,
             })
 
     elif module == "cors_scanner":
@@ -270,6 +279,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "medium"),
                 "issue": f.get("issue", ""),
                 "score": data.get("score"),
+                "evidence": f,
             })
 
     elif module == "cert_mismatch":
@@ -278,6 +288,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "medium"),
                 "issue": f.get("issue", ""),
                 "score": None,
+                "evidence": f,
             })
 
     elif module == "shodan_censys":
@@ -286,6 +297,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "medium"),
                 "issue": f.get("title", ""),
                 "score": data.get("summary", {}).get("score"),
+                "evidence": f,
             })
 
     elif module == "threat_intel":
@@ -294,6 +306,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                 "severity": f.get("severity", "medium"),
                 "issue": f.get("title", ""),
                 "score": data.get("summary", {}).get("score"),
+                "evidence": f,
             })
 
     else:
@@ -307,6 +320,7 @@ def _extract_findings(module: str, data: Dict) -> List[Dict]:
                     "severity": f.get("severity", "info"),
                     "issue": f.get("title") or f.get("issue") or f.get("id") or "",
                     "score": score,
+                    "evidence": f,
                 })
 
     return findings

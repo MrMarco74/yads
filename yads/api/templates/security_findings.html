@@ -94,10 +94,14 @@
                     <p id="fdMitre" class="text-xs text-slate-300 font-mono"></p>
                 </div>
                 <div id="fdNis2Wrap" class="hidden bg-amber-900/20 border border-amber-800/40 rounded-lg px-3 py-2 text-xs text-amber-300"></div>
+                <div id="fdEvidenceWrap" class="hidden">
+                    <span class="text-xs text-slate-500">Evidence:</span>
+                    <dl id="fdEvidenceBody" class="mt-1 space-y-1 text-xs bg-slate-950/50 border border-slate-800 rounded-lg p-2.5 max-h-48 overflow-y-auto"></dl>
+                </div>
             </div>
             <div class="flex gap-3 mt-5 justify-end">
                 <button onclick="closeFindingDetail()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Schließen</button>
-                <a id="fdEvidenceLink" href="#" class="px-4 py-2 text-sm font-medium text-indigo-300 border border-indigo-700 hover:bg-indigo-900/30 rounded-lg">Zur Evidence</a>
+                <a id="fdEvidenceLink" href="#" class="px-4 py-2 text-sm font-medium text-indigo-300 border border-indigo-700 hover:bg-indigo-900/30 rounded-lg">Ziel-Ansicht öffnen</a>
                 <button onclick="fdOpenEdit()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Bearbeiten</button>
             </div>
         </div>
@@ -283,6 +287,7 @@
                                     data-nis2="{{ f.nis2_marked_at or '' }}"
                                     data-nis2-24h="{{ f.nis2_deadline_24h or '' }}"
                                     data-nis2-72h="{{ f.nis2_deadline_72h or '' }}"
+                                    data-evidence='{{ f.evidence | tojson }}'
                                     class="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 cursor-pointer"
                                     title="Klicken für Details">{{ f.yf_id }}</button>
                             {% endif %}
@@ -403,6 +408,34 @@ function _fdSeverityClass(sev) {
     }
 }
 
+function _renderEvidence(bodyEl, wrapEl, rawJson) {
+    let evidence = {};
+    try { evidence = rawJson ? JSON.parse(rawJson) : {}; } catch (e) { evidence = {}; }
+    const skip = new Set(['issue', 'title', 'severity']);
+    const keys = Object.keys(evidence).filter(k => {
+        const v = evidence[k];
+        return !skip.has(k) && v !== null && v !== undefined && v !== '';
+    });
+    bodyEl.innerHTML = '';
+    if (!keys.length) { wrapEl.classList.add('hidden'); return; }
+    keys.forEach(k => {
+        let v = evidence[k];
+        if (typeof v === 'object') v = JSON.stringify(v);
+        const row = document.createElement('div');
+        row.className = 'flex gap-2';
+        const dt = document.createElement('dt');
+        dt.className = 'text-slate-500 shrink-0 font-mono';
+        dt.textContent = k + ':';
+        const dd = document.createElement('dd');
+        dd.className = 'text-slate-300 break-all';
+        dd.textContent = String(v);
+        row.appendChild(dt);
+        row.appendChild(dd);
+        bodyEl.appendChild(row);
+    });
+    wrapEl.classList.remove('hidden');
+}
+
 function openFindingDetail(btn) {
     _fdCurrentBtn = btn;
     const d = btn.dataset;
@@ -449,6 +482,8 @@ function openFindingDetail(btn) {
     } else {
         nis2Wrap.classList.add('hidden');
     }
+
+    _renderEvidence(document.getElementById('fdEvidenceBody'), document.getElementById('fdEvidenceWrap'), d.evidence);
 
     document.getElementById('findingDetailModal').classList.remove('hidden');
 }

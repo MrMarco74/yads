@@ -106,10 +106,14 @@
           <span class="text-xs text-slate-500">MITRE ATT&amp;CK:</span>
           <p id="tfdMitre" class="text-xs text-slate-300 font-mono"></p>
         </div>
+        <div id="tfdEvidenceWrap" class="hidden">
+          <span class="text-xs text-slate-500">Evidence:</span>
+          <dl id="tfdEvidenceBody" class="mt-1 space-y-1 text-xs bg-slate-950/50 border border-slate-800 rounded-lg p-2.5 max-h-48 overflow-y-auto"></dl>
+        </div>
       </div>
       <div class="flex gap-3 mt-5 justify-end">
         <button onclick="tfdClose()" class="px-4 py-2 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg">Schließen</button>
-        <a id="tfdEvidenceLink" href="#" class="px-4 py-2 text-sm font-medium text-indigo-300 border border-indigo-700 hover:bg-indigo-900/30 rounded-lg">Zur Evidence</a>
+        <a id="tfdEvidenceLink" href="#" class="px-4 py-2 text-sm font-medium text-indigo-300 border border-indigo-700 hover:bg-indigo-900/30 rounded-lg">Ziel-Ansicht öffnen</a>
         <button onclick="tfdOpenEdit()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Bearbeiten</button>
       </div>
     </div>
@@ -281,6 +285,7 @@
                       data-mitre-tactic="{{ sf.mitre_tactic_id or '' }}"
                       data-mitre-technique="{{ sf.mitre_technique_id or '' }}"
                       data-mitre-technique-name="{{ sf.mitre_technique_name | e if sf.mitre_technique_name else '' }}"
+                      data-evidence='{{ sf.evidence | tojson }}'
                       class="font-mono text-indigo-400 hover:text-indigo-300" title="Klicken für Details">{{ sf.yf_id }}</button>
             </td>
             <td class="px-3 py-2">
@@ -439,6 +444,34 @@ function _tfdSeverityClass(sev) {
   }
 }
 
+function _tfdRenderEvidence(bodyEl, wrapEl, rawJson) {
+  let evidence = {};
+  try { evidence = rawJson ? JSON.parse(rawJson) : {}; } catch (e) { evidence = {}; }
+  const skip = new Set(['issue', 'title', 'severity']);
+  const keys = Object.keys(evidence).filter(k => {
+    const v = evidence[k];
+    return !skip.has(k) && v !== null && v !== undefined && v !== '';
+  });
+  bodyEl.innerHTML = '';
+  if (!keys.length) { wrapEl.classList.add('hidden'); return; }
+  keys.forEach(k => {
+    let v = evidence[k];
+    if (typeof v === 'object') v = JSON.stringify(v);
+    const row = document.createElement('div');
+    row.className = 'flex gap-2';
+    const dt = document.createElement('dt');
+    dt.className = 'text-slate-500 shrink-0 font-mono';
+    dt.textContent = k + ':';
+    const dd = document.createElement('dd');
+    dd.className = 'text-slate-300 break-all';
+    dd.textContent = String(v);
+    row.appendChild(dt);
+    row.appendChild(dd);
+    bodyEl.appendChild(row);
+  });
+  wrapEl.classList.remove('hidden');
+}
+
 function tfdOpen(btn) {
   _tfdCurrentBtn = btn;
   const d = btn.dataset;
@@ -477,6 +510,8 @@ function tfdOpen(btn) {
   } else {
     mitreWrap.classList.add('hidden');
   }
+
+  _tfdRenderEvidence(document.getElementById('tfdEvidenceBody'), document.getElementById('tfdEvidenceWrap'), d.evidence);
 
   document.getElementById('tfDetailModal').classList.remove('hidden');
 }

@@ -1363,6 +1363,14 @@ def migrate():
         except Exception as e:
             print(f"   Error creating shadowdomaincandidate table: {e}")
 
+        print(">> Adding evidence column to securityfinding table...")
+        try:
+            conn.execute(text("ALTER TABLE securityfinding ADD COLUMN IF NOT EXISTS evidence JSONB DEFAULT '{}'::jsonb;"))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error adding evidence column to securityfinding table: {e}")
+
         print("\nMigration Complete!")
 
 
