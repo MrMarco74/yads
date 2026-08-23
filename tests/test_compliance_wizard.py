@@ -227,3 +227,37 @@ class TestWizardStep3:
             db_session.delete(with_server)
             db_session.delete(without_server)
             db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestWizardStep4:
+    def test_step4_creates_brand_watch(self, admin_client, test_tenant, db_session):
+        from yads.models import ComplianceScanRun, BrandWatch
+        from sqlmodel import select
+
+        run = ComplianceScanRun(tenant_id=test_tenant.id, criteria="all", current_step=4, target_ids=[])
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        try:
+            r = admin_client.post(
+                f"/compliance-wizard/{run.id}/step4",
+                data={"keyword": "musterbank"},
+                follow_redirects=True,
+            )
+            assert r.status_code == 200
+
+            watch = db_session.exec(
+                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
+            ).first()
+            assert watch is not None
+            assert watch.active is True
+        finally:
+            watch = db_session.exec(
+                select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
+            ).first()
+            if watch:
+                db_session.delete(watch)
+            db_session.delete(run)
+            db_session.commit()

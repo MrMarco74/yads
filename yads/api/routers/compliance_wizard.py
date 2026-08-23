@@ -234,3 +234,29 @@ async def dispatch_step3(
     _audit_scan_trigger(session, user, [str(t) for t in confirmed_ids[:50]], ["crawler"], "compliance_wizard_step3", request)
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+
+@router.post("/{run_id}/step4", response_class=HTMLResponse)
+async def create_brand_watch(
+    run_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
+):
+    tenant_id = _effective_tenant_id(session, user)
+    if tenant_id is None:
+        return HTMLResponse(
+            "<p class=\"text-red-400\">Select a tenant before starting a compliance run.</p>",
+            status_code=400,
+        )
+
+    form = await request.form()
+    keyword = (form.get("keyword") or "").strip().lower()
+    if not keyword:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+    watch = BrandWatch(tenant_id=tenant_id, keyword=keyword, created_by_user_id=user.id)
+    session.add(watch)
+    session.commit()
+
+    return RedirectResponse(url="/compliance-wizard", status_code=303)
