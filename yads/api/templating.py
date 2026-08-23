@@ -1,5 +1,6 @@
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
+import os
 from yads.config import settings
 from yads.core.i18n import t as _translate, get_lang, SUPPORTED_LANGS
 from jinja2 import pass_context
@@ -50,6 +51,8 @@ templates.env.globals['get_available_tenants'] = get_all_tenants
 
 templates.env.globals['settings'] = settings
 templates.env.globals['now_utc'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+templates.env.globals['yads_git_sha'] = os.environ.get('YADS_GIT_SHA') or 'dev'
+templates.env.globals['yads_build_time'] = os.environ.get('YADS_BUILD_TIME') or 'unknown'
 templates.env.globals['_'] = _translate
 templates.env.globals['get_lang'] = get_lang
 templates.env.globals['SUPPORTED_LANGS'] = SUPPORTED_LANGS

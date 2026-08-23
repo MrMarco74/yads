@@ -17,7 +17,11 @@ RUN npm run build:css
 FROM python:3.11-slim AS base-api
 
 ARG YADS_GIT_SHA
+ARG YADS_BUILD_TIME
 LABEL YADS_GIT_SHA=${YADS_GIT_SHA}
+LABEL YADS_BUILD_TIME=${YADS_BUILD_TIME}
+ENV YADS_GIT_SHA=${YADS_GIT_SHA}
+ENV YADS_BUILD_TIME=${YADS_BUILD_TIME}
 
 RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     graphviz \
