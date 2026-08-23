@@ -411,13 +411,12 @@ function _fdSeverityClass(sev) {
 function _renderEvidence(bodyEl, wrapEl, rawJson) {
     let evidence = {};
     try { evidence = rawJson ? JSON.parse(rawJson) : {}; } catch (e) { evidence = {}; }
-    const skip = new Set(['issue', 'title', 'severity']);
+    const skip = new Set(['issue', 'title', 'severity', 'source_url']);
     const keys = Object.keys(evidence).filter(k => {
         const v = evidence[k];
         return !skip.has(k) && v !== null && v !== undefined && v !== '';
     });
     bodyEl.innerHTML = '';
-    if (!keys.length) { wrapEl.classList.add('hidden'); return; }
     keys.forEach(k => {
         let v = evidence[k];
         if (typeof v === 'object') v = JSON.stringify(v);
@@ -433,6 +432,26 @@ function _renderEvidence(bodyEl, wrapEl, rawJson) {
         row.appendChild(dd);
         bodyEl.appendChild(row);
     });
+
+    const sourceUrl = evidence.source_url;
+    const hasSourceUrl = typeof sourceUrl === 'string' && /^https?:\/\//i.test(sourceUrl);
+    if (hasSourceUrl) {
+        const row = document.createElement('div');
+        row.className = keys.length ? 'pt-1.5 mt-1.5 border-t border-slate-800' : '';
+        const link = document.createElement('a');
+        link.href = sourceUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 underline';
+        link.textContent = 'Quelle öffnen ↗';
+        row.appendChild(link);
+        bodyEl.appendChild(row);
+    }
+
+    if (!keys.length && !hasSourceUrl) {
+        wrapEl.classList.add('hidden');
+        return;
+    }
     wrapEl.classList.remove('hidden');
 }
 

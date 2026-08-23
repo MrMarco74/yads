@@ -221,6 +221,7 @@ class PhishingScanner(BaseScannerModule):
                 ),
                 "active_urls": urlhaus["active_urls"],
                 "total_urls": urlhaus["total_urls"],
+                "source_url": f"https://urlhaus.abuse.ch/host/{domain}/",
             })
 
         # 2. URIBL check
@@ -234,6 +235,10 @@ class PhishingScanner(BaseScannerModule):
                 "severity": "high",
                 "title": "Domain listed in URIBL spam/phishing blacklist",
                 "description": "URIBL DNS blacklist has flagged this domain as associated with spam or phishing campaigns.",
+                # URIBL itself is DNS-only with no per-domain web lookup page;
+                # MXToolbox's blacklist SuperTool covers uribl-multi and 100+
+                # other DNSBLs for this exact domain in one place.
+                "source_url": f"https://mxtoolbox.com/SuperTool.aspx?action=blacklist:{domain}",
             })
 
         # 3. Google Safe Browsing (optional)
@@ -250,6 +255,7 @@ class PhishingScanner(BaseScannerModule):
                     "title": f"Google Safe Browsing: {', '.join(threats)}",
                     "description": f"Google Safe Browsing API flagged this domain for: {', '.join(threats)}.",
                     "threat_types": threats,
+                    "source_url": f"https://transparencyreport.google.com/safe-browsing/search?url={domain}",
                 })
 
         # 4. Lookalike / homograph detection
