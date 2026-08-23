@@ -149,7 +149,85 @@
         btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Rescan`;
     }
 
-    document.addEventListener('DOMContentLoaded', injectRescanButtons);
+    // Map: raw module_name (as used in Security Findings / FINDING_MODULES) →
+    // partial text of the h2 heading of the card that shows its evidence.
+    // Used to deep-link from a finding's "Zur Evidence" button into this page.
+    const EVIDENCE_CARD_MAP = {
+        axfr_scanner: 'DNS Zone Transfer',
+        rpki_scanner: 'RPKI / BGP',
+        web_analyzer: 'Web Analysis',
+        http_headers: 'HTTP Security Headers',
+        cookie_scanner: 'Cookie Security',
+        cors_scanner: 'CORS Policy',
+        security_txt: 'Security.txt',
+        cert_mismatch: 'Cert / Domain Match',
+        email_security: 'Email Security',
+        dsgvo_scanner: 'Privacy / DSGVO',
+        git_exposure: 'Exposed Files / .git',
+        metadata_scanner: 'Document Metadata',
+        shodan_censys: 'Internet Exposure',
+        js_secrets: 'JS Secrets & Endpoints',
+        wayback_scanner: 'Historical Intelligence',
+        external_resources: 'External Resources',
+        threat_intel: 'Threat Intelligence',
+        subdomain_takeover: 'Subdomain Takeover',
+        banner_grabber: 'Service Fingerprinting',
+        waf_detector: 'WAF / IDS / IPS Detection',
+        asn_scanner: 'ASN / IP Ranges',
+        login_scanner: 'Login & Auth Surface',
+        ipv6_scanner: 'IPv6 Attack Surface',
+        open_redirect_scanner: 'Open Redirect',
+        dns_history_scanner: 'DNS History',
+        phishing_scanner: 'Phishing Detection',
+        tls_deep_scanner: 'TLS Deep Scan',
+        ct_monitor: 'CT Log Monitor',
+        email_harvester: 'Email Harvesting',
+        dependency_confusion: 'Dependency Confusion',
+        graphql_scanner: 'GraphQL Security',
+        websocket_scanner: 'WebSocket Security',
+        password_spray_mapper: 'Password Spray Surface',
+        leaked_credentials: 'Leaked Credentials',
+        api_security_scanner: 'API Security',
+        mobile_app_discovery: 'Mobile App Discovery',
+        dns_scanner: 'DNS Analysis',
+        ssl_scanner: 'SSL/TLS Configuration',
+        crawler: 'Content Discovery',
+        visual_osint: 'Visual Identity',
+        typosquat_scanner: 'Typosquatting Discovery',
+    };
+
+    function scrollToEvidence() {
+        const params = new URLSearchParams(window.location.search);
+        const module = params.get('evidence');
+        if (!module) return;
+
+        const matchText = EVIDENCE_CARD_MAP[module];
+        let target = null;
+        if (matchText) {
+            target = [...document.querySelectorAll('h2')].find(h2 => h2.textContent.includes(matchText));
+        }
+
+        // Clean the URL either way so a reload doesn't re-trigger the scroll/highlight.
+        params.delete('evidence');
+        const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+        history.replaceState(null, '', cleanUrl);
+
+        if (!target) {
+            showToast(`Modul <em>${module}</em> hat aktuell keine eigene Karte auf dieser Seite — ggf. neu scannen.`, 'warn');
+            return;
+        }
+
+        const card = target.closest('.bg-gray-800\\/50') || target.closest('div');
+        (card || target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const highlightEl = card || target;
+        highlightEl.classList.add('ring-2', 'ring-indigo-500');
+        setTimeout(() => highlightEl.classList.remove('ring-2', 'ring-indigo-500'), 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        injectRescanButtons();
+        scrollToEvidence();
+    });
 })();
 </script>
 {% endblock %}
