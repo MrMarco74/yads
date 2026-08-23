@@ -23,9 +23,17 @@ def _effective_tenant_id(session: Session, user: User) -> Optional[int]:
 
     Tenant-bound users just use their own tenant_id. A platform admin with no
     tenant selected (user.tenant_id is None -- see the tenant-switch flow in
-    yads/api/routers/auth.py) can still use the wizard when the deployment is
-    unambiguous, i.e. exactly one tenant exists; otherwise they must select a
-    tenant first, matching the guidance already used in tenant_settings.py.
+    yads/api/routers/auth.py) has no single tenant to scope a
+    ComplianceScanRun row to (its tenant_id column is NOT NULL), so this is a
+    new fallback introduced for this wizard, not reused prior art: if the
+    deployment is unambiguous (exactly one Tenant row exists), auto-resolve
+    to that tenant; otherwise return None so the caller can ask the admin to
+    select a tenant first (see start_run's 400 response below). Note this
+    differs from the "admin with tenant_id is None -> unscoped query across
+    all tenants" pattern used elsewhere (e.g. attack_surface.py,
+    scan_compare.py) -- that pattern works for read-only, multi-row views,
+    but doesn't apply here since a ComplianceScanRun needs exactly one
+    tenant_id to be written.
     """
     if user.tenant_id is not None:
         return user.tenant_id

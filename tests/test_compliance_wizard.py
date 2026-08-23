@@ -123,3 +123,35 @@ class TestWizardStep1:
 
         db_session.delete(run)
         db_session.commit()
+
+    def test_effective_tenant_id_ambiguous_with_multiple_tenants(self, admin_client, db_session):
+        """When a platform admin (user.tenant_id is None) has no unambiguous
+        single tenant to fall back to -- i.e. more than one Tenant row exists
+        -- _effective_tenant_id must return None, and start_run must refuse
+        with 400 rather than guessing which tenant to scope the run to."""
+        from yads.models import Tenant, User
+        from yads.api.routers.compliance_wizard import _effective_tenant_id
+        from sqlmodel import select
+
+        extra_tenant = Tenant(name="Second Test Tenant")
+        db_session.add(extra_tenant)
+        db_session.commit()
+        db_session.refresh(extra_tenant)
+
+        try:
+            admin_user = db_session.exec(
+                select(User).where(User.username == "admin")
+            ).first()
+            assert admin_user.tenant_id is None
+
+            assert _effective_tenant_id(db_session, admin_user) is None
+
+            r = admin_client.post(
+                "/compliance-wizard/start",
+                data={"criteria": "all"},
+                follow_redirects=True,
+            )
+            assert r.status_code == 400
+        finally:
+            db_session.delete(extra_tenant)
+            db_session.commit()
