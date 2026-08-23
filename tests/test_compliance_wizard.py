@@ -261,3 +261,35 @@ class TestWizardStep4:
                 db_session.delete(watch)
             db_session.delete(run)
             db_session.commit()
+
+    def test_step4_nonexistent_run_does_not_create_brand_watch(self, admin_client, test_tenant, db_session):
+        from yads.models import BrandWatch
+        from sqlmodel import select
+
+        nonexistent_run_id = 999_999
+
+        try:
+            r = admin_client.post(
+                f"/compliance-wizard/{nonexistent_run_id}/step4",
+                data={"keyword": "musterbank-nonexistent-run"},
+                follow_redirects=True,
+            )
+            assert r.status_code == 200
+
+            watch = db_session.exec(
+                select(BrandWatch).where(
+                    BrandWatch.tenant_id == test_tenant.id,
+                    BrandWatch.keyword == "musterbank-nonexistent-run",
+                )
+            ).first()
+            assert watch is None
+        finally:
+            watch = db_session.exec(
+                select(BrandWatch).where(
+                    BrandWatch.tenant_id == test_tenant.id,
+                    BrandWatch.keyword == "musterbank-nonexistent-run",
+                )
+            ).first()
+            if watch:
+                db_session.delete(watch)
+                db_session.commit()

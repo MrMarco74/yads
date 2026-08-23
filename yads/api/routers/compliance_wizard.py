@@ -250,6 +250,15 @@ async def create_brand_watch(
             status_code=400,
         )
 
+    run = session.exec(
+        select(ComplianceScanRun).where(
+            ComplianceScanRun.id == run_id,
+            ComplianceScanRun.tenant_id == tenant_id,
+        )
+    ).first()
+    if not run:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
     form = await request.form()
     keyword = (form.get("keyword") or "").strip().lower()
     if not keyword:
