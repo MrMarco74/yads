@@ -26,6 +26,13 @@
             <li>Reachable / webserver confirmed: {{ run.targets_reachable }} / {{ run.targets_webserver_confirmed }}</li>
             <li>Deep-crawled: {{ run.targets_crawled }}</li>
         </ul>
+        {% if run.current_step == 2 %}
+        <form method="post" action="/compliance-wizard/{{ run.id }}/step2">
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded mt-4">
+                Run reachability + webserver detection
+            </button>
+        </form>
+        {% endif %}
     </div>
     {% endif %}
 

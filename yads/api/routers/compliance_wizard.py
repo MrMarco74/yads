@@ -1,16 +1,18 @@
 import logging
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import func, or_, and_, text
 from sqlmodel import Session, select
 
 from yads.database import get_session
 from yads.auth.deps import RoleChecker
-from yads.models import User, Target, Tenant, ComplianceScanRun, BrandWatch, ShadowDomainCandidate
+from yads.models import User, Target, Tenant, ComplianceScanRun, BrandWatch, ShadowDomainCandidate, ScanResult
 from yads.api.templating import templates
-from yads.api.routers.targets import _build_bulk_criteria_query, _audit_scan_trigger
+from yads.api.routers.targets import _build_bulk_criteria_query, _audit_scan_trigger, _queue_single_bulk_target
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/compliance-wizard", tags=["compliance"])
@@ -54,6 +56,32 @@ def _latest_run(session: Session, user: User) -> Optional[ComplianceScanRun]:
     ).first()
 
 
+def _compute_step2_progress(session: Session, run: ComplianceScanRun) -> tuple[int, int]:
+    if not run.target_ids:
+        return (0, 0)
+
+    reachable_criteria = or_(
+        and_(ScanResult.module_name == 'infrastructure_scanner', text("data->>'ip' IS NOT NULL")),
+        and_(ScanResult.module_name == 'web_analyzer', text("(data->>'status_code')::int > 0")),
+        and_(ScanResult.module_name == 'port_scanner', text("data->>'is_active' = 'true'")),
+    )
+    reachable = session.exec(
+        select(func.count(func.distinct(ScanResult.target_id)))
+        .where(ScanResult.target_id.in_(run.target_ids), reachable_criteria)
+    ).one()
+
+    webserver = session.exec(
+        select(func.count(func.distinct(ScanResult.target_id)))
+        .where(
+            ScanResult.target_id.in_(run.target_ids),
+            ScanResult.module_name == 'web_analyzer',
+            text("(data->>'status_code')::int > 0"),
+        )
+    ).one()
+
+    return (reachable or 0, webserver or 0)
+
+
 @router.get("", response_class=HTMLResponse)
 async def wizard_or_dashboard(
     request: Request,
@@ -61,6 +89,13 @@ async def wizard_or_dashboard(
     user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
 ):
     run = _latest_run(session, user)
+    if run and run.current_step >= 2:
+        reachable, webserver_confirmed = _compute_step2_progress(session, run)
+        if reachable != run.targets_reachable or webserver_confirmed != run.targets_webserver_confirmed:
+            run.targets_reachable = reachable
+            run.targets_webserver_confirmed = webserver_confirmed
+            session.add(run)
+            session.commit()
     tenant_id = _effective_tenant_id(session, user)
     watches = session.exec(
         select(BrandWatch).where(BrandWatch.tenant_id == tenant_id)
@@ -117,5 +152,40 @@ async def start_run(
         [str(tid) for tid in target_ids[:50]],
         ["web_analyzer"], "compliance_wizard_start", request,
     )
+
+    return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+
+@router.post("/{run_id}/step2", response_class=HTMLResponse)
+async def dispatch_step2(
+    run_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
+):
+    tenant_id = _effective_tenant_id(session, user)
+    run = session.exec(
+        select(ComplianceScanRun).where(
+            ComplianceScanRun.id == run_id,
+            ComplianceScanRun.tenant_id == tenant_id,
+        )
+    ).first()
+    if not run:
+        return RedirectResponse(url="/compliance-wizard", status_code=303)
+
+    # _queue_single_bulk_target only ever reads user.tenant_id, so for a
+    # platform admin (user.tenant_id is None) resolved to a single tenant
+    # above, pass a stand-in exposing the resolved tenant_id -- same pattern
+    # as start_run's query_user, for the same reason.
+    query_user = user if user.tenant_id is not None else SimpleNamespace(tenant_id=tenant_id)
+    for tid in run.target_ids:
+        _queue_single_bulk_target(session, query_user, str(tid), ["web_analyzer"])
+
+    run.current_step = 3
+    run.step2_completed_at = datetime.utcnow()
+    session.add(run)
+    session.commit()
+
+    _audit_scan_trigger(session, user, [str(t) for t in run.target_ids[:50]], ["web_analyzer"], "compliance_wizard_step2", request)
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)

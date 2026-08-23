@@ -155,3 +155,33 @@ class TestWizardStep1:
         finally:
             db_session.delete(extra_tenant)
             db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestWizardStep2:
+    def test_step2_dispatch_advances_run_and_queues_scans(self, admin_client, test_tenant, db_session):
+        from yads.models import Target, ComplianceScanRun
+        from sqlmodel import select
+
+        target = Target(domain="wizard-step2-test.example.com", tenant_id=test_tenant.id)
+        db_session.add(target)
+        db_session.commit()
+        db_session.refresh(target)
+
+        run = ComplianceScanRun(
+            tenant_id=test_tenant.id, criteria="all", current_step=2,
+            target_ids=[target.id], targets_total=1,
+        )
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        r = admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
+        assert r.status_code < 500
+
+        db_session.refresh(run)
+        assert run.current_step == 3
+
+        db_session.delete(run)
+        db_session.delete(target)
+        db_session.commit()
