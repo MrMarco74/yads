@@ -467,12 +467,45 @@ class TestBrandWatchScan:
                 assert "musterbank" in url
                 return FakeResponse()
 
-        monkeypatch.setattr(worker_tasks, "RateLimitedClient", lambda *a, **kw: FakeClient())
+        # _ct_search_keyword uses a module-level singleton client (so rate
+        # limiting is actually shared/effective across calls), not a fresh
+        # RateLimitedClient() per call -- patch the singleton directly.
+        monkeypatch.setattr(worker_tasks, "_brand_watch_ct_client", FakeClient())
 
         domains = worker_tasks._ct_search_keyword("musterbank")
         assert "portal.musterbank-example.com" in domains
         assert "www.musterbank-example.com" in domains
         assert "unrelated-nothing.example.org" not in domains
+
+    def test_ct_search_keyword_url_encodes_special_characters(self, monkeypatch):
+        """A keyword containing '&', '#', or whitespace must not break the
+        crt.sh query string or inject extra query parameters."""
+        from yads import worker_tasks
+
+        class FakeResponse:
+            status_code = 200
+            def json(self):
+                return []
+
+        captured_urls = []
+
+        class FakeClient:
+            def register_service(self, *a, **kw):
+                pass
+            def get(self, service_name, url, **kw):
+                captured_urls.append(url)
+                return FakeResponse()
+
+        monkeypatch.setattr(worker_tasks, "_brand_watch_ct_client", FakeClient())
+
+        worker_tasks._ct_search_keyword("musterbank & co #test")
+
+        assert len(captured_urls) == 1
+        url = captured_urls[0]
+        assert "&" not in url.split("?q=", 1)[1] or "%26" in url
+        assert " " not in url
+        assert "#" not in url
+        assert url.count("q=") == 1  # a raw '&' would have injected a second/garbled param
 
     def test_run_brand_watch_scan_creates_candidates_and_skips_known_targets(self, monkeypatch, db_session, test_tenant):
         from yads import worker_tasks

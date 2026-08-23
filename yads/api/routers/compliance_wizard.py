@@ -46,8 +46,12 @@ def _effective_tenant_id(session: Session, user: User) -> Optional[int]:
     return None
 
 
-def _latest_run(session: Session, user: User) -> Optional[ComplianceScanRun]:
-    tenant_id = _effective_tenant_id(session, user)
+def _latest_run(session: Session, user: User, tenant_id: Optional[int] = None) -> Optional[ComplianceScanRun]:
+    """tenant_id may be passed in by a caller that has already resolved it
+    (e.g. wizard_or_dashboard, to avoid a second _effective_tenant_id query
+    per dashboard load) -- otherwise it's resolved here as before."""
+    if tenant_id is None:
+        tenant_id = _effective_tenant_id(session, user)
     if tenant_id is None:
         return None
     return session.exec(
@@ -108,7 +112,8 @@ async def wizard_or_dashboard(
     session: Session = Depends(get_session),
     user: User = Depends(RoleChecker(_ALLOWED_ROLES)),
 ):
-    run = _latest_run(session, user)
+    tenant_id = _effective_tenant_id(session, user)
+    run = _latest_run(session, user, tenant_id=tenant_id)
     if run and run.current_step >= 2:
         reachable, webserver_confirmed = _compute_step2_progress(session, run)
         if reachable != run.targets_reachable or webserver_confirmed != run.targets_webserver_confirmed:
@@ -122,7 +127,6 @@ async def wizard_or_dashboard(
             run.targets_crawled = crawled
             session.add(run)
             session.commit()
-    tenant_id = _effective_tenant_id(session, user)
     watches = session.exec(
         select(BrandWatch).where(BrandWatch.tenant_id == tenant_id)
     ).all() if tenant_id is not None else []

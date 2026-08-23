@@ -34,6 +34,7 @@ from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
 from yads.core.base import sanitize_null_bytes
 from yads.core.metrics import get_metrics
+from urllib.parse import quote
 from yads.modules._shared_osint_utils import RateLimitedClient
 from yads.modules.tld_scanner import get_tld_list
 
@@ -1959,16 +1960,23 @@ def sync_external_integrations():
 
 _CRTSH_KEYWORD_URL = "https://crt.sh/?q={keyword}&output=json"
 
+# Module-level singleton: RateLimitedClient tracks last-request timestamps
+# on the INSTANCE, so a fresh client per call (as this used to do) never
+# actually throttles anything -- every call starts with no last-request
+# history. One shared client across the whole process is what makes the
+# registered 1 req/s limit real when multiple BrandWatch rows are processed
+# in the same run_brand_watch_scan tick.
+_brand_watch_ct_client = RateLimitedClient()
+_brand_watch_ct_client.register_service("crtsh", requests_per_second=1.0)
+
 
 def _ct_search_keyword(keyword: str) -> list:
     """Substring-search crt.sh for a brand keyword across all issued certs
     (NOT scoped to a known domain, unlike ct_monitor.py's _fetch_certs)."""
-    client = RateLimitedClient()
-    client.register_service("crtsh", requests_per_second=1.0)
-
     domains = set()
     try:
-        resp = client.get("crtsh", _CRTSH_KEYWORD_URL.format(keyword=keyword), timeout=20)
+        url = _CRTSH_KEYWORD_URL.format(keyword=quote(keyword, safe=""))
+        resp = _brand_watch_ct_client.get("crtsh", url, timeout=20)
         if resp.status_code == 200:
             for entry in resp.json():
                 for name in entry.get("name_value", "").split("\n"):
