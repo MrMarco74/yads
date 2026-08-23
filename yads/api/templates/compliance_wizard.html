@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-xl font-semibold text-white">Domain Compliance</h1>
+
+    {% if not run %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Step 1: Select targets</h2>
+        <form method="post" action="/compliance-wizard/start" class="space-y-4">
+            <select name="criteria" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+                <option value="all">All known targets</option>
+                <option value="only_roots">Root domains only</option>
+                <option value="online_only">Online only</option>
+            </select>
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded">
+                Start
+            </button>
+        </form>
+    </div>
+    {% else %}
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Run #{{ run.id }} — step {{ [run.current_step, 4] | min }} of 4</h2>
+        <ul class="text-sm text-slate-400 space-y-1">
+            <li>Targets selected: {{ run.targets_total }}</li>
+            <li>Reachable / webserver confirmed: {{ run.targets_reachable }} / {{ run.targets_webserver_confirmed }}</li>
+            <li>Deep-crawled: {{ run.targets_crawled }}</li>
+        </ul>
+        {% if run.current_step == 2 %}
+        <form method="post" action="/compliance-wizard/{{ run.id }}/step2">
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded mt-4">
+                Run reachability + webserver detection
+            </button>
+        </form>
+        {% endif %}
+        {% if run.current_step == 3 %}
+        <form method="post" action="/compliance-wizard/{{ run.id }}/step3">
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded mt-4">
+                Run deep content scan ({{ run.targets_webserver_confirmed }} targets with a live webserver)
+            </button>
+        </form>
+        {% endif %}
+        {% if run.current_step == 4 %}
+        <form method="post" action="/compliance-wizard/{{ run.id }}/step4" class="mt-4 space-y-2">
+            <label class="block text-sm text-slate-400">Brand keyword to watch</label>
+            <input type="text" name="keyword" value="musterbank" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+            <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded">
+                Start watching
+            </button>
+        </form>
+        {% endif %}
+        {% if run.current_step >= 5 %}
+        <p class="text-sm text-emerald-400 mt-4">Brand watch configured. This run is complete.</p>
+        {% endif %}
+        {% if run.step3_completed_at %}
+        <form method="post" action="/compliance-wizard/start" class="mt-6 pt-4 border-t border-slate-800 space-y-2">
+            <label class="block text-sm text-slate-400">Start a new run (e.g. quarterly re-scan)</label>
+            <select name="criteria" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+                <option value="all">All known targets</option>
+                <option value="only_roots">Root domains only</option>
+                <option value="online_only">Online only</option>
+            </select>
+            <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded">
+                Start a new run
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Brand Watches</h2>
+        {% if watches %}
+        <ul class="text-sm text-slate-400 space-y-1">
+            {% for w in watches %}
+            <li>{{ w.keyword }} — {{ "active" if w.active else "paused" }}, last run {{ w.last_run_at or "never" }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-slate-500">No brand watches configured yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+        <h2 class="text-slate-200 font-medium mb-4">Shadow Domain Candidates ({{ pending_candidates|length }} pending)</h2>
+        {% if pending_candidates %}
+        <ul class="text-sm text-slate-400 space-y-3">
+            {% for c in pending_candidates %}
+            <li class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>{{ c.discovered_domain }} <span class="text-slate-600">({{ c.source }})</span></span>
+                <span class="flex gap-2">
+                    <form method="post" action="/compliance-wizard/shadow-domains/{{ c.id }}/confirm">
+                        <button type="submit" class="text-emerald-400 hover:text-emerald-300">Confirm</button>
+                    </form>
+                    <form method="post" action="/compliance-wizard/shadow-domains/{{ c.id }}/dismiss">
+                        <input type="hidden" name="reason" value="reviewed, not Musterbank-related">
+                        <button type="submit" class="text-slate-500 hover:text-slate-300">Dismiss</button>
+                    </form>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-slate-500">No pending candidates.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

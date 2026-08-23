@@ -384,6 +384,55 @@ class ScanSchedule(SQLModel, table=True):
     
     target: Target = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
 
+class ComplianceScanRun(SQLModel, table=True):
+    """One run of the Domain Compliance wizard: target selection -> reachability
+    + webserver detection -> deep crawl. Also backs the status dashboard shown
+    on re-entry."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    criteria: str = Field(default="all")  # all | only_roots | online_only
+    current_step: int = Field(default=1)  # 1-4
+    target_ids: List[int] = Field(default=[], sa_column=Column(JSONB))
+
+    targets_total: int = Field(default=0)
+    targets_reachable: int = Field(default=0)
+    targets_webserver_confirmed: int = Field(default=0)
+    targets_crawled: int = Field(default=0)
+
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    step2_completed_at: Optional[datetime] = Field(default=None)
+    step3_completed_at: Optional[datetime] = Field(default=None)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class BrandWatch(SQLModel, table=True):
+    """A recurring brand-keyword shadow-domain watch (DORA compliance)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    keyword: str = Field(index=True)
+    active: bool = Field(default=True)
+    last_run_at: Optional[datetime] = Field(default=None)
+    created_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ShadowDomainCandidate(SQLModel, table=True):
+    """A domain discovered by a BrandWatch run that isn't a known Target yet."""
+    __table_args__ = (
+        UniqueConstraint("brand_watch_id", "discovered_domain", name="uq_shadowdomain_watch_domain"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    brand_watch_id: int = Field(foreign_key="brandwatch.id", index=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    discovered_domain: str = Field(index=True)
+    source: str = Field(default="ct_log")  # ct_log | tld_enum
+    status: str = Field(default="new", index=True)  # new | confirmed | dismissed
+    dismissed_reason: Optional[str] = Field(default=None)
+    resolved_target_id: Optional[int] = Field(default=None, foreign_key="target.id")
+    first_seen_at: datetime = Field(default_factory=datetime.utcnow)
+    last_seen_at: datetime = Field(default_factory=datetime.utcnow)
+
 class ReportSubscription(SQLModel, table=True):
     """
     Recurring report delivery (#45) — a separate scheduling layer from

@@ -1292,6 +1292,77 @@ def migrate():
         except Exception as e:
             print(f"   Skipped/Error: {e}")
 
+        print(">> Creating compliancescanrun table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS compliancescanrun (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    criteria VARCHAR NOT NULL DEFAULT 'all',
+                    current_step INTEGER NOT NULL DEFAULT 1,
+                    target_ids JSONB NOT NULL DEFAULT '[]',
+                    targets_total INTEGER NOT NULL DEFAULT 0,
+                    targets_reachable INTEGER NOT NULL DEFAULT 0,
+                    targets_webserver_confirmed INTEGER NOT NULL DEFAULT 0,
+                    targets_crawled INTEGER NOT NULL DEFAULT 0,
+                    started_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    step2_completed_at TIMESTAMP WITHOUT TIME ZONE,
+                    step3_completed_at TIMESTAMP WITHOUT TIME ZONE,
+                    created_by_user_id INTEGER REFERENCES "user"(id)
+                );
+                CREATE INDEX IF NOT EXISTS ix_compliancescanrun_tenant_id ON compliancescanrun (tenant_id);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating compliancescanrun table: {e}")
+
+        print(">> Creating brandwatch table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS brandwatch (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    keyword VARCHAR NOT NULL,
+                    active BOOLEAN NOT NULL DEFAULT TRUE,
+                    last_run_at TIMESTAMP WITHOUT TIME ZONE,
+                    created_by_user_id INTEGER REFERENCES "user"(id),
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc')
+                );
+                CREATE INDEX IF NOT EXISTS ix_brandwatch_tenant_id ON brandwatch (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_brandwatch_keyword ON brandwatch (keyword);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating brandwatch table: {e}")
+
+        print(">> Creating shadowdomaincandidate table (if not exists)...")
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS shadowdomaincandidate (
+                    id SERIAL PRIMARY KEY,
+                    brand_watch_id INTEGER NOT NULL REFERENCES brandwatch(id),
+                    tenant_id INTEGER NOT NULL REFERENCES tenant(id),
+                    discovered_domain VARCHAR NOT NULL,
+                    source VARCHAR NOT NULL DEFAULT 'ct_log',
+                    status VARCHAR NOT NULL DEFAULT 'new',
+                    dismissed_reason VARCHAR,
+                    resolved_target_id INTEGER REFERENCES target(id),
+                    first_seen_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    last_seen_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() at time zone 'utc'),
+                    CONSTRAINT uq_shadowdomain_watch_domain UNIQUE (brand_watch_id, discovered_domain)
+                );
+                CREATE INDEX IF NOT EXISTS ix_shadowdomaincandidate_brand_watch_id ON shadowdomaincandidate (brand_watch_id);
+                CREATE INDEX IF NOT EXISTS ix_shadowdomaincandidate_tenant_id ON shadowdomaincandidate (tenant_id);
+                CREATE INDEX IF NOT EXISTS ix_shadowdomaincandidate_discovered_domain ON shadowdomaincandidate (discovered_domain);
+                CREATE INDEX IF NOT EXISTS ix_shadowdomaincandidate_status ON shadowdomaincandidate (status);
+            """))
+            conn.commit()
+            print("   Success.")
+        except Exception as e:
+            print(f"   Error creating shadowdomaincandidate table: {e}")
+
         print("\nMigration Complete!")
 
 

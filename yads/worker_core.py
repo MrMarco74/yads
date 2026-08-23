@@ -100,6 +100,10 @@ celery_app.conf.beat_schedule = {
         'task': 'yads.worker.check_archived_target_reactivation',
         'schedule': 7 * 24 * 3600.0,  # weekly — DNS-dead targets don't need daily re-checks
     },
+    'brand-watch-scan': {
+        'task': 'yads.worker.run_brand_watch_scan',
+        'schedule': 24 * 3600.0,  # daily
+    },
 }
 
 from celery.signals import worker_ready, worker_process_init, task_failure, task_revoked
