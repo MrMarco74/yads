@@ -2019,56 +2019,76 @@ def run_brand_watch_scan():
         watches = session.exec(select(BrandWatch).where(BrandWatch.active == True)).all()
 
         for watch in watches:
-            ct_domains = _ct_search_keyword(watch.keyword)
-            tld_domains = _probe_keyword_across_tlds(watch.keyword)
-
-            known_domains = set(
-                d.lower() for d in session.exec(
-                    select(Target.domain).where(Target.tenant_id == watch.tenant_id)
-                ).all()
-            )
-            existing_candidates = set(
-                session.exec(
-                    select(ShadowDomainCandidate.discovered_domain)
-                    .where(ShadowDomainCandidate.brand_watch_id == watch.id)
-                ).all()
-            )
-
-            new_count = 0
-            for domain, source in [(d, "ct_log") for d in ct_domains] + [(d, "tld_enum") for d in tld_domains]:
-                if domain in known_domains:
-                    continue
-                if domain in existing_candidates:
-                    continue
-                session.add(ShadowDomainCandidate(
-                    brand_watch_id=watch.id,
-                    tenant_id=watch.tenant_id,
-                    discovered_domain=domain,
-                    source=source,
-                ))
-                existing_candidates.add(domain)
-                new_count += 1
-
-            watch.last_run_at = datetime.utcnow()
-            session.add(watch)
-
             try:
-                entry = SecurityAuditLog(
-                    event_type="brand_watch_scan",
-                    tenant_id=watch.tenant_id,
-                    success=True,
-                    details={
-                        "keyword": watch.keyword,
-                        "ct_domains_found": len(ct_domains),
-                        "tld_domains_found": len(tld_domains),
-                        "new_candidates": new_count,
-                    },
-                )
-                session.add(entry)
-            except Exception as e:
-                logger.warning(f"[BrandWatch] Failed to write audit log: {e}")
+                ct_domains = _ct_search_keyword(watch.keyword)
+                tld_domains = _probe_keyword_across_tlds(watch.keyword)
 
-            session.commit()
+                known_domains = set(
+                    d.lower() for d in session.exec(
+                        select(Target.domain).where(Target.tenant_id == watch.tenant_id)
+                    ).all()
+                )
+                existing_candidates = {
+                    c.discovered_domain: c
+                    for c in session.exec(
+                        select(ShadowDomainCandidate)
+                        .where(ShadowDomainCandidate.brand_watch_id == watch.id)
+                    ).all()
+                }
+
+                new_count = 0
+                now = datetime.utcnow()
+                for domain, source in [(d, "ct_log") for d in ct_domains] + [(d, "tld_enum") for d in tld_domains]:
+                    if domain in known_domains:
+                        continue
+                    existing = existing_candidates.get(domain)
+                    if existing is not None:
+                        # Re-discovered an already-known candidate (any status:
+                        # new/confirmed/dismissed) -- update last_seen_at so a
+                        # human can judge the re-appearance against the
+                        # original dismissal reasoning, rather than silently
+                        # ignoring it.
+                        existing.last_seen_at = now
+                        session.add(existing)
+                        continue
+                    new_candidate = ShadowDomainCandidate(
+                        brand_watch_id=watch.id,
+                        tenant_id=watch.tenant_id,
+                        discovered_domain=domain,
+                        source=source,
+                    )
+                    session.add(new_candidate)
+                    existing_candidates[domain] = new_candidate
+                    new_count += 1
+
+                watch.last_run_at = now
+                session.add(watch)
+
+                try:
+                    entry = SecurityAuditLog(
+                        event_type="brand_watch_scan",
+                        tenant_id=watch.tenant_id,
+                        success=True,
+                        details={
+                            "keyword": watch.keyword,
+                            "ct_domains_found": len(ct_domains),
+                            "tld_domains_found": len(tld_domains),
+                            "new_candidates": new_count,
+                        },
+                    )
+                    session.add(entry)
+                except Exception as e:
+                    logger.warning(f"[BrandWatch] Failed to write audit log: {e}")
+
+                session.commit()
+            except Exception:
+                # Don't let one watch's failure (e.g. a race causing an
+                # IntegrityError) abort the whole daily task -- every other
+                # tenant's watch, including their last_run_at update, must
+                # still be processed.
+                session.rollback()
+                logger.exception(f"[BrandWatch] Failed to process watch id={watch.id} keyword={watch.keyword!r}")
+                continue
 
 
 @celery_app.task(name="yads.worker.check_splunk_hec_health")

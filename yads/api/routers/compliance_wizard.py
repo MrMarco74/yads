@@ -71,6 +71,16 @@ def _webserver_confirmed_ids(session: Session, target_ids: list[int]) -> list[in
     return list(rows)
 
 
+def _compute_step3_progress(session: Session, run: ComplianceScanRun) -> int:
+    if not run.target_ids:
+        return 0
+    crawled = session.exec(
+        select(func.count(func.distinct(ScanResult.target_id)))
+        .where(ScanResult.target_id.in_(run.target_ids), ScanResult.module_name == 'crawler')
+    ).one()
+    return crawled or 0
+
+
 def _compute_step2_progress(session: Session, run: ComplianceScanRun) -> tuple[int, int]:
     if not run.target_ids:
         return (0, 0)
@@ -103,6 +113,12 @@ async def wizard_or_dashboard(
         if reachable != run.targets_reachable or webserver_confirmed != run.targets_webserver_confirmed:
             run.targets_reachable = reachable
             run.targets_webserver_confirmed = webserver_confirmed
+            session.add(run)
+            session.commit()
+    if run and run.current_step >= 4:
+        crawled = _compute_step3_progress(session, run)
+        if crawled != run.targets_crawled:
+            run.targets_crawled = crawled
             session.add(run)
             session.commit()
     tenant_id = _effective_tenant_id(session, user)
@@ -163,13 +179,20 @@ async def start_run(
         current_step=2,
         target_ids=target_ids,
         targets_total=len(target_ids),
+        created_by_user_id=user.id,
     )
     session.add(run)
     session.commit()
     session.refresh(run)
 
+    # _audit_scan_trigger reads user.tenant_id directly to stamp the audit
+    # row's tenant_id, which is None for a platform admin -- pass a stand-in
+    # exposing the resolved tenant_id instead (same pattern as query_user
+    # above), so the wizard's own audit trail isn't left with tenant_id=NULL
+    # for exactly the admin user who most needs it resolved.
+    audit_user = user if user.tenant_id is not None else SimpleNamespace(tenant_id=tenant_id, username=user.username, id=user.id)
     _audit_scan_trigger(
-        session, user,
+        session, audit_user,
         [str(tid) for tid in target_ids[:50]],
         ["web_analyzer"], "compliance_wizard_start", request,
     )
@@ -207,7 +230,10 @@ async def dispatch_step2(
     session.add(run)
     session.commit()
 
-    _audit_scan_trigger(session, user, [str(t) for t in run.target_ids[:50]], ["web_analyzer"], "compliance_wizard_step2", request)
+    # See start_run's audit_user comment: _audit_scan_trigger reads
+    # user.tenant_id directly, so resolve it for a platform admin here too.
+    audit_user = user if user.tenant_id is not None else SimpleNamespace(tenant_id=tenant_id, username=user.username, id=user.id)
+    _audit_scan_trigger(session, audit_user, [str(t) for t in run.target_ids[:50]], ["web_analyzer"], "compliance_wizard_step2", request)
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)
 
@@ -243,7 +269,10 @@ async def dispatch_step3(
     session.add(run)
     session.commit()
 
-    _audit_scan_trigger(session, user, [str(t) for t in confirmed_ids[:50]], ["crawler"], "compliance_wizard_step3", request)
+    # See start_run's audit_user comment: _audit_scan_trigger reads
+    # user.tenant_id directly, so resolve it for a platform admin here too.
+    audit_user = user if user.tenant_id is not None else SimpleNamespace(tenant_id=tenant_id, username=user.username, id=user.id)
+    _audit_scan_trigger(session, audit_user, [str(t) for t in confirmed_ids[:50]], ["crawler"], "compliance_wizard_step3", request)
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)
 
@@ -276,8 +305,26 @@ async def create_brand_watch(
     if not keyword:
         return RedirectResponse(url="/compliance-wizard", status_code=303)
 
-    watch = BrandWatch(tenant_id=tenant_id, keyword=keyword, created_by_user_id=user.id)
-    session.add(watch)
+    # Guard against duplicate BrandWatch rows from a double-submit (double
+    # click, retry) -- one active watch per tenant+keyword is enough; a
+    # second submission should just advance the run, not create a sibling
+    # watch that would double every future crt.sh query and candidate set.
+    existing_watch = session.exec(
+        select(BrandWatch).where(
+            BrandWatch.tenant_id == tenant_id,
+            BrandWatch.keyword == keyword,
+            BrandWatch.active == True,
+        )
+    ).first()
+    if not existing_watch:
+        watch = BrandWatch(tenant_id=tenant_id, keyword=keyword, created_by_user_id=user.id)
+        session.add(watch)
+
+    # Step 4 has no further wizard steps -- advance past current_step 4 so
+    # the step-4 form stops rendering once a watch exists for this run.
+    if run.current_step == 4:
+        run.current_step = 5
+        session.add(run)
     session.commit()
 
     return RedirectResponse(url="/compliance-wizard", status_code=303)
@@ -300,10 +347,31 @@ async def confirm_shadow_domain(
     if not candidate:
         return RedirectResponse(url="/compliance-wizard", status_code=303)
 
-    new_target = Target(domain=candidate.discovered_domain, tenant_id=tenant_id)
-    session.add(new_target)
-    session.commit()
-    session.refresh(new_target)
+    # Target.domain has a GLOBAL unique constraint (not per-tenant), but
+    # run_brand_watch_scan only diffs discovered domains against Targets for
+    # the SAME tenant as the watch -- so a domain already owned by a
+    # DIFFERENT tenant can surface here as a "new" candidate. Check first
+    # rather than let the insert raise an uncaught IntegrityError.
+    existing_target = session.exec(
+        select(Target).where(Target.domain == candidate.discovered_domain)
+    ).first()
+
+    if existing_target and existing_target.tenant_id != tenant_id:
+        return HTMLResponse(
+            "<p class=\"text-red-400\">This domain is already tracked as a target by another tenant "
+            "and cannot be confirmed here. Please investigate before proceeding.</p>",
+            status_code=409,
+        )
+
+    if existing_target:
+        # Already a Target for THIS tenant (e.g. added out-of-band since the
+        # scan ran) -- reuse it instead of inserting a duplicate.
+        new_target = existing_target
+    else:
+        new_target = Target(domain=candidate.discovered_domain, tenant_id=tenant_id)
+        session.add(new_target)
+        session.commit()
+        session.refresh(new_target)
 
     candidate.status = "confirmed"
     candidate.resolved_target_id = new_target.id

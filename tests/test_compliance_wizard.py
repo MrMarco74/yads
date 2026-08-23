@@ -120,6 +120,7 @@ class TestWizardStep1:
         assert run.current_step == 2
         assert run.targets_total >= 1
         assert target.id in run.target_ids
+        assert run.created_by_user_id is not None  # finding #4: must be populated
 
         db_session.delete(run)
         db_session.commit()
@@ -188,10 +189,62 @@ class TestWizardStep2:
 
 
 @pytest.mark.compliance_wizard
-class TestWizardStep3:
-    def test_step3_dispatch_only_targets_webserver_confirmed_subset(self, admin_client, test_tenant, db_session):
+class TestWizardStep3Progress:
+    def test_targets_crawled_computed_on_dashboard_load(self, admin_client, test_tenant, db_session):
+        """Finding #3: targets_crawled was never computed, so the dashboard
+        permanently showed 0 even after crawler ScanResults existed."""
         from yads.models import Target, ComplianceScanRun, ScanResult
         from sqlmodel import select
+
+        crawled = Target(domain="wizard-step3-crawled.example.com", tenant_id=test_tenant.id)
+        not_crawled = Target(domain="wizard-step3-not-crawled.example.com", tenant_id=test_tenant.id)
+        db_session.add(crawled)
+        db_session.add(not_crawled)
+        db_session.commit()
+        db_session.refresh(crawled)
+        db_session.refresh(not_crawled)
+
+        db_session.add(ScanResult(
+            target_id=crawled.id, module_name="crawler",
+            data={"pages": 3}, result_hash="y",
+        ))
+        db_session.commit()
+
+        run = ComplianceScanRun(
+            tenant_id=test_tenant.id, criteria="all", current_step=4,
+            target_ids=[crawled.id, not_crawled.id], targets_total=2,
+        )
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        try:
+            r = admin_client.get("/compliance-wizard", follow_redirects=True)
+            assert r.status_code == 200
+
+            db_session.refresh(run)
+            assert run.targets_crawled == 1
+        finally:
+            db_session.delete(run)
+            db_session.query(ScanResult).filter_by(target_id=crawled.id).delete()
+            db_session.delete(crawled)
+            db_session.delete(not_crawled)
+            db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestWizardStep3:
+    def test_step3_dispatch_only_targets_webserver_confirmed_subset(self, admin_client, test_tenant, db_session, monkeypatch):
+        from yads.models import Target, ComplianceScanRun, ScanResult
+        from yads.api.routers import targets as targets_module
+        from sqlmodel import select
+
+        # This test env has no reachable Celery broker (BROKER_URL defaults to
+        # an unreachable rabbitmq host), so _queue_single_bulk_target's real
+        # send_task would raise and scan_status would never flip to "queued"
+        # regardless of scoping. Stub send_task so we can assert the actual
+        # behavior under test: which targets get queued.
+        monkeypatch.setattr(targets_module.celery_app, "send_task", lambda *a, **kw: None)
 
         with_server = Target(domain="wizard-step3-with-server.example.com", tenant_id=test_tenant.id)
         without_server = Target(domain="wizard-step3-without-server.example.com", tenant_id=test_tenant.id)
@@ -221,11 +274,48 @@ class TestWizardStep3:
 
             db_session.refresh(run)
             assert run.current_step == 4
+
+            # The single most safety-relevant property of the wizard: step 3
+            # must only queue crawls for the webserver-confirmed subset, never
+            # the full target set. _queue_single_bulk_target sets
+            # scan_status="queued" on targets it successfully dispatches, so
+            # assert the confirmed target WAS queued and the non-confirmed
+            # target was NOT (still its original "idle" status).
+            db_session.refresh(with_server)
+            db_session.refresh(without_server)
+            assert with_server.scan_status == "queued"
+            assert without_server.scan_status == "idle"
         finally:
             db_session.delete(run)
             db_session.query(ScanResult).filter_by(target_id=with_server.id).delete()
             db_session.delete(with_server)
             db_session.delete(without_server)
+            db_session.commit()
+
+
+@pytest.mark.compliance_wizard
+class TestNewRunAfterStep3:
+    def test_new_run_button_visible_once_step3_completed(self, admin_client, test_tenant, db_session):
+        """Finding #6: spec requires a way to start a new run once the
+        existing run's step 3 has finished (e.g. quarterly re-scan)."""
+        from datetime import datetime
+        from yads.models import ComplianceScanRun
+
+        run = ComplianceScanRun(
+            tenant_id=test_tenant.id, criteria="all", current_step=4, target_ids=[],
+            step3_completed_at=datetime.utcnow(),
+        )
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        try:
+            r = admin_client.get("/compliance-wizard", follow_redirects=True)
+            assert r.status_code == 200
+            assert "/compliance-wizard/start" in r.text
+            assert "Start a new run" in r.text
+        finally:
+            db_session.delete(run)
             db_session.commit()
 
 
@@ -254,11 +344,64 @@ class TestWizardStep4:
             assert watch is not None
             assert watch.active is True
         finally:
+            from yads.models import ShadowDomainCandidate
             watch = db_session.exec(
                 select(BrandWatch).where(BrandWatch.tenant_id == test_tenant.id, BrandWatch.keyword == "musterbank")
             ).first()
             if watch:
+                db_session.query(ShadowDomainCandidate).filter_by(brand_watch_id=watch.id).delete()
                 db_session.delete(watch)
+            db_session.delete(run)
+            db_session.commit()
+
+    def test_step4_double_submit_does_not_create_duplicate_brand_watch(self, admin_client, test_tenant, db_session):
+        """Finding #7: double-submitting step 4 (double-click, retry) must not
+        create a second BrandWatch with the same (tenant_id, keyword), and the
+        run must reach a terminal state so the form stops re-rendering."""
+        from yads.models import ComplianceScanRun, BrandWatch
+        from sqlmodel import select
+
+        run = ComplianceScanRun(tenant_id=test_tenant.id, criteria="all", current_step=4, target_ids=[])
+        db_session.add(run)
+        db_session.commit()
+        db_session.refresh(run)
+
+        try:
+            r1 = admin_client.post(
+                f"/compliance-wizard/{run.id}/step4",
+                data={"keyword": "musterbank-dupe-test"},
+                follow_redirects=True,
+            )
+            assert r1.status_code == 200
+
+            db_session.refresh(run)
+            assert run.current_step >= 5  # terminal marker past step 4
+
+            r2 = admin_client.post(
+                f"/compliance-wizard/{run.id}/step4",
+                data={"keyword": "musterbank-dupe-test"},
+                follow_redirects=True,
+            )
+            assert r2.status_code == 200
+
+            watches = db_session.exec(
+                select(BrandWatch).where(
+                    BrandWatch.tenant_id == test_tenant.id,
+                    BrandWatch.keyword == "musterbank-dupe-test",
+                )
+            ).all()
+            assert len(watches) == 1
+        finally:
+            from yads.models import ShadowDomainCandidate
+            watches = db_session.exec(
+                select(BrandWatch).where(
+                    BrandWatch.tenant_id == test_tenant.id,
+                    BrandWatch.keyword == "musterbank-dupe-test",
+                )
+            ).all()
+            for w in watches:
+                db_session.query(ShadowDomainCandidate).filter_by(brand_watch_id=w.id).delete()
+                db_session.delete(w)
             db_session.delete(run)
             db_session.commit()
 
@@ -363,6 +506,54 @@ class TestBrandWatchScan:
             db_session.commit()
 
 
+    def test_run_brand_watch_scan_updates_last_seen_at_on_rediscovery(self, monkeypatch, db_session, test_tenant):
+        """Finding #2: re-discovering an already-known candidate (any status)
+        must update last_seen_at rather than being silently skipped -- this is
+        what lets a human judge a re-appearance against the original
+        dismissal reasoning."""
+        from datetime import datetime, timedelta
+        from yads import worker_tasks
+        from yads.models import BrandWatch, ShadowDomainCandidate
+        from sqlmodel import select
+
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        db_session.add(watch)
+        db_session.commit()
+        db_session.refresh(watch)
+
+        old_time = datetime.utcnow() - timedelta(days=30)
+        candidate = ShadowDomainCandidate(
+            brand_watch_id=watch.id, tenant_id=test_tenant.id,
+            discovered_domain="musterbank-rediscovered.example.net", source="ct_log",
+            status="dismissed", dismissed_reason="false positive",
+            first_seen_at=old_time, last_seen_at=old_time,
+        )
+        db_session.add(candidate)
+        db_session.commit()
+        db_session.refresh(candidate)
+
+        monkeypatch.setattr(worker_tasks, "_ct_search_keyword", lambda kw: ["musterbank-rediscovered.example.net"])
+        monkeypatch.setattr(worker_tasks, "_probe_keyword_across_tlds", lambda kw: [])
+
+        try:
+            worker_tasks.run_brand_watch_scan()
+
+            db_session.refresh(candidate)
+            assert candidate.last_seen_at > old_time
+            # Re-discovery must not clobber the dismissal itself.
+            assert candidate.status == "dismissed"
+
+            all_candidates = db_session.exec(
+                select(ShadowDomainCandidate).where(ShadowDomainCandidate.brand_watch_id == watch.id)
+            ).all()
+            assert len(all_candidates) == 1  # no duplicate row created
+        finally:
+            db_session.delete(candidate)
+            db_session.commit()
+            db_session.delete(watch)
+            db_session.commit()
+
+
 @pytest.mark.compliance_wizard
 class TestTriage:
     def _make_candidate(self, db_session, test_tenant, domain="musterbank-triage-test.example.net"):
@@ -412,6 +603,70 @@ class TestTriage:
                 db_session.delete(created_target)
             db_session.commit()
             db_session.delete(watch)
+            db_session.commit()
+
+    def test_confirm_cross_tenant_domain_collision_returns_error_not_crash(self, admin_client, test_tenant, db_session, monkeypatch):
+        """Target.domain has a GLOBAL unique constraint, but run_brand_watch_scan
+        only diffs against Targets for the SAME tenant -- so a domain already
+        owned by a DIFFERENT tenant can surface as a "new" candidate. Confirming
+        it must not crash with an uncaught IntegrityError, must not create a
+        duplicate Target, and must not silently mark the candidate confirmed."""
+        from yads.models import Tenant, Target, BrandWatch, ShadowDomainCandidate
+        from yads.api.routers import compliance_wizard as cw_module
+        from sqlmodel import select
+
+        other_tenant = Tenant(name="Cross Tenant Collision Test Tenant")
+        db_session.add(other_tenant)
+        db_session.commit()
+        db_session.refresh(other_tenant)
+
+        collision_domain = "cross-tenant-collision-test.example.net"
+        other_target = Target(domain=collision_domain, tenant_id=other_tenant.id)
+        db_session.add(other_target)
+        db_session.commit()
+        db_session.refresh(other_target)
+
+        watch = BrandWatch(tenant_id=test_tenant.id, keyword="musterbank")
+        db_session.add(watch)
+        db_session.commit()
+        db_session.refresh(watch)
+
+        candidate = ShadowDomainCandidate(
+            brand_watch_id=watch.id, tenant_id=test_tenant.id,
+            discovered_domain=collision_domain, source="ct_log",
+        )
+        db_session.add(candidate)
+        db_session.commit()
+        db_session.refresh(candidate)
+
+        # admin_client's user has tenant_id=None; with two Tenant rows now
+        # present, _effective_tenant_id's single-tenant auto-resolve is
+        # ambiguous. Pin it to test_tenant so this test exercises the
+        # cross-tenant-collision branch specifically, not the ambiguity path
+        # covered by test_effective_tenant_id_ambiguous_with_multiple_tenants.
+        monkeypatch.setattr(cw_module, "_effective_tenant_id", lambda session, user: test_tenant.id)
+
+        try:
+            r = admin_client.post(f"/compliance-wizard/shadow-domains/{candidate.id}/confirm", follow_redirects=True)
+            assert r.status_code < 500
+            assert r.status_code in (400, 409)
+
+            db_session.refresh(candidate)
+            assert candidate.status == "new"
+            assert candidate.resolved_target_id is None
+
+            all_targets_with_domain = db_session.exec(
+                select(Target).where(Target.domain == collision_domain)
+            ).all()
+            assert len(all_targets_with_domain) == 1
+            assert all_targets_with_domain[0].id == other_target.id
+        finally:
+            db_session.delete(candidate)
+            db_session.commit()
+            db_session.delete(watch)
+            db_session.delete(other_target)
+            db_session.commit()
+            db_session.delete(other_tenant)
             db_session.commit()
 
     def test_dismiss_sets_reason_and_status(self, admin_client, test_tenant, db_session):

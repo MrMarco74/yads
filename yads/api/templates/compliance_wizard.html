@@ -20,7 +20,7 @@
     </div>
     {% else %}
     <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
-        <h2 class="text-slate-200 font-medium mb-4">Run #{{ run.id }} — step {{ run.current_step }} of 4</h2>
+        <h2 class="text-slate-200 font-medium mb-4">Run #{{ run.id }} — step {{ [run.current_step, 4] | min }} of 4</h2>
         <ul class="text-sm text-slate-400 space-y-1">
             <li>Targets selected: {{ run.targets_total }}</li>
             <li>Reachable / webserver confirmed: {{ run.targets_reachable }} / {{ run.targets_webserver_confirmed }}</li>
@@ -46,6 +46,22 @@
             <input type="text" name="keyword" value="musterbank" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
             <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded">
                 Start watching
+            </button>
+        </form>
+        {% endif %}
+        {% if run.current_step >= 5 %}
+        <p class="text-sm text-emerald-400 mt-4">Brand watch configured. This run is complete.</p>
+        {% endif %}
+        {% if run.step3_completed_at %}
+        <form method="post" action="/compliance-wizard/start" class="mt-6 pt-4 border-t border-slate-800 space-y-2">
+            <label class="block text-sm text-slate-400">Start a new run (e.g. quarterly re-scan)</label>
+            <select name="criteria" class="bg-slate-800 text-slate-200 rounded px-3 py-2">
+                <option value="all">All known targets</option>
+                <option value="only_roots">Root domains only</option>
+                <option value="online_only">Online only</option>
+            </select>
+            <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded">
+                Start a new run
             </button>
         </form>
         {% endif %}
