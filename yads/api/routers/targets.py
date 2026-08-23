@@ -120,25 +120,15 @@ async def bulk_scan_targets(
 
     logger.info(f"Bulk Scan Request. Target Count: {len(target_ids)}. Final: {final_types}")
 
-    # Soft cap: max 50 queued+running tasks per tenant to avoid flooding the broker
-    already_active = 0
-    if user.tenant_id:
-        from sqlmodel import func
-        already_active = session.exec(
-            select(func.count(Target.id)).where(
-                Target.tenant_id == user.tenant_id,
-                Target.scan_status.in_(["queued", "running"])
-            )
-        ).first() or 0
-    max_new = max(0, 50 - already_active) if user.tenant_id else len(target_ids)
-
+    # No artificial enqueue-time cap here: actual scan throughput is already
+    # bounded separately by the admin-configurable worker_concurrency/autoscale
+    # setting (see api/routers/system.py), and RabbitMQ persists durable
+    # queued messages fine at mass-scan scale. A per-request cap only meant
+    # dropping the excess with no automatic re-queue, forcing repeated manual
+    # re-submission to work through a large batch.
     count = 0
     skipped = 0
-    capped = 0
-    for i, tid_str in enumerate(target_ids):
-        if count >= max_new:
-            capped = len(target_ids) - i
-            break
+    for tid_str in target_ids:
         if _queue_single_bulk_target(session, user, tid_str, final_types):
             count += 1
         else:
@@ -150,8 +140,6 @@ async def bulk_scan_targets(
     msg_parts = [f"Queued {count} scans"]
     if skipped:
         msg_parts.append(f"{skipped} skipped")
-    if capped:
-        msg_parts.append(f"{capped} deferred (queue cap, {already_active + count}/50 active)")
     msg = ", ".join(msg_parts).replace(" ", "+")
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
@@ -325,32 +313,16 @@ async def submit_bulk_scan_by_criteria(
     query = _build_bulk_criteria_query(session, user, only_roots=only_roots, online_only=online_only, scanned_before=cutoff)
     matched_ids = session.exec(query).all()
 
-    # Same soft cap as the checkbox-based bulk toolbar (bulk_scan_targets) --
-    # never flood the broker with thousands of tasks from a single click.
-    already_active = 0
-    if user.tenant_id:
-        already_active = session.exec(
-            select(func.count(Target.id)).where(
-                Target.tenant_id == user.tenant_id,
-                Target.scan_status.in_(["queued", "running"])
-            )
-        ).first() or 0
-    max_new = max(0, 50 - already_active) if user.tenant_id else len(matched_ids)
-
+    # No artificial enqueue-time cap here -- see bulk_scan_targets for why.
     count = 0
     for tid in matched_ids:
-        if count >= max_new:
-            break
         if _queue_single_bulk_target(session, user, str(tid), final_types):
             count += 1
 
     session.commit()
     _audit_scan_trigger(session, user, [str(t) for t in matched_ids[:50]], final_types, "bulk_scan_by_criteria", request)
 
-    deferred = len(matched_ids) - count
     msg_parts = [f"Queued {count} scans"]
-    if deferred > 0:
-        msg_parts.append(f"{deferred} deferred (queue cap, {already_active + count}/50 active)")
     msg = ", ".join(msg_parts).replace(" ", "+")
     return RedirectResponse(url=f"/targets/table?msg={msg}", status_code=303)
 
