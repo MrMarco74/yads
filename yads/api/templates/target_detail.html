@@ -85,6 +85,10 @@
         });
     }
 
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
     function showToast(msg, type) {
         const colors = {
             success: 'bg-green-700 border-green-500 text-green-100',
@@ -213,7 +217,7 @@
         history.replaceState(null, '', cleanUrl);
 
         if (!target) {
-            showToast(`Modul <em>${module}</em> hat aktuell keine eigene Karte auf dieser Seite — ggf. neu scannen.`, 'warn');
+            showToast(`Modul <em>${escapeHtml(module)}</em> hat aktuell keine eigene Karte auf dieser Seite — ggf. neu scannen.`, 'warn');
             return;
         }
 
