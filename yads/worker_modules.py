@@ -13,6 +13,7 @@ from sqlmodel import Session
 from yads.worker_core import logger
 from yads.config import settings
 from yads.database import engine
+from yads.core.api_block_detection import ApiBlockedError
 
 
 class LogCapture:
@@ -83,6 +84,11 @@ def _run_parallel_module(module_cls, target_id: int, domain: str):
     Each parallel module gets an isolated session; results are committed independently.
     LogCapture is intentionally skipped to avoid root-logger thread-safety issues —
     logs still flow via the Redis handler attached by the parent task.
+
+    ApiBlockedError propagates to the caller (run_scan_module in worker_tasks.py)
+    so a provider-blocked module can be rescheduled instead of treated as a
+    generic failure. Every other exception is still swallowed and logged here,
+    matching the pre-existing behavior.
     """
     from yads.utils.sanitize import sanitize_null_bytes
     try:
@@ -98,6 +104,8 @@ def _run_parallel_module(module_cls, target_id: int, domain: str):
                 session.add(result)
                 session.commit()
             logger.info(f"[Worker] Parallel: {mod.module_name} finished.")
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.error(f"[Worker] Parallel module {module_cls.__name__} error: {e}")
 
