@@ -17,6 +17,7 @@ import requests
 
 from yads.core.base import BaseScannerModule, ApiKeySpec
 from yads.core.api_rate_limiter import get_api_rate_limiter
+from yads.core.api_block_detection import record_if_blocked
 from yads.core.tenant_keys import get_tenant_api_key
 from yads.config import settings
 
@@ -142,7 +143,7 @@ class ThreatIntelScanner(BaseScannerModule):
             )
             if resp.status_code == 401:
                 return {"error": "Unauthorized", "status": "auth_error"}
-            if resp.status_code == 429:
+            if record_if_blocked("abuseipdb", resp) or resp.status_code == 429:
                 return {"error": "Rate limited", "status": "rate_limited"}
             resp.raise_for_status()
             d = resp.json().get("data", {})
@@ -204,6 +205,9 @@ class ThreatIntelScanner(BaseScannerModule):
                 )
                 if resp.status_code == 401:
                     return {"error": "Unauthorized", "status": "auth_error"}
+                if record_if_blocked("otx", resp):
+                    results["domain"] = {"error": "Rate limited", "status": "rate_limited"}
+                    return results
                 resp.raise_for_status()
                 d = resp.json()
                 results["domain"] = {
@@ -238,6 +242,9 @@ class ThreatIntelScanner(BaseScannerModule):
                         headers=headers,
                         timeout=REQUEST_TIMEOUT,
                     )
+                    if record_if_blocked("otx", resp):
+                        results["ip"] = {"error": "Rate limited", "status": "rate_limited"}
+                        return results
                     resp.raise_for_status()
                     d = resp.json()
                     results["ip"] = {
@@ -273,7 +280,7 @@ class ThreatIntelScanner(BaseScannerModule):
             )
             if resp.status_code == 401:
                 return {"error": "Unauthorized", "status": "auth_error"}
-            if resp.status_code == 429:
+            if record_if_blocked("virustotal", resp) or resp.status_code == 429:
                 return {"error": "Rate limited — VirusTotal public API quota exceeded", "status": "rate_limited"}
             if resp.status_code == 404:
                 return {"status": "not_found"}

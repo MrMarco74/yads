@@ -19,6 +19,7 @@ import requests
 
 from yads.core.base import BaseScannerModule, ApiKeySpec
 from yads.core.api_rate_limiter import get_api_rate_limiter
+from yads.core.api_block_detection import record_if_blocked
 from yads.core.tenant_keys import get_tenant_api_key
 from yads.config import settings
 
@@ -157,6 +158,9 @@ class ShodanCensysScanner(BaseScannerModule):
             if resp.status_code == 401:
                 logger.warning("[ShodanCensys] Shodan API key invalid or quota exceeded")
                 return {"error": "Unauthorized", "status": "auth_error"}
+            if record_if_blocked("shodan", resp):
+                logger.warning("[ShodanCensys] Shodan is blocking/rate-limiting us")
+                return {"error": "Rate limited", "status": "rate_limited"}
             resp.raise_for_status()
             data = resp.json()
             return self._parse_shodan(data)
@@ -240,6 +244,9 @@ class ShodanCensysScanner(BaseScannerModule):
             if resp.status_code in (401, 403):
                 logger.warning("[ShodanCensys] Censys API credentials invalid")
                 return {"error": "Unauthorized", "status": "auth_error"}
+            if record_if_blocked("censys", resp):
+                logger.warning("[ShodanCensys] Censys is blocking/rate-limiting us")
+                return {"error": "Rate limited", "status": "rate_limited"}
             resp.raise_for_status()
             data = resp.json().get("result", {})
             return self._parse_censys(data)
