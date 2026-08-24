@@ -47,7 +47,8 @@ def _get_targets_data(session: Session, user: User, for_export: bool = False):
             "Domain": t.domain,
             "Created At": t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "Last Scan": last_scan,
-            "Status": t.scan_status
+            "Status": t.scan_status,
+            "Tags": ", ".join(t.tags),
         })
     return export_data
 
@@ -99,7 +100,7 @@ async def export_targets_csv(session: Session = Depends(get_session), user: User
     writer = csv.writer(output)
     
     # Header
-    writer.writerow(['ID', 'Domain', 'Created At', 'Last Scan', 'Status'])
+    writer.writerow(['ID', 'Domain', 'Created At', 'Last Scan', 'Status', 'Tags'])
     
     for t in targets:
         # Fetch latest result for last scan timestamp
@@ -107,11 +108,12 @@ async def export_targets_csv(session: Session = Depends(get_session), user: User
         last_scan = latest_res.scanned_at.strftime("%Y-%m-%d %H:%M:%S") if latest_res else "Never"
         
         writer.writerow([
-            t.id, 
-            t.domain, 
+            t.id,
+            t.domain,
             t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             last_scan,
-            t.scan_status
+            t.scan_status,
+            ", ".join(t.tags),
         ])
         
     filename = f"targets_export_{datetime.utcnow().strftime('%Y%m%d')}.csv"
