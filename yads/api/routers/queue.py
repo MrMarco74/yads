@@ -10,6 +10,7 @@ from yads.models import User, SystemConfig, Target
 from yads.auth.deps import get_current_user_html, RoleChecker
 from yads.config import settings
 from yads.api.utils.celery_inspect import get_celery_worker_nodes
+from yads.core.module_status import get_rate_limited_module_count
 import logging
 
 scan_logger = logging.getLogger(__name__)
@@ -298,11 +299,15 @@ def _widget_context(request, session, user, queue_active: bool) -> dict:
         queued_count = total - active_count
     except Exception:
         pass
+
+    rate_limited_count = get_rate_limited_module_count()
+
     return {
         "request": request,
         "queue_active": queue_active,
         "queue_length": queued_count,
         "active_count": active_count,
+        "rate_limited_count": rate_limited_count,
     }
 
 
