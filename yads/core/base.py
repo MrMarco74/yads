@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.models import ModuleState, ScanResult, Target, ChangeEvent
 
 
@@ -83,6 +84,8 @@ class BaseScannerModule(abc.ABC):
         try:
             raw_data = self.run_scan(target_domain, target_id=target_id)
             raw_data = sanitize_null_bytes(raw_data)
+        except ApiBlockedError:
+            raise
         except Exception as e:
             # TODO: Log error properly
             print(f"Error scanning {target_domain}: {e}")

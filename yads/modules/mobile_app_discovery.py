@@ -21,6 +21,7 @@ from urllib.parse import urljoin
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -89,6 +90,8 @@ def _search_itunes(company_name: str, domain: str) -> List[Dict]:
                         "rating": app.get("averageUserRating", 0),
                         "rating_count": app.get("userRatingCount", 0),
                     })
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"iTunes search failed: {e}")
     return apps

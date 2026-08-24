@@ -3,6 +3,7 @@ import logging
 import tldextract
 from typing import List, Set
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.throttled_http import throttled_get
 
 def search_by_org(org_name: str = None, email: str = None, exclude_domain: str = None) -> List[str]:
@@ -43,6 +44,8 @@ def search_by_org(org_name: str = None, email: str = None, exclude_domain: str =
                         domains.add(apex)
         except requests.exceptions.Timeout:
             logger.warning(f"crt.sh org query timed out for: {q}")
+        except ApiBlockedError:
+            raise
         except Exception as e:
             logger.warning(f"crt.sh org query failed for '{q}': {e}")
 
@@ -108,6 +111,8 @@ def search_domain(domain_name: str) -> List[str]:
     except requests.exceptions.RequestException as e:
         logger.warning(f"crt.sh Request Failed: {e}")
         return []
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.error(f"crt.sh Processing Error: {e}")
         return []

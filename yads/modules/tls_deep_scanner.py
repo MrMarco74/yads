@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -161,6 +162,8 @@ def _check_hsts_preload(domain: str) -> Dict:
                 "preloaded": data.get("status") == "preloaded",
                 "eligible": data.get("status") in ("preloaded", "pending"),
             }
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return {"status": "unknown", "preloaded": False, "eligible": False}

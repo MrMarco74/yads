@@ -19,6 +19,7 @@ from urllib.parse import urljoin
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -153,6 +154,8 @@ def _check_npm_exists(package: str) -> bool:
             timeout=TIMEOUT,
         )
         return r.status_code == 200
+    except ApiBlockedError:
+        raise
     except Exception:
         return False
 

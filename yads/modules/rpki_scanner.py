@@ -16,6 +16,7 @@ import logging
 import socket
 from typing import Any, Dict, List, Optional
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -222,6 +223,8 @@ class RpkiScanner(BaseScannerModule):
                     asn = str(asns[0]).replace("AS", "")
                     org = self._get_org_name(asn)
                     return {"asn": asn, "prefix": prefix, "org": org, "country": ""}
+        except ApiBlockedError:
+            raise
         except Exception as e:
             logger.debug(f"[RPKI] network-info failed for {ip}: {e}")
 
@@ -239,6 +242,8 @@ class RpkiScanner(BaseScannerModule):
             )
             if resp.status_code == 200:
                 return resp.json().get("data", {}).get("holder", "")
+        except ApiBlockedError:
+            raise
         except Exception:
             pass
         return ""
@@ -267,6 +272,8 @@ class RpkiScanner(BaseScannerModule):
                 "org": org,
                 "country": d.get("country", ""),
             }
+        except ApiBlockedError:
+            raise
         except Exception:
             return None
 
@@ -298,6 +305,8 @@ class RpkiScanner(BaseScannerModule):
                 for r in data.get("validating_roas", [])
             ]
             return {"state": state, "roas": roas}
+        except ApiBlockedError:
+            raise
         except Exception as e:
             logger.debug(f"[RPKI] rpki-validation failed for AS{asn}/{prefix}: {e}")
             return {"state": "unknown", "roas": []}

@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -62,6 +63,8 @@ def _fetch_certs(domain: str) -> List[Dict]:
         )
         if r.status_code == 200:
             return r.json()
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"crt.sh fetch failed: {e}")
     return []

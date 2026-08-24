@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -197,6 +198,8 @@ class WaybackScanner(BaseScannerModule):
                 return []
             header = rows[0]
             return [dict(zip(header, row)) for row in rows[1:]]
+        except ApiBlockedError:
+            raise
         except Exception as e:
             logger.warning(f"[Wayback] CDX query failed: {e}")
             return []

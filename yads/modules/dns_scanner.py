@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Set, Optional
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
 from yads.core.throttled_http import throttled_get
+from yads.core.api_block_detection import ApiBlockedError
 
 logger = logging.getLogger(__name__)
 
@@ -420,6 +421,8 @@ class SubdomainScanner(DNSRecordScanner):
                         if hostname.endswith(domain):
                             subs.add(hostname)
                 logging.getLogger("yads.modules.dns").info(f"Hackertarget found {len(subs)} subdomains.")
+        except ApiBlockedError:
+            raise
         except Exception as e:
              logging.getLogger("yads.modules.dns").error(f"Hackertarget fallback failed: {e}")
 

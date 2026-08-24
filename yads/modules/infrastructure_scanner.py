@@ -167,6 +167,7 @@ class InfrastructureScanner(BaseScannerModule):
     def _lookup_geoip_enhanced(self, ip: str) -> Dict[str, Any]:
         """Enhanced GeoIP and provider detection via ipinfo.io."""
         from yads.core.throttled_http import throttled_get
+        from yads.core.api_block_detection import ApiBlockedError
         res = {"geoip": None, "cloud_provider_geoip": None}
         try:
             geo_resp = throttled_get(f"https://ipinfo.io/{ip}/json", service="ipinfo", timeout=3)
@@ -194,6 +195,8 @@ class InfrastructureScanner(BaseScannerModule):
                         if key in isp_org:
                             res["cloud_provider_geoip"] = provider
                             break
+        except ApiBlockedError:
+            raise
         except Exception as e:
             logger.error(f"GeoIP Lookup Failed: {e}")
         return res

@@ -19,6 +19,7 @@ import logging
 import socket
 from typing import Any, Dict, List, Optional, Set
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -53,6 +54,8 @@ def _ipinfo(ip: str) -> Dict:
         r = throttled_get(IPINFO_URL.format(ip=ip), service="ipinfo", timeout=TIMEOUT)
         if r.status_code == 200:
             return r.json()
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return {}
@@ -67,6 +70,8 @@ def _ripe_network_info(ip: str) -> Dict:
                 "asns": data.get("asns", []),
                 "prefix": data.get("prefix", ""),
             }
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return {}
@@ -84,6 +89,8 @@ def _ripe_asn_overview(asn: str) -> Dict:
                 "country": data.get("block", {}).get("country", ""),
                 "description": data.get("block", {}).get("description", ""),
             }
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return {}
@@ -96,6 +103,8 @@ def _ripe_prefixes(asn: str) -> List[str]:
         if r.status_code == 200:
             data = r.json().get("data", {})
             return [p.get("prefix", "") for p in data.get("prefixes", []) if p.get("prefix")]
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return []
@@ -116,6 +125,8 @@ def _bgpview_prefixes(asn_num: str) -> List[Dict]:
                     "country": p.get("country_code", ""),
                 })
             return result
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return []

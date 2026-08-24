@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_post
 
@@ -124,6 +125,8 @@ def _check_urlhaus(domain: str) -> Optional[Dict]:
                     "active_urls": len(active),
                     "tags": list({t for u in urls for t in (u.get("tags") or [])}),
                 }
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"URLhaus check failed: {e}")
     return None
@@ -187,6 +190,8 @@ def _check_google_safebrowsing(domain: str, api_key: str) -> Optional[List[str]]
         if r.status_code == 200:
             matches = r.json().get("matches", [])
             return [m.get("threatType", "") for m in matches]
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"Google Safe Browsing check failed: {e}")
     return None

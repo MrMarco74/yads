@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
 from yads.core.throttled_http import throttled_get
+from yads.core.api_block_detection import ApiBlockedError
 
 try:
     import dns.resolver
@@ -93,6 +94,8 @@ def _get_ipinfo(ip: str) -> Dict:
         r = throttled_get(IPINFO_URL.format(ip=ip), service="ipinfo", timeout=6)
         if r.status_code == 200:
             return r.json()
+    except ApiBlockedError:
+        raise
     except Exception:
         pass
     return {}

@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import requests
 
+from yads.core.api_block_detection import ApiBlockedError
 from yads.core.base import BaseScannerModule
 from yads.core.throttled_http import throttled_get
 
@@ -57,6 +58,8 @@ def _hackertarget_hostsearch(domain: str) -> List[Dict]:
                         "ip": parts[1].strip(),
                         "source": "hackertarget",
                     })
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"HackerTarget hostsearch failed: {e}")
     return results
@@ -88,6 +91,8 @@ def _crtsh_history(domain: str) -> List[Dict]:
                             "issuer": cert.get("issuer_name", ""),
                             "source": "crt.sh",
                         })
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"crt.sh query failed: {e}")
     return results
@@ -113,6 +118,8 @@ def _securitytrails(domain: str, api_key: str) -> List[Dict]:
                         "last_seen": record.get("last_seen", ""),
                         "source": "securitytrails",
                     })
+    except ApiBlockedError:
+        raise
     except Exception as e:
         logger.debug(f"SecurityTrails query failed: {e}")
     return results
