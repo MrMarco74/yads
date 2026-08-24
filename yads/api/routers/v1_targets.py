@@ -3,6 +3,8 @@ other machine clients. See
 docs/superpowers/specs/2026-08-24-yads-mcp-wave2-targets-design.md.
 """
 
+import json
+import uuid as _uuid
 from datetime import datetime
 from typing import Annotated, List, Optional
 
@@ -10,10 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, and_, func, or_, select, text
 
-from yads.api.routers.targets import _is_internal_target
+from yads.api.routers.targets import _get_owned_target_ids, _is_internal_target, _perform_bulk_delete_from_db
 from yads.auth.deps import RequireScope, require_tenant_scoped_key
-from yads.database import get_session
+from yads.database import get_session, redis_client
 from yads.models import APIKey, ScanResult, Target
+from yads.worker import celery_app
 
 router = APIRouter(prefix="/api/v1", tags=["API v1 — Targets"])
 
@@ -135,3 +138,94 @@ async def add_target(
     session.commit()
     session.refresh(target)
     return {"id": target.id, "domain": target.domain, "created": True}
+
+
+class BulkDeleteRequest(BaseModel):
+    target_ids: List[int]
+    confirm: bool
+
+
+@router.post("/targets/bulk-delete", dependencies=[Depends(RequireScope("destructive"))])
+async def bulk_delete_targets(
+    payload: BulkDeleteRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    if not payload.confirm:
+        raise HTTPException(status_code=400, detail="Set confirm=true to delete these targets")
+    if not payload.target_ids:
+        raise HTTPException(status_code=400, detail="No target_ids provided")
+
+    ids_to_delete = set(payload.target_ids)
+
+    revoked_count = 0
+    i = celery_app.control.inspect(timeout=5.0)
+    if i:
+        for tasks in list((i.active() or {}).values()) + list((i.reserved() or {}).values()):
+            for task in tasks:
+                args = task.get("args", [])
+                if args and isinstance(args, list) and len(args) > 0:
+                    try:
+                        if int(args[0]) in ids_to_delete:
+                            celery_app.control.revoke(task.get("id"), terminate=True)
+                            revoked_count += 1
+                    except Exception:
+                        continue
+
+    class _ApiKeyAsUser:
+        def __init__(self, tenant_id):
+            self.tenant_id = tenant_id
+
+    fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
+    safe_ids = _get_owned_target_ids(session, fake_user, ids_to_delete)
+    if not safe_ids:
+        raise HTTPException(status_code=404, detail="No owned targets found")
+
+    targets_to_delete = session.exec(select(Target).where(Target.id.in_(safe_ids))).all()
+    snapshot = [
+        {"domain": t.domain, "tenant_id": t.tenant_id, "tags": t.tags, "discovery_reason": t.discovery_reason}
+        for t in targets_to_delete
+    ]
+    undo_batch_id = _uuid.uuid4().hex[:12]
+    redis_client.setex(f"yads:undo_delete:{undo_batch_id}", 60, json.dumps(snapshot))
+
+    _perform_bulk_delete_from_db(session, safe_ids)
+    session.commit()
+
+    return {"deleted_count": len(safe_ids), "revoked_count": revoked_count, "undo_batch": undo_batch_id}
+
+
+class UndoDeleteRequest(BaseModel):
+    undo_batch: str
+
+
+@router.post("/targets/bulk-delete/undo", dependencies=[Depends(RequireScope("write"))])
+async def undo_bulk_delete_targets(
+    payload: UndoDeleteRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    key = f"yads:undo_delete:{payload.undo_batch}"
+    raw = redis_client.get(key)
+    if not raw:
+        raise HTTPException(status_code=404, detail="Undo window expired or batch not found")
+
+    snapshot = json.loads(raw)
+    restored = 0
+    for entry in snapshot:
+        if entry.get("tenant_id") != api_key.tenant_id:
+            continue
+        existing = session.exec(
+            select(Target).where(Target.domain == entry["domain"], Target.tenant_id == entry["tenant_id"])
+        ).first()
+        if existing:
+            continue
+        session.add(Target(
+            domain=entry["domain"], tenant_id=entry["tenant_id"],
+            tags=entry.get("tags"), discovery_reason=entry.get("discovery_reason"),
+        ))
+        restored += 1
+    session.commit()
+    redis_client.delete(key)
+
+    return {"restored_count": restored}
