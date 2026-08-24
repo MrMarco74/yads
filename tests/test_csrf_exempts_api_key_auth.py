@@ -21,3 +21,21 @@ def test_post_without_any_auth_still_requires_csrf_or_401s():
     with TestClient(app, raise_server_exceptions=False) as c:
         r = c.post("/queue/control", data={"action": "pause"})
         assert r.status_code in (401, 403, 307, 303)
+
+
+def test_fake_api_key_header_on_non_api_path_does_not_bypass_csrf():
+    """The X-API-Key/Bearer CSRF exemption must be scoped to /api/ paths --
+    a cross-site attacker sending a bogus X-API-Key header at a
+    cookie-session route (e.g. /queue/control) must NOT get a free pass
+    around CSRF validation just by including that header. It should still
+    be rejected for missing/invalid CSRF (or fail auth), never silently let
+    through by the exemption."""
+    from starlette.testclient import TestClient
+    from yads.api.main import app
+    with TestClient(app, raise_server_exceptions=False) as c:
+        r = c.post(
+            "/queue/control",
+            data={"action": "pause"},
+            headers={"X-API-Key": "totally-fake-not-a-real-key"},
+        )
+        assert r.status_code in (401, 403, 307, 303)

@@ -76,16 +76,19 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # ── Bearer-auth API clients — skip CSRF ──
-        if request.headers.get("authorization", "").startswith("Bearer "):
-            await self.app(scope, receive, send)
-            return
-
-        # ── X-API-Key-auth API clients — skip CSRF ──
-        # A request carrying this header can't be forged by a CSRF attack (the
-        # attacker's page has no way to read or set the caller's secret key),
-        # the same reasoning that already exempts Bearer-token clients above.
-        if request.headers.get("x-api-key", ""):
+        # ── Bearer-auth / X-API-Key API clients — skip CSRF (API-only paths) ──
+        # A request carrying one of these headers can't be forged by a CSRF
+        # attack (the attacker's page has no way to read or set the caller's
+        # secret key/token) -- but that reasoning only holds for the API
+        # surface these headers are meant for. Scoping the exemption to
+        # /api/ prevents a cross-site page from sending a bogus/fake
+        # X-API-Key (any non-empty value passes the presence check here) or
+        # Authorization header at a cookie-session route to skip CSRF and
+        # then get authenticated by the victim's session cookie instead.
+        if path.startswith("/api/") and (
+            request.headers.get("authorization", "").startswith("Bearer ")
+            or request.headers.get("x-api-key", "")
+        ):
             await self.app(scope, receive, send)
             return
 

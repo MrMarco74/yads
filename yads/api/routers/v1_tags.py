@@ -12,17 +12,17 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from yads.api.routers.tags import get_unique_tags
-from yads.auth.deps import RequireScope, get_api_key
+from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
 from yads.database import get_session
 from yads.models import APIKey, Target
 
 router = APIRouter(prefix="/api/v1", tags=["API v1 — Tags"])
 
 
-@router.get("/tags")
+@router.get("/tags", dependencies=[Depends(RequireScope("read"))])
 async def list_tags(
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     return get_unique_tags(session, tenant_id=api_key.tenant_id)
 
@@ -31,12 +31,12 @@ class AddTagRequest(BaseModel):
     tag: str
 
 
-@router.post("/targets/{target_id}/tags")
+@router.post("/targets/{target_id}/tags", dependencies=[Depends(RequireScope("write"))])
 async def add_tag(
     target_id: int,
     payload: AddTagRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     target = session.exec(
         select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
@@ -53,12 +53,12 @@ async def add_tag(
     return target.tags
 
 
-@router.delete("/targets/{target_id}/tags/{tag}")
+@router.delete("/targets/{target_id}/tags/{tag}", dependencies=[Depends(RequireScope("write"))])
 async def remove_tag(
     target_id: int,
     tag: str,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     target = session.exec(
         select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
@@ -80,11 +80,11 @@ class BulkAssignRequest(BaseModel):
     action: str = "add"
 
 
-@router.post("/tags/bulk-assign")
+@router.post("/tags/bulk-assign", dependencies=[Depends(RequireScope("write"))])
 async def bulk_assign_tags(
     payload: BulkAssignRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     if not payload.target_ids:
         raise HTTPException(status_code=400, detail="No target_ids provided")
@@ -119,11 +119,11 @@ class BulkAddByIdsRequest(BaseModel):
     tag: str
 
 
-@router.post("/targets/bulk/tag")
+@router.post("/targets/bulk/tag", dependencies=[Depends(RequireScope("write"))])
 async def bulk_add_tag(
     payload: BulkAddByIdsRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     if not payload.target_ids:
         raise HTTPException(status_code=400, detail="No target_ids provided")
@@ -150,8 +150,12 @@ async def bulk_add_tag(
 async def delete_tag_globally(
     tag_name: str,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+    confirm: bool = False,
 ):
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Set confirm=true to delete this tag globally")
+
     targets = session.exec(
         select(Target).where(Target.tags.contains([tag_name]), Target.tenant_id == api_key.tenant_id)
     ).all()

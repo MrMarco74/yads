@@ -202,6 +202,27 @@ async def get_api_key(
     return db_key
 
 
+def require_tenant_scoped_key(api_key: APIKey = Depends(get_api_key)) -> APIKey:
+    """
+    FastAPI dependency that rejects API keys with a NULL tenant_id.
+
+    Per the invariant documented on APIKey.tenant_id (yads/models.py), a
+    NULL-tenant key (owned by a Platform Admin) must be scoped to NOTHING
+    by tenant-scoped queries -- fail closed, not open. Any `/api/v1/*`
+    route that filters resources by `Target.tenant_id == api_key.tenant_id`
+    (or similar) must use this dependency instead of the bare `get_api_key`
+    so a NULL-tenant key gets an explicit 403 instead of silently matching
+    every tenant (via a falsy/None comparison) or being treated as
+    "unfiltered".
+    """
+    if api_key.tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This API key has no tenant and cannot access tenant-scoped resources",
+        )
+    return api_key
+
+
 class RequireScope:
     """
     FastAPI dependency that verifies the authenticated API key has a required scope.

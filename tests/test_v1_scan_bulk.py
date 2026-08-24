@@ -12,7 +12,9 @@ def bulk_targets(db_session, test_tenant):
     domains = ["bulk-fixture-1.example.com", "bulk-fixture-2.example.com"]
     targets = []
     for d in domains:
-        existing = db_session.exec(select(Target).where(Target.domain == d)).first()
+        existing = db_session.exec(
+            select(Target).where(Target.domain == d, Target.tenant_id == test_tenant.id)
+        ).first()
         if existing:
             targets.append(existing)
             continue

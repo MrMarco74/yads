@@ -10,7 +10,10 @@ def scan_target(db_session, test_tenant):
     from sqlmodel import select
 
     existing = db_session.exec(
-        select(Target).where(Target.domain == "v1-scan-fixture.example.com")
+        select(Target).where(
+            Target.domain == "v1-scan-fixture.example.com",
+            Target.tenant_id == test_tenant.id,
+        )
     ).first()
     if existing:
         return existing

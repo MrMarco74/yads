@@ -11,7 +11,10 @@ def owned_target(db_session, test_tenant):
     from sqlmodel import select
 
     existing = db_session.exec(
-        select(Target).where(Target.domain == "v1-tags-fixture.example.com")
+        select(Target).where(
+            Target.domain == "v1-tags-fixture.example.com",
+            Target.tenant_id == test_tenant.id,
+        )
     ).first()
     if existing:
         return existing
@@ -103,6 +106,15 @@ def test_delete_tag_globally_requires_destructive_scope(client, db_session, test
 
 def test_delete_tag_globally_with_destructive_scope(api_key_client, owned_target):
     api_key_client.post(f"/api/v1/targets/{owned_target.id}/tags", json={"tag": "delete-me-globally"})
-    r = api_key_client.delete("/api/v1/tags/delete-me-globally")
+    r = api_key_client.delete("/api/v1/tags/delete-me-globally", params={"confirm": True})
     assert r.status_code == 200
     assert r.json()["removed_from"] >= 1
+
+
+def test_delete_tag_globally_without_confirm_returns_400(api_key_client, owned_target):
+    api_key_client.post(f"/api/v1/targets/{owned_target.id}/tags", json={"tag": "delete-me-no-confirm"})
+    r = api_key_client.delete("/api/v1/tags/delete-me-no-confirm")
+    assert r.status_code == 400
+
+    r2 = api_key_client.delete("/api/v1/tags/delete-me-no-confirm", params={"confirm": False})
+    assert r2.status_code == 400

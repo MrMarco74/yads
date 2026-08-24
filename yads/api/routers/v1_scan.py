@@ -19,7 +19,7 @@ from yads.api.routers.targets import (
     _parse_bulk_criteria,
     _queue_single_bulk_target,
 )
-from yads.auth.deps import RequireScope, get_api_key
+from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
 from yads.core.module_registry import REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 from yads.database import get_session
@@ -57,7 +57,7 @@ class BulkScanByCriteriaRequest(BaseModel):
 @router.get("/targets/bulk-scan/preview-count")
 async def bulk_scan_preview_count(
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
     only_roots: bool = False,
     online_only: bool = False,
     scanned_before: Optional[str] = None,
@@ -77,7 +77,7 @@ async def bulk_scan_preview_count(
 async def bulk_scan_by_criteria(
     payload: BulkScanByCriteriaRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
 
@@ -110,7 +110,7 @@ class BulkScanSelectedRequest(BaseModel):
 async def bulk_scan_selected(
     payload: BulkScanSelectedRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     if not payload.target_ids:
         raise HTTPException(status_code=400, detail="No target_ids provided")
@@ -141,7 +141,7 @@ async def scan_trigger_by_target_id(
     target_id: int,
     payload: ScanTriggerRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     target = session.exec(
         select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)

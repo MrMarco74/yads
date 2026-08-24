@@ -19,7 +19,7 @@ from yads.api.routers.queue import (
     mark_task_cancelled,
     prettify_task_name,
 )
-from yads.auth.deps import RequireScope, get_api_key
+from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
 from yads.core.module_status import get_rate_limited_module_count
 from yads.database import get_session, redis_client
 from yads.models import APIKey, SystemConfig, Target
@@ -28,10 +28,10 @@ from yads.worker import celery_app
 router = APIRouter(prefix="/api/v1", tags=["API v1 — Queue"])
 
 
-@router.get("/queue/status")
+@router.get("/queue/status", dependencies=[Depends(RequireScope("read"))])
 async def queue_status(
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     conf = session.get(SystemConfig, "QUEUE_ACTIVE")
     queue_active = not (conf and conf.value.lower() == "false")
@@ -78,11 +78,11 @@ class QueueControlRequest(BaseModel):
     action: str
 
 
-@router.post("/queue/control")
+@router.post("/queue/control", dependencies=[Depends(RequireScope("write"))])
 async def queue_control(
     payload: QueueControlRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     if payload.action not in ("pause", "resume"):
         raise HTTPException(status_code=400, detail="action must be 'pause' or 'resume'")
@@ -112,11 +112,11 @@ async def queue_control(
     return {"queue_active": payload.action == "resume"}
 
 
-@router.post("/queue/tasks/{task_id}/cancel")
+@router.post("/queue/tasks/{task_id}/cancel", dependencies=[Depends(RequireScope("write"))])
 async def cancel_task(
     task_id: str,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     i = celery_app.control.inspect(timeout=5.0)
     task_tenant_id: Optional[int] = None
@@ -166,7 +166,7 @@ class ConfirmRequest(BaseModel):
 async def purge_queue(
     payload: ConfirmRequest,
     session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     if not payload.confirm:
         raise HTTPException(status_code=400, detail="Set confirm=true to purge the queue")
@@ -250,10 +250,10 @@ class UndoPurgeRequest(BaseModel):
     undo_batch: str
 
 
-@router.post("/queue/undo-purge")
+@router.post("/queue/undo-purge", dependencies=[Depends(RequireScope("write"))])
 async def undo_purge_queue(
     payload: UndoPurgeRequest,
-    api_key: Annotated[APIKey, Depends(get_api_key)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
 ):
     key = f"yads:undo_purge:{payload.undo_batch}"
     raw = redis_client.get(key)
