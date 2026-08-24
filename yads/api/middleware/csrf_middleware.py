@@ -6,6 +6,9 @@ Reads the token from:
   1. X-CSRF-Token request header  (HTMX, fetch API)
   2. _csrf hidden form field       (regular HTML form submissions)
 
+Requests authenticated via Authorization: Bearer or X-API-Key are exempt --
+those tokens can't be read or set by a cross-site attacker either.
+
 On GET requests, auto-sets the csrf_token cookie if it is absent so that
 the page's JavaScript can read it and inject it into forms / HTMX headers.
 
@@ -75,6 +78,14 @@ class CSRFMiddleware:
 
         # ── Bearer-auth API clients — skip CSRF ──
         if request.headers.get("authorization", "").startswith("Bearer "):
+            await self.app(scope, receive, send)
+            return
+
+        # ── X-API-Key-auth API clients — skip CSRF ──
+        # A request carrying this header can't be forged by a CSRF attack (the
+        # attacker's page has no way to read or set the caller's secret key),
+        # the same reasoning that already exempts Bearer-token clients above.
+        if request.headers.get("x-api-key", ""):
             await self.app(scope, receive, send)
             return
 
