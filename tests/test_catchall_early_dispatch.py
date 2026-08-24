@@ -64,3 +64,53 @@ def test_catchall_pre_check_skipped_when_no_http():
 
         assert is_parked is False
         mock_scanner_cls.assert_not_called()
+
+
+def test_run_parked_precheck_exception_does_not_propagate_and_treats_as_not_parked():
+    """
+    The pre-check block runs unconditionally on every scan (not gated on
+    scan_types selection) inside run_all_scans. Before this fix, it had no
+    try/except of its own — unlike every other module block in that
+    function — so an exception here (DB error, network error, LLM
+    classification failure) would abort the whole run_all_scans task
+    before its heartbeat-stop code runs, wedging the target in "running"
+    status. Confirms _run_parked_precheck now swallows the exception,
+    rolls back, and fails safe to is_parked=False.
+    """
+    with patch("yads.worker_tasks._check_parked_domain", side_effect=RuntimeError("boom")):
+        from yads.worker_tasks import _run_parked_precheck
+        session = MagicMock()
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+
+        assert is_parked is False
+        session.rollback.assert_called_once()
+
+
+def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
+    """Same failure mode, but the exception comes from the
+    CatchallDetectorScanner.process() call rather than _check_parked_domain."""
+    with patch("yads.worker_tasks._check_parked_domain", return_value=False), \
+         patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
+        mock_scanner = mock_scanner_cls.return_value
+        mock_scanner.process.side_effect = RuntimeError("boom")
+
+        from yads.worker_tasks import _run_parked_precheck
+        session = MagicMock()
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+
+        assert is_parked is False
+        session.rollback.assert_called_once()
+
+
+def test_run_parked_precheck_happy_path_still_returns_true_when_parked():
+    with patch("yads.worker_tasks._check_parked_domain", return_value=True), \
+         patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
+        mock_scanner = mock_scanner_cls.return_value
+        mock_scanner.process.return_value = None
+
+        from yads.worker_tasks import _run_parked_precheck
+        session = MagicMock()
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+
+        assert is_parked is True
+        session.rollback.assert_not_called()

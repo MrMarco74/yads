@@ -983,6 +983,42 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     return is_parked
 
 
+def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, has_https: bool) -> bool:
+    """
+    Runs the catch-all/parked-domain pre-check (live gating decision via
+    _check_parked_domain, plus persisting the CatchallDetectorScanner's own
+    ScanResult) with the same try/except/rollback convention every other
+    module block in run_all_scans uses. This block runs unconditionally
+    on every scan (not gated on scan_types), so an unhandled exception here
+    would previously abort the whole run_all_scans task before its
+    heartbeat-stop code runs, wedging the target in "running" status.
+    Fails safe: any exception here is treated as not-parked so the rest
+    of the scan proceeds normally rather than being skipped based on an
+    error.
+    """
+    is_parked = False
+    try:
+        logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
+        is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https)
+
+        catchall_scanner = CatchallDetectorScanner(db_session=session)
+        with LogCapture() as logs:
+            catchall_result = catchall_scanner.process(target_id, domain)
+            captured_logs = logs.get_logs()
+        if catchall_result and hasattr(catchall_result, 'log_content'):
+            catchall_result.log_content = sanitize_null_bytes(captured_logs)
+            session.add(catchall_result)
+            session.commit()
+
+        if is_parked:
+            logger.info(f"[Worker] {domain} detected as parked — skipping content/app-analysis modules")
+    except Exception as e:
+        logger.error(f"[Worker] Error in Catch-All Detector: {e}")
+        session.rollback()
+        is_parked = False
+    return is_parked
+
+
 PARKED_SKIP_MODULES = {
     "tech_stack_analyzer", "form_discovery", "api_discovery",
     "graphql_scanner", "websocket_scanner", "login_scanner",
@@ -1220,20 +1256,7 @@ def run_all_scans(
             # regardless of what the tenant selected; still shown as a
             # selectable module in the UI/scan profiles so its persisted
             # result is discoverable like any other module.
-            logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
-            is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https)
-
-            catchall_scanner = CatchallDetectorScanner(db_session=session)
-            with LogCapture() as logs:
-                catchall_result = catchall_scanner.process(target_id, domain)
-                captured_logs = logs.get_logs()
-            if catchall_result and hasattr(catchall_result, 'log_content'):
-                catchall_result.log_content = sanitize_null_bytes(captured_logs)
-                session.add(catchall_result)
-                session.commit()
-
-            if is_parked:
-                logger.info(f"[Worker] {domain} detected as parked — skipping content/app-analysis modules")
+            is_parked = _run_parked_precheck(session, target_id, domain, has_http, has_https)
 
             # 1. Subdomain Scanner
             if "subdomain_scanner" in scan_types:
