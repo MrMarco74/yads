@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Form, Query
 from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime
@@ -12,12 +12,12 @@ router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 # Management permissions: Admins and Tenant Admins
 manager_only = RoleChecker(["admin", "tenant_admin"])
 
-VALID_SCOPES = {"read", "write", "scan_execute", "provision_tenant"}
+VALID_SCOPES = {"read", "write", "scan_execute", "provision_tenant", "destructive"}
 
 @router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(manager_only)])
 async def create_key(
     name: str,
-    scopes: List[str] = None,
+    scopes: List[str] = Query(None),
     expires_in_days: Optional[int] = None,
     session: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user)
@@ -70,6 +70,7 @@ async def create_key(
         "api_key": plain_key,  # VITAL: Show this only now
         "prefix": new_key.key_prefix,
         "expires_at": new_key.expires_at,
+        "scopes": new_key.scopes,
         "msg": "Store this key safely. It will not be shown again."
     }
 
