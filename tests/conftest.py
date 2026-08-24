@@ -121,10 +121,53 @@ def test_tenant(db_session):
     # Tenant" already exists and the early return above skips teardown
     # entirely, which is why this FK issue can stay latent for a long time.
     # Various tests write SecurityAuditLog rows referencing this tenant_id
-    # (e.g. run_brand_watch_scan's audit log, _audit_scan_trigger); clean
-    # those up first so the Tenant delete doesn't fail on the FK.
-    from yads.models import SecurityAuditLog
+    # (e.g. run_brand_watch_scan's audit log, _audit_scan_trigger); and
+    # APIKey rows from api_key_headers fixture. Clean those up first so the
+    # Tenant delete doesn't fail on the FK.
+    from yads.models import SecurityAuditLog, APIKey
+    db_session.query(APIKey).filter(APIKey.tenant_id == tenant.id).delete()
     db_session.query(SecurityAuditLog).filter(SecurityAuditLog.tenant_id == tenant.id).delete()
     db_session.commit()
     db_session.delete(tenant)
     db_session.commit()
+
+
+# ── API key fixtures (X-API-Key header auth, distinct from cookie auth) ──────
+
+@pytest.fixture(scope="session")
+def api_key_headers(db_session, test_tenant):
+    """A real APIKey row (scopes: read, write, scan_execute, destructive),
+    scoped to test_tenant. Returns headers dict ready to attach to a client."""
+    from yads.models import APIKey
+    from yads.auth.security import generate_api_key
+    from sqlmodel import select
+
+    existing = db_session.exec(
+        select(APIKey).where(APIKey.name == "pytest-fixture-key", APIKey.tenant_id == test_tenant.id)
+    ).first()
+    if existing:
+        # Key was already created in a prior test run against a reused
+        # container; the plain key itself isn't recoverable from the hash,
+        # so recreate a fresh key row instead of reusing this stale one.
+        db_session.delete(existing)
+        db_session.commit()
+
+    plain_key, prefix, key_hash = generate_api_key()
+    key_row = APIKey(
+        tenant_id=test_tenant.id,
+        name="pytest-fixture-key",
+        key_prefix=prefix,
+        key_hash=key_hash,
+        scopes=["read", "write", "scan_execute", "destructive"],
+    )
+    db_session.add(key_row)
+    db_session.commit()
+
+    yield {"X-API-Key": plain_key}
+
+
+@pytest.fixture(scope="session")
+def api_key_client(client, api_key_headers):
+    """TestClient pre-loaded with a scoped API key (see api_key_headers)."""
+    client.headers.update(api_key_headers)
+    return client
