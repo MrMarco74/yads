@@ -19,7 +19,7 @@ from yads.api.routers.queue import (
     mark_task_cancelled,
     prettify_task_name,
 )
-from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
+from yads.auth.deps import RequireScope, require_tenant_scoped_key
 from yads.core.module_status import get_rate_limited_module_count
 from yads.database import get_session, redis_client
 from yads.models import APIKey, SystemConfig, Target

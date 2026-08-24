@@ -23,6 +23,15 @@ def test_post_without_any_auth_still_requires_csrf_or_401s():
         assert r.status_code in (401, 403, 307, 303)
 
 
+def test_tenants_provision_stays_csrf_exempt(client, api_key_headers):
+    """/tenants/provision is the one non-/api/ route that is exclusively
+    X-API-Key-authenticated automation (see its own docstring). Narrowing
+    the CSRF exemption to /api/ paths must not also break this route --
+    it should reach real auth/scope handling, never the CSRF-specific 403."""
+    r = client.post("/tenants/provision", json={}, headers=api_key_headers)
+    assert r.status_code != 403 or "CSRF" not in r.text
+
+
 def test_fake_api_key_header_on_non_api_path_does_not_bypass_csrf():
     """The X-API-Key/Bearer CSRF exemption must be scoped to /api/ paths --
     a cross-site attacker sending a bogus X-API-Key header at a

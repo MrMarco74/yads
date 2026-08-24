@@ -6,8 +6,12 @@ Reads the token from:
   1. X-CSRF-Token request header  (HTMX, fetch API)
   2. _csrf hidden form field       (regular HTML form submissions)
 
-Requests authenticated via Authorization: Bearer or X-API-Key are exempt --
-those tokens can't be read or set by a cross-site attacker either.
+Requests authenticated via Authorization: Bearer or X-API-Key are exempt on
+/api/* paths, plus the one non-/api/ machine-to-machine route
+(/tenants/provision) -- those tokens can't be read or set by a cross-site
+attacker either, but the exemption is deliberately NOT global: a cookie-
+session route must still reject a forged request that merely includes a
+fake auth header alongside the victim's session cookie.
 
 On GET requests, auto-sets the csrf_token cookie if it is absent so that
 the page's JavaScript can read it and inject it into forms / HTMX headers.
@@ -76,16 +80,20 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # ── Bearer-auth / X-API-Key API clients — skip CSRF (API-only paths) ──
+        # ── Bearer-auth / X-API-Key API clients — skip CSRF (API + M2M paths only) ──
         # A request carrying one of these headers can't be forged by a CSRF
         # attack (the attacker's page has no way to read or set the caller's
-        # secret key/token) -- but that reasoning only holds for the API
-        # surface these headers are meant for. Scoping the exemption to
-        # /api/ prevents a cross-site page from sending a bogus/fake
+        # secret key/token) -- but that reasoning only holds for the
+        # machine-to-machine surface these headers are meant for. Scoping the
+        # exemption prevents a cross-site page from sending a bogus/fake
         # X-API-Key (any non-empty value passes the presence check here) or
         # Authorization header at a cookie-session route to skip CSRF and
         # then get authenticated by the victim's session cookie instead.
-        if path.startswith("/api/") and (
+        # /tenants/provision is the one non-/api/ route that is also
+        # exclusively X-API-Key-authenticated automation (see its own
+        # docstring) -- it belongs in this exemption for the same reason
+        # /api/* does, not because it happens to share a path prefix.
+        if (path.startswith("/api/") or path == "/tenants/provision") and (
             request.headers.get("authorization", "").startswith("Bearer ")
             or request.headers.get("x-api-key", "")
         ):

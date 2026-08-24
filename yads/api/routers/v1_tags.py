@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from yads.api.routers.tags import get_unique_tags
-from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
+from yads.auth.deps import RequireScope, require_tenant_scoped_key
 from yads.database import get_session
 from yads.models import APIKey, Target
 

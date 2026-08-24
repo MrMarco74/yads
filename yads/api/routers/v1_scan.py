@@ -19,7 +19,7 @@ from yads.api.routers.targets import (
     _parse_bulk_criteria,
     _queue_single_bulk_target,
 )
-from yads.auth.deps import RequireScope, get_api_key, require_tenant_scoped_key
+from yads.auth.deps import RequireScope, require_tenant_scoped_key
 from yads.core.module_registry import REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
 from yads.database import get_session
@@ -54,7 +54,7 @@ class BulkScanByCriteriaRequest(BaseModel):
     scanned_before: Optional[str] = None
 
 
-@router.get("/targets/bulk-scan/preview-count")
+@router.get("/targets/bulk-scan/preview-count", dependencies=[Depends(RequireScope("read"))])
 async def bulk_scan_preview_count(
     session: Annotated[Session, Depends(get_session)],
     api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
