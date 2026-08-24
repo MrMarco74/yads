@@ -376,8 +376,8 @@ async def get_target_changes(
     api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
     limit: int = 30,
 ):
-    if limit > 100:
-        raise HTTPException(status_code=422, detail="limit must be <= 100")
+    if limit > 100 or limit < 1:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
 
     target = session.exec(
         select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)

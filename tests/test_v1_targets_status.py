@@ -27,7 +27,12 @@ def test_get_target_changes_returns_list(api_key_client, status_target):
 
 def test_get_target_changes_caps_limit(api_key_client, status_target):
     r = api_key_client.get(f"/api/v1/targets/{status_target.id}/changes", params={"limit": 500})
-    assert r.status_code == 422  # FastAPI validation: le=100 on the query param
+    assert r.status_code == 422  # manual bounds check in the handler body
+
+
+def test_get_target_changes_rejects_negative_limit(api_key_client, status_target):
+    r = api_key_client.get(f"/api/v1/targets/{status_target.id}/changes", params={"limit": -1})
+    assert r.status_code == 422
 
 
 def test_get_target_changes_other_tenant_returns_404(api_key_client, db_session):
