@@ -4,6 +4,7 @@ machine clients. See
 docs/superpowers/specs/2026-08-24-yads-mcp-foundation-design.md section 5.3.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, List, Optional
 
@@ -11,6 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from yads.api.routers.targets import (
+    _audit_scan_trigger,
+    _build_bulk_criteria_query,
+    _get_final_scan_types,
+    _parse_bulk_criteria,
+    _queue_single_bulk_target,
+)
 from yads.auth.deps import RequireScope, get_api_key
 from yads.core.module_registry import REGISTRY
 from yads.core.scheduler import get_active_scan_count, get_max_concurrent_scans
@@ -66,3 +74,99 @@ async def scan_trigger_by_target_id(
     session.commit()
 
     return {"status": "queued", "target_id": target.id, "domain": target.domain, "scan_types": selected_types}
+
+
+@dataclass
+class _ApiKeyAsUser:
+    """`_build_bulk_criteria_query`, `_queue_single_bulk_target`, and
+    `_audit_scan_trigger` (targets.py) were written to take a `User` ORM
+    object and read `.tenant_id`/`.username`/`.id` off it. An `APIKey` has
+    `.tenant_id` but no `.username`; this shim adapts an APIKey into the
+    minimal shape those functions actually touch, so their tenant-scoping
+    logic can be reused verbatim instead of re-implemented here."""
+    tenant_id: Optional[int]
+    id: Optional[int] = None
+    username: str = "api-key"
+
+
+class BulkScanByCriteriaRequest(BaseModel):
+    scan_types: List[str]
+    only_roots: bool = False
+    online_only: bool = False
+    scanned_before: Optional[str] = None
+
+
+@router.get("/targets/bulk-scan/preview-count")
+async def bulk_scan_preview_count(
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(get_api_key)],
+    only_roots: bool = False,
+    online_only: bool = False,
+    scanned_before: Optional[str] = None,
+):
+    from sqlmodel import func as sqlfunc
+
+    fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
+    parsed_only_roots, parsed_online_only, cutoff = _parse_bulk_criteria(only_roots, online_only, scanned_before)
+    query = _build_bulk_criteria_query(
+        session, fake_user, only_roots=parsed_only_roots, online_only=parsed_online_only, scanned_before=cutoff
+    )
+    count = session.exec(select(sqlfunc.count()).select_from(query.subquery())).one()
+    return {"count": count}
+
+
+@router.post("/targets/bulk-scan", dependencies=[Depends(RequireScope("scan_execute"))])
+async def bulk_scan_by_criteria(
+    payload: BulkScanByCriteriaRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(get_api_key)],
+):
+    fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
+
+    final_types = _get_final_scan_types(payload.scan_types)
+    if not final_types:
+        raise HTTPException(status_code=400, detail="No valid scan types selected")
+
+    only_roots, online_only, cutoff = _parse_bulk_criteria(
+        payload.only_roots, payload.online_only, payload.scanned_before
+    )
+    query = _build_bulk_criteria_query(session, fake_user, only_roots=only_roots, online_only=online_only, scanned_before=cutoff)
+    matched_ids = session.exec(query).all()
+
+    count = 0
+    for tid in matched_ids:
+        if _queue_single_bulk_target(session, fake_user, str(tid), final_types):
+            count += 1
+    session.commit()
+    _audit_scan_trigger(session, None, [str(t) for t in matched_ids[:50]], final_types, "bulk_scan_by_criteria_api")
+
+    return {"matched_count": len(matched_ids), "queued_count": count, "scan_types": final_types}
+
+
+class BulkScanSelectedRequest(BaseModel):
+    target_ids: List[int]
+    scan_types: List[str]
+
+
+@router.post("/targets/bulk/scan", dependencies=[Depends(RequireScope("scan_execute"))])
+async def bulk_scan_selected(
+    payload: BulkScanSelectedRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(get_api_key)],
+):
+    if not payload.target_ids:
+        raise HTTPException(status_code=400, detail="No target_ids provided")
+
+    fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
+    final_types = _get_final_scan_types(payload.scan_types)
+    if not final_types:
+        raise HTTPException(status_code=400, detail="No valid scan types selected")
+
+    count = 0
+    for tid in payload.target_ids:
+        if _queue_single_bulk_target(session, fake_user, str(tid), final_types):
+            count += 1
+    session.commit()
+    _audit_scan_trigger(session, None, [str(t) for t in payload.target_ids[:50]], final_types, "bulk_scan_selected_api")
+
+    return {"requested_count": len(payload.target_ids), "queued_count": count, "scan_types": final_types}
