@@ -40,6 +40,8 @@ from yads.modules.tld_scanner import get_tld_list
 from yads.core.module_registry import get_module, get_simple_dispatch_modules
 from yads.core.module_status import mark_rate_limited, clear_rate_limited
 from yads.core.api_block_detection import ApiBlockedError
+from yads.modules.catchall_detector import CatchallDetectorScanner
+from yads.core.parked_domain_tags import tag_parked_domain
 from celery import chord
 import random
 
@@ -961,6 +963,26 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
         _worker_client.report_task_completed(celery_task_id, success=True)
 
 
+def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool) -> bool:
+    """
+    Runs catchall_detector's live check and returns whether the domain is
+    confirmed parked. An uncertain verdict (is_catch_all is None, e.g.
+    unreachable) is never treated as parked. Tags the target via
+    tag_parked_domain when parked. Does not persist a ScanResult itself —
+    that's the caller's job (see run_all_scans), since this is meant to
+    be called for the live gating decision independent of whether/when
+    the module's own result gets saved.
+    """
+    if not (has_http or has_https):
+        return False
+    scanner = CatchallDetectorScanner(db_session=session)
+    live_data = scanner.run_scan(domain, target_id=target_id)
+    is_parked = live_data.get("is_catch_all") is True
+    if is_parked:
+        tag_parked_domain(session, target_id, live_data.get("matched_signature"))
+    return is_parked
+
+
 def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, has_https, scan_start_time):
     """
     Builds and fires the chord of run_scan_module tasks for every
@@ -1182,6 +1204,26 @@ def run_all_scans(
                 logger.info(f"[Worker] Pre-checking web availability for {domain}...")
                 has_http, has_https = check_web(domain)
                 logger.info(f"[Worker] Web Pre-check: HTTP={has_http}, HTTPS={has_https}")
+
+            # Catch-all / parked-domain pre-check — always runs (not gated
+            # on scan_types) so the skip decision below is reliable
+            # regardless of what the tenant selected; still shown as a
+            # selectable module in the UI/scan profiles so its persisted
+            # result is discoverable like any other module.
+            logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
+            is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https)
+
+            catchall_scanner = CatchallDetectorScanner(db_session=session)
+            with LogCapture() as logs:
+                catchall_result = catchall_scanner.process(target_id, domain)
+                captured_logs = logs.get_logs()
+            if catchall_result and hasattr(catchall_result, 'log_content'):
+                catchall_result.log_content = sanitize_null_bytes(captured_logs)
+                session.add(catchall_result)
+                session.commit()
+
+            if is_parked:
+                logger.info(f"[Worker] {domain} detected as parked — skipping content/app-analysis modules")
 
             # 1. Subdomain Scanner
             if "subdomain_scanner" in scan_types:
