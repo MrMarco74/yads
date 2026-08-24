@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import List, Optional, Annotated
 from datetime import datetime
 from yads.database import get_session
-from yads.auth.deps import get_api_key
+from yads.auth.deps import get_api_key, RequireScope
 from yads.models import APIKey, Target, ScanResult
 from yads.worker import celery_app
 
@@ -15,7 +15,11 @@ class DastScanRequest(BaseModel):
     target_url: str
     profile: str = "standard"
 
-@router.post("/dast/scan", responses={400: {"description": "Invalid target URL"}})
+@router.post(
+    "/dast/scan",
+    responses={400: {"description": "Invalid target URL"}},
+    dependencies=[Depends(RequireScope("scan_execute"))],
+)
 async def trigger_dast_scan(
     request: DastScanRequest,
     session: Annotated[Session, Depends(get_session)],
