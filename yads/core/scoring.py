@@ -13,6 +13,7 @@ SCORED_MODULE_NAMES = [
     "phishing_scanner", "open_redirect_scanner", "tls_deep_scanner",
     "dependency_confusion", "api_security_scanner", "subdomain_takeover",
     "waf_detector", "graphql_scanner", "websocket_scanner", "password_spray_mapper",
+    "catchall_detector",
 ]
 
 def get_grade(score: int) -> str:
@@ -173,6 +174,7 @@ def calculate_target_score(target: Any, latest_results: Dict[str, Any]) -> Tuple
         "graphql_scanner": (8, "GraphQL Security Issues"),
         "websocket_scanner": (8, "WebSocket Security Issues"),
         "password_spray_mapper": (5, "Password Spray Surface Exposed"),
+        "catchall_detector": (20, "Domain Is Parked / Not In Active Use"),
     }
     for mod_name, (max_pen, label) in _generic_penalize.items():
         if max_pen == 0:
