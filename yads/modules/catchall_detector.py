@@ -105,6 +105,7 @@ class CatchallDetectorScanner(BaseScannerModule):
                 "vhost_comparison": None,
                 "llm_classification": None,
                 "error": "Both HTTPS and HTTP fetch failed",
+                "findings": [],
             }
 
         http_status, final_url, server_header, title, text = fetch
@@ -120,6 +121,7 @@ class CatchallDetectorScanner(BaseScannerModule):
             "vhost_comparison": None,
             "llm_classification": None,
             "error": None,
+            "findings": [],
         }
 
         # ── Layer 1: signature match ────────────────────────────────────
@@ -127,6 +129,10 @@ class CatchallDetectorScanner(BaseScannerModule):
         if len(text.strip()) < EMPTY_BODY_THRESHOLD:
             result["is_catch_all"] = True
             result["detection_method"] = "empty_body"
+            result["findings"] = [{
+                "severity": "high",
+                "title": f"Domain appears to be parked ({result.get('matched_signature') or 'unclassified'})",
+            }]
             return result
 
         for sig_id, needle in PARKING_SIGNATURES:
@@ -134,6 +140,10 @@ class CatchallDetectorScanner(BaseScannerModule):
                 result["is_catch_all"] = True
                 result["detection_method"] = "signature"
                 result["matched_signature"] = sig_id
+                result["findings"] = [{
+                    "severity": "high",
+                    "title": f"Domain appears to be parked ({result.get('matched_signature') or 'unclassified'})",
+                }]
                 return result
 
         # ── Layer 2: vhost / wildcard content comparison ────────────────
@@ -143,6 +153,10 @@ class CatchallDetectorScanner(BaseScannerModule):
             if vhost["similarity_ratio"] >= VHOST_SIMILARITY_THRESHOLD and vhost["status_match"]:
                 result["is_catch_all"] = True
                 result["detection_method"] = "vhost_comparison"
+                result["findings"] = [{
+                    "severity": "high",
+                    "title": f"Domain appears to be parked ({result.get('matched_signature') or 'unclassified'})",
+                }]
                 return result
 
         # ── Layer 3: LLM fallback (opt-in, only if still inconclusive) ──
@@ -153,6 +167,11 @@ class CatchallDetectorScanner(BaseScannerModule):
                 verdict = llm_result.get("verdict")
                 result["is_catch_all"] = verdict in ("parked", "catch_all")
                 result["detection_method"] = "llm"
+                if result["is_catch_all"]:
+                    result["findings"] = [{
+                        "severity": "high",
+                        "title": f"Domain appears to be parked ({result.get('matched_signature') or 'unclassified'})",
+                    }]
 
         return result
 
