@@ -34,48 +34,6 @@ class ScanTriggerRequest(BaseModel):
     scan_priority: Optional[int] = None
 
 
-@router.post("/targets/{target_id}/scan", dependencies=[Depends(RequireScope("scan_execute"))])
-async def scan_trigger_by_target_id(
-    target_id: int,
-    payload: ScanTriggerRequest,
-    session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)],
-):
-    target = session.exec(
-        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
-    ).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="Target not found")
-
-    if payload.scan_priority is not None:
-        target.scan_priority = max(1, min(9, payload.scan_priority))
-
-    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
-    selected_types = [t for t in payload.scan_types if t in valid_types]
-    if not selected_types:
-        raise HTTPException(status_code=400, detail="No valid scan types selected")
-
-    if "full_scan" in selected_types:
-        selected_types = [n for n in REGISTRY.keys() if n not in ("subdomain_scanner", "catchall_detector")]
-
-    max_concurrent = get_max_concurrent_scans(session)
-    if get_active_scan_count(session) >= max_concurrent:
-        raise HTTPException(status_code=429, detail=f"Concurrent scan limit ({max_concurrent}) reached")
-
-    celery_app.send_task(
-        "yads.worker.run_all_scans",
-        args=[target.id, target.domain, selected_types, api_key.tenant_id],
-        priority=getattr(target, "scan_priority", 5),
-    )
-
-    target.scan_status = "queued"
-    target.queued_at = datetime.utcnow()
-    session.add(target)
-    session.commit()
-
-    return {"status": "queued", "target_id": target.id, "domain": target.domain, "scan_types": selected_types}
-
-
 @dataclass
 class _ApiKeyAsUser:
     """`_build_bulk_criteria_query`, `_queue_single_bulk_target`, and
@@ -170,3 +128,51 @@ async def bulk_scan_selected(
     _audit_scan_trigger(session, None, [str(t) for t in payload.target_ids[:50]], final_types, "bulk_scan_selected_api")
 
     return {"requested_count": len(payload.target_ids), "queued_count": count, "scan_types": final_types}
+
+
+# NOTE: this dynamic single-target route must be registered AFTER the static
+# /targets/bulk-scan, /targets/bulk-scan/preview-count, and /targets/bulk/scan
+# routes above -- Starlette matches routes in registration order, and
+# /targets/{target_id}/scan would otherwise greedily match a request to
+# /targets/bulk/scan (treating "bulk" as target_id and 422'ing on int
+# validation) before the more specific bulk routes ever got a chance.
+@router.post("/targets/{target_id}/scan", dependencies=[Depends(RequireScope("scan_execute"))])
+async def scan_trigger_by_target_id(
+    target_id: int,
+    payload: ScanTriggerRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(get_api_key)],
+):
+    target = session.exec(
+        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    if payload.scan_priority is not None:
+        target.scan_priority = max(1, min(9, payload.scan_priority))
+
+    valid_types = set(REGISTRY.keys()) | {"dns_cleanup", "full_scan"}
+    selected_types = [t for t in payload.scan_types if t in valid_types]
+    if not selected_types:
+        raise HTTPException(status_code=400, detail="No valid scan types selected")
+
+    if "full_scan" in selected_types:
+        selected_types = [n for n in REGISTRY.keys() if n not in ("subdomain_scanner", "catchall_detector")]
+
+    max_concurrent = get_max_concurrent_scans(session)
+    if get_active_scan_count(session) >= max_concurrent:
+        raise HTTPException(status_code=429, detail=f"Concurrent scan limit ({max_concurrent}) reached")
+
+    celery_app.send_task(
+        "yads.worker.run_all_scans",
+        args=[target.id, target.domain, selected_types, api_key.tenant_id],
+        priority=getattr(target, "scan_priority", 5),
+    )
+
+    target.scan_status = "queued"
+    target.queued_at = datetime.utcnow()
+    session.add(target)
+    session.commit()
+
+    return {"status": "queued", "target_id": target.id, "domain": target.domain, "scan_types": selected_types}
