@@ -14,6 +14,7 @@ import os
 # ── Override environment BEFORE any YADS module is imported ──────────────────
 os.environ.setdefault("DATABASE_URL", "postgresql://yads_test:yads_test@localhost:5433/yads_test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6380/0")
+os.environ.setdefault("BROKER_URL", "redis://localhost:6380/1")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-yads-testing-32chars!")
 os.environ.setdefault("MFA_ENABLED", "false")
 os.environ.setdefault("AUTH_MODE", "local")
