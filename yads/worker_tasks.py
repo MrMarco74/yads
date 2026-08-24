@@ -44,6 +44,12 @@ import random
 
 logger = logging.getLogger("yads-worker")
 
+# Module-level placeholder so tests can `patch("yads.worker_tasks._worker_client", ...)`.
+# The task functions below always re-import the live value from yads.worker_core
+# locally (it's a mutable global reassigned by initialize_worker_client() after
+# this module is first imported), so this name itself is never read directly.
+_worker_client = None
+
 MAX_BLOCKED_RETRIES = 5
 DEFAULT_BLOCKED_COOLDOWN = 300  # fallback when ApiBlockedError has no retry_after
 RATE_LIMITED_STATUS_TTL_BUFFER = 60  # keep the Redis badge visible a bit past the retry
@@ -688,6 +694,277 @@ def run_scan_module(target_id: int, domain: str, module_name: str, tenant_id: in
                 f"[Worker] '{module_name}' for target {target_id} gave up after "
                 f"{MAX_BLOCKED_RETRIES} blocked attempts; will retry on next scheduled scan."
             )
+
+
+@celery_app.task(name="yads.worker.finalize_scan", bind=False)
+def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list, scan_start_time, celery_task_id: str = None):
+    """
+    Tail of the per-target scan: subdomain auto-queue, compliance
+    recalculation, status reset to idle, scan_finished webhook, Splunk/
+    Prometheus events, email notification. Extracted from run_all_scans so
+    it can run as a Celery chord callback once every dispatched
+    run_scan_module task for the target has completed (see run_all_scans).
+    """
+    from yads.worker_core import _worker_client
+
+    with Session(engine) as session:
+        parent_tenant_id = tenant_id
+
+        # Subdomain Discovery & Auto-Queue Logic
+        subdomain_modules_ran = bool(set(scan_types) & {'subdomain_scanner', 'dns_scanner'})
+        if not subdomain_modules_ran:
+            logger.debug("[Worker] Skipping auto-queue: subdomain_scanner/dns_scanner not in current scan_types.")
+        else:
+            auto_queue_enabled = settings.AUTO_QUEUE_SUBDOMAINS
+            try:
+                aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
+                if aq_conf:
+                    auto_queue_enabled = aq_conf.value.lower() == 'true'
+            except Exception:
+                pass
+
+            try:
+                sub_res = session.exec(select(ScanResult).where(
+                    ScanResult.target_id == target_id,
+                    ScanResult.module_name == "subdomain_scanner"
+                ).order_by(ScanResult.scanned_at.desc())).first()
+
+                if not sub_res:
+                    sub_res = session.exec(select(ScanResult).where(
+                        ScanResult.target_id == target_id,
+                        ScanResult.module_name == "dns_scanner"
+                    ).order_by(ScanResult.scanned_at.desc())).first()
+
+                if sub_res and sub_res.data and "subdomains" in sub_res.data:
+                    subs = sub_res.data["subdomains"]
+                    new_targets_count = 0
+                    queued_count = 0
+                    review_count = 0
+
+                    for entry in subs:
+                        sub_domain = entry.get("subdomain")
+                        if sub_domain and sub_domain != domain:
+                            ips = entry.get("ips") or []
+                            if not ips:
+                                logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
+                                continue
+
+                            existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
+                            if not existing:
+                                new_target = Target(domain=sub_domain, tenant_id=parent_tenant_id)
+                                session.add(new_target)
+                                session.commit()
+                                session.refresh(new_target)
+                                new_targets_count += 1
+
+                                # Pre-scoring: only auto-queue a real scan when the
+                                # subdomain was independently surfaced by >=2 signals
+                                # (e.g. CT logs AND wordlist match). A single-signal
+                                # candidate (typically a plain wordlist guess) is kept
+                                # as a Target but only proposed for manual review —
+                                # this is what kept the queue-explosion incident from
+                                # recurring (see #9 in TODO_VIBE_SESSIONS.md).
+                                signal_count = len(entry.get("sources") or [])
+                                high_confidence = signal_count >= 2
+
+                                if auto_queue_enabled and high_confidence:
+                                    subdomain_scan_types = ['dns_scanner']
+                                    celery_app.send_task(
+                                        "yads.worker.run_all_scans",
+                                        args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id]
+                                    )
+                                    queued_count += 1
+                                    logger.info(
+                                        f"[Worker] Auto-queued new subdomain: {sub_domain} "
+                                        f"(signals={signal_count}) with types: {subdomain_scan_types}"
+                                    )
+                                else:
+                                    reason = "Auto-queue disabled" if not auto_queue_enabled else f"only {signal_count} signal(s), needs manual review"
+                                    review_count += 1
+                                    logger.info(f"[Worker] Discovered new subdomain: {sub_domain} ({reason})")
+                                    webhook_service.trigger_event(parent_tenant_id, "new_asset", {
+                                        "domain": sub_domain,
+                                        "source": "subdomain_discovery",
+                                        "parent": domain,
+                                        "signal_count": signal_count,
+                                        "needs_review": not high_confidence,
+                                    })
+
+                    if new_targets_count > 0:
+                        logger.info(
+                            f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. "
+                            f"Auto-queued: {queued_count}. Pending manual review: {review_count}."
+                        )
+
+            except Exception as e:
+                logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
+                session.rollback()
+
+        # Post-Scan Compliance Recalculation
+        try:
+            try:
+                from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+            except ImportError:
+                from yads.modules.custom.compliance_frameworks import FRAMEWORKS, get_framework_scorer
+            from sqlmodel import text as sql_text
+
+            logger.info(f"[Worker] Recalculating compliance status for {domain}...")
+
+            query = """
+                SELECT DISTINCT ON (module_name)
+                    module_name, data
+                FROM scanresult
+                WHERE target_id = :target_id
+                ORDER BY module_name, scanned_at DESC
+            """
+            results = session.exec(sql_text(query), params={"target_id": target_id}).all()
+
+            target_data = {target_id: {}}
+            for mod, data in results:
+                target_data[target_id][mod] = data
+
+            target_map = {target_id: domain}
+
+            for framework_id in FRAMEWORKS.keys():
+                try:
+                    scorer = get_framework_scorer(framework_id)
+                    stats = scorer.calculate_score(target_data, target_map)
+
+                    existing = session.exec(
+                        select(ComplianceTargetStatus).where(
+                            ComplianceTargetStatus.target_id == target_id,
+                            ComplianceTargetStatus.framework == framework_id
+                        )
+                    ).first()
+
+                    if existing:
+                        existing.score = stats.get('score', 100)
+                        existing.grade = stats.get('grade', 'A')
+                        existing.passing_controls = stats.get('passing_controls', 0)
+                        existing.failing_controls = stats.get('failing_controls', 0)
+                        existing.findings = stats.get('findings', [])
+                        existing.last_assessed_at = datetime.utcnow()
+                        session.add(existing)
+                    else:
+                        new_status = ComplianceTargetStatus(
+                            target_id=target_id,
+                            framework=framework_id,
+                            score=stats.get('score', 100),
+                            grade=stats.get('grade', 'A'),
+                            passing_controls=stats.get('passing_controls', 0),
+                            failing_controls=stats.get('failing_controls', 0),
+                            findings=stats.get('findings', [])
+                        )
+                        session.add(new_status)
+
+                except Exception as fw_e:
+                    logger.warning(f"[Worker] Failed to calculate {framework_id} compliance: {fw_e}")
+
+            session.commit()
+            logger.info(f"[Worker] Compliance status updated for {domain}")
+
+        except Exception as e:
+            logger.error(f"[Worker] Error in compliance recalculation: {e}")
+            session.rollback()
+
+
+        # Reset status
+        try:
+            t = session.get(Target, target_id)
+            if t:
+                t.scan_status = "idle"
+                t.scan_progress = f"Last scan completed at {datetime.utcnow().strftime('%H:%M:%S')}"
+                t.scan_heartbeat_at = None
+                session.add(t)
+                session.commit()
+        except Exception as e:
+            logger.error(f"[Worker] Failed to update finish status: {e}")
+            session.rollback()
+
+    webhook_service.trigger_event(parent_tenant_id, "scan_finished", {
+        "target_id": target_id,
+        "domain": domain,
+        "status": "completed",
+        "modules": scan_types
+    })
+
+    try:
+        if 'scan_start_time' in locals():
+            scan_duration = (datetime.utcnow() - scan_start_time).total_seconds()
+        else:
+            scan_duration = 0.0
+        splunk_logger.send_ops_event(
+            category="scan_completed",
+            message=f"Scan completed for {domain}",
+            details={
+                "target_id": target_id,
+                "domain": domain,
+                "duration_seconds": round(scan_duration, 2),
+                "scan_types": scan_types
+            },
+            tenant_id=parent_tenant_id
+        )
+    except Exception:
+        pass
+
+    try:
+        prom_metrics = get_metrics()
+        prom_metrics.record_scan_finished(tenant_id=parent_tenant_id)
+    except Exception as e:
+        logger.debug(f"[Worker] Failed to record scan_finished metric: {e}")
+
+    # Email notification: send if changes were detected
+    try:
+        with Session(engine) as _email_session:
+            email_enabled = _email_session.get(SystemConfig, "EMAIL_NOTIFICATIONS_ENABLED")
+            if email_enabled and email_enabled.value.lower() == "true":
+                from yads.models import ChangeEvent
+                from sqlmodel import text as _sql_text
+                from datetime import timedelta
+                cutoff = datetime.utcnow() - timedelta(minutes=15)
+                recent_results = _email_session.exec(
+                    select(ScanResult).where(
+                        ScanResult.target_id == target_id,
+                        ScanResult.scanned_at >= cutoff
+                    )
+                ).all()
+                result_ids = [r.id for r in recent_results]
+                changes = []
+                if result_ids:
+                    ce_rows = _email_session.exec(
+                        select(ChangeEvent).where(ChangeEvent.scan_result_id.in_(result_ids))
+                    ).all()
+                    for ce in ce_rows:
+                        mod = next((r.module_name for r in recent_results if r.id == ce.scan_result_id), "")
+                        changes.append({
+                            "description": getattr(ce, "description", str(ce)),
+                            "module_name": mod,
+                            "severity": getattr(ce, "severity", "medium"),
+                        })
+                if changes:
+                    addr_conf = _email_session.get(SystemConfig, "EMAIL_NOTIFICATION_ADDRESS")
+                    notify_addr = addr_conf.value.strip() if addr_conf and addr_conf.value else ""
+                    if notify_addr:
+                        tenant_obj = _email_session.get(Tenant, parent_tenant_id) if parent_tenant_id else None
+                        lang = getattr(tenant_obj, "language", "en") or "en"
+                        base_url_conf = _email_session.get(SystemConfig, "BASE_URL")
+                        base_url = base_url_conf.value if base_url_conf else ""
+                        from yads.core.email_service import EmailService
+                        EmailService.send_scan_finished(
+                            target_domain=domain,
+                            target_id=target_id,
+                            changes=changes,
+                            to_address=notify_addr,
+                            lang=lang,
+                            base_url=base_url,
+                        )
+    except Exception as _email_exc:
+        logger.warning(f"[Worker] Email notification failed (non-fatal): {_email_exc}")
+
+    logger.info(f"[Worker] Finished scan for {domain}")
+
+    if _worker_client and _worker_client.is_distributed and celery_task_id:
+        _worker_client.report_task_completed(celery_task_id, success=True)
 
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────
@@ -1439,265 +1716,9 @@ def run_all_scans(
                         )
                 logger.info("[Worker] All parallel modules completed.")
 
-            # Subdomain Discovery & Auto-Queue Logic
-            subdomain_modules_ran = bool(set(scan_types) & {'subdomain_scanner', 'dns_scanner'})
-            if not subdomain_modules_ran:
-                logger.debug("[Worker] Skipping auto-queue: subdomain_scanner/dns_scanner not in current scan_types.")
-            else:
-                auto_queue_enabled = settings.AUTO_QUEUE_SUBDOMAINS
-                try:
-                    aq_conf = session.get(SystemConfig, "AUTO_QUEUE_SUBDOMAINS")
-                    if aq_conf:
-                        auto_queue_enabled = aq_conf.value.lower() == 'true'
-                except Exception:
-                    pass
-
-                try:
-                    sub_res = session.exec(select(ScanResult).where(
-                        ScanResult.target_id == target_id,
-                        ScanResult.module_name == "subdomain_scanner"
-                    ).order_by(ScanResult.scanned_at.desc())).first()
-
-                    if not sub_res:
-                        sub_res = session.exec(select(ScanResult).where(
-                            ScanResult.target_id == target_id,
-                            ScanResult.module_name == "dns_scanner"
-                        ).order_by(ScanResult.scanned_at.desc())).first()
-
-                    if sub_res and sub_res.data and "subdomains" in sub_res.data:
-                        subs = sub_res.data["subdomains"]
-                        new_targets_count = 0
-                        queued_count = 0
-                        review_count = 0
-
-                        for entry in subs:
-                            sub_domain = entry.get("subdomain")
-                            if sub_domain and sub_domain != domain:
-                                ips = entry.get("ips") or []
-                                if not ips:
-                                    logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
-                                    continue
-
-                                existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
-                                if not existing:
-                                    new_target = Target(domain=sub_domain, tenant_id=parent_tenant_id)
-                                    session.add(new_target)
-                                    session.commit()
-                                    session.refresh(new_target)
-                                    new_targets_count += 1
-
-                                    # Pre-scoring: only auto-queue a real scan when the
-                                    # subdomain was independently surfaced by >=2 signals
-                                    # (e.g. CT logs AND wordlist match). A single-signal
-                                    # candidate (typically a plain wordlist guess) is kept
-                                    # as a Target but only proposed for manual review —
-                                    # this is what kept the queue-explosion incident from
-                                    # recurring (see #9 in TODO_VIBE_SESSIONS.md).
-                                    signal_count = len(entry.get("sources") or [])
-                                    high_confidence = signal_count >= 2
-
-                                    if auto_queue_enabled and high_confidence:
-                                        subdomain_scan_types = ['dns_scanner']
-                                        celery_app.send_task(
-                                            "yads.worker.run_all_scans",
-                                            args=[new_target.id, new_target.domain, subdomain_scan_types, parent_tenant_id]
-                                        )
-                                        queued_count += 1
-                                        logger.info(
-                                            f"[Worker] Auto-queued new subdomain: {sub_domain} "
-                                            f"(signals={signal_count}) with types: {subdomain_scan_types}"
-                                        )
-                                    else:
-                                        reason = "Auto-queue disabled" if not auto_queue_enabled else f"only {signal_count} signal(s), needs manual review"
-                                        review_count += 1
-                                        logger.info(f"[Worker] Discovered new subdomain: {sub_domain} ({reason})")
-                                        webhook_service.trigger_event(parent_tenant_id, "new_asset", {
-                                            "domain": sub_domain,
-                                            "source": "subdomain_discovery",
-                                            "parent": domain,
-                                            "signal_count": signal_count,
-                                            "needs_review": not high_confidence,
-                                        })
-
-                        if new_targets_count > 0:
-                            logger.info(
-                                f"[Worker] Subdomain Discovery: Added {new_targets_count} new targets. "
-                                f"Auto-queued: {queued_count}. Pending manual review: {review_count}."
-                            )
-
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Subdomain Discovery logic: {e}")
-                    session.rollback()
-
-            # Post-Scan Compliance Recalculation
-            try:
-                try:
-                    from yads.modules.compliance_frameworks import FRAMEWORKS, get_framework_scorer
-                except ImportError:
-                    from yads.modules.custom.compliance_frameworks import FRAMEWORKS, get_framework_scorer
-                from sqlmodel import text as sql_text
-
-                logger.info(f"[Worker] Recalculating compliance status for {domain}...")
-
-                query = """
-                    SELECT DISTINCT ON (module_name)
-                        module_name, data
-                    FROM scanresult
-                    WHERE target_id = :target_id
-                    ORDER BY module_name, scanned_at DESC
-                """
-                results = session.exec(sql_text(query), params={"target_id": target_id}).all()
-
-                target_data = {target_id: {}}
-                for mod, data in results:
-                    target_data[target_id][mod] = data
-
-                target_map = {target_id: domain}
-
-                for framework_id in FRAMEWORKS.keys():
-                    try:
-                        scorer = get_framework_scorer(framework_id)
-                        stats = scorer.calculate_score(target_data, target_map)
-
-                        existing = session.exec(
-                            select(ComplianceTargetStatus).where(
-                                ComplianceTargetStatus.target_id == target_id,
-                                ComplianceTargetStatus.framework == framework_id
-                            )
-                        ).first()
-
-                        if existing:
-                            existing.score = stats.get('score', 100)
-                            existing.grade = stats.get('grade', 'A')
-                            existing.passing_controls = stats.get('passing_controls', 0)
-                            existing.failing_controls = stats.get('failing_controls', 0)
-                            existing.findings = stats.get('findings', [])
-                            existing.last_assessed_at = datetime.utcnow()
-                            session.add(existing)
-                        else:
-                            new_status = ComplianceTargetStatus(
-                                target_id=target_id,
-                                framework=framework_id,
-                                score=stats.get('score', 100),
-                                grade=stats.get('grade', 'A'),
-                                passing_controls=stats.get('passing_controls', 0),
-                                failing_controls=stats.get('failing_controls', 0),
-                                findings=stats.get('findings', [])
-                            )
-                            session.add(new_status)
-
-                    except Exception as fw_e:
-                        logger.warning(f"[Worker] Failed to calculate {framework_id} compliance: {fw_e}")
-
-                session.commit()
-                logger.info(f"[Worker] Compliance status updated for {domain}")
-
-            except Exception as e:
-                logger.error(f"[Worker] Error in compliance recalculation: {e}")
-                session.rollback()
-
             # Stop heartbeat thread
             if '_hb_stop' in locals():
                 _hb_stop.set()
-
-            # Reset status
-            try:
-                t = session.get(Target, target_id)
-                if t:
-                    t.scan_status = "idle"
-                    t.scan_progress = f"Last scan completed at {datetime.utcnow().strftime('%H:%M:%S')}"
-                    t.scan_heartbeat_at = None
-                    session.add(t)
-                    session.commit()
-            except Exception as e:
-                logger.error(f"[Worker] Failed to update finish status: {e}")
-                session.rollback()
-
-        if 'parent_tenant_id' in locals():
-            webhook_service.trigger_event(parent_tenant_id, "scan_finished", {
-                "target_id": target_id,
-                "domain": domain,
-                "status": "completed",
-                "modules": scan_types
-            })
-
-            try:
-                if 'scan_start_time' in locals():
-                    scan_duration = (datetime.utcnow() - scan_start_time).total_seconds()
-                else:
-                    scan_duration = 0.0
-                splunk_logger.send_ops_event(
-                    category="scan_completed",
-                    message=f"Scan completed for {domain}",
-                    details={
-                        "target_id": target_id,
-                        "domain": domain,
-                        "duration_seconds": round(scan_duration, 2),
-                        "scan_types": scan_types
-                    },
-                    tenant_id=parent_tenant_id
-                )
-            except Exception:
-                pass
-
-            try:
-                prom_metrics = get_metrics()
-                prom_metrics.record_scan_finished(tenant_id=parent_tenant_id)
-            except Exception as e:
-                logger.debug(f"[Worker] Failed to record scan_finished metric: {e}")
-
-            # Email notification: send if changes were detected
-            try:
-                with Session(engine) as _email_session:
-                    email_enabled = _email_session.get(SystemConfig, "EMAIL_NOTIFICATIONS_ENABLED")
-                    if email_enabled and email_enabled.value.lower() == "true":
-                        from yads.models import ChangeEvent
-                        from sqlmodel import text as _sql_text
-                        from datetime import timedelta
-                        cutoff = datetime.utcnow() - timedelta(minutes=15)
-                        recent_results = _email_session.exec(
-                            select(ScanResult).where(
-                                ScanResult.target_id == target_id,
-                                ScanResult.scanned_at >= cutoff
-                            )
-                        ).all()
-                        result_ids = [r.id for r in recent_results]
-                        changes = []
-                        if result_ids:
-                            ce_rows = _email_session.exec(
-                                select(ChangeEvent).where(ChangeEvent.scan_result_id.in_(result_ids))
-                            ).all()
-                            for ce in ce_rows:
-                                mod = next((r.module_name for r in recent_results if r.id == ce.scan_result_id), "")
-                                changes.append({
-                                    "description": getattr(ce, "description", str(ce)),
-                                    "module_name": mod,
-                                    "severity": getattr(ce, "severity", "medium"),
-                                })
-                        if changes:
-                            addr_conf = _email_session.get(SystemConfig, "EMAIL_NOTIFICATION_ADDRESS")
-                            notify_addr = addr_conf.value.strip() if addr_conf and addr_conf.value else ""
-                            if notify_addr:
-                                tenant_obj = _email_session.get(Tenant, parent_tenant_id) if parent_tenant_id else None
-                                lang = getattr(tenant_obj, "language", "en") or "en"
-                                base_url_conf = _email_session.get(SystemConfig, "BASE_URL")
-                                base_url = base_url_conf.value if base_url_conf else ""
-                                from yads.core.email_service import EmailService
-                                EmailService.send_scan_finished(
-                                    target_domain=domain,
-                                    target_id=target_id,
-                                    changes=changes,
-                                    to_address=notify_addr,
-                                    lang=lang,
-                                    base_url=base_url,
-                                )
-            except Exception as _email_exc:
-                logger.warning(f"[Worker] Email notification failed (non-fatal): {_email_exc}")
-
-        logger.info(f"[Worker] Finished scan for {domain}")
-
-        if _worker_client and _worker_client.is_distributed and celery_task_id:
-            _worker_client.report_task_completed(celery_task_id, success=True)
 
     finally:
         if 'root_logger' in locals() and 'redis_handler' in locals():
