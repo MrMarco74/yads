@@ -158,6 +158,10 @@ async def bulk_delete_targets(
 
     ids_to_delete = set(payload.target_ids)
 
+    safe_ids = _get_owned_target_ids(session, api_key, ids_to_delete)
+    if not safe_ids:
+        raise HTTPException(status_code=404, detail="No owned targets found")
+
     revoked_count = 0
     i = celery_app.control.inspect(timeout=5.0)
     if i:
@@ -166,20 +170,11 @@ async def bulk_delete_targets(
                 args = task.get("args", [])
                 if args and isinstance(args, list) and len(args) > 0:
                     try:
-                        if int(args[0]) in ids_to_delete:
+                        if int(args[0]) in safe_ids:
                             celery_app.control.revoke(task.get("id"), terminate=True)
                             revoked_count += 1
                     except Exception:
                         continue
-
-    class _ApiKeyAsUser:
-        def __init__(self, tenant_id):
-            self.tenant_id = tenant_id
-
-    fake_user = _ApiKeyAsUser(tenant_id=api_key.tenant_id)
-    safe_ids = _get_owned_target_ids(session, fake_user, ids_to_delete)
-    if not safe_ids:
-        raise HTTPException(status_code=404, detail="No owned targets found")
 
     targets_to_delete = session.exec(select(Target).where(Target.id.in_(safe_ids))).all()
     snapshot = [
@@ -211,10 +206,12 @@ async def undo_bulk_delete_targets(
         raise HTTPException(status_code=404, detail="Undo window expired or batch not found")
 
     snapshot = json.loads(raw)
+    own_entries = [entry for entry in snapshot if entry.get("tenant_id") == api_key.tenant_id]
+    if not own_entries:
+        raise HTTPException(status_code=404, detail="Undo window expired or batch not found")
+
     restored = 0
-    for entry in snapshot:
-        if entry.get("tenant_id") != api_key.tenant_id:
-            continue
+    for entry in own_entries:
         existing = session.exec(
             select(Target).where(Target.domain == entry["domain"], Target.tenant_id == entry["tenant_id"])
         ).first()
