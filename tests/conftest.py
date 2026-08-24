@@ -167,7 +167,24 @@ def api_key_headers(db_session, test_tenant):
 
 
 @pytest.fixture(scope="session")
-def api_key_client(client, api_key_headers):
-    """TestClient pre-loaded with a scoped API key (see api_key_headers)."""
-    client.headers.update(api_key_headers)
-    return client
+def api_key_client(app, client, api_key_headers):
+    """TestClient pre-loaded with a scoped API key (see api_key_headers).
+
+    Deliberately NOT built by mutating the shared session-scoped `client`
+    fixture's headers in place -- pytest collects test files alphabetically,
+    and any earlier-collected test module that pulls in this fixture would
+    otherwise permanently leak the X-API-Key header onto every later test's
+    plain `client` usage (e.g. test_api_key_fixture.py runs before
+    test_api_v1.py, which relies on an unauthenticated `client` to exercise
+    the 401-without-auth path). Instead, this is a separate TestClient
+    instance bound to the same already-running `app` (the `client` fixture
+    dependency ensures the app's lifespan -- migrations, admin seed -- has
+    already executed by the time this is built). Not entered as a context
+    manager, so it does not re-run lifespan startup/shutdown; TestClient
+    supports being used this way outside a `with` block.
+    """
+    from starlette.testclient import TestClient
+
+    api_client = TestClient(app, raise_server_exceptions=False)
+    api_client.headers.update(api_key_headers)
+    return api_client
