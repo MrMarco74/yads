@@ -20,7 +20,7 @@ def test_catchall_pre_check_tags_target_when_parked():
         # code. Import and call whatever name Step 3 actually defines.
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is True
         mock_tag.assert_called_once_with(session, 1, "sedo")
@@ -35,7 +35,7 @@ def test_catchall_pre_check_not_parked_does_not_tag():
 
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         mock_tag.assert_not_called()
@@ -50,7 +50,7 @@ def test_catchall_pre_check_uncertain_verdict_is_not_parked():
 
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         mock_tag.assert_not_called()
@@ -60,10 +60,46 @@ def test_catchall_pre_check_skipped_when_no_http():
     with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=False, has_https=False)
+        is_parked = _check_parked_domain(session, 1, "example.com", has_http=False, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         mock_scanner_cls.assert_not_called()
+
+
+def test_check_parked_domain_sets_allow_llm_true_when_module_selected():
+    """
+    _check_parked_domain must set allow_llm=True on the scanner it creates
+    when the tenant explicitly selected catchall_detector for this scan —
+    this preserves the LLM fallback behavior for tenants who opted in.
+    """
+    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+         patch("yads.worker_tasks.tag_parked_domain"):
+        mock_scanner = mock_scanner_cls.return_value
+        mock_scanner.run_scan.return_value = {"is_catch_all": False, "matched_signature": None}
+
+        from yads.worker_tasks import _check_parked_domain
+        session = MagicMock()
+        _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
+
+        assert mock_scanner.allow_llm is True
+
+
+def test_check_parked_domain_sets_allow_llm_false_when_module_not_selected():
+    """
+    A tenant who never selected catchall_detector for this scan must not
+    incur LLM billing from the always-on signature/vhost pre-check — the
+    scanner's allow_llm must be set to False in that case.
+    """
+    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+         patch("yads.worker_tasks.tag_parked_domain"):
+        mock_scanner = mock_scanner_cls.return_value
+        mock_scanner.run_scan.return_value = {"is_catch_all": False, "matched_signature": None}
+
+        from yads.worker_tasks import _check_parked_domain
+        session = MagicMock()
+        _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["ssl_scanner"])
+
+        assert mock_scanner.allow_llm is False
 
 
 def test_run_parked_precheck_exception_does_not_propagate_and_treats_as_not_parked():
@@ -80,7 +116,7 @@ def test_run_parked_precheck_exception_does_not_propagate_and_treats_as_not_park
     with patch("yads.worker_tasks._check_parked_domain", side_effect=RuntimeError("boom")):
         from yads.worker_tasks import _run_parked_precheck
         session = MagicMock()
-        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         session.rollback.assert_called_once()
@@ -96,7 +132,7 @@ def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
 
         from yads.worker_tasks import _run_parked_precheck
         session = MagicMock()
-        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         session.rollback.assert_called_once()
@@ -110,7 +146,7 @@ def test_run_parked_precheck_happy_path_still_returns_true_when_parked():
 
         from yads.worker_tasks import _run_parked_precheck
         session = MagicMock()
-        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False)
+        is_parked = _run_parked_precheck(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is True
         session.rollback.assert_not_called()

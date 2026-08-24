@@ -963,7 +963,7 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
         _worker_client.report_task_completed(celery_task_id, success=True)
 
 
-def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool) -> bool:
+def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list) -> bool:
     """
     Runs catchall_detector's live check and returns whether the domain is
     confirmed parked. An uncertain verdict (is_catch_all is None, e.g.
@@ -972,10 +972,16 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     that's the caller's job (see run_all_scans), since this is meant to
     be called for the live gating decision independent of whether/when
     the module's own result gets saved.
+
+    The LLM classification fallback (layer 3) only fires if the tenant
+    actually selected catchall_detector in scan_types for this scan — the
+    signature/vhost layers (1 and 2) always run regardless, since those are
+    free/fast and this function is dispatched unconditionally.
     """
     if not (has_http or has_https):
         return False
     scanner = CatchallDetectorScanner(db_session=session)
+    scanner.allow_llm = "catchall_detector" in scan_types
     live_data = scanner.run_scan(domain, target_id=target_id)
     is_parked = live_data.get("is_catch_all") is True
     if is_parked:
@@ -983,7 +989,7 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     return is_parked
 
 
-def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, has_https: bool) -> bool:
+def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list) -> bool:
     """
     Runs the catch-all/parked-domain pre-check (live gating decision via
     _check_parked_domain, plus persisting the CatchallDetectorScanner's own
@@ -995,13 +1001,18 @@ def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, h
     Fails safe: any exception here is treated as not-parked so the rest
     of the scan proceeds normally rather than being skipped based on an
     error.
+
+    scan_types gates the LLM fallback layer only (see _check_parked_domain
+    and CatchallDetectorScanner.allow_llm) — the free signature/vhost layers
+    still run unconditionally for every scan.
     """
     is_parked = False
     try:
         logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
-        is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https)
+        is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https, scan_types)
 
         catchall_scanner = CatchallDetectorScanner(db_session=session)
+        catchall_scanner.allow_llm = "catchall_detector" in scan_types
         with LogCapture() as logs:
             catchall_result = catchall_scanner.process(target_id, domain)
             captured_logs = logs.get_logs()
@@ -1256,7 +1267,7 @@ def run_all_scans(
             # regardless of what the tenant selected; still shown as a
             # selectable module in the UI/scan profiles so its persisted
             # result is discoverable like any other module.
-            is_parked = _run_parked_precheck(session, target_id, domain, has_http, has_https)
+            is_parked = _run_parked_precheck(session, target_id, domain, has_http, has_https, scan_types)
 
             # 1. Subdomain Scanner
             if "subdomain_scanner" in scan_types:

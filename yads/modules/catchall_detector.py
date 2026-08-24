@@ -69,6 +69,15 @@ PARKING_SIGNATURES = [
 
 
 class CatchallDetectorScanner(BaseScannerModule):
+    # Whether Layer 3 (LLM classification fallback) is allowed to run at all.
+    # Defaults to True so any direct/manual invocation of this module (e.g. a
+    # tenant explicitly re-running catchall_detector, or existing tests that
+    # don't touch this attribute) keeps prior behavior. Callers that dispatch
+    # this scanner unconditionally as part of every scan (regardless of the
+    # tenant's selected scan_types) must set this to False unless the tenant
+    # actually selected catchall_detector for that scan.
+    allow_llm: bool = True
+
     @property
     def module_name(self) -> str:
         return "catchall_detector"
@@ -159,8 +168,9 @@ class CatchallDetectorScanner(BaseScannerModule):
                 }]
                 return result
 
-        # ── Layer 3: LLM fallback (opt-in, only if still inconclusive) ──
-        llm_result = self._classify_with_llm(target_id, title, text, http_status, server_header)
+        # ── Layer 3: LLM fallback (opt-in, only if still inconclusive AND
+        # the caller has explicitly allowed it — see self.allow_llm) ──
+        llm_result = self._classify_with_llm(target_id, title, text, http_status, server_header) if self.allow_llm else None
         if llm_result is not None:
             result["llm_classification"] = llm_result
             if llm_result.get("used"):
