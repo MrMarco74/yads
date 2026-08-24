@@ -14,8 +14,9 @@ from sqlmodel import Session, and_, func, or_, select, text
 
 from yads.api.routers.targets import _get_owned_target_ids, _is_internal_target, _perform_bulk_delete_from_db
 from yads.auth.deps import RequireScope, require_tenant_scoped_key
+from yads.core.redis_logger import get_scan_network_context as get_network_ctx
 from yads.database import get_session, redis_client
-from yads.models import APIKey, DiscoveryDomainBlocklist, ScanResult, Target
+from yads.models import APIKey, ChangeEvent, DiscoveryDomainBlocklist, ScanResult, Target
 from yads.worker import celery_app
 
 router = APIRouter(prefix="/api/v1", tags=["API v1 — Targets"])
@@ -366,3 +367,73 @@ async def bulk_blocklist_targets(
     session.commit()
 
     return {"blocklisted_count": blocked, "archived_count": archived}
+
+
+@router.get("/targets/{target_id}/changes", dependencies=[Depends(RequireScope("read"))])
+async def get_target_changes(
+    target_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+    limit: int = 30,
+):
+    if limit > 100:
+        raise HTTPException(status_code=422, detail="limit must be <= 100")
+
+    target = session.exec(
+        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    rows = session.exec(
+        select(ChangeEvent, ScanResult.module_name)
+        .join(ScanResult, ChangeEvent.scan_result_id == ScanResult.id)
+        .where(ScanResult.target_id == target_id)
+        .order_by(ChangeEvent.created_at.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        {
+            "id": ce.id,
+            "module_name": mod_name,
+            "event_type": ce.event_type,
+            "description": ce.description,
+            "detected_at": ce.created_at.isoformat(),
+        }
+        for ce, mod_name in rows
+    ]
+
+
+@router.get("/targets/{target_id}/scan-status", dependencies=[Depends(RequireScope("read"))])
+async def get_scan_status(
+    target_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    target = session.exec(
+        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    status_msg = redis_client.get(f"scan:status:{target_id}")
+    if status_msg:
+        return {"status": status_msg}
+    return {"status": target.scan_progress or target.scan_status}
+
+
+@router.get("/targets/{target_id}/network-context", dependencies=[Depends(RequireScope("read"))])
+async def get_network_context(
+    target_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    target = session.exec(
+        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    context = get_network_ctx(target_id)
+    return {"network_context": context, "target_domain": target.domain}
