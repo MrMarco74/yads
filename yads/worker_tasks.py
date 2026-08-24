@@ -1420,7 +1420,7 @@ def run_all_scans(
                     session.rollback()
 
             # 2c. Nuclei Scanner
-            if "nuclei_scanner" in scan_types:
+            if "nuclei_scanner" in scan_types and not is_parked:
                 try:
                     t = session.get(Target, target_id)
                     if t:
@@ -1536,7 +1536,7 @@ def run_all_scans(
                     session.rollback()
 
             # 5. Visual OSINT
-            if "visual_osint" in scan_types:
+            if "visual_osint" in scan_types and not is_parked:
                 if not (has_http or has_https):
                     logger.info("[Worker] Skipping Visual OSINT: Port 80/443 closed (Optimization).")
                 else:
@@ -1618,15 +1618,19 @@ def run_all_scans(
 
             # 7+9. Crawler + Content Discovery (Group B, sequential)
             _group_b_classes = []
-            if "crawler" in scan_types and (has_http or has_https):
+            if "crawler" in scan_types and (has_http or has_https) and not is_parked:
                 from yads.modules.crawler import Crawler
                 _group_b_classes.append(Crawler)
+            elif "crawler" in scan_types and is_parked:
+                logger.info("[Worker] Skipping Crawler: domain is parked.")
             elif "crawler" in scan_types:
                 logger.info("[Worker] Skipping Crawler: Port 80/443 closed (Optimization).")
 
-            if "content_discovery" in scan_types and (has_http or has_https):
+            if "content_discovery" in scan_types and (has_http or has_https) and not is_parked:
                 from yads.modules.content_discovery import ContentDiscoveryScanner
                 _group_b_classes.append(ContentDiscoveryScanner)
+            elif "content_discovery" in scan_types and is_parked:
+                logger.info("[Worker] Skipping Content Discovery: domain is parked.")
             elif "content_discovery" in scan_types:
                 logger.info("[Worker] Skipping Content Discovery: Port 80/443 closed.")
 
