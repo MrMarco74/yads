@@ -15,7 +15,7 @@ from sqlmodel import Session, and_, func, or_, select, text
 from yads.api.routers.targets import _get_owned_target_ids, _is_internal_target, _perform_bulk_delete_from_db
 from yads.auth.deps import RequireScope, require_tenant_scoped_key
 from yads.database import get_session, redis_client
-from yads.models import APIKey, ScanResult, Target
+from yads.models import APIKey, DiscoveryDomainBlocklist, ScanResult, Target
 from yads.worker import celery_app
 
 router = APIRouter(prefix="/api/v1", tags=["API v1 — Targets"])
@@ -312,3 +312,57 @@ async def restore_target(
     session.commit()
 
     return {"id": target.id, "domain": target.domain, "is_archived": target.is_archived}
+
+
+class BulkBlocklistRequest(BaseModel):
+    target_ids: List[int]
+    confirm: bool
+
+
+@router.post("/targets/bulk-blocklist", dependencies=[Depends(RequireScope("destructive"))])
+async def bulk_blocklist_targets(
+    payload: BulkBlocklistRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    if not payload.confirm:
+        raise HTTPException(status_code=400, detail="Set confirm=true to blocklist these targets")
+    if not payload.target_ids:
+        raise HTTPException(status_code=400, detail="No target_ids provided")
+
+    owned_targets = session.exec(
+        select(Target).where(
+            Target.id.in_(set(payload.target_ids)),
+            Target.tenant_id == api_key.tenant_id,
+        )
+    ).all()
+
+    existing_patterns = set(session.exec(
+        select(DiscoveryDomainBlocklist.pattern).where(
+            DiscoveryDomainBlocklist.tenant_id == api_key.tenant_id,
+        )
+    ).all())
+
+    blocked = 0
+    archived = 0
+    for target in owned_targets:
+        pattern = target.domain.strip().lower()
+        if pattern and pattern not in existing_patterns:
+            session.add(DiscoveryDomainBlocklist(
+                tenant_id=api_key.tenant_id,
+                pattern=pattern,
+                created_by=None,
+                note="Added via /api/v1/targets/bulk-blocklist",
+            ))
+            existing_patterns.add(pattern)
+            blocked += 1
+        if not target.is_archived:
+            target.is_archived = True
+            target.archived_at = datetime.utcnow()
+            target.archived_reason = "blocklisted"
+            session.add(target)
+            archived += 1
+
+    session.commit()
+
+    return {"blocklisted_count": blocked, "archived_count": archived}
