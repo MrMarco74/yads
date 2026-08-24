@@ -37,6 +37,33 @@ def test_list_targets_returns_shape(api_key_client, sample_targets):
     assert "page" in body
 
 
+def test_list_targets_online_false_excludes_never_scanned(api_key_client, sample_targets, db_session):
+    from yads.models import ScanResult
+    from sqlmodel import select
+
+    scanned_target = sample_targets[0]
+    existing = db_session.exec(select(ScanResult).where(ScanResult.target_id == scanned_target.id, ScanResult.module_name == "web_analyzer")).first()
+    if not existing:
+        db_session.add(ScanResult(target_id=scanned_target.id, module_name="web_analyzer", data={"status_code": 0}, result_hash="x"))
+        db_session.commit()
+
+    r = api_key_client.get("/api/v1/targets", params={"online": False})
+    assert r.status_code == 200
+    domains = [t["domain"] for t in r.json()["targets"]]
+    assert scanned_target.domain in domains
+    assert "v1-list-fixture-2.example.com" not in domains
+
+
+def test_list_targets_rejects_negative_limit(api_key_client, sample_targets):
+    r = api_key_client.get("/api/v1/targets", params={"limit": -1})
+    assert r.status_code == 422
+
+
+def test_list_targets_rejects_limit_over_cap(api_key_client, sample_targets):
+    r = api_key_client.get("/api/v1/targets", params={"limit": 500})
+    assert r.status_code == 422
+
+
 def test_list_targets_filters_by_tag(api_key_client, sample_targets):
     r = api_key_client.get("/api/v1/targets", params={"tag": "fixture-tag"})
     assert r.status_code == 200

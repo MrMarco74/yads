@@ -10,6 +10,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, and_, func, or_, select, text
 
 from yads.api.routers.targets import _get_owned_target_ids, _is_internal_target, _perform_bulk_delete_from_db
@@ -35,7 +36,8 @@ async def list_targets(
     page: int = 1,
     limit: int = 20,
 ):
-    limit = min(limit, 100)
+    if limit > 100 or limit < 1:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
     page = max(page, 1)
 
     query = select(Target).where(
@@ -59,6 +61,11 @@ async def list_targets(
         if online:
             query = query.where(Target.id.in_(sub_online))
         else:
+            # "offline" mirrors the dashboard's definition: has been scanned
+            # at least once, but isn't in the online set -- never-scanned
+            # targets are "unknown", not "offline".
+            sub_scanned = select(ScanResult.target_id).distinct()
+            query = query.where(Target.id.in_(sub_scanned))
             query = query.where(Target.id.notin_(sub_online))
     if last_scanned_before:
         try:
@@ -136,7 +143,14 @@ async def add_target(
 
     target = Target(domain=domain, tenant_id=api_key.tenant_id)
     session.add(target)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Domain is already registered under a different tenant",
+        )
     session.refresh(target)
     return {"id": target.id, "domain": target.domain, "created": True}
 
