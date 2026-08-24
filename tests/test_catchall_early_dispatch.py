@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock
 
 
 def test_catchall_pre_check_tags_target_when_parked():
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
          patch("yads.worker_tasks.tag_parked_domain") as mock_tag:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.return_value = None
@@ -27,7 +27,7 @@ def test_catchall_pre_check_tags_target_when_parked():
 
 
 def test_catchall_pre_check_not_parked_does_not_tag():
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
          patch("yads.worker_tasks.tag_parked_domain") as mock_tag:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.return_value = None
@@ -42,7 +42,7 @@ def test_catchall_pre_check_not_parked_does_not_tag():
 
 
 def test_catchall_pre_check_uncertain_verdict_is_not_parked():
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
          patch("yads.worker_tasks.tag_parked_domain") as mock_tag:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.return_value = None
@@ -57,7 +57,7 @@ def test_catchall_pre_check_uncertain_verdict_is_not_parked():
 
 
 def test_catchall_pre_check_skipped_when_no_http():
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
         is_parked = _check_parked_domain(session, 1, "example.com", has_http=False, has_https=False, scan_types=["catchall_detector"])
@@ -72,7 +72,7 @@ def test_check_parked_domain_sets_allow_llm_true_when_module_selected():
     when the tenant explicitly selected catchall_detector for this scan —
     this preserves the LLM fallback behavior for tenants who opted in.
     """
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
          patch("yads.worker_tasks.tag_parked_domain"):
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.run_scan.return_value = {"is_catch_all": False, "matched_signature": None}
@@ -90,7 +90,7 @@ def test_check_parked_domain_sets_allow_llm_false_when_module_not_selected():
     incur LLM billing from the always-on signature/vhost pre-check — the
     scanner's allow_llm must be set to False in that case.
     """
-    with patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls, \
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
          patch("yads.worker_tasks.tag_parked_domain"):
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.run_scan.return_value = {"is_catch_all": False, "matched_signature": None}
@@ -126,7 +126,7 @@ def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
     """Same failure mode, but the exception comes from the
     CatchallDetectorScanner.process() call rather than _check_parked_domain."""
     with patch("yads.worker_tasks._check_parked_domain", return_value=False), \
-         patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
+         patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.side_effect = RuntimeError("boom")
 
@@ -140,7 +140,7 @@ def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
 
 def test_run_parked_precheck_happy_path_still_returns_true_when_parked():
     with patch("yads.worker_tasks._check_parked_domain", return_value=True), \
-         patch("yads.worker_tasks.CatchallDetectorScanner") as mock_scanner_cls:
+         patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.return_value = None
 

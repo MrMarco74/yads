@@ -40,7 +40,6 @@ from yads.modules.tld_scanner import get_tld_list
 from yads.core.module_registry import get_module, get_simple_dispatch_modules
 from yads.core.module_status import mark_rate_limited, clear_rate_limited
 from yads.core.api_block_detection import ApiBlockedError
-from yads.modules.catchall_detector import CatchallDetectorScanner
 from yads.core.parked_domain_tags import tag_parked_domain
 from celery import chord
 import random
@@ -980,6 +979,7 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     """
     if not (has_http or has_https):
         return False
+    from yads.modules.catchall_detector import CatchallDetectorScanner
     scanner = CatchallDetectorScanner(db_session=session)
     scanner.allow_llm = "catchall_detector" in scan_types
     live_data = scanner.run_scan(domain, target_id=target_id)
@@ -1011,6 +1011,7 @@ def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, h
         logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
         is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https, scan_types)
 
+        from yads.modules.catchall_detector import CatchallDetectorScanner
         catchall_scanner = CatchallDetectorScanner(db_session=session)
         catchall_scanner.allow_llm = "catchall_detector" in scan_types
         with LogCapture() as logs:
