@@ -284,9 +284,11 @@ REGISTRY: OrderedDict[str, ModuleDef] = OrderedDict([
         module_path="yads.modules.catchall_detector:CatchallDetectorScanner",
         worker_note="Checking for parked/catch-all landing page...",
         requires_http=True,
-        default_on=False,      # explicit opt-in — extra requests + optional LLM cost
-        finding_module=False,  # recon/triage signal, not a vulnerability
+        default_on=False,     # stays opt-in for UI display — worker runs it
+                              # unconditionally regardless (see worker_tasks.py)
+        finding_module=True,  # now feeds Unified Findings + scoring
         passive=True,
+        custom_dispatch=True,
     )),
     ("cert_mismatch", ModuleDef(
         name="cert_mismatch",
