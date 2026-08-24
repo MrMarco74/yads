@@ -22,6 +22,7 @@ from urllib.parse import urljoin
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ def _search_itunes(company_name: str, domain: str) -> List[Dict]:
     apps = []
     try:
         query = company_name or domain.split(".")[0]
-        r = requests.get(ITUNES_SEARCH.format(query=query), timeout=TIMEOUT)
+        r = throttled_get(ITUNES_SEARCH.format(query=query), service="itunes", timeout=TIMEOUT)
         if r.status_code == 200:
             results = r.json().get("results", [])
             for app in results[:5]:

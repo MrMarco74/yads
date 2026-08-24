@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_post
 
 logger = logging.getLogger(__name__)
 
@@ -106,8 +107,9 @@ def _levenshtein(s1: str, s2: str) -> int:
 
 def _check_urlhaus(domain: str) -> Optional[Dict]:
     try:
-        r = requests.post(
+        r = throttled_post(
             URLHAUS_URL,
+            service="urlhaus",
             data={"host": domain},
             timeout=TIMEOUT,
         )
@@ -181,7 +183,7 @@ def _check_google_safebrowsing(domain: str, api_key: str) -> Optional[List[str]]
                 ],
             },
         }
-        r = requests.post(url, json=payload, timeout=TIMEOUT)
+        r = throttled_post(url, service="google_safebrowsing", json=payload, timeout=TIMEOUT)
         if r.status_code == 200:
             matches = r.json().get("matches", [])
             return [m.get("threatType", "") for m in matches]

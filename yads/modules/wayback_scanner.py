@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ class WaybackScanner(BaseScannerModule):
                 "limit": self.MAX_CDX_RESULTS,
                 "filter": "statuscode:200",
             }
-            resp = requests.get(CDX_API, params=params, timeout=REQUEST_TIMEOUT)
+            resp = throttled_get(CDX_API, service="wayback", params=params, timeout=REQUEST_TIMEOUT)
             resp.raise_for_status()
             rows = resp.json()
             if not rows or len(rows) < 2:

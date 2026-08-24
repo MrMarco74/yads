@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ def _analyze_cipher(cipher_name: str) -> Tuple[str, str]:
 
 def _check_hsts_preload(domain: str) -> Dict:
     try:
-        r = requests.get(HSTS_PRELOAD_URL.format(domain=domain), timeout=TIMEOUT)
+        r = throttled_get(HSTS_PRELOAD_URL.format(domain=domain), service="hstspreload", timeout=TIMEOUT)
         if r.status_code == 200:
             data = r.json()
             return {

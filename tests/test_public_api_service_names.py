@@ -17,11 +17,8 @@ MIGRATED_FILES = [
     "modules/asn_scanner.py",
     "modules/ipv6_scanner.py",
     "modules/rpki_scanner.py",
-    "modules/wayback_scanner.py",
     "modules/phishing_scanner.py",
-    "modules/dependency_confusion.py",
     "modules/tls_deep_scanner.py",
-    "modules/mobile_app_discovery.py",
 ]
 
 # dns_scanner.py has both migrated (_fetch_hackertarget) and non-HTTP code;
@@ -30,6 +27,16 @@ MIGRATED_FILES = [
 # (_lookup_geoip_enhanced, ipinfo.io) with one intentionally-unmigrated
 # call (_check_bucket_status, S3 probe against the *scanned target's*
 # infrastructure, not a shared third-party API) — checked separately below.
+# wayback_scanner.py mixes one migrated third-party-API call (_query_cdx,
+# web.archive.org CDX API) with one intentionally-unmigrated call
+# (_is_still_live, a HEAD probe against the *discovered URL*, not the
+# wayback API) — checked separately below.
+# dependency_confusion.py mixes one migrated call (_check_npm_exists, npm
+# registry) with one intentionally-unmigrated call (_fetch, arbitrary
+# target-hosted manifest fetch) — checked separately below.
+# mobile_app_discovery.py mixes one migrated call (_search_itunes, iTunes
+# search API) with one intentionally-unmigrated call (_get, arbitrary
+# discovered app-store/company URL) — checked separately below.
 RAW_REQUESTS_CALL = re.compile(r"\brequests\.(get|post|head)\(")
 
 
@@ -53,6 +60,42 @@ def test_infrastructure_scanner_ipinfo_call_is_migrated():
     src = (YADS_ROOT / "modules/infrastructure_scanner.py").read_text()
     start = src.index("def _lookup_geoip_enhanced")
     end = src.index("\n    def ", start + 1)
+    body = src[start:end]
+    assert "requests.get(" not in body
+    assert "throttled_get(" in body
+
+
+def test_wayback_scanner_query_cdx_is_migrated():
+    src = (YADS_ROOT / "modules/wayback_scanner.py").read_text()
+    start = src.index("def _query_cdx")
+    # _query_cdx is the last method in the class, so there's no further
+    # "\n    def " boundary to search for.
+    body = src[start:]
+    assert "requests.get(" not in body
+    assert "throttled_get(" in body
+
+
+def test_wayback_scanner_is_still_live_stays_unmigrated():
+    src = (YADS_ROOT / "modules/wayback_scanner.py").read_text()
+    start = src.index("def _is_still_live")
+    end = src.index("\n    def ", start + 1)
+    body = src[start:end]
+    assert "requests.head(" in body
+
+
+def test_dependency_confusion_npm_check_is_migrated():
+    src = (YADS_ROOT / "modules/dependency_confusion.py").read_text()
+    start = src.index("def _check_npm_exists")
+    end = src.index("\ndef ", start + 1)
+    body = src[start:end]
+    assert "requests.get(" not in body
+    assert "throttled_get(" in body
+
+
+def test_mobile_app_discovery_itunes_search_is_migrated():
+    src = (YADS_ROOT / "modules/mobile_app_discovery.py").read_text()
+    start = src.index("def _search_itunes")
+    end = src.index("\ndef ", start + 1)
     body = src[start:end]
     assert "requests.get(" not in body
     assert "throttled_get(" in body

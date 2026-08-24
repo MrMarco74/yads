@@ -20,6 +20,7 @@ from urllib.parse import urljoin
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +147,9 @@ def _parse_go_mod(content: str) -> List[str]:
 
 def _check_npm_exists(package: str) -> bool:
     try:
-        r = requests.get(
+        r = throttled_get(
             NPM_REGISTRY.format(package=package),
+            service="npm_registry",
             timeout=TIMEOUT,
         )
         return r.status_code == 200
