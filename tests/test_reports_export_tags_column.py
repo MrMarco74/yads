@@ -42,3 +42,22 @@ def test_get_targets_data_empty_tags_renders_empty_string():
     data = _get_targets_data(mock_session, mock_user, for_export=True)
 
     assert data[0]["Tags"] == ""
+
+
+def test_get_targets_data_null_tags_renders_empty_string():
+    # tags is a nullable JSONB column with no server-side default, so an
+    # existing row can have tags IS NULL (not []). Confirm _get_targets_data
+    # doesn't raise a TypeError on `", ".join(None)`.
+    from yads.api.routers.reports import _get_targets_data
+
+    mock_target = _mock_target()
+    mock_target.tags = None  # bypass the `tags or []` default in the helper
+
+    mock_session = MagicMock()
+    mock_session.exec.return_value.all.return_value = [mock_target]
+    mock_session.exec.return_value.first.return_value = None
+    mock_user = MagicMock(tenant_id=None, role="admin")
+
+    data = _get_targets_data(mock_session, mock_user, for_export=True)
+
+    assert data[0]["Tags"] == ""

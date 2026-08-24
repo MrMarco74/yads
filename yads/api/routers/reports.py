@@ -48,7 +48,7 @@ def _get_targets_data(session: Session, user: User, for_export: bool = False):
             "Created At": t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "Last Scan": last_scan,
             "Status": t.scan_status,
-            "Tags": ", ".join(t.tags),
+            "Tags": ", ".join(t.tags or []),
         })
     return export_data
 
@@ -113,7 +113,7 @@ async def export_targets_csv(session: Session = Depends(get_session), user: User
             t.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             last_scan,
             t.scan_status,
-            ", ".join(t.tags),
+            ", ".join(t.tags or []),
         ])
         
     filename = f"targets_export_{datetime.utcnow().strftime('%Y%m%d')}.csv"

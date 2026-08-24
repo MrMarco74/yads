@@ -92,3 +92,18 @@ def test_tag_parked_domain_unmapped_signature_falls_back_to_generic():
 def test_tag_parked_domain_missing_target_is_noop(session):
     # Should not raise for a target_id that doesn't exist
     tag_parked_domain(session, 999999, "sedo")
+
+
+def test_tag_parked_domain_handles_null_tags(session):
+    # Existing rows can have tags IS NULL at the DB level (nullable column,
+    # no server-side default) even though the model default is []. Bypass
+    # the model default to simulate that and confirm tag_parked_domain
+    # doesn't raise a TypeError on `None`.
+    target = _make_target(session)
+    target.tags = None
+    session.add(target)
+    session.commit()
+
+    tag_parked_domain(session, target.id, "sedo")
+    session.refresh(target)
+    assert target.tags == ["sedoparking"]

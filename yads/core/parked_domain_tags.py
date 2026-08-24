@@ -44,8 +44,8 @@ def tag_parked_domain(session: Session, target_id: int, matched_signature: Optio
     """Append the tag mapped from matched_signature to the target, if not already present."""
     tag = PARKED_TAG_MAP.get(matched_signature, "parked")
     target = session.get(Target, target_id)
-    if target and tag not in target.tags:
-        new_tags = list(target.tags)
+    if target and tag not in (target.tags or []):
+        new_tags = list(target.tags or [])
         new_tags.append(tag)
         target.tags = new_tags
         session.add(target)
