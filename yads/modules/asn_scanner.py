@@ -19,9 +19,8 @@ import logging
 import socket
 from typing import Any, Dict, List, Optional, Set
 
-import requests
-
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ def _resolve_ips(domain: str) -> List[str]:
 
 def _ipinfo(ip: str) -> Dict:
     try:
-        r = requests.get(IPINFO_URL.format(ip=ip), timeout=TIMEOUT)
+        r = throttled_get(IPINFO_URL.format(ip=ip), service="ipinfo", timeout=TIMEOUT)
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -61,7 +60,7 @@ def _ipinfo(ip: str) -> Dict:
 
 def _ripe_network_info(ip: str) -> Dict:
     try:
-        r = requests.get(RIPE_NETWORK_INFO.format(ip=ip), timeout=TIMEOUT)
+        r = throttled_get(RIPE_NETWORK_INFO.format(ip=ip), service="ripestat", timeout=TIMEOUT)
         if r.status_code == 200:
             data = r.json().get("data", {})
             return {
@@ -76,7 +75,7 @@ def _ripe_network_info(ip: str) -> Dict:
 def _ripe_asn_overview(asn: str) -> Dict:
     """Fetch ASN name, holder, country via RIPE Stat."""
     try:
-        r = requests.get(RIPE_ASN_INFO.format(asn=asn), timeout=TIMEOUT)
+        r = throttled_get(RIPE_ASN_INFO.format(asn=asn), service="ripestat", timeout=TIMEOUT)
         if r.status_code == 200:
             data = r.json().get("data", {})
             return {
@@ -93,7 +92,7 @@ def _ripe_asn_overview(asn: str) -> Dict:
 def _ripe_prefixes(asn: str) -> List[str]:
     """Get all prefixes announced by an ASN."""
     try:
-        r = requests.get(RIPE_PREFIXES.format(asn=asn), timeout=TIMEOUT)
+        r = throttled_get(RIPE_PREFIXES.format(asn=asn), service="ripestat", timeout=TIMEOUT)
         if r.status_code == 200:
             data = r.json().get("data", {})
             return [p.get("prefix", "") for p in data.get("prefixes", []) if p.get("prefix")]
@@ -105,7 +104,7 @@ def _ripe_prefixes(asn: str) -> List[str]:
 def _bgpview_prefixes(asn_num: str) -> List[Dict]:
     """Alternative prefix source via BGPView."""
     try:
-        r = requests.get(BGPVIEW_ASN.format(asn=asn_num), timeout=TIMEOUT)
+        r = throttled_get(BGPVIEW_ASN.format(asn=asn_num), service="bgpview", timeout=TIMEOUT)
         if r.status_code == 200:
             data = r.json().get("data", {})
             result = []

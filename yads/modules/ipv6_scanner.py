@@ -15,7 +15,7 @@ import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
+from yads.core.throttled_http import throttled_get
 
 try:
     import dns.resolver
@@ -90,7 +90,7 @@ def _probe_port(ip: str, port: int, is_ipv6: bool) -> bool:
 
 def _get_ipinfo(ip: str) -> Dict:
     try:
-        r = requests.get(IPINFO_URL.format(ip=ip), timeout=6)
+        r = throttled_get(IPINFO_URL.format(ip=ip), service="ipinfo", timeout=6)
         if r.status_code == 200:
             return r.json()
     except Exception:

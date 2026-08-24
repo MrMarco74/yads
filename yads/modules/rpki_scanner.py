@@ -16,9 +16,8 @@ import logging
 import socket
 from typing import Any, Dict, List, Optional
 
-import requests
-
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +207,9 @@ class RpkiScanner(BaseScannerModule):
     def _get_network_info(self, ip: str) -> Optional[Dict]:
         """RIPE Stat network-info: returns {asn, prefix}."""
         try:
-            resp = requests.get(
+            resp = throttled_get(
                 f"{RIPE_STAT}/network-info/data.json",
+                service="ripestat",
                 params={"resource": ip},
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "YADS Security Scanner"},
@@ -230,8 +230,9 @@ class RpkiScanner(BaseScannerModule):
     def _get_org_name(self, asn: str) -> str:
         """RIPE Stat AS overview for org name."""
         try:
-            resp = requests.get(
+            resp = throttled_get(
                 f"{RIPE_STAT}/as-overview/data.json",
+                service="ripestat",
                 params={"resource": f"AS{asn}"},
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "YADS Security Scanner"},
@@ -245,8 +246,9 @@ class RpkiScanner(BaseScannerModule):
     def _get_asn_ipinfo(self, ip: str) -> Optional[Dict]:
         """Fallback: ipinfo.io (free, no key needed for basic info)."""
         try:
-            resp = requests.get(
+            resp = throttled_get(
                 f"https://ipinfo.io/{ip}/json",
+                service="ipinfo",
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "YADS Security Scanner"},
             )
@@ -271,8 +273,9 @@ class RpkiScanner(BaseScannerModule):
     def _check_rpki(self, asn: str, prefix: str) -> Dict:
         """RIPE Stat RPKI validation for ASN+prefix."""
         try:
-            resp = requests.get(
+            resp = throttled_get(
                 f"{RIPE_STAT}/rpki-validation/data.json",
+                service="ripestat",
                 params={"resource": f"AS{asn}", "prefix": prefix},
                 timeout=REQUEST_TIMEOUT,
                 headers={"User-Agent": "YADS Security Scanner"},

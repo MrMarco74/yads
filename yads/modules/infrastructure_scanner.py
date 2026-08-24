@@ -166,10 +166,10 @@ class InfrastructureScanner(BaseScannerModule):
 
     def _lookup_geoip_enhanced(self, ip: str) -> Dict[str, Any]:
         """Enhanced GeoIP and provider detection via ipinfo.io."""
-        import requests
+        from yads.core.throttled_http import throttled_get
         res = {"geoip": None, "cloud_provider_geoip": None}
         try:
-            geo_resp = requests.get(f"https://ipinfo.io/{ip}/json", timeout=3)
+            geo_resp = throttled_get(f"https://ipinfo.io/{ip}/json", service="ipinfo", timeout=3)
             if geo_resp.status_code == 200:
                 geo_data = geo_resp.json()
                 loc = geo_data.get("loc", "")
