@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, and_, func, or_, select, text
 
+from yads.api.routers.targets import _is_internal_target
 from yads.auth.deps import RequireScope, require_tenant_scoped_key
 from yads.database import get_session
 from yads.models import APIKey, ScanResult, Target
@@ -107,3 +108,30 @@ async def get_target(
         "last_scan_at": last_scan_at.isoformat() if last_scan_at else None,
         "module_count": module_count,
     }
+
+
+class AddTargetRequest(BaseModel):
+    domain: str
+
+
+@router.post("/targets", dependencies=[Depends(RequireScope("write"))])
+async def add_target(
+    payload: AddTargetRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    domain = payload.domain.lower().strip()
+    if _is_internal_target(domain):
+        raise HTTPException(status_code=400, detail="Internal targets blocked by SSRF protection")
+
+    existing = session.exec(
+        select(Target).where(Target.domain == domain, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if existing:
+        return {"id": existing.id, "domain": existing.domain, "created": False}
+
+    target = Target(domain=domain, tenant_id=api_key.tenant_id)
+    session.add(target)
+    session.commit()
+    session.refresh(target)
+    return {"id": target.id, "domain": target.domain, "created": True}
