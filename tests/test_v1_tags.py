@@ -45,16 +45,25 @@ def test_add_and_remove_tag_on_target(api_key_client, owned_target):
 
 def test_add_tag_on_other_tenant_target_returns_404(api_key_client, db_session):
     from yads.models import Target, Tenant
+    from sqlmodel import select
 
-    other_tenant = Tenant(name="Other Tenant For Tags Test", slug="other-tenant-tags")
-    db_session.add(other_tenant)
-    db_session.commit()
-    db_session.refresh(other_tenant)
+    other_tenant = db_session.exec(
+        select(Tenant).where(Tenant.name == "Other Tenant For Tags Test")
+    ).first()
+    if not other_tenant:
+        other_tenant = Tenant(name="Other Tenant For Tags Test", slug="other-tenant-tags")
+        db_session.add(other_tenant)
+        db_session.commit()
+        db_session.refresh(other_tenant)
 
-    other_target = Target(domain="other-tenant-target.example.com", tenant_id=other_tenant.id, tags=[])
-    db_session.add(other_target)
-    db_session.commit()
-    db_session.refresh(other_target)
+    other_target = db_session.exec(
+        select(Target).where(Target.domain == "other-tenant-target.example.com")
+    ).first()
+    if not other_target:
+        other_target = Target(domain="other-tenant-target.example.com", tenant_id=other_tenant.id, tags=[])
+        db_session.add(other_target)
+        db_session.commit()
+        db_session.refresh(other_target)
 
     r = api_key_client.post(f"/api/v1/targets/{other_target.id}/tags", json={"tag": "sedoparking"})
     assert r.status_code == 404
