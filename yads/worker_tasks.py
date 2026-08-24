@@ -983,7 +983,14 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     return is_parked
 
 
-def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, has_https, scan_start_time):
+PARKED_SKIP_MODULES = {
+    "tech_stack_analyzer", "form_discovery", "api_discovery",
+    "graphql_scanner", "websocket_scanner", "login_scanner",
+    "password_spray_mapper",
+}
+
+
+def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, has_https, is_parked, scan_start_time):
     """
     Builds and fires the chord of run_scan_module tasks for every
     registry-driven module in scan_types, with finalize_scan as the
@@ -999,6 +1006,9 @@ def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, h
             continue
         if _mod_def.requires_http and not (has_http or has_https):
             logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTP")
+            continue
+        if is_parked and _mod_def.name in PARKED_SKIP_MODULES:
+            logger.info(f"[Worker] Skipping {_mod_def.name}: domain is parked")
             continue
         module_names.append(_mod_def.name)
 
@@ -1712,7 +1722,7 @@ def run_all_scans(
             # compliance recalc, status reset, scan_finished webhook) either
             # as the chord's callback, or directly if no modules matched.
             _dispatch_module_chord(
-                target_id, domain, parent_tenant_id, scan_types, has_http, has_https, scan_start_time,
+                target_id, domain, parent_tenant_id, scan_types, has_http, has_https, is_parked, scan_start_time,
             )
 
             # Stop heartbeat thread

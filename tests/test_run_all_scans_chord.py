@@ -25,7 +25,7 @@ def test_run_all_scans_dispatches_chord_with_one_task_per_module():
         _dispatch_module_chord(
             target_id=1, domain="example.com", tenant_id=42,
             scan_types=["wayback_scanner"], has_http=True, has_https=True,
-            scan_start_time=None,
+            is_parked=False, scan_start_time=None,
         )
 
         mock_run_scan_module.s.assert_called_once_with(1, "example.com", "wayback_scanner", 42)
@@ -43,7 +43,7 @@ def test_run_all_scans_calls_finalize_directly_when_no_modules_selected():
         _dispatch_module_chord(
             target_id=1, domain="example.com", tenant_id=42,
             scan_types=[], has_http=True, has_https=True,
-            scan_start_time=None,
+            is_parked=False, scan_start_time=None,
         )
 
         mock_chord.assert_not_called()
@@ -74,7 +74,7 @@ def test_run_all_scans_skips_modules_needing_unavailable_https_or_http():
         _dispatch_module_chord(
             target_id=1, domain="example.com", tenant_id=42,
             scan_types=["ssl_scanner", "web_analyzer"], has_http=False, has_https=False,
-            scan_start_time=None,
+            is_parked=False, scan_start_time=None,
         )
 
         # Neither module's dependency (HTTPS / HTTP) is available, so both
