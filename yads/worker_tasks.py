@@ -37,9 +37,10 @@ from yads.core.metrics import get_metrics
 from urllib.parse import quote
 from yads.modules._shared_osint_utils import RateLimitedClient
 from yads.modules.tld_scanner import get_tld_list
-from yads.core.module_registry import get_module
+from yads.core.module_registry import get_module, get_simple_dispatch_modules
 from yads.core.module_status import mark_rate_limited, clear_rate_limited
 from yads.core.api_block_detection import ApiBlockedError
+from celery import chord
 import random
 
 logger = logging.getLogger("yads-worker")
@@ -960,6 +961,34 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
         _worker_client.report_task_completed(celery_task_id, success=True)
 
 
+def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, has_https, scan_start_time):
+    """
+    Builds and fires the chord of run_scan_module tasks for every
+    registry-driven module in scan_types, with finalize_scan as the
+    callback. If no modules are selected, calls finalize_scan directly
+    (a chord over an empty group never fires its callback).
+    """
+    module_names = []
+    for _mod_def in get_simple_dispatch_modules():
+        if _mod_def.name not in scan_types:
+            continue
+        if _mod_def.requires_https and not has_https:
+            logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTPS")
+            continue
+        if _mod_def.requires_http and not (has_http or has_https):
+            logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTP")
+            continue
+        module_names.append(_mod_def.name)
+
+    if not module_names:
+        finalize_scan(target_id, domain, tenant_id, scan_types, scan_start_time)
+        return
+
+    logger.info(f"[Worker] Dispatching {len(module_names)} modules as a chord: {module_names}")
+    module_tasks = [run_scan_module.s(target_id, domain, name, tenant_id) for name in module_names]
+    chord(module_tasks)(finalize_scan.s(target_id, domain, tenant_id, scan_types, scan_start_time))
+
+
 # ── Main Scan Task ────────────────────────────────────────────────────────────
 
 @celery_app.task(name="yads.worker.run_all_scans", bind=True, acks_late=True, reject_on_worker_lost=True)
@@ -1636,78 +1665,13 @@ def run_all_scans(
                     logger.error(f"[Worker] Error in Deception Detector: {e}")
                     session.rollback()
 
-            # Registry-driven parallel module dispatch
-            from yads.core.module_registry import get_simple_dispatch_modules
-
-            _parallel_mods = []
-            for _mod_def in get_simple_dispatch_modules():
-                if _mod_def.name not in scan_types:
-                    continue
-                if _mod_def.requires_https and not has_https:
-                    logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTPS")
-                    continue
-                if _mod_def.requires_http and not (has_http or has_https):
-                    logger.info(f"[Worker] Skipping {_mod_def.name}: no HTTP")
-                    continue
-                try:
-                    _parallel_mods.append((_mod_def.name, _mod_def.load_class()))
-                except Exception as _e:
-                    logger.error(f"[Worker] Failed to load {_mod_def.name}: {_e}")
-
-            if _parallel_mods:
-                _pmod_names = [n for n, _ in _parallel_mods]
-                logger.info(f"[Worker] Running {len(_parallel_mods)} modules in parallel: {_pmod_names}")
-                _pt = session.get(Target, target_id)
-                if _pt:
-                    _pt.scan_progress = f"Running {len(_parallel_mods)} modules in parallel..."
-                    session.add(_pt)
-                    session.commit()
-
-                with ThreadPoolExecutor(
-                    max_workers=min(len(_parallel_mods), 6),
-                    thread_name_prefix="scan-p",
-                ) as _pex:
-                    _pfutures = {
-                        _pex.submit(_run_parallel_module, _cls, target_id, domain): name
-                        for name, _cls in _parallel_mods
-                    }
-                    # as_completed(timeout=...) raises TimeoutError if even ONE of
-                    # the submitted futures is still running when the window
-                    # elapses -- with up to 26 modules sharing 6 threads and some
-                    # (nuclei/crawler/visual_osint) legitimately taking minutes,
-                    # 3 total minutes for the whole batch was far too tight. That
-                    # TimeoutError was uncaught, crashing the entire run_all_scans
-                    # task and skipping everything after this block (status
-                    # finalization, webhooks, auto-queue) -- not just the slow
-                    # module. Catch it, log which modules are still outstanding,
-                    # and keep waiting for the rest individually instead of
-                    # abandoning the whole task. (Exiting the `with` block still
-                    # blocks until every submitted future finishes either way --
-                    # ThreadPoolExecutor can't forcibly kill a running thread --
-                    # so this doesn't shorten a genuinely hung module, it just
-                    # stops one slow module from taking the whole scan down.)
-                    try:
-                        _pf_iter = _as_completed(_pfutures, timeout=1800)
-                        while True:
-                            try:
-                                _pf = next(_pf_iter)
-                            except StopIteration:
-                                break
-                            _pmod_name = _pfutures[_pf]
-                            try:
-                                _pf.result(timeout=120)
-                                logger.info(f"[Worker] Parallel done: {_pmod_name}")
-                            except Exception as _pfe:
-                                logger.error(f"[Worker] Parallel error in {_pmod_name}: {_pfe}")
-                    except TimeoutError:
-                        _still_running = [n for f, n in _pfutures.items() if not f.done()]
-                        logger.error(
-                            f"[Worker] Parallel module batch exceeded 30min timeout — "
-                            f"still running: {_still_running}. Continuing scan; the "
-                            f"`with` block below will still wait for these threads to "
-                            f"finish before the task can complete."
-                        )
-                logger.info("[Worker] All parallel modules completed.")
+            # Registry-driven module dispatch — see _dispatch_module_chord.
+            # This also triggers finalize_scan (subdomain auto-queue,
+            # compliance recalc, status reset, scan_finished webhook) either
+            # as the chord's callback, or directly if no modules matched.
+            _dispatch_module_chord(
+                target_id, domain, parent_tenant_id, scan_types, has_http, has_https, scan_start_time,
+            )
 
             # Stop heartbeat thread
             if '_hb_stop' in locals():
