@@ -37,8 +37,16 @@ from yads.core.metrics import get_metrics
 from urllib.parse import quote
 from yads.modules._shared_osint_utils import RateLimitedClient
 from yads.modules.tld_scanner import get_tld_list
+from yads.core.module_registry import get_module
+from yads.core.module_status import mark_rate_limited, clear_rate_limited
+from yads.core.api_block_detection import ApiBlockedError
+import random
 
 logger = logging.getLogger("yads-worker")
+
+MAX_BLOCKED_RETRIES = 5
+DEFAULT_BLOCKED_COOLDOWN = 300  # fallback when ApiBlockedError has no retry_after
+RATE_LIMITED_STATUS_TTL_BUFFER = 60  # keep the Redis badge visible a bit past the retry
 
 
 # ── Periodic Tasks ────────────────────────────────────────────────────────────
@@ -633,6 +641,53 @@ def check_nmap_available():
     import shutil
     resolved = shutil.which("nmap")
     return {"available": bool(resolved), "path": resolved}
+
+
+@celery_app.task(name="yads.worker.run_scan_module", bind=False, acks_late=True, reject_on_worker_lost=True)
+def run_scan_module(target_id: int, domain: str, module_name: str, tenant_id: int, attempt: int = 0):
+    """
+    Runs a single registry-driven scan module for one target. Dispatched as
+    part of a chord from run_all_scans (see get_simple_dispatch_modules()).
+
+    On ApiBlockedError: marks the module rate-limited for this target and,
+    unless attempt >= MAX_BLOCKED_RETRIES, schedules exactly one independent
+    follow-up call to itself with jittered backoff. Always returns normally
+    (never raises) so the enclosing chord's finalize_scan callback isn't
+    held up by a provider block that might take minutes to hours to clear.
+    """
+    mod_def = get_module(module_name)
+    if not mod_def:
+        logger.error(f"[Worker] run_scan_module: unknown module '{module_name}'")
+        return
+
+    try:
+        module_cls = mod_def.load_class()
+    except Exception as e:
+        logger.error(f"[Worker] run_scan_module: failed to load '{module_name}': {e}")
+        return
+
+    try:
+        _run_parallel_module(module_cls, target_id, domain)
+        clear_rate_limited(target_id, module_name)
+    except ApiBlockedError as e:
+        cooldown = e.retry_after or DEFAULT_BLOCKED_COOLDOWN
+        mark_rate_limited(target_id, module_name, ttl_seconds=cooldown + RATE_LIMITED_STATUS_TTL_BUFFER)
+        logger.warning(
+            f"[Worker] '{module_name}' blocked by '{e.service}' for target {target_id} "
+            f"(attempt {attempt}); cooldown={cooldown}s"
+        )
+        if attempt < MAX_BLOCKED_RETRIES:
+            jitter = random.uniform(1.0, 1.5)
+            run_scan_module.apply_async(
+                args=[target_id, domain, module_name, tenant_id],
+                kwargs={"attempt": attempt + 1},
+                countdown=cooldown * jitter,
+            )
+        else:
+            logger.warning(
+                f"[Worker] '{module_name}' for target {target_id} gave up after "
+                f"{MAX_BLOCKED_RETRIES} blocked attempts; will retry on next scheduled scan."
+            )
 
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────
