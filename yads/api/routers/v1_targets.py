@@ -226,3 +226,89 @@ async def undo_bulk_delete_targets(
     redis_client.delete(key)
 
     return {"restored_count": restored}
+
+
+class BulkArchiveRequest(BaseModel):
+    target_ids: List[int]
+
+
+@router.post("/targets/bulk-archive", dependencies=[Depends(RequireScope("write"))])
+async def bulk_archive_targets(
+    payload: BulkArchiveRequest,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    if not payload.target_ids:
+        raise HTTPException(status_code=400, detail="No target_ids provided")
+
+    owned_targets = session.exec(
+        select(Target).where(
+            Target.id.in_(set(payload.target_ids)),
+            Target.tenant_id == api_key.tenant_id,
+            Target.is_archived == False,
+        )
+    ).all()
+
+    count = 0
+    for target in owned_targets:
+        target.is_archived = True
+        target.archived_at = datetime.utcnow()
+        target.archived_reason = "manual"
+        session.add(target)
+        count += 1
+    session.commit()
+
+    return {"archived_count": count}
+
+
+@router.post("/targets/archive-dead", dependencies=[Depends(RequireScope("write"))])
+async def archive_dead_targets(
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    subquery = text("""
+        SELECT t.id FROM target t
+        JOIN LATERAL (
+            SELECT data FROM scanresult
+            WHERE target_id = t.id AND module_name = 'dns_scanner'
+            ORDER BY scanned_at DESC LIMIT 1
+        ) sr ON true
+        WHERE (sr.data->'records')::text = '{}'
+        AND t.is_archived = false
+        AND t.tenant_id = :tenant_id
+    """)
+    dead_ids = [row[0] for row in session.exec(subquery.bindparams(tenant_id=api_key.tenant_id)).all()]
+
+    count = 0
+    if dead_ids:
+        targets = session.exec(select(Target).where(Target.id.in_(dead_ids))).all()
+        for target in targets:
+            target.is_archived = True
+            target.archived_at = datetime.utcnow()
+            target.archived_reason = "DNS cleanup: empty records"
+            session.add(target)
+            count += 1
+        session.commit()
+
+    return {"archived_count": count}
+
+
+@router.post("/targets/{target_id}/restore", dependencies=[Depends(RequireScope("write"))])
+async def restore_target(
+    target_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    api_key: Annotated[APIKey, Depends(require_tenant_scoped_key)],
+):
+    target = session.exec(
+        select(Target).where(Target.id == target_id, Target.tenant_id == api_key.tenant_id)
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    target.is_archived = False
+    target.archived_at = None
+    target.archived_reason = None
+    session.add(target)
+    session.commit()
+
+    return {"id": target.id, "domain": target.domain, "is_archived": target.is_archived}
