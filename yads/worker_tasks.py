@@ -44,12 +44,6 @@ import random
 
 logger = logging.getLogger("yads-worker")
 
-# Module-level placeholder so tests can `patch("yads.worker_tasks._worker_client", ...)`.
-# The task functions below always re-import the live value from yads.worker_core
-# locally (it's a mutable global reassigned by initialize_worker_client() after
-# this module is first imported), so this name itself is never read directly.
-_worker_client = None
-
 MAX_BLOCKED_RETRIES = 5
 DEFAULT_BLOCKED_COOLDOWN = 300  # fallback when ApiBlockedError has no retry_after
 RATE_LIMITED_STATUS_TTL_BUFFER = 60  # keep the Redis badge visible a bit past the retry
@@ -866,7 +860,6 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
         except Exception as e:
             logger.error(f"[Worker] Error in compliance recalculation: {e}")
             session.rollback()
-
 
         # Reset status
         try:
