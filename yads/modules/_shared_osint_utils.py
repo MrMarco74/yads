@@ -18,6 +18,9 @@ from datetime import datetime
 import requests
 from sqlmodel import Session, select
 
+from yads.core.api_circuit_breaker import get_circuit_breaker
+from yads.core.api_block_detection import raise_if_blocked, ApiBlockedError
+
 logger = logging.getLogger("yads.modules.osint_utils")
 
 
@@ -355,14 +358,18 @@ class RateLimitedClient:
         **kwargs
     ) -> requests.Response:
         """Make a rate-limited GET request with TLS support."""
+        if get_circuit_breaker().is_blocked(service_name):
+            raise ApiBlockedError(service_name)
         self._wait_for_rate_limit(service_name)
         url = self._normalize_url(url)
-        return self._session.get(
+        response = self._session.get(
             url,
             headers=headers,
             timeout=timeout or self.default_timeout,
             **kwargs
         )
+        raise_if_blocked(service_name, response)
+        return response
 
     def post(
         self,
@@ -373,14 +380,18 @@ class RateLimitedClient:
         **kwargs
     ) -> requests.Response:
         """Make a rate-limited POST request with TLS support."""
+        if get_circuit_breaker().is_blocked(service_name):
+            raise ApiBlockedError(service_name)
         self._wait_for_rate_limit(service_name)
         url = self._normalize_url(url)
-        return self._session.post(
+        response = self._session.post(
             url,
             headers=headers,
             timeout=timeout or self.default_timeout,
             **kwargs
         )
+        raise_if_blocked(service_name, response)
+        return response
 
     def head(
         self,
@@ -391,14 +402,18 @@ class RateLimitedClient:
         **kwargs
     ) -> requests.Response:
         """Make a rate-limited HEAD request with TLS support."""
+        if get_circuit_breaker().is_blocked(service_name):
+            raise ApiBlockedError(service_name)
         self._wait_for_rate_limit(service_name)
         url = self._normalize_url(url)
-        return self._session.head(
+        response = self._session.head(
             url,
             headers=headers,
             timeout=timeout or self.default_timeout,
             **kwargs
         )
+        raise_if_blocked(service_name, response)
+        return response
 
 
 # =============================================================================
