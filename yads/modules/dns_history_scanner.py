@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,9 @@ def _hackertarget_hostsearch(domain: str) -> List[Dict]:
     """HackerTarget host search — returns subdomains with IPs."""
     results = []
     try:
-        r = requests.get(
+        r = throttled_get(
             HACKERTARGET_URL.format(domain=domain),
+            service="hackertarget",
             timeout=TIMEOUT,
         )
         if r.status_code == 200 and "error" not in r.text.lower()[:50]:
@@ -65,8 +67,9 @@ def _crtsh_history(domain: str) -> List[Dict]:
     results = []
     seen: Set[str] = set()
     try:
-        r = requests.get(
+        r = throttled_get(
             CRTSH_URL.format(domain=domain),
+            service="crt_sh",
             timeout=TIMEOUT,
             headers={"Accept": "application/json"},
         )
@@ -94,8 +97,9 @@ def _securitytrails(domain: str, api_key: str) -> List[Dict]:
     """SecurityTrails historical DNS A records (requires API key)."""
     results = []
     try:
-        r = requests.get(
+        r = throttled_get(
             SECURITYTRAILS_URL.format(domain=domain),
+            service="securitytrails",
             headers={"APIKEY": api_key},
             timeout=TIMEOUT,
         )

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Set, Optional
 
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -408,7 +409,7 @@ class SubdomainScanner(DNSRecordScanner):
         subs = set()
         url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
         try:
-            resp = requests.get(url, timeout=15)
+            resp = throttled_get(url, service="hackertarget", timeout=15)
             if resp.status_code == 200:
                 lines = resp.text.splitlines()
                 for line in lines:

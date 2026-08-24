@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Set
 import requests
 
 from yads.core.base import BaseScannerModule
+from yads.core.throttled_http import throttled_get
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,9 @@ def _clean_domain(target: str) -> str:
 def _fetch_certs(domain: str) -> List[Dict]:
     """Fetch all certificates for domain and subdomains from crt.sh."""
     try:
-        r = requests.get(
+        r = throttled_get(
             CRTSH_ALL_URL.format(domain=domain),
+            service="crt_sh",
             timeout=TIMEOUT,
             headers={"Accept": "application/json"},
         )

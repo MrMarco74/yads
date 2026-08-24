@@ -3,6 +3,8 @@ import logging
 import tldextract
 from typing import List, Set
 
+from yads.core.throttled_http import throttled_get
+
 def search_by_org(org_name: str = None, email: str = None, exclude_domain: str = None) -> List[str]:
     """
     Queries crt.sh for certificates matching an organisation name or e-mail address.
@@ -21,7 +23,7 @@ def search_by_org(org_name: str = None, email: str = None, exclude_domain: str =
     for q in queries:
         url = f"https://crt.sh/?q={requests.utils.quote(q)}&output=json"
         try:
-            resp = requests.get(url, timeout=20)
+            resp = throttled_get(url, service="crt_sh", timeout=20)
             if resp.status_code != 200:
                 continue
             data = resp.json()
@@ -67,7 +69,7 @@ def search_domain(domain_name: str) -> List[str]:
     
     try:
         # Timeout is important for external APIs
-        resp = requests.get(url, timeout=25)
+        resp = throttled_get(url, service="crt_sh", timeout=25)
         
         if resp.status_code != 200:
             logger.warning(f"crt.sh returned status {resp.status_code}")
