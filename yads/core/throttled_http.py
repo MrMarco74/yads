@@ -12,6 +12,8 @@ from typing import Optional, Dict, Any
 import logging
 
 from yads.core.rate_limiter import get_bandwidth_limiter, RateLimiter
+from yads.core.api_block_detection import raise_if_blocked
+from yads.core.api_circuit_breaker import get_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ class ThrottledSession(requests.Session):
         retry_strategy = Retry(
             total=2,
             backoff_factor=0.5,
-            status_forcelist=[429, 500, 502, 503, 504],
+            status_forcelist=[500, 502, 503, 504],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.mount("http://", adapter)
@@ -57,8 +59,18 @@ class ThrottledSession(requests.Session):
         # Set default headers
         self.headers.update(DEFAULT_HEADERS)
 
-    def request(self, method: str, url: str, **kwargs) -> requests.Response:
-        """Override request to add throttling."""
+    def request(self, method: str, url: str, service: str = None, **kwargs) -> requests.Response:
+        """Override request to add throttling and provider-block detection.
+
+        `service` is a logical service name (e.g. "crt_sh", "hackertarget") —
+        when given, raises ApiBlockedError instead of making the request if
+        that service is currently circuit-broken, and classifies the
+        response afterward to trip the breaker on a detected block.
+        """
+        if service and get_circuit_breaker().is_blocked(service):
+            from yads.core.api_block_detection import ApiBlockedError
+            raise ApiBlockedError(service)
+
         # Extract domain for rate limiting
         from urllib.parse import urlparse
         domain = urlparse(url).netloc
@@ -73,6 +85,9 @@ class ThrottledSession(requests.Session):
 
         # Make the request
         response = super().request(method, url, **kwargs)
+
+        if service:
+            raise_if_blocked(service, response)
 
         # Track bandwidth usage
         if self._bandwidth_limiter:
@@ -103,16 +118,16 @@ def get_throttled_session() -> ThrottledSession:
     return _throttled_session
 
 
-def throttled_get(url: str, **kwargs) -> requests.Response:
+def throttled_get(url: str, service: str = None, **kwargs) -> requests.Response:
     """Convenience function for throttled GET requests."""
-    return get_throttled_session().get(url, **kwargs)
+    return get_throttled_session().get(url, service=service, **kwargs)
 
 
-def throttled_post(url: str, **kwargs) -> requests.Response:
+def throttled_post(url: str, service: str = None, **kwargs) -> requests.Response:
     """Convenience function for throttled POST requests."""
-    return get_throttled_session().post(url, **kwargs)
+    return get_throttled_session().post(url, service=service, **kwargs)
 
 
-def throttled_head(url: str, **kwargs) -> requests.Response:
+def throttled_head(url: str, service: str = None, **kwargs) -> requests.Response:
     """Convenience function for throttled HEAD requests."""
-    return get_throttled_session().head(url, **kwargs)
+    return get_throttled_session().head(url, service=service, **kwargs)
