@@ -353,6 +353,18 @@ async def control_queue(
         celery_app.control.cancel_consumer('celery', reply=False)
         celery_app.control.cancel_consumer('discovery', reply=False)
 
+        # Purge the ready backlog from the broker. Without this, pausing only
+        # stopped consumption — the already-published messages stayed in
+        # RabbitMQ and drained later (re-running modules never selected for the
+        # newer targets), and every resume re-dispatched queued targets on top
+        # of them. Resume rebuilds the working set from DB 'queued' status, so
+        # discarding the broker backlog here is safe. (See broker-backlog
+        # incident 2026-08-25.)
+        from yads.core.broker_ops import purge_broker_queues
+        purged = purge_broker_queues(settings.BROKER_URL)
+        if purged:
+            scan_logger.warning(f"[Pause] Purged {purged} pending broker messages.")
+
         # Revoke + terminate all prefetched (reserved) and actively running tasks
         import threading
         def _hard_stop():

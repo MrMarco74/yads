@@ -1684,7 +1684,11 @@ async def stop_all_scans(session: Session = Depends(get_session), user: User = D
     session.commit() # Commit pause immediately
 
     # 2. Purge Pending Queue
-    purged_count = celery_app.control.purge()
+    # control.purge() is a worker-control broadcast and does not reliably drop
+    # ready messages sitting in the RabbitMQ broker; purge the actual broker
+    # queues directly instead (see yads.core.broker_ops for why).
+    from yads.core.broker_ops import purge_broker_queues
+    purged_count = purge_broker_queues(settings.BROKER_URL)
     
     # 3. Force Kill Active & Reserved Tasks
     i = celery_app.control.inspect()
