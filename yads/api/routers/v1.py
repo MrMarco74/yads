@@ -70,31 +70,7 @@ async def trigger_dast_scan(
         "scan_types": scan_types
     }
 
-@router.get("/findings")
-async def get_findings(
-    session: Annotated[Session, Depends(get_session)],
-    api_key: Annotated[APIKey, Depends(get_api_key)]
-):
-    """
-    Retrieve all scan findings for the authenticated tenant.
-    """
-    statement = (
-        select(ScanResult)
-        .join(Target)
-        .where(Target.tenant_id == api_key.tenant_id)
-        .order_by(ScanResult.scanned_at.desc())
-    )
-    results = session.exec(statement).all()
-    
-    # Format for JSON consumption
-    findings = []
-    for r in results:
-        findings.append({
-            "id": r.id,
-            "target": r.target.domain,
-            "module": r.module_name,
-            "scanned_at": r.scanned_at.isoformat(),
-            "data": r.data
-        })
-    
-    return findings
+# NOTE: GET /api/v1/findings now lives in v1_findings.py (Wave 3) — a
+# filtered/paginated view over persisted SecurityFinding records. The old
+# handler here dumped every raw ScanResult unfiltered (unusable at scale) and
+# was removed to avoid a duplicate-route shadow.
