@@ -231,10 +231,14 @@ async def scan_errors_fragment(
        x-transition:enter="transition ease-out duration-100"
        x-transition:enter-start="opacity-0 scale-95"
        x-transition:enter-end="opacity-100 scale-100"
-       class="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-3">
-    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Scan-Fehler</p>
-    {items_html}
-    <form hx-post="/api/system/scan-errors/dismiss" hx-target="#scan-errors-badge" hx-swap="outerHTML" class="mt-3">
+       class="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-3 flex flex-col max-h-[70vh]">
+    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold flex-shrink-0">Scan-Fehler</p>
+    <!-- Only the error list scrolls; the dismiss button below stays pinned and
+         reachable no matter how many failed scans are listed. -->
+    <div class="overflow-y-auto min-h-0 -mx-1 px-1">
+      {items_html}
+    </div>
+    <form hx-post="/api/system/scan-errors/dismiss" hx-target="#scan-errors-badge" hx-swap="outerHTML" class="mt-3 flex-shrink-0 border-t border-slate-700/50 pt-2">
       <button type="submit" class="w-full text-center text-xs text-slate-400 hover:text-slate-200 transition-colors py-1">
         Alle ausblenden
       </button>
