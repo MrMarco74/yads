@@ -20,7 +20,7 @@ def test_catchall_pre_check_tags_target_when_parked():
         # code. Import and call whatever name Step 3 actually defines.
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
+        is_parked, _live = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is True
         mock_tag.assert_called_once_with(session, 1, "sedo")
@@ -35,7 +35,7 @@ def test_catchall_pre_check_not_parked_does_not_tag():
 
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
+        is_parked, _live = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         mock_tag.assert_not_called()
@@ -50,20 +50,29 @@ def test_catchall_pre_check_uncertain_verdict_is_not_parked():
 
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
+        is_parked, _live = _check_parked_domain(session, 1, "example.com", has_http=True, has_https=False, scan_types=["catchall_detector"])
 
         assert is_parked is False
         mock_tag.assert_not_called()
 
 
-def test_catchall_pre_check_skipped_when_no_http():
-    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
+def test_catchall_pre_check_runs_without_http_for_ns_detection():
+    """Even with no HTTP, the check must still run the scanner: NS-based (Layer
+    0) parking detection works purely off DNS delegation, so a DNS-only-parked
+    domain that never answers HTTP must still be detectable/taggable."""
+    with patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls, \
+         patch("yads.worker_tasks.tag_parked_domain") as mock_tag:
+        mock_scanner = mock_scanner_cls.return_value
+        mock_scanner.run_scan.return_value = {"is_catch_all": True, "matched_signature": "ns:sedoparking.com"}
+
         from yads.worker_tasks import _check_parked_domain
         session = MagicMock()
-        is_parked = _check_parked_domain(session, 1, "example.com", has_http=False, has_https=False, scan_types=["catchall_detector"])
+        is_parked, live = _check_parked_domain(session, 1, "example.com", has_http=False, has_https=False, scan_types=["catchall_detector"])
 
-        assert is_parked is False
-        mock_scanner_cls.assert_not_called()
+        assert is_parked is True
+        mock_scanner.run_scan.assert_called_once()
+        mock_tag.assert_called_once_with(session, 1, "ns:sedoparking.com")
+        assert live["matched_signature"] == "ns:sedoparking.com"
 
 
 def test_check_parked_domain_sets_allow_llm_true_when_module_selected():
@@ -125,7 +134,7 @@ def test_run_parked_precheck_exception_does_not_propagate_and_treats_as_not_park
 def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
     """Same failure mode, but the exception comes from the
     CatchallDetectorScanner.process() call rather than _check_parked_domain."""
-    with patch("yads.worker_tasks._check_parked_domain", return_value=False), \
+    with patch("yads.worker_tasks._check_parked_domain", return_value=(False, {"is_catch_all": False})), \
          patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.side_effect = RuntimeError("boom")
@@ -139,7 +148,7 @@ def test_run_parked_precheck_exception_in_catchall_process_does_not_propagate():
 
 
 def test_run_parked_precheck_happy_path_still_returns_true_when_parked():
-    with patch("yads.worker_tasks._check_parked_domain", return_value=True), \
+    with patch("yads.worker_tasks._check_parked_domain", return_value=(True, {"is_catch_all": True, "matched_signature": "ns:sedoparking.com"})), \
          patch("yads.modules.catchall_detector.CatchallDetectorScanner") as mock_scanner_cls:
         mock_scanner = mock_scanner_cls.return_value
         mock_scanner.process.return_value = None

@@ -72,17 +72,22 @@ class BaseScannerModule(abc.ABC):
         serialized = json.dumps(data, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
 
-    def process(self, target_id: int, target_domain: str) -> Optional[ScanResult]:
+    def process(self, target_id: int, target_domain: str, precomputed: Optional[Dict[str, Any]] = None) -> Optional[ScanResult]:
         """
         Main entry point for the worker.
-        1. Runs scan.
+        1. Runs scan (or reuses `precomputed` run_scan output if given).
         2. Computes hash.
         3. Compares with DB state.
         4. Saves if changed.
+
+        precomputed: if a caller already invoked run_scan() for this target
+        (e.g. the parked-domain pre-check needs the live verdict for its gating
+        decision), it can pass that same result dict here so process() persists
+        the identical observation instead of running the scan a second time.
         """
-        # 1. Run Scan
+        # 1. Run Scan (or reuse a precomputed run_scan result)
         try:
-            raw_data = self.run_scan(target_domain, target_id=target_id)
+            raw_data = precomputed if precomputed is not None else self.run_scan(target_domain, target_id=target_id)
             raw_data = sanitize_null_bytes(raw_data)
         except ApiBlockedError:
             raise

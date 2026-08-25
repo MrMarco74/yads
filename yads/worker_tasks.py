@@ -984,23 +984,25 @@ def _scan_needs_web_precheck(scan_types: list) -> bool:
     )
 
 
-def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list) -> bool:
+def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list):
     """
-    Runs catchall_detector's live check and returns whether the domain is
-    confirmed parked. An uncertain verdict (is_catch_all is None, e.g.
+    Runs catchall_detector's live check ONCE and returns
+    (is_parked, live_data). An uncertain verdict (is_catch_all is None, e.g.
     unreachable) is never treated as parked. Tags the target via
-    tag_parked_domain when parked. Does not persist a ScanResult itself —
-    that's the caller's job (see run_all_scans), since this is meant to
-    be called for the live gating decision independent of whether/when
-    the module's own result gets saved.
+    tag_parked_domain when parked. Does not persist a ScanResult itself — the
+    caller reuses the returned live_data as `precomputed` for the module's
+    process() so the scan is not run a second time (see _run_parked_precheck).
 
-    The LLM classification fallback (layer 3) only fires if the tenant
-    actually selected catchall_detector in scan_types for this scan — the
-    signature/vhost layers (1 and 2) always run regardless, since those are
-    free/fast and this function is dispatched unconditionally.
+    The scan runs regardless of HTTP reachability: NS-based (Layer 0) parking
+    detection works purely off DNS delegation, so a DNS-only-parked domain with
+    no HTTP server must still be detectable here. has_http/has_https are kept in
+    the signature for callers/telemetry but no longer gate whether the scan runs.
+
+    The LLM classification fallback (layer 3) only fires if the tenant actually
+    selected catchall_detector in scan_types for this scan — the NS/signature/
+    vhost layers always run regardless, since those are free/fast and this is
+    dispatched unconditionally.
     """
-    if not (has_http or has_https):
-        return False
     from yads.modules.catchall_detector import CatchallDetectorScanner
     scanner = CatchallDetectorScanner(db_session=session)
     scanner.allow_llm = "catchall_detector" in scan_types
@@ -1008,7 +1010,7 @@ def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, h
     is_parked = live_data.get("is_catch_all") is True
     if is_parked:
         tag_parked_domain(session, target_id, live_data.get("matched_signature"))
-    return is_parked
+    return is_parked, live_data
 
 
 def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list) -> bool:
@@ -1031,13 +1033,17 @@ def _run_parked_precheck(session, target_id: int, domain: str, has_http: bool, h
     is_parked = False
     try:
         logger.info(f"[Worker] Checking for parked/catch-all page on {domain}...")
-        is_parked = _check_parked_domain(session, target_id, domain, has_http, has_https, scan_types)
+        is_parked, live_data = _check_parked_domain(session, target_id, domain, has_http, has_https, scan_types)
 
+        # Persist the SAME observation the gating decision used — pass it as
+        # `precomputed` so process() does not run the scan a second time (the
+        # old double-run made up to ~8 HTTP requests + 2 LLM calls per scan and
+        # could let the tag/skip decision and the saved ScanResult disagree).
         from yads.modules.catchall_detector import CatchallDetectorScanner
         catchall_scanner = CatchallDetectorScanner(db_session=session)
         catchall_scanner.allow_llm = "catchall_detector" in scan_types
         with LogCapture() as logs:
-            catchall_result = catchall_scanner.process(target_id, domain)
+            catchall_result = catchall_scanner.process(target_id, domain, precomputed=live_data)
             captured_logs = logs.get_logs()
         if catchall_result and hasattr(catchall_result, 'log_content'):
             catchall_result.log_content = sanitize_null_bytes(captured_logs)
