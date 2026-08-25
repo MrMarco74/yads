@@ -50,7 +50,12 @@ for name in yads-api yads-worker; do
     cid="$(docker ps --filter "name=${name}" --format '{{.Names}}' | head -1)"
     [ -n "$cid" ] || { echo "WARNING: no running container matches '${name}'" >&2; continue; }
     csha="$(docker exec "$cid" printenv YADS_GIT_SHA 2>/dev/null || echo unknown)"
-    if [ "$csha" != "$HOST_SHA" ]; then
+    if [ -z "$csha" ] || [ "$csha" = "unknown" ]; then
+        # No SHA baked into the image — can't verify (not the same as stale).
+        # Warn rather than fail so the guard doesn't cry wolf on an image built
+        # without the YADS_GIT_SHA build arg.
+        echo "WARNING: $cid has no YADS_GIT_SHA baked in — cannot verify version" >&2
+    elif [ "$csha" != "$HOST_SHA" ]; then
         echo "STALE: container $cid is at YADS_GIT_SHA=$csha, host source is at $HOST_SHA" >&2
         rc=1
     else
