@@ -612,63 +612,17 @@ async def purge_queue(
         celery_app = Celery("yads_purge", broker=settings.BROKER_URL, backend=settings.REDIS_URL)
         r = redis_client
         
-        # 1. Selectively remove from Redis queue (only tenant's tasks)
-        # Instead of purging all, we need to:
-        # - Read all items from queue
-        # - Keep items NOT belonging to this tenant
-        # - Remove items belonging to this tenant
-        purged_count = 0
-        undo_tasks = []  # Undo window (#79): args of purged-but-not-yet-run tasks
+        # 1. Selectively remove this tenant's pending tasks from the broker.
+        # This used to manipulate a Redis list named "celery", which is a no-op
+        # against the RabbitMQ broker actually in use — so "Clear Queue" never
+        # cleared anything. Purge the real broker queue instead (drain ready
+        # messages, drop this tenant's, requeue the rest). undo_tasks mirrors
+        # the dropped tasks' args for the 60s undo window (#79).
+        from yads.core.broker_ops import purge_broker_queue_for_tenant
+        purged_count, undo_tasks = purge_broker_queue_for_tenant(
+            settings.BROKER_URL, user.tenant_id
+        )
 
-        queue_len = r.llen("celery")
-        if queue_len > 0:
-            # Get all items
-            all_items = r.lrange("celery", 0, -1)
-            items_to_keep = []
-
-            for raw in all_items:
-                try:
-                    item_data = json.loads(raw)
-                    task_tenant_id = None
-                    task_args = None
-
-                    body_b64 = item_data.get('body')
-                    if body_b64:
-                        try:
-                            body_str = base64.b64decode(body_b64).decode('utf-8')
-                            body_json = json.loads(body_str)
-                            if isinstance(body_json, list) and len(body_json) > 0:
-                                args = body_json[0]
-                                task_args = args
-                                if len(args) > 3:
-                                    task_tenant_id = args[3]
-                        except Exception as e:
-                            scan_logger.debug(f"Failed to decode body in purge: {e}")
-
-                    # Keep if NOT this tenant's task
-                    if task_tenant_id != user.tenant_id:
-                        items_to_keep.append(raw)
-                    else:
-                        purged_count += 1
-                        if task_args and len(task_args) >= 3:
-                            undo_tasks.append({
-                                "target_id": task_args[0], "domain": task_args[1],
-                                "scan_types": task_args[2], "tenant_id": task_tenant_id,
-                            })
-
-                except Exception as e:
-                    scan_logger.debug(f"Error parsing queue item for purge: {e}")
-                    # If we can't parse, keep it to be safe
-                    items_to_keep.append(raw)
-            
-            # Atomically replace queue with filtered items
-            if purged_count > 0:
-                pipe = r.pipeline()
-                pipe.delete("celery")
-                for item in items_to_keep:
-                    pipe.rpush("celery", item)
-                pipe.execute()
-        
         # 2. REVOKE Active & Reserved Tasks (Tenant-Filtered)
         scan_logger.warning(f"Revoking active and reserved tasks for tenant {user.tenant_id}...")
         i = celery_app.control.inspect(timeout=5.0)

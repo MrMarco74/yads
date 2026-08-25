@@ -98,10 +98,24 @@ def compute_next_auto_run(
 # Main scheduler loop
 # ---------------------------------------------------------------------------
 
+def _should_reassert_consumers(prev_active, now_active: bool) -> bool:
+    """Whether the scheduler tick should re-assert the worker's broker consumers.
+
+    /queue/control pause cancels the worker's consumer and resume re-adds it,
+    but reactivating QUEUE_ACTIVE by any other means (a raw DB flag flip, an API
+    restart) leaves the worker idle with a consumer a prior pause cancelled.
+    Re-assert only on a false->true transition. prev_active is None on the first
+    observation — a freshly started worker already subscribed on startup, so no
+    transition is assumed.
+    """
+    return now_active and prev_active is False
+
+
 def run_scheduler_loop(celery_app):
     """
     Main scheduler loop — runs in a background thread (60s tick).
 
+    Pass 0: Re-assert broker consumers if the queue was just reactivated.
     Pass 1: Fire due per-target ScanSchedule entries.
     Pass 2: Fire per-tenant TenantScanConfig auto-sweeps.
     Pass 3: Reset stuck targets (every 5 min, replaces celery beat).
@@ -111,10 +125,23 @@ def run_scheduler_loop(celery_app):
     logger.info("Scheduler Service Started.")
 
     _last_stuck_check = datetime.utcnow() - timedelta(minutes=6)  # fire on first tick
+    _prev_queue_active = None  # track QUEUE_ACTIVE across ticks for Pass 0
 
     while True:
         try:
             with Session(engine) as session:
+                # ── Pass 0: Self-heal broker consumers on queue reactivation ──
+                _qa_conf = session.get(SystemConfig, "QUEUE_ACTIVE")
+                _queue_active = _qa_conf is None or _qa_conf.value.lower() != "false"
+                if _should_reassert_consumers(_prev_queue_active, _queue_active):
+                    try:
+                        celery_app.control.add_consumer("celery", reply=False)
+                        celery_app.control.add_consumer("discovery", reply=False)
+                        logger.info("[Scheduler] QUEUE_ACTIVE re-enabled — re-asserted broker consumers.")
+                    except Exception as exc:
+                        logger.warning(f"[Scheduler] Failed to re-assert consumers: {exc}")
+                _prev_queue_active = _queue_active
+
                 now = datetime.utcnow()
                 max_concurrent = get_max_concurrent_scans(session)
                 active_count = get_active_scan_count(session)
