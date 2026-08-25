@@ -136,8 +136,17 @@ async def get_api_key(
     Returns the APIKey object which includes the tenant context.
     """
     # --- TLS Enforcement ---
-    # Reject if not HTTPS in production environment
-    if not settings.DEBUG and request.url.scheme != "https":
+    # Reject if not HTTPS in production. Honor X-Forwarded-Proto: the prod
+    # topology terminates TLS at a reverse proxy and forwards to uvicorn as
+    # plain http, so request.url.scheme is "http" even though the client used
+    # HTTPS. Checking only request.url.scheme rejected every API key behind the
+    # proxy (breaking the whole /api/v1 surface); consult the forwarded proto
+    # too, matching the app's own middleware.
+    _is_https = (
+        request.url.scheme == "https"
+        or request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https"
+    )
+    if not settings.DEBUG and not _is_https:
          raise HTTPException(
              status_code=status.HTTP_403_FORBIDDEN,
              detail="SSL/TLS Required for API Key authentication"
