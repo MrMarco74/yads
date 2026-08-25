@@ -15,18 +15,25 @@ from sqlmodel import Session
 
 from yads.models import Target
 
+# Commercial-parking signatures all consolidate onto one provider-neutral
+# "parked" tag. The tag names the *state* (a registered domain resolving to a
+# monetization/for-sale landing page), not the vendor hosting it — provider
+# attribution, when needed, lives in ScanResult.data.detection_method, not in
+# the primary filter tag. This deliberately avoids the per-vendor tag sprawl
+# (sedoparking / bodis-parked / godaddy-parked / ...) that made the targets
+# table impossible to filter by "is this parked?".
 PARKED_TAG_MAP: Dict[str, str] = {
-    "sedo": "sedoparking",
-    "godaddy_parked": "godaddy-parked",
-    "bodis": "bodis-parked",
-    "parkingcrew": "parkingcrew-parked",
-    "afternic": "afternic-parked",
-    "dan_com": "dan-parked",
-    "hugedomains": "hugedomains-parked",
-    "generic_for_sale": "parked-for-sale",
+    "sedo": "parked",
+    "godaddy_parked": "parked",
+    "bodis": "parked",
+    "parkingcrew": "parked",
+    "afternic": "parked",
+    "dan_com": "parked",
+    "hugedomains": "parked",
+    "generic_for_sale": "parked",
     # Default hosting/server splash pages are catch-all, not commercially
-    # "parked" — tagged generically rather than inventing a per-vendor tag
-    # for every Apache/nginx/IIS default page.
+    # "parked" — a live server showing a default page is a distinct signal,
+    # so these keep their own tag rather than collapsing into "parked".
     "apache_ubuntu_default": "placeholder-page",
     "apache_default": "placeholder-page",
     "nginx_default": "placeholder-page",
@@ -41,17 +48,20 @@ PARKED_TAG_MAP: Dict[str, str] = {
 
 
 # NS-based detection (Layer 0) passes matched_signature as "ns:<provider>",
-# e.g. "ns:sedoparking.com". Map the provider domain to the same tag the HTTP
-# signature layer uses, so DNS-delegated parking is tagged consistently.
+# e.g. "ns:sedoparking.com". DNS-delegated parking is the same state as HTTP-
+# signature parking, so it consolidates onto the same "parked" tag. The map is
+# kept (rather than deleted in favour of the fallback) so that recognising a
+# known parking nameserver stays explicit and greppable, even though every
+# entry currently resolves to "parked".
 PARKED_NS_TAG_MAP: Dict[str, str] = {
-    "sedoparking.com": "sedoparking",
-    "bodis.com": "bodis-parked",
-    "parkingcrew.net": "parkingcrew-parked",
-    "afternic.com": "afternic-parked",
-    "dan.com": "dan-parked",
-    "hugedomains.com": "hugedomains-parked",
-    "cashparking.com": "godaddy-parked",
-    "domaincntrol.com": "godaddy-parked",
+    "sedoparking.com": "parked",
+    "bodis.com": "parked",
+    "parkingcrew.net": "parked",
+    "afternic.com": "parked",
+    "dan.com": "parked",
+    "hugedomains.com": "parked",
+    "cashparking.com": "parked",
+    "domaincntrol.com": "parked",
 }
 
 

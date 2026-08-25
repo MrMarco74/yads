@@ -54,10 +54,13 @@ def _make_target(session, domain="example.com", tags=None):
 
 
 def test_known_signature_maps_to_expected_tag():
-    assert PARKED_TAG_MAP["sedo"] == "sedoparking"
-    assert PARKED_TAG_MAP["godaddy_parked"] == "godaddy-parked"
-    assert PARKED_TAG_MAP["bodis"] == "bodis-parked"
-    assert PARKED_TAG_MAP["generic_for_sale"] == "parked-for-sale"
+    # All commercial-parking vendors consolidate to the single provider-neutral
+    # "parked" tag (see PARKED_TAG_MAP comment). placeholder-page stays distinct:
+    # those are live default server splash pages, not commercially parked domains.
+    assert PARKED_TAG_MAP["sedo"] == "parked"
+    assert PARKED_TAG_MAP["godaddy_parked"] == "parked"
+    assert PARKED_TAG_MAP["bodis"] == "parked"
+    assert PARKED_TAG_MAP["generic_for_sale"] == "parked"
     assert PARKED_TAG_MAP["apache_default"] == "placeholder-page"
     assert PARKED_TAG_MAP["ionos_default"] == "placeholder-page"
 
@@ -66,27 +69,38 @@ def test_tag_parked_domain_appends_mapped_tag(session):
     target = _make_target(session)
     tag_parked_domain(session, target.id, "sedo")
     session.refresh(target)
-    assert target.tags == ["sedoparking"]
+    assert target.tags == ["parked"]
 
 
 def test_tag_parked_domain_does_not_duplicate(session):
-    target = _make_target(session, tags=["sedoparking"])
+    target = _make_target(session, tags=["parked"])
     tag_parked_domain(session, target.id, "sedo")
     session.refresh(target)
-    assert target.tags == ["sedoparking"]
+    assert target.tags == ["parked"]
 
 
 def test_tag_parked_domain_preserves_existing_tags(session):
     target = _make_target(session, tags=["customer-a"])
     tag_parked_domain(session, target.id, "godaddy_parked")
     session.refresh(target)
-    assert set(target.tags) == {"customer-a", "godaddy-parked"}
+    assert set(target.tags) == {"customer-a", "parked"}
 
 
-def test_tag_parked_domain_unmapped_signature_falls_back_to_generic():
-    session_stub = None  # not needed for this assertion
-    assert PARKED_TAG_MAP.get("some_unknown_signature", "parked") == "parked"
-    assert PARKED_TAG_MAP.get(None, "parked") == "parked"
+def test_placeholder_signature_stays_distinct(session):
+    # Default server splash pages must NOT be folded into "parked".
+    target = _make_target(session)
+    tag_parked_domain(session, target.id, "nginx_default")
+    session.refresh(target)
+    assert target.tags == ["placeholder-page"]
+
+
+def test_tag_parked_domain_unmapped_signature_falls_back_to_parked(session):
+    # An unrecognized catch-all signature still means "parked" — the same tag
+    # every known vendor now consolidates onto, so unknowns don't re-fragment.
+    target = _make_target(session)
+    tag_parked_domain(session, target.id, "some_unknown_signature")
+    session.refresh(target)
+    assert target.tags == ["parked"]
 
 
 def test_tag_parked_domain_missing_target_is_noop(session):
@@ -106,7 +120,7 @@ def test_tag_parked_domain_handles_null_tags(session):
 
     tag_parked_domain(session, target.id, "sedo")
     session.refresh(target)
-    assert target.tags == ["sedoparking"]
+    assert target.tags == ["parked"]
 
 
 def _get_or_reset_target(db_session, tenant_id, domain):
@@ -122,15 +136,15 @@ def _get_or_reset_target(db_session, tenant_id, domain):
     return t
 
 
-def test_ns_based_signature_maps_to_provider_tag(db_session, test_tenant):
-    """NS-based detection (matched_signature 'ns:<provider>') should map to the
-    same provider tag as the HTTP signature, not the generic 'parked'."""
+def test_ns_based_signature_maps_to_parked(db_session, test_tenant):
+    """NS-based detection (matched_signature 'ns:<provider>') consolidates onto
+    the same provider-neutral 'parked' tag as every HTTP signature."""
     from yads.core.parked_domain_tags import tag_parked_domain
 
     t = _get_or_reset_target(db_session, test_tenant.id, "ns-parked-fixture.example.com")
     tag_parked_domain(db_session, t.id, "ns:sedoparking.com")
     db_session.refresh(t)
-    assert "sedoparking" in t.tags
+    assert "parked" in t.tags
 
 
 def test_ns_unknown_provider_falls_back_to_parked(db_session, test_tenant):
