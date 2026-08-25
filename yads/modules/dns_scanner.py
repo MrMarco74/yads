@@ -395,12 +395,12 @@ class SubdomainScanner(DNSRecordScanner):
             if subs:
                 return subs
         except ImportError:
-            logging.getLogger("yads.modules.dns").error("Could not import crtSH_client. is psycopg2 installed?")
+            logger.error("Could not import crtSH_client. is psycopg2 installed?")
         except Exception as e:
-             logging.getLogger("yads.modules.dns").warning(f"crt.sh (PG) failed: {e}")
+             logger.warning(f"crt.sh (PG) failed: {e}")
 
         # If we get here, crt.sh failed or returned nothing. Try Fallback.
-        logging.getLogger("yads.modules.dns").warning("crt.sh exhaustion/failure. Attempting Fallback: Hackertarget.")
+        logger.warning("crt.sh exhaustion/failure. Attempting Fallback: Hackertarget.")
         return self._fetch_hackertarget(domain)
 
     def _fetch_hackertarget(self, domain: str) -> List[str]:
@@ -420,11 +420,11 @@ class SubdomainScanner(DNSRecordScanner):
                         hostname = parts[0].strip()
                         if hostname.endswith(domain):
                             subs.add(hostname)
-                logging.getLogger("yads.modules.dns").info(f"Hackertarget found {len(subs)} subdomains.")
+                logger.info(f"Hackertarget found {len(subs)} subdomains.")
         except ApiBlockedError:
             raise
         except Exception as e:
-             logging.getLogger("yads.modules.dns").error(f"Hackertarget fallback failed: {e}")
+             logger.error(f"Hackertarget fallback failed: {e}")
 
         return list(subs)
 
@@ -434,7 +434,7 @@ class SubdomainScanner(DNSRecordScanner):
         or e-mail address found in the target's TLS certificate.
         Returns a sorted list of related domains (excluding the target itself).
         """
-        log = logging.getLogger("yads.modules.dns")
+        log = logger
         try:
             from yads.modules.ssl_scanner import SSLScanner
             from yads.modules.crtSH_client import search_by_org
