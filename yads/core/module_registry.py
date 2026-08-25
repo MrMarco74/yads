@@ -40,7 +40,7 @@ class ModuleDef:
         "name", "label", "label_de", "category", "module_path",
         "worker_note", "requires_http", "requires_https", "default_on",
         "finding_module", "extractor", "custom_dispatch", "report_view", "passive",
-        "requires_binary", "degraded_without_binary",
+        "requires_binary", "degraded_without_binary", "beta",
     )
 
     def __init__(
@@ -61,6 +61,7 @@ class ModuleDef:
         passive: bool = True,
         requires_binary: Optional[str] = None,
         degraded_without_binary: Optional[str] = None,
+        beta: bool = False,
     ):
         self.name = name
         self.label = label
@@ -81,6 +82,10 @@ class ModuleDef:
         self.requires_binary = requires_binary
         # Soft dependency: module works but degrades to fallback mode without this binary.
         self.degraded_without_binary = degraded_without_binary
+        # Beta/experimental: hidden from the scan UI unless a tenant explicitly
+        # opts in (TenantModuleConfig.enabled=True). Lets a module ship to
+        # opt-in tenants before a global rollout. See get_scan_categories.
+        self.beta = beta
 
     def get_report_url(self) -> str:
         """Return the report URL — explicit override or auto-generated generic."""
@@ -873,14 +878,19 @@ def get_simple_dispatch_modules() -> List[ModuleDef]:
     return [defn for defn in REGISTRY.values() if not defn.custom_dispatch and defn.module_path]
 
 
-def get_scan_categories(prefix: str = "sc", enabled_modules: Optional[set] = None) -> List[Dict]:
+def get_scan_categories(prefix: str = "sc", enabled_modules: Optional[set] = None,
+                        beta_opted_in: Optional[set] = None) -> List[Dict]:
     """
     Return categorized module structure for scan type UI.
     Used by target_detail and target_table templates.
 
     prefix: CSS group prefix ("sc" for target_detail, "t" for target_table)
     enabled_modules: optional set of module names enabled for this tenant (None = all enabled)
+    beta_opted_in: module names the tenant has explicitly opted into. A module
+        marked beta=True is hidden unless its name is in this set (opt-in
+        rollout); non-beta modules are unaffected.
     """
+    beta_opted_in = beta_opted_in or set()
     # Modules to show in the scan UI (exclude OSINT-only/internal)
     UI_MODULES = {
         "subdomain_scanner", "dns_scanner", "axfr_scanner", "tld_scanner",
@@ -926,6 +936,7 @@ def get_scan_categories(prefix: str = "sc", enabled_modules: Optional[set] = Non
             if defn.category == cat_id
             and defn.name in UI_MODULES
             and (enabled_modules is None or defn.name in enabled_modules)
+            and (not defn.beta or defn.name in beta_opted_in)
         ]
         if modules:
             result.append({

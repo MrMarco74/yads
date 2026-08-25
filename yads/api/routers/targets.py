@@ -80,20 +80,26 @@ def _audit_scan_trigger(session, user, domains: list, scan_types: list, trigger:
 
 
 def _get_scan_categories_for_user(session: Session, user: User, prefix: str):
-    """Return scan categories filtered by modules enabled for the user's tenant."""
+    """Return scan categories filtered by modules enabled for the user's tenant.
+
+    A TenantModuleConfig row with enabled=False hides a normal module; a row
+    with enabled=True opts the tenant into a beta module (beta modules are
+    hidden by default — see ModuleDef.beta / get_scan_categories).
+    """
     if user.tenant_id is None:
         return get_scan_categories(prefix)
     configs = session.exec(
         select(TenantModuleConfig).where(
             TenantModuleConfig.tenant_id == user.tenant_id,
-            TenantModuleConfig.enabled == False,
         )
     ).all()
-    disabled = {c.module_name for c in configs}
-    if not disabled:
-        return get_scan_categories(prefix)
-    enabled = {name for name in REGISTRY if name not in disabled}
-    return get_scan_categories(prefix, enabled_modules=enabled)
+    disabled = {c.module_name for c in configs if not c.enabled}
+    beta_opted_in = {
+        c.module_name for c in configs
+        if c.enabled and c.module_name in REGISTRY and REGISTRY[c.module_name].beta
+    }
+    enabled = None if not disabled else {name for name in REGISTRY if name not in disabled}
+    return get_scan_categories(prefix, enabled_modules=enabled, beta_opted_in=beta_opted_in)
 
 from celery import Celery
 from yads.config import settings
