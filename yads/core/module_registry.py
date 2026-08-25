@@ -887,6 +887,10 @@ def get_scan_categories(prefix: str = "sc", enabled_modules: Optional[set] = Non
         "typosquat_scanner", "rpki_scanner",
         "web_analyzer", "ssl_scanner", "http_headers", "cookie_scanner",
         "cors_scanner", "csp_scanner", "security_txt", "cert_mismatch",
+        # custom_dispatch (so not auto-added below), but default_on=False and
+        # meant to stay opt-in in the UI — must be listed explicitly or the
+        # "Catch-All Page Detector" checkbox disappears from the scan pickers.
+        "catchall_detector",
         "email_security", "dsgvo_scanner", "git_exposure", "seed_files_scanner",
         "metadata_scanner",
         "shodan_censys", "js_secrets", "wayback_scanner", "external_resources",
