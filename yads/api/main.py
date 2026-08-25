@@ -427,7 +427,7 @@ celery_app = Celery("yads_worker", broker=settings.REDIS_URL, backend=settings.R
 # -- Routers --
 
 # -- Routers --
-from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, v1_queue, v1_tags, v1_scan, v1_targets, v1_findings, v1_reports, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports, third_party_domains, metadata_leaks, mitre_navigator, nis2_measures, dora_evidence, dormant_domains, compliance_wizard
+from yads.api.routers import analytics, auth, users, changelog, help, profile, queue, notifications, osint, tenant_settings, compliance, reports, ports, email_security, secrets, tech_drift, cert_timeline, asr, cloud_assets, search, setup, archived, workers, mobile, storage, metrics, report_builder, v1, v1_queue, v1_tags, v1_scan, v1_targets, v1_findings, v1_reports, v1_discovery, pqc, security_findings, changes, attack_surface, scan_compare, scan_modules, scanner_import, scan_profiles, integrations, nuclei_suggestions, portfolio, executive_report, attack_path, ai_assistant, module_reports, waf_analysis, developer, onboarding, sysmetrics, discovery, addon_reports, third_party_domains, metadata_leaks, mitre_navigator, nis2_measures, dora_evidence, dormant_domains, compliance_wizard
 # Include Setup Router FIRST to ensure it handles its requests before others if overlap (though unique prefix avoids this)
 app.include_router(setup.router)
 
@@ -504,6 +504,7 @@ app.include_router(v1_scan.router)
 app.include_router(v1_targets.router)
 app.include_router(v1_findings.router)
 app.include_router(v1_reports.router)
+app.include_router(v1_discovery.router)
 app.include_router(dashboard.router)
 app.include_router(graphs.router)
 app.include_router(targets.router)
