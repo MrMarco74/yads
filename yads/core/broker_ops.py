@@ -43,6 +43,39 @@ def purge_broker_queues(broker_url: str, queue_names=("celery", "discovery")) ->
     return purged
 
 
+def get_broker_queue_depth(broker_url: str, queue_names=("celery", "discovery")) -> dict:
+    """Return {queue_name: ready_message_count}, read non-destructively from the
+    broker via a passive queue_declare (which reports the queue's message count
+    without consuming anything).
+
+    This is the authoritative pending-scan count. The queue UI historically read
+    a Redis list named "celery", which is meaningless against the RabbitMQ broker
+    actually in use, so its backlog numbers were a guess. A queue that does not
+    exist, or an unreachable broker, reports 0 rather than raising.
+    """
+    depths = {q: 0 for q in queue_names}
+    try:
+        with Connection(broker_url) as conn:
+            for queue_name in queue_names:
+                # A passive declare on a missing queue raises and closes the
+                # channel, so use a fresh channel per queue.
+                try:
+                    channel = conn.channel()
+                    try:
+                        res = channel.queue_declare(queue_name, passive=True)
+                        depths[queue_name] = int(getattr(res, "message_count", 0) or 0)
+                    finally:
+                        try:
+                            channel.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    depths[queue_name] = 0
+    except Exception as exc:
+        logger.error(f"[Depth] broker connection failed: {exc}")
+    return depths
+
+
 def _message_task_args(msg):
     """Extract the run_all_scans positional args [target_id, domain, scan_types,
     tenant_id] from a kombu message, or None if it can't be decoded. Prefers the

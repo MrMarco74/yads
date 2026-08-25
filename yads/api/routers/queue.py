@@ -209,6 +209,15 @@ async def view_queue(
     # db_queued_total already covers everything; Redis-decoded tasks are a subset of those.
     queue_length = db_queued_total
 
+    # broker_depth: the REAL number of ready messages in the RabbitMQ broker,
+    # read non-destructively. This is the authoritative pending count — the
+    # Redis-list and DB-status numbers above are proxies that can silently
+    # diverge from what the broker actually holds (see the broker-backlog
+    # incident where a 51k RabbitMQ backlog was invisible to the UI).
+    from yads.core.broker_ops import get_broker_queue_depth
+    broker_depth_by_queue = get_broker_queue_depth(settings.BROKER_URL)
+    broker_depth = sum(broker_depth_by_queue.values())
+
     return templates.TemplateResponse("queue.html", {
         "request": request,
         "user": user,
@@ -217,6 +226,8 @@ async def view_queue(
         "scheduled_tasks": scheduled_tasks,
         "queued_tasks": all_queued,
         "queue_length": queue_length,
+        "broker_depth": broker_depth,
+        "broker_depth_by_queue": broker_depth_by_queue,
         "queue_active": queue_active,
         "worker_nodes": worker_nodes,
         "settings": settings
