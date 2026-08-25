@@ -1,3 +1,10 @@
+# DEPRECATED / UNUSED as of 2026-08-25 — no longer referenced by the Dockerfile.
+# The api and worker images now BOTH install the full requirements.txt (only the
+# heavy binaries — Chromium, Nuclei, Nmap — remain worker-only), because a slim
+# api dependency subset caused ModuleNotFoundError crash-loops whenever the API
+# loaded any code that imported a scanner module (the bs4 incident). Kept only
+# for historical reference; edit requirements.txt instead.
+#
 # API-only dependencies — used by the FastAPI server container.
 # Worker-only packages (playwright, imagehash, mmh3, ipwhois, python-whois,
 # Pillow) are intentionally excluded; see requirements.txt for the

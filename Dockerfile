@@ -30,14 +30,24 @@ RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements-api.txt .
+# Install the FULL Python dependency set in the base image shared by BOTH the
+# api and worker targets. The api image used to install a slim
+# requirements-api.txt subset that omitted scanner-module deps (beautifulsoup4,
+# etc.); any code path the API loaded that imported a scanner module then
+# crash-looped the api container with ModuleNotFoundError (see the bs4 incident
+# 2026-08-24). Sharing one requirements.txt eliminates that whole asymmetry.
+# Only the *heavy binaries* (Chromium browser, Nuclei, Nmap) remain worker-only
+# in base-scanner below — the api never executes those, it dispatches to the
+# worker — so the api image stays free of the multi-GB Chromium download.
+COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip==25.3 wheel==0.46.2 && \
     pip install --no-cache-dir "jaraco.context>=6.1.0" && \
-    pip install --no-cache-dir -r requirements-api.txt
+    pip install --no-cache-dir -r requirements.txt
 
 
 # ── Stage 3: Scanner-tools layer ──────────────────────────────────────────────
-# Extends base-api with Nuclei, Playwright/Chromium and Nmap + full requirements.
+# Extends base-api with the heavy scanner BINARIES only (Python deps are already
+# installed in base-api): Nuclei, Nmap, and the Playwright/Chromium browser.
 # Used for local dev builds (docker-compose.yml --target dev) and the worker target.
 # Nuclei templates are NOT baked in — provided via volume (nuclei_templates:/root/nuclei-templates).
 FROM base-api AS base-scanner
@@ -55,12 +65,9 @@ RUN wget -q https://github.com/projectdiscovery/nuclei/releases/download/v3.3.4/
     && mv nuclei /usr/local/bin/ \
     && rm nuclei_3.3.4_linux_amd64.zip
 
-# Full worker deps (imagehash, mmh3, ipwhois, Pillow, psutil, etc.) + Playwright/Chromium
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip==25.3 wheel==0.46.2 && \
-    pip install --no-cache-dir "jaraco.context>=6.1.0" && \
-    pip install --no-cache-dir -r requirements.txt \
-    && playwright install --with-deps chromium
+# Playwright browser (the pip package itself is already in base-api via
+# requirements.txt; this downloads the Chromium binary + its OS deps).
+RUN playwright install --with-deps chromium
 
 
 # ── Stage 4: API image (production, no scanner tools) ─────────────────────────
