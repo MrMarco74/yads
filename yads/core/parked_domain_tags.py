@@ -40,9 +40,28 @@ PARKED_TAG_MAP: Dict[str, str] = {
 }
 
 
+# NS-based detection (Layer 0) passes matched_signature as "ns:<provider>",
+# e.g. "ns:sedoparking.com". Map the provider domain to the same tag the HTTP
+# signature layer uses, so DNS-delegated parking is tagged consistently.
+PARKED_NS_TAG_MAP: Dict[str, str] = {
+    "sedoparking.com": "sedoparking",
+    "bodis.com": "bodis-parked",
+    "parkingcrew.net": "parkingcrew-parked",
+    "afternic.com": "afternic-parked",
+    "dan.com": "dan-parked",
+    "hugedomains.com": "hugedomains-parked",
+    "cashparking.com": "godaddy-parked",
+    "domaincntrol.com": "godaddy-parked",
+}
+
+
 def tag_parked_domain(session: Session, target_id: int, matched_signature: Optional[str]) -> None:
     """Append the tag mapped from matched_signature to the target, if not already present."""
-    tag = PARKED_TAG_MAP.get(matched_signature, "parked")
+    if matched_signature and matched_signature.startswith("ns:"):
+        provider = matched_signature[3:]
+        tag = PARKED_NS_TAG_MAP.get(provider, "parked")
+    else:
+        tag = PARKED_TAG_MAP.get(matched_signature, "parked")
     target = session.get(Target, target_id)
     if target and tag not in (target.tags or []):
         new_tags = list(target.tags or [])

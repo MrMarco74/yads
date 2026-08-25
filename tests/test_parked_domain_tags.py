@@ -107,3 +107,36 @@ def test_tag_parked_domain_handles_null_tags(session):
     tag_parked_domain(session, target.id, "sedo")
     session.refresh(target)
     assert target.tags == ["sedoparking"]
+
+
+def _get_or_reset_target(db_session, tenant_id, domain):
+    from yads.models import Target
+    from sqlmodel import select
+    t = db_session.exec(select(Target).where(Target.domain == domain)).first()
+    if t:
+        t.tags = []
+        db_session.add(t); db_session.commit(); db_session.refresh(t)
+        return t
+    t = Target(domain=domain, tenant_id=tenant_id, tags=[])
+    db_session.add(t); db_session.commit(); db_session.refresh(t)
+    return t
+
+
+def test_ns_based_signature_maps_to_provider_tag(db_session, test_tenant):
+    """NS-based detection (matched_signature 'ns:<provider>') should map to the
+    same provider tag as the HTTP signature, not the generic 'parked'."""
+    from yads.core.parked_domain_tags import tag_parked_domain
+
+    t = _get_or_reset_target(db_session, test_tenant.id, "ns-parked-fixture.example.com")
+    tag_parked_domain(db_session, t.id, "ns:sedoparking.com")
+    db_session.refresh(t)
+    assert "sedoparking" in t.tags
+
+
+def test_ns_unknown_provider_falls_back_to_parked(db_session, test_tenant):
+    from yads.core.parked_domain_tags import tag_parked_domain
+
+    t = _get_or_reset_target(db_session, test_tenant.id, "ns-unknown-fixture.example.com")
+    tag_parked_domain(db_session, t.id, "ns:some-unknown-parker.example")
+    db_session.refresh(t)
+    assert "parked" in t.tags

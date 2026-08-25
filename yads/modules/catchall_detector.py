@@ -67,6 +67,29 @@ PARKING_SIGNATURES = [
     ("hetzner_default", "hetzner online"),
 ]
 
+# Known parking/marketplace nameserver suffixes. A domain delegated to any of
+# these is parked at the DNS level regardless of what (if anything) it serves
+# over HTTP — the most reliable "this brand-variant is parked" signal for
+# shadow-domain hunting. Matched as a suffix of each NS hostname (lowercased).
+PARKING_NAMESERVERS = [
+    "sedoparking.com",
+    "bodis.com",
+    "parkingcrew.net",
+    "dan.com",
+    "above.com",
+    "afternic.com",
+    "hugedomains.com",
+    "parklogic.com",
+    "voodoo.com",
+    "domaincntrol.com",   # GoDaddy/Afternic parking
+    "cashparking.com",    # GoDaddy CashParking
+    "parkingpage.namecheap.com",
+    "registrar-servers.com",  # Namecheap parking
+    "fabulous.com",
+    "sav.com",
+    "undeveloped.com",
+]
+
 
 class CatchallDetectorScanner(BaseScannerModule):
     # Whether Layer 3 (LLM classification fallback) is allowed to run at all.
@@ -100,6 +123,29 @@ class CatchallDetectorScanner(BaseScannerModule):
         logger.info(f"[CatchallDetector] Checking {target}")
         session = requests.Session()
         session.headers["User-Agent"] = "YADS-SecurityBot/1.0"
+
+        # ── Layer 0: NS-based parking (free, DNS-only) ──────────────────────
+        # Runs before any HTTP fetch: a domain delegated to a known parking
+        # provider is parked by definition, even if it never answers HTTP or
+        # serves content that doesn't match an HTTP signature.
+        ns_provider = self._check_parking_ns(target)
+        if ns_provider:
+            return {
+                "is_catch_all": True,
+                "detection_method": "parking_ns",
+                "matched_signature": f"ns:{ns_provider}",
+                "http_status": 0,
+                "page_title": None,
+                "final_url": None,
+                "server_header": None,
+                "vhost_comparison": None,
+                "llm_classification": None,
+                "error": None,
+                "findings": [{
+                    "severity": "high",
+                    "title": f"Domain is delegated to a parking provider ({ns_provider})",
+                }],
+            }
 
         fetch = self._fetch(target, session)
         if fetch is None:
@@ -186,6 +232,38 @@ class CatchallDetectorScanner(BaseScannerModule):
         return result
 
     # ------------------------------------------------------------------
+
+    def _resolve_nameservers(self, host: str) -> list:
+        """Return the NS hostnames authoritative for `host`'s registrable domain
+        (lowercased, trailing dot preserved). Empty list on any resolution
+        failure. Uses the registrable domain because NS delegation lives at the
+        zone apex, not on individual subdomains."""
+        try:
+            import dns.resolver
+        except Exception:
+            return []
+        ext = tldextract.extract(host)
+        zone = f"{ext.domain}.{ext.suffix}" if ext.domain and ext.suffix else host
+        try:
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 3.0
+            resolver.lifetime = 5.0
+            answers = resolver.resolve(zone, "NS")
+            return [str(r).lower() for r in answers]
+        except Exception as e:
+            logger.debug(f"[CatchallDetector] NS lookup failed for {zone}: {e}")
+            return []
+
+    def _check_parking_ns(self, host: str) -> Optional[str]:
+        """Return the parking provider (e.g. 'sedoparking.com') if `host` is
+        delegated to a known parking nameserver, else None."""
+        nameservers = self._resolve_nameservers(host)
+        for ns in nameservers:
+            ns_clean = ns.rstrip(".")
+            for provider in PARKING_NAMESERVERS:
+                if ns_clean == provider or ns_clean.endswith("." + provider):
+                    return provider
+        return None
 
     def _fetch(self, host: str, session: requests.Session) -> Optional[Tuple[int, str, Optional[str], Optional[str], str]]:
         """Try https then http. Returns (status, final_url, server_header, title, text) or None."""
