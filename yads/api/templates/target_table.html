@@ -440,11 +440,29 @@
                                 </select>
                             </th>
                             <!-- Catch-All -->
-                            <th class="p-2"></th>
+                            <th class="p-2">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_catchall">
+                                    <option value="all" {% if not filter_catchall or filter_catchall == 'all' %}selected{% endif %}>-</option>
+                                    <option value="yes" {% if filter_catchall == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if filter_catchall == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </th>
                             <!-- Dormant -->
-                            <th class="p-2"></th>
+                            <th class="p-2">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_dormant">
+                                    <option value="all" {% if not filter_dormant or filter_dormant == 'all' %}selected{% endif %}>-</option>
+                                    <option value="yes" {% if filter_dormant == 'yes' %}selected{% endif %}>Yes</option>
+                                    <option value="no" {% if filter_dormant == 'no' %}selected{% endif %}>No</option>
+                                </select>
+                            </th>
                             <!-- TLDs -->
-                            <th class="p-2"></th>
+                            <th class="p-2">
+                                <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_tld">
+                                    <option value="all" {% if not filter_tld or filter_tld == 'all' %}selected{% endif %}>-</option>
+                                    <option value="risk" {% if filter_tld == 'risk' %}selected{% endif %}>Diff-owner</option>
+                                    <option value="free" {% if filter_tld == 'free' %}selected{% endif %}>Free</option>
+                                </select>
+                            </th>
                             <!-- Status -->
                             <th class="p-2">
                                  <select class="column-filter w-full bg-slate-950 border border-slate-600 rounded px-1 py-1 text-[10px] text-white focus:border-indigo-500" data-param="filter_scan_status">

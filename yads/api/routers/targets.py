@@ -1112,6 +1112,9 @@ async def view_target_table(
     filter_secrets: Optional[str] = None,
     filter_takeover: Optional[str] = None,
     filter_ssl: Optional[str] = None,
+    filter_catchall: Optional[str] = None, # "yes", "no", "all"
+    filter_dormant: Optional[str] = None,  # "yes", "no", "all"
+    filter_tld: Optional[str] = None,      # "risk", "free", "all"
     
     # New: Persist Scan Options
     scan_types: List[str] = Query(None),
@@ -1371,7 +1374,45 @@ async def view_target_table(
             ScanResult.module_name == 'infrastructure_scanner',
             text("(data->'asn'->>'asn' ILIKE :asn OR data->'asn'->>'asn_description' ILIKE :asn)").bindparams(asn=search_asn)
         ).distinct()
-        query = query.where(Target.id.in_(sub_asn)) 
+        query = query.where(Target.id.in_(sub_asn))
+
+    # -- Filter: Catch-All / Parked (catchall_detector) --
+    # Mirrors the row's is_catch_all column (catchall_detector data.is_catch_all).
+    if filter_catchall and filter_catchall != "all":
+        is_ca = "true" if filter_catchall == "yes" else "false"
+        sub_ca = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'catchall_detector',
+            text("data->>'is_catch_all' = :val").bindparams(val=is_ca)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_ca))
+
+    # -- Filter: Dormant (dormant_detector) --
+    # Mirrors the row's is_dormant column (dormant_detector data.is_dormant).
+    if filter_dormant and filter_dormant != "all":
+        is_dm = "true" if filter_dormant == "yes" else "false"
+        sub_dm = select(ScanResult.target_id).where(
+            ScanResult.module_name == 'dormant_detector',
+            text("data->>'is_dormant' = :val").bindparams(val=is_dm)
+        ).distinct()
+        query = query.where(Target.id.in_(sub_dm))
+
+    # -- Filter: TLD variations (tld_scanner) --
+    # Mirrors the TLDS column: "risk" = TLD variants registered by a different
+    # owner (data.registered_count_diff_owner > 0); "free" = unregistered TLD
+    # variants available (data.free_count > 0).
+    if filter_tld and filter_tld != "all":
+        if filter_tld == "risk":
+            _tld_cond = "(data->>'registered_count_diff_owner')::int > 0"
+        elif filter_tld == "free":
+            _tld_cond = "(data->>'free_count')::int > 0"
+        else:
+            _tld_cond = None
+        if _tld_cond:
+            sub_tld = select(ScanResult.target_id).where(
+                ScanResult.module_name == 'tld_scanner',
+                text(_tld_cond)
+            ).distinct()
+            query = query.where(Target.id.in_(sub_tld))
 
     # -- Filter: Scope (Internal vs External) --
     INTERNAL_TLDS = ['.vrnet', '.internal', '.local', '.lan', '.test']
@@ -1635,7 +1676,10 @@ async def view_target_table(
         "filter_redirect": filter_redirect,
         "filter_wildcard": filter_wildcard,
         "filter_scan_status": filter_scan_status,
-        
+        "filter_catchall": filter_catchall,
+        "filter_dormant": filter_dormant,
+        "filter_tld": filter_tld,
+
         "filter_scope": filter_scope,
         "filter_root_domain": filter_root_domain,
         "filter_roots_only": filter_roots_only,
