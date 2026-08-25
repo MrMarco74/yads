@@ -962,6 +962,28 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
         _worker_client.report_task_completed(celery_task_id, success=True)
 
 
+def _scan_needs_web_precheck(scan_types: list) -> bool:
+    """Whether run_all_scans must probe HTTP/HTTPS reachability before running
+    the selected modules.
+
+    catchall_detector is included explicitly: it is custom_dispatch (and so
+    excluded from get_simple_dispatch_modules()), yet the parked-domain
+    pre-check/tagging gate in _check_parked_domain depends on has_http/has_https.
+    Without probing web for a catchall-only scan, has_http/has_https stay False,
+    _check_parked_domain short-circuits, and parked domains are never tagged.
+    """
+    explicit = (
+        "web_analyzer", "visual_osint", "ssl_scanner", "nuclei_scanner",
+        "crawler", "content_discovery", "catchall_detector",
+    )
+    if any(x in scan_types for x in explicit):
+        return True
+    return any(
+        m.requires_http or m.requires_https
+        for m in get_simple_dispatch_modules() if m.name in scan_types
+    )
+
+
 def _check_parked_domain(session, target_id: int, domain: str, has_http: bool, has_https: bool, scan_types: list) -> bool:
     """
     Runs catchall_detector's live check and returns whether the domain is
@@ -1253,11 +1275,7 @@ def run_all_scans(
             # Pre-check web availability
             has_http = False
             has_https = False
-            from yads.core.module_registry import get_simple_dispatch_modules as _get_sdm
-            _needs_web = (
-                any(x in scan_types for x in ["web_analyzer", "visual_osint", "ssl_scanner", "nuclei_scanner", "crawler", "content_discovery"])
-                or any(m.requires_http or m.requires_https for m in _get_sdm() if m.name in scan_types)
-            )
+            _needs_web = _scan_needs_web_precheck(scan_types)
             if _needs_web:
                 logger.info(f"[Worker] Pre-checking web availability for {domain}...")
                 has_http, has_https = check_web(domain)
