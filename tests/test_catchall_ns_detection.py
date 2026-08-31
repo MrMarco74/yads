@@ -17,8 +17,8 @@ def test_matches_sedoparking_nameservers():
 def test_no_match_for_legitimate_nameservers():
     from yads.modules.catchall_detector import CatchallDetectorScanner
     s = CatchallDetectorScanner(db_session=None)
-    with patch.object(s, "_resolve_nameservers", return_value=["ns1.musterbank.de.", "ns2.musterbank.de."]):
-        assert s._check_parking_ns("musterbank.co.uk") is None
+    with patch.object(s, "_resolve_nameservers", return_value=["ns1.examplecorp.de.", "ns2.examplecorp.de."]):
+        assert s._check_parking_ns("examplecorp.co.uk") is None
 
 
 def test_no_match_when_no_nameservers():

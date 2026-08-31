@@ -12,10 +12,15 @@ secret_scan:
   script:
     - trivy fs --scanners secret --exit-code 1 .
     - |
-      # Excludes this file itself and mirror_to_github.sh: they legitimately
-      # contain the pattern text as denylist config, not as a leak.
-      DENYLIST='musterbank|redacted|familie-frischkorn\.de|highantdev\.de|fritz\.box'
-      if grep -rEIl "$DENYLIST" --exclude-dir=.git --exclude=.gitlab-ci.yml --exclude=mirror_to_github.sh . ; then
+      # The denylist of customer/private terms is NOT stored in this repo --
+      # the pattern itself would be the leak. Provide it as the masked CI/CD
+      # variable MIRROR_DENYLIST (Settings > CI/CD > Variables).
+      DENYLIST="${MIRROR_DENYLIST:-}"
+      if [ -z "$DENYLIST" ]; then
+        echo "MIRROR_DENYLIST CI/CD variable is not set; failing closed." >&2
+        exit 1
+      fi
+      if grep -rEIl "$DENYLIST" --exclude-dir=.git . ; then
         echo "Denylisted term found above." >&2
         exit 1
       fi

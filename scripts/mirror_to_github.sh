@@ -11,11 +11,21 @@ cd "$REPO_ROOT"
 
 BEGIN_PATTERN="BEGIN (RSA |OPENSSH |PGP )?PRIVATE KEY"
 END_PATTERN="END (RSA |OPENSSH |PGP )?PRIVATE KEY"
-DENYLIST='musterbank|redacted|familie-frischkorn\.de|highantdev\.de|fritz\.box'
-# This scan's own config (this script + .gitlab-ci.yml) legitimately contains
-# the DENYLIST pattern text as configuration, not a leak -- exclude them so
-# the scanner doesn't trip over its own source.
-SCAN_EXCLUDES=(':(exclude)scripts/mirror_to_github.sh' ':(exclude).gitlab-ci.yml')
+# The denylist of customer/private terms is deliberately NOT stored in the
+# repo -- the pattern itself would be the leak. It comes from
+# $YADS_MIRROR_DENYLIST or the local file below (see docs/ or the team vault
+# for the canonical value). Missing config fails the push closed.
+DENYLIST_FILE="${YADS_MIRROR_DENYLIST_FILE:-$HOME/.yads/mirror-denylist}"
+DENYLIST="${YADS_MIRROR_DENYLIST:-}"
+if [ -z "$DENYLIST" ] && [ -r "$DENYLIST_FILE" ]; then
+    DENYLIST="$(head -n1 "$DENYLIST_FILE")"
+fi
+if [ -z "$DENYLIST" ]; then
+    echo "$LOG_PREFIX no denylist configured (set YADS_MIRROR_DENYLIST or create" >&2
+    echo "$LOG_PREFIX $DENYLIST_FILE); refusing to mirror to a public remote." >&2
+    exit 1
+fi
+SCAN_EXCLUDES=()
 
 # A real embedded PEM key always has both a BEGIN and an END line; a bare
 # BEGIN match alone is usually just a detection-pattern string literal (yads

@@ -19,14 +19,14 @@ def discovery_fixture(db_session, test_tenant):
     ).first()
     if not sess:
         sess = DiscoverySession(tenant_id=test_tenant.id, name="wave5-fixture-session",
-                                seed_domains=["musterbank.de"], status="completed",
+                                seed_domains=["examplecorp.de"], status="completed",
                                 total_discovered=2)
         db_session.add(sess); db_session.commit(); db_session.refresh(sess)
 
     db_session.exec(delete(DiscoveryCandidate).where(DiscoveryCandidate.session_id == sess.id))
     db_session.commit()
-    for dom, score, status in [("shadow1.musterbank.uk", 0.9, "pending"),
-                               ("shadow2.musterbank.uk", 0.5, "accepted")]:
+    for dom, score, status in [("shadow1.examplecorp.uk", 0.9, "pending"),
+                               ("shadow2.examplecorp.uk", 0.5, "accepted")]:
         db_session.add(DiscoveryCandidate(
             session_id=sess.id, domain=dom, source_scanner="dns_scanner",
             relevance_score=score, status=status, matching_signals=["brand"],
@@ -78,7 +78,7 @@ def test_list_discovery_candidates(api_key_client, discovery_fixture):
     r = api_key_client.get(f"/api/v1/discovery/sessions/{sid}/candidates")
     assert r.status_code == 200
     domains = {c["domain"] for c in r.json()["items"]}
-    assert {"shadow1.musterbank.uk", "shadow2.musterbank.uk"} <= domains
+    assert {"shadow1.examplecorp.uk", "shadow2.examplecorp.uk"} <= domains
 
 
 def test_list_discovery_candidates_filter_status(api_key_client, discovery_fixture):

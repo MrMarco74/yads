@@ -5,16 +5,16 @@ Author: Claude (with mrmarco), 2026-08-23
 
 ## Context
 
-Musterbank's ITDS team (the user's department) is under DORA pressure to maintain
+The user's ITDS team is under DORA pressure to maintain
 a complete inventory of the bank's internet-facing domains. Two related but
 distinct problems exist:
 
 1. **Known-domain hygiene**: ~6000 domains are already registered as YADS
    `Target` rows. Nobody has run a systematic reachability → webserver
    detection → deep content scan pass across all of them.
-2. **Shadow domains**: business departments at Musterbank bypass ITDS and
-   register new domains carrying Musterbank branding (e.g. containing
-   "acmecorp"/"muster-bank") that are never added as YADS targets and thus never
+2. **Shadow domains**: business departments bypass ITDS and
+   register new domains carrying corporate brand names (e.g. containing
+   "acmecorp") that are never added as YADS targets and thus never
    monitored. Finding these is the actual DORA compliance gap — it's not
    "do we know about the domains we track," it's "what don't we know about."
 
@@ -37,7 +37,7 @@ underneath.
 - Stage the known 6000 targets through reachability+webserver-detection,
   then deep content scan, without ever running the expensive crawl step
   against targets that don't have a live webserver.
-- Stand up a recurring "Brand Watch" for the keyword "acmecorp"/"muster-bank"
+- Stand up a recurring "Brand Watch" for the keyword "acmecorp"
   that periodically searches Certificate Transparency logs and enumerates
   the keyword across a broad TLD list, diffs against known targets, and
   surfaces new candidates for human triage.
@@ -47,13 +47,13 @@ underneath.
 ## Non-goals (v1)
 
 - WHOIS/RDAP reverse search and passive-DNS integration — both require
-  paid third-party APIs Musterbank doesn't have yet. The `BrandWatch` data
+  paid third-party APIs the organisation doesn't have yet. The `BrandWatch` data
   model and the source-discovery code path are designed to be pluggable so
   a second source can be added later without a schema change (see
   `ShadowDomainCandidate.source` below), but no such integration ships now.
 - Subsidiary/sub-brand keywords (VR-Bank, Union Investment, DZ HYP,
   TeamBank, etc.) — explicitly out of scope per user decision; only the
-  main "acmecorp"/"muster-bank" keyword is watched in v1.
+  main "acmecorp" keyword is watched in v1.
 - Any new scanning logic. Steps 1–3 of the wizard are orchestration over
   existing `run_all_scans` / bulk-scan machinery; no scanner module
   behavior changes.

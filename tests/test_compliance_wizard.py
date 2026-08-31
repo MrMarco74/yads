@@ -498,7 +498,7 @@ class TestBrandWatchScan:
 
         monkeypatch.setattr(worker_tasks, "_brand_watch_ct_client", FakeClient())
 
-        worker_tasks._ct_search_keyword("musterbank & co #test")
+        worker_tasks._ct_search_keyword("example corp & co #test")
 
         assert len(captured_urls) == 1
         url = captured_urls[0]

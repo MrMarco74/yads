@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- v1 brand keyword scope: main "acmecorp"/"muster-bank" only, matching case-insensitively, hyphen-optional — no subsidiary-brand support.
+- v1 brand keyword scope: main "acmecorp" only, matching case-insensitively, hyphen-optional — no subsidiary-brand support.
 - v1 data sources: crt.sh Certificate Transparency search + TLD enumeration only. No WHOIS/RDAP/passive-DNS integration (schema leaves room via `ShadowDomainCandidate.source`, but no such source ships).
 - No new scanning logic — steps 1–3 of the wizard dispatch existing `run_all_scans` with different `scan_types` subsets; no scanner module behavior changes.
 - Task-name convention: any new Celery task uses `name="yads.worker.<func_name>"` regardless of which file it's defined in (matches existing `worker_tasks.py` convention).
@@ -1387,7 +1387,7 @@ In `compliance_wizard.html`, add below the "Brand Watches" block:
                     <button type="submit" class="text-emerald-400 hover:text-emerald-300">Confirm</button>
                 </form>
                 <form method="post" action="/compliance-wizard/shadow-domains/{{ c.id }}/dismiss">
-                    <input type="hidden" name="reason" value="reviewed, not Musterbank-related">
+                    <input type="hidden" name="reason" value="reviewed, not brand-related">
                     <button type="submit" class="text-slate-500 hover:text-slate-300">Dismiss</button>
                 </form>
             </span>
