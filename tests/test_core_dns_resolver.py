@@ -1,4 +1,5 @@
 import dns.resolver
+import pytest
 
 from yads.core.dns_resolver import DNS_SERVER_ENV, make_resolver
 
@@ -39,3 +40,23 @@ def test_defaults_match_dnspython(monkeypatch):
     monkeypatch.delenv(DNS_SERVER_ENV, raising=False)
     r = make_resolver()
     assert (r.timeout, r.lifetime) == (2.0, 5.0)
+
+
+def test_env_empty_string_raises(monkeypatch):
+    # Env var set to empty string should raise, not silently fall back
+    monkeypatch.setenv(DNS_SERVER_ENV, "")
+    with pytest.raises(ValueError, match="YADS_DNS_SERVER is set but contains no nameserver"):
+        make_resolver()
+
+
+def test_env_whitespace_only_raises(monkeypatch):
+    # Env var set to whitespace/commas only should raise
+    monkeypatch.setenv(DNS_SERVER_ENV, " , ")
+    with pytest.raises(ValueError, match="YADS_DNS_SERVER is set but contains no nameserver"):
+        make_resolver()
+
+
+def test_explicit_nameservers_ignore_empty_env(monkeypatch):
+    # Explicit nameservers should work even if env is set but empty
+    monkeypatch.setenv(DNS_SERVER_ENV, "")
+    assert make_resolver(nameservers=["192.0.2.1"]).nameservers == ["192.0.2.1"]
