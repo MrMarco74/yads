@@ -3,10 +3,12 @@ import json
 import os
 import shutil
 import tldextract
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Optional, List, Annotated
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, BackgroundTasks, HTTPException, Body, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select, func, text, or_, desc
@@ -352,30 +354,57 @@ async def bulk_import_targets(
     if not raw_text.strip():
         return RedirectResponse(url=f"{next_url}?msg=No+data+provided", status_code=303)
 
-    domains = list(set([l.strip().lower() for l in raw_text.splitlines() if l.strip()]))
+    # The import does blocking DNS lookups and DB queries -- run it off the
+    # event loop, otherwise a large list freezes every other request on this
+    # single-process API until it finishes.
+    stats = await run_in_threadpool(
+        _run_import, session, user, raw_text.splitlines(), discovery_reason, verify_dns
+    )
+    return RedirectResponse(url=f"{next_url}?msg={_format_import_msg(stats)}", status_code=303)
+
+
+# Parallel DNS lookups for the SSRF/liveness screening of an import.
+_IMPORT_DNS_CONCURRENCY = 32
+# Max domains per duplicate-check IN (...) query.
+_IMPORT_DUPLICATE_CHUNK = 1000
+
+
+def _run_import(session: Session, user: User, lines: List[str], discovery_reason, verify_dns: bool) -> dict:
+    """Import cleaned, deduplicated domains for the user's tenant (blocking)."""
+    domains = sorted({d for d in (_clean_domain(l) for l in lines if l.strip()) if d})
     stats = {"imported": 0, "duplicates": 0, "skipped_dns": 0}
 
-    for domain in domains:
-        domain = _clean_domain(domain)
-        if not domain: continue
+    with ThreadPoolExecutor(max_workers=_IMPORT_DNS_CONCURRENCY) as pool:
+        rejected = list(pool.map(lambda d: _is_rejected_import(d, verify_dns), domains))
+    candidates = [d for d, skip in zip(domains, rejected) if not skip]
+    stats["skipped_dns"] = len(domains) - len(candidates)
 
-        if _is_internal_target(domain):
-            stats["skipped_dns"] += 1
-            continue
-
-        if verify_dns and not _verify_domain_dns(domain):
-            stats["skipped_dns"] += 1
-            continue
-
-        if _is_duplicate_target(session, user, domain):
+    existing = _existing_target_domains(session, user.tenant_id, candidates)
+    for domain in candidates:
+        if domain in existing:
             stats["duplicates"] += 1
             continue
-
         session.add(Target(domain=domain, tenant_id=user.tenant_id, discovery_reason=discovery_reason))
         stats["imported"] += 1
 
     session.commit()
-    return RedirectResponse(url=f"{next_url}?msg={_format_import_msg(stats)}", status_code=303)
+    return stats
+
+
+def _is_rejected_import(domain: str, verify_dns: bool) -> bool:
+    """True if the domain is internal (SSRF) or, with verify_dns, does not resolve."""
+    return _is_internal_target(domain) or (verify_dns and not _verify_domain_dns(domain))
+
+
+def _existing_target_domains(session: Session, tenant_id, domains: List[str]) -> set:
+    """Domains from *domains* that already exist as targets of the tenant."""
+    existing = set()
+    for i in range(0, len(domains), _IMPORT_DUPLICATE_CHUNK):
+        chunk = domains[i:i + _IMPORT_DUPLICATE_CHUNK]
+        existing.update(session.exec(
+            select(Target.domain).where(Target.domain.in_(chunk), Target.tenant_id == tenant_id)
+        ).all())
+    return existing
 
 
 async def _read_uploaded_file(file: UploadFile) -> str:
@@ -441,11 +470,6 @@ def _verify_domain_dns(domain: str) -> bool:
         except Exception:
             continue
     return False
-
-
-def _is_duplicate_target(session: Session, user: User, domain: str) -> bool:
-    """Check if target already exists for tenant."""
-    return session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == user.tenant_id)).first() is not None
 
 
 def _format_import_msg(stats: dict) -> str:
