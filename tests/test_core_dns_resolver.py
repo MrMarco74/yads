@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import dns.resolver
 import pytest
 
@@ -60,3 +62,16 @@ def test_explicit_nameservers_ignore_empty_env(monkeypatch):
     # Explicit nameservers should work even if env is set but empty
     monkeypatch.setenv(DNS_SERVER_ENV, "")
     assert make_resolver(nameservers=["192.0.2.1"]).nameservers == ["192.0.2.1"]
+
+
+def test_no_direct_resolver_construction_outside_factory():
+    pkg = Path(__file__).resolve().parents[1] / "yads"
+    factory = pkg / "core" / "dns_resolver.py"
+    offenders = [
+        f"{path.relative_to(pkg)}:{lineno}"
+        for path in pkg.rglob("*.py")
+        if path != factory
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if "dns.resolver.Resolver(" in line
+    ]
+    assert offenders == [], f"use yads.core.dns_resolver.make_resolver: {offenders}"

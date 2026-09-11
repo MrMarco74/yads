@@ -3,6 +3,7 @@ import itertools
 import logging
 from typing import List, Dict, Any, Optional
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 
 class TyposquatScanner(BaseScannerModule):
     """
@@ -63,9 +64,7 @@ class TyposquatScanner(BaseScannerModule):
         found_squats = []
         
         # Shared resolver for efficiency/caching
-        shared_resolver = dns.resolver.Resolver()
-        shared_resolver.timeout = 1.0
-        shared_resolver.lifetime = 1.0
+        shared_resolver = make_resolver(timeout=1.0, lifetime=1.0)
 
         import concurrent.futures
 

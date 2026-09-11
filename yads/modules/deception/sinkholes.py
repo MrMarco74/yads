@@ -17,6 +17,8 @@ from datetime import datetime
 import requests
 import dns.resolver
 
+from yads.core.dns_resolver import make_resolver
+
 logger = logging.getLogger("yads.deception.sinkholes")
 
 
@@ -152,9 +154,7 @@ class SinkholeDetector:
 
     def __init__(self, timeout: int = 10):
         self.timeout = timeout
-        self._dns_resolver = dns.resolver.Resolver()
-        self._dns_resolver.timeout = timeout
-        self._dns_resolver.lifetime = timeout
+        self._dns_resolver = make_resolver(timeout=timeout, lifetime=timeout)
 
     def detect(self, domain: str) -> List[SinkholeDetection]:
         """

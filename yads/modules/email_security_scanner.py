@@ -12,6 +12,7 @@ import dns.resolver
 import dns.exception
 
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,7 @@ class EmailSecurityScanner(BaseScannerModule):
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         logger.info(f"[EmailSecurity] Starting for {target}")
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 3.0
-        resolver.lifetime = 5.0
+        resolver = make_resolver(timeout=3.0, lifetime=5.0)
 
         result: Dict[str, Any] = {
             "spf": self._check_spf(target, resolver),

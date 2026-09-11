@@ -34,6 +34,7 @@ from yads.core.splunk_logger import splunk_logger
 from yads.core.webhook_service import webhook_service
 from yads.core.base import sanitize_null_bytes
 from yads.core.metrics import get_metrics
+from yads.core.dns_resolver import make_resolver
 from urllib.parse import quote
 from yads.modules._shared_osint_utils import RateLimitedClient
 from yads.modules.tld_scanner import get_tld_list
@@ -383,9 +384,7 @@ def check_archived_target_reactivation():
             archived = session.exec(
                 select(Target).where(Target.is_archived == True, Target.archived_reason == "dns_dead")
             ).all()
-            resolver = dns.resolver.Resolver()
-            resolver.timeout = 3.0
-            resolver.lifetime = 5.0
+            resolver = make_resolver(timeout=3.0, lifetime=5.0)
             reactivation_candidates = 0
             for t in archived:
                 try:
@@ -737,7 +736,7 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
                     new_targets_count = 0
                     queued_count = 0
                     review_count = 0
-                    wildcard = WildcardCache(dns.resolver.Resolver())
+                    wildcard = WildcardCache(make_resolver())
 
                     for entry in subs:
                         sub_domain = entry.get("subdomain")
@@ -1651,7 +1650,7 @@ def run_all_scans(
                     if ssl_result and ssl_result.data and "extracted_domains" in ssl_result.data:
                         extracted = ssl_result.data["extracted_domains"]
                         new_found = 0
-                        wildcard = WildcardCache(dns.resolver.Resolver())
+                        wildcard = WildcardCache(make_resolver())
                         for edomain in extracted:
                             edomain = edomain.strip().lower()
                             if not edomain:
@@ -2157,9 +2156,7 @@ def _probe_keyword_across_tlds(keyword: str) -> list:
     def check(tld):
         candidate = f"{keyword}.{tld}"
         try:
-            resolver = dns.resolver.Resolver()
-            resolver.timeout = 2
-            resolver.lifetime = 2
+            resolver = make_resolver(timeout=2, lifetime=2)
             resolver.resolve(candidate, "A")
             return candidate
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):

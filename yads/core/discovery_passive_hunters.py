@@ -59,15 +59,14 @@ def spf_traversal(domain: str, max_lookups: int = 10) -> List[Tuple[str, str]]:
     """
     try:
         import dns.resolver
+        from yads.core.dns_resolver import make_resolver
     except ImportError:
         logger.warning("[Hunter SPF] dnspython not available")
         return []
 
     results: List[Tuple[str, str]] = []
     visited: set = set()
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
-    resolver.lifetime = 5
+    resolver = make_resolver(lifetime=5)
 
     def _parse(d: str):
         if d in visited or len(visited) >= max_lookups:
@@ -187,6 +186,7 @@ def axfr_zone_transfer(domain: str) -> List[Tuple[str, str]]:
         import dns.resolver
         import dns.zone
         import dns.query
+        from yads.core.dns_resolver import make_resolver
     except ImportError:
         logger.warning("[Hunter AXFR] dnspython not available")
         return []
@@ -194,9 +194,7 @@ def axfr_zone_transfer(domain: str) -> List[Tuple[str, str]]:
     results: List[Tuple[str, str]] = []
     seen: set = set()
 
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
-    resolver.lifetime = 5
+    resolver = make_resolver(lifetime=5)
 
     try:
         nameservers = [str(ns.target).rstrip(".") for ns in resolver.resolve(domain, "NS")]
@@ -294,12 +292,11 @@ def srv_enumeration(domain: str) -> List[Tuple[str, str]]:
     """
     try:
         import dns.resolver
+        from yads.core.dns_resolver import make_resolver
     except ImportError:
         return []
 
-    resolver = dns.resolver.Resolver()
-    resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
-    resolver.lifetime = 3
+    resolver = make_resolver(lifetime=3)
 
     results: List[Tuple[str, str]] = []
     seen: set = set()

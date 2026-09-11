@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import tldextract
 
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +73,8 @@ class TLDScanner(BaseScannerModule):
             
             try:
                 # Resolve
-                res = dns.resolver.Resolver()
-                res.timeout = 2
-                res.lifetime = 2
-                
+                res = make_resolver(timeout=2, lifetime=2)
+
                 # We check A records basically
                 answers = res.resolve(candidate, 'A')
                 ips = [str(r) for r in answers]

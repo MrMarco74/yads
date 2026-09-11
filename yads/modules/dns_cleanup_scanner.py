@@ -5,6 +5,7 @@ Identifies dead DNS entries (domains without A/AAAA records) and archives them.
 """
 
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 from yads.models import Target
 import dns.resolver
 import dns.exception
@@ -41,9 +42,7 @@ class DNSCleanupScanner(BaseScannerModule):
             - is_definitive: True if we got a definitive answer (not a transient failure)
             - reason: Description of result
         """
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 5.0  # 5 second timeout per query
-        resolver.lifetime = 10.0  # 10 second total lifetime
+        resolver = make_resolver(timeout=5.0, lifetime=10.0)  # per-query / total
 
         last_error = None
 

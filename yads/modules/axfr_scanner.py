@@ -13,6 +13,7 @@ import dns.zone
 import dns.exception
 
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +89,7 @@ class AXFRScanner(BaseScannerModule):
 
     def _get_nameservers(self, domain: str) -> List[str]:
         try:
-            resolver = dns.resolver.Resolver()
-            resolver.timeout = 3.0
-            resolver.lifetime = 5.0
+            resolver = make_resolver(timeout=3.0, lifetime=5.0)
             answers = resolver.resolve(domain, "NS")
             ns_list = []
             for r in answers:

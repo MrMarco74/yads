@@ -26,6 +26,7 @@ import requests
 from sqlmodel import Session, select
 
 from yads.core.base import BaseScannerModule
+from yads.core.dns_resolver import make_resolver
 from yads.models import Tenant, Target
 from yads.modules._shared_osint_utils import (
     DomainVariationGenerator,
@@ -51,9 +52,7 @@ class BrandIntelligenceScanner(BaseScannerModule):
         self.http.register_service("google", requests_per_minute=10)
 
         # DNS resolver
-        self.resolver = dns.resolver.Resolver()
-        self.resolver.timeout = 2.0
-        self.resolver.lifetime = 2.0
+        self.resolver = make_resolver(timeout=2.0, lifetime=2.0)
 
     @property
     def module_name(self) -> str:

@@ -7,6 +7,7 @@ from ipwhois import IPWhois
 
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
+from yads.core.dns_resolver import make_resolver
 from sqlmodel import select
 from yads.models import Target, ScanResult, OSINTIntelligence
 
@@ -296,10 +297,8 @@ class InfrastructureScanner(BaseScannerModule):
         }
         
         # Shared/Cached Resolver
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 2
-        resolver.lifetime = 2
-        
+        resolver = make_resolver(timeout=2, lifetime=2)
+
         for dnsbl_domain, name in dnsbls.items():
             query = f"{reversed_ip}.{dnsbl_domain}"
             try:

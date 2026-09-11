@@ -14,6 +14,7 @@ from yads.core.wildcard_dns import WildcardCache, is_wildcard_answer, parent_zon
 from yads.core.wildcard_dns import lookup as wildcard_lookup
 from yads.core.throttled_http import throttled_get
 from yads.core.api_block_detection import ApiBlockedError
+from yads.core.dns_resolver import make_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,12 @@ class DNSRecordScanner(BaseScannerModule):
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         logger.info(f"DNS Record Scan started for {target}")
         
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 3.0
-        resolver.lifetime = 5.0
-        
         # Apply Custom DNS
         custom_ns = self._get_custom_nameservers()
+        resolver = make_resolver(timeout=3.0, lifetime=5.0, nameservers=custom_ns)
         if custom_ns:
-            resolver.nameservers = custom_ns
             logger.info(f"Using Custom DNS Servers: {custom_ns}")
-        
+
         return self._scan_records(target, resolver, logger)
 
     def _get_custom_nameservers(self) -> List[str]:
@@ -215,12 +212,9 @@ class SubdomainScanner(DNSRecordScanner):
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         """Performs deep DNS analysis: Records + Subdomain Enumeration."""
-        resolver = dns.resolver.Resolver()
-        resolver.timeout = 3.0
-
         custom_ns = self._get_custom_nameservers()
+        resolver = make_resolver(timeout=3.0, nameservers=custom_ns)
         if custom_ns:
-            resolver.nameservers = custom_ns
             logger.info(f"[Subdomain] Using custom nameservers: {custom_ns}")
 
         # 1. Base Scan
@@ -342,8 +336,7 @@ class SubdomainScanner(DNSRecordScanner):
         """Checks discovered subdomains for takeover risks."""
         import concurrent.futures
         risks = []
-        res = dns.resolver.Resolver()
-        if custom_ns: res.nameservers = custom_ns
+        res = make_resolver(nameservers=custom_ns)
 
         def check_sub(entry):
             sub = entry['subdomain']

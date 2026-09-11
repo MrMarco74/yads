@@ -240,14 +240,13 @@ class CatchallDetectorScanner(BaseScannerModule):
         zone apex, not on individual subdomains."""
         try:
             import dns.resolver
+            from yads.core.dns_resolver import make_resolver
         except Exception:
             return []
         ext = tldextract.extract(host)
         zone = f"{ext.domain}.{ext.suffix}" if ext.domain and ext.suffix else host
         try:
-            resolver = dns.resolver.Resolver()
-            resolver.timeout = 3.0
-            resolver.lifetime = 5.0
+            resolver = make_resolver(timeout=3.0, lifetime=5.0)
             answers = resolver.resolve(zone, "NS")
             return [str(r).lower() for r in answers]
         except Exception as e:
