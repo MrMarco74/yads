@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Set, Optional
 
 from yads.core.base import BaseScannerModule
 from yads.core.utils import check_stop_signal, StopSignalError
+from yads.core.wildcard_dns import WildcardCache, is_wildcard_answer, parent_zone, probe_wildcard
+from yads.core.wildcard_dns import lookup as wildcard_lookup
 from yads.core.throttled_http import throttled_get
 from yads.core.api_block_detection import ApiBlockedError
 
@@ -138,15 +140,7 @@ class DNSRecordScanner(BaseScannerModule):
         return res
     
     def _detect_wildcard(self, domain: str, resolver: dns.resolver.Resolver) -> Set[str]:
-        wildcard_ips = set()
-        try:
-            random_sub = f"{uuid.uuid4().hex[:8]}.{domain}"
-            answers = resolver.resolve(random_sub, 'A')
-            for r in answers:
-                wildcard_ips.add(str(r))
-        except Exception as e:
-            logger.debug(f"Wildcard detection failed for {domain}: {e}")
-        return wildcard_ips
+        return set(probe_wildcard(domain, resolver).ips)
 
     def _check_takeover(self, cname: str) -> Dict[str, str]:
         """
@@ -233,9 +227,12 @@ class SubdomainScanner(DNSRecordScanner):
         logger.info(f"[Subdomain] Step 1/5: Scanning DNS records for {target}...")
         results = self._scan_records(target, resolver, logger)
         results.update({"subdomains": [], "reverse_dns": {}})
-        wildcard_ips = self._detect_wildcard(target, resolver)
-        if wildcard_ips:
-            logger.info(f"[Subdomain] Wildcard DNS detected — {len(wildcard_ips)} wildcard IP(s) will be filtered out")
+        wildcard = WildcardCache(resolver)
+        target_profile = wildcard.profile(target)
+        if target_profile.is_wildcard:
+            logger.info(f"[Subdomain] Wildcard DNS detected — answers matching {sorted(target_profile.ips)} will be filtered out")
+        elif target_profile.status == "unknown":
+            logger.warning(f"[Subdomain] Wildcard check for {target} inconclusive — wordlist-only guesses will be dropped")
 
         # 2. Enumeration Prep
         # Maps candidate FQDN -> set of independent signals that surfaced it
@@ -268,7 +265,7 @@ class SubdomainScanner(DNSRecordScanner):
         logger.info(f"[Subdomain] Step 4/5: Verifying {len(potential_full_domains)} candidate(s) via parallel DNS resolution...")
 
         # 3. Parallel Discovery
-        results["subdomains"] = self._verify_subdomains_parallel(potential_full_domains, wildcard_ips, custom_ns, logger)
+        results["subdomains"] = self._verify_subdomains_parallel(potential_full_domains, wildcard, resolver, logger)
         results["subdomains"].sort(key=lambda x: x['subdomain'])
         logger.info(f"[Subdomain] DNS verification complete — {len(results['subdomains'])} active subdomain(s) confirmed")
 
@@ -301,7 +298,7 @@ class SubdomainScanner(DNSRecordScanner):
                 pass
         return defaults
 
-    def _verify_subdomains_parallel(self, domains: Dict[str, Set[str]], wildcard_ips: Set[str], custom_ns: List[str], logger: logging.Logger) -> List[Dict[str, Any]]:
+    def _verify_subdomains_parallel(self, domains: Dict[str, Set[str]], wildcard: WildcardCache, resolver: dns.resolver.Resolver, logger: logging.Logger) -> List[Dict[str, Any]]:
         """
         Verifies subdomains in parallel.
         `domains` maps each candidate FQDN to the set of independent signals that
@@ -309,21 +306,25 @@ class SubdomainScanner(DNSRecordScanner):
         verified entry's "sources" field so downstream consumers (e.g. the
         auto-queue scoring in worker_tasks.py) can tell a candidate confirmed by
         multiple independent methods from a single wordlist guess.
+
+        Each candidate is compared with the wildcard answer of its own parent
+        zone (nested wildcards included). When that zone's wildcard check was
+        inconclusive, wordlist-only guesses are dropped rather than trusted.
         """
         import concurrent.futures
         verified = []
-        res = dns.resolver.Resolver()
-        if custom_ns: res.nameservers = custom_ns
 
         def check(d):
             sources = sorted(domains.get(d, set()))
-            try:
-                ans = res.resolve(d, 'A')
-                ips = [str(r) for r in ans]
-                if wildcard_ips and any(ip in wildcard_ips for ip in ips): return None
-                return {"subdomain": d, "ips": ips, "sources": sources}
-            except dns.resolver.NoAnswer: return {"subdomain": d, "ips": [], "sources": sources}
-            except (dns.resolver.NXDOMAIN, Exception): return None
+            profile = wildcard.profile(parent_zone(d))
+            if profile.status == "unknown" and sources == ["wordlist"]:
+                return None
+            status, ips, cname = wildcard_lookup(resolver, d)
+            if status == "nodata":
+                return {"subdomain": d, "ips": [], "sources": sources}
+            if status != "ok" or is_wildcard_answer(ips, cname, profile):
+                return None
+            return {"subdomain": d, "ips": sorted(ips), "sources": sources}
 
         total = len(domains)
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:

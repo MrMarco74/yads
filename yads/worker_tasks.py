@@ -41,6 +41,7 @@ from yads.core.module_registry import get_module, get_simple_dispatch_modules
 from yads.core.module_status import mark_rate_limited, clear_rate_limited
 from yads.core.api_block_detection import ApiBlockedError
 from yads.core.parked_domain_tags import tag_parked_domain
+from yads.core.wildcard_dns import WildcardCache
 from celery import chord
 import random
 
@@ -736,6 +737,7 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
                     new_targets_count = 0
                     queued_count = 0
                     review_count = 0
+                    wildcard = WildcardCache(dns.resolver.Resolver())
 
                     for entry in subs:
                         sub_domain = entry.get("subdomain")
@@ -743,6 +745,11 @@ def finalize_scan(target_id: int, domain: str, tenant_id: int, scan_types: list,
                             ips = entry.get("ips") or []
                             if not ips:
                                 logger.debug(f"[Worker] Skipping unresolved subdomain (no IP): {sub_domain}")
+                                continue
+                            # Parking/reseller zones answer every label -- never
+                            # turn their wildcard answers into targets.
+                            if wildcard.is_artifact(sub_domain, ips=ips):
+                                logger.info(f"[Worker] Skipping wildcard-DNS artifact: {sub_domain}")
                                 continue
 
                             existing = session.exec(select(Target).where(Target.domain == sub_domain)).first()
@@ -1644,6 +1651,7 @@ def run_all_scans(
                     if ssl_result and ssl_result.data and "extracted_domains" in ssl_result.data:
                         extracted = ssl_result.data["extracted_domains"]
                         new_found = 0
+                        wildcard = WildcardCache(dns.resolver.Resolver())
                         for edomain in extracted:
                             edomain = edomain.strip().lower()
                             if not edomain:
@@ -1658,6 +1666,9 @@ def run_all_scans(
                                     resolves = True
                                 except Exception:
                                     resolves = False
+                            if resolves and wildcard.is_artifact(edomain):
+                                logger.info(f"[Worker] Skipping wildcard-DNS artifact from SSL: {edomain}")
+                                resolves = False
                             if resolves:
                                 existing_t = session.exec(select(Target).where(Target.domain == edomain)).first()
                                 if not existing_t:
