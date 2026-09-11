@@ -141,7 +141,9 @@ class InfrastructureScanner(BaseScannerModule):
         res = {"asn": {}, "cloud_provider": None}
         try:
             obj = IPWhois(ip)
-            rdap = obj.lookup_rdap(depth=1)
+            # ipwhois defaults (3 retries x 120s rate-limit sleep) park a worker
+            # slot for minutes on a single RIR 429; fail fast instead.
+            rdap = obj.lookup_rdap(depth=1, retry_count=1, rate_limit_timeout=5)
             res["asn"] = {
                 "asn": rdap.get("asn"),
                 "asn_description": rdap.get("asn_description"),
