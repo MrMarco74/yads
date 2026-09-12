@@ -54,6 +54,12 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
             Infrastructure
         </button>
+        <button type="button" @click="tab='api-keys'; location.hash='api-keys'"
+                :class="tab==='api-keys' ? 'border-b-2 border-indigo-500 text-white bg-gray-800/40' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'"
+                class="px-4 py-2.5 text-sm font-semibold transition-colors rounded-t-lg whitespace-nowrap flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+            API Keys
+        </button>
     </div>
 
     <form id="settings-form" action="/settings" method="POST">
@@ -705,6 +711,172 @@
             </div>
 
         </div><!-- /infrastructure tab -->
+
+        <!-- ── Tab: API Keys ───────────────────────────────────────────────
+             Machine keys for /api/v1 (yads-mcp and other automation). Not the
+             BYOK third-party keys -- those live in Tenant Settings.
+             Deliberately outside #settings-form: nested forms are invalid and
+             these actions hit the REST endpoints directly, like the backup
+             and Splunk-test controls above. -->
+        <div x-show="tab === 'api-keys'" id="api-keys-panel" class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg xl:col-span-2">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                    Existing Keys
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="text-gray-400 uppercase text-[10px] border-b border-gray-700">
+                            <tr>
+                                <th class="text-left py-2 pr-3">Name</th>
+                                <th class="text-left py-2 pr-3">Tenant</th>
+                                <th class="text-left py-2 pr-3">Prefix</th>
+                                <th class="text-left py-2 pr-3">Scopes</th>
+                                <th class="text-left py-2 pr-3">Last used</th>
+                                <th class="text-left py-2 pr-3">Expires</th>
+                                <th class="py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-keys-rows" class="text-gray-300">
+                            <tr><td colspan="7" class="py-4 text-gray-500">Loading&hellip;</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-semibold text-white mb-4">New Key</h3>
+
+                <label class="block text-xs font-semibold text-gray-300 mb-1 uppercase">Name</label>
+                <input type="text" id="apikey-name" placeholder="e.g. yads-mcp"
+                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-xs mb-3">
+
+                <label class="block text-xs font-semibold text-gray-300 mb-1 uppercase">Tenant</label>
+                <select id="apikey-tenant" class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-xs mb-1">
+                    {% for tenant in allowed_tenants %}
+                    <option value="{{ tenant.id }}">{{ tenant.name }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[10px] text-gray-500 mb-3">A key without a tenant is rejected by every /api/v1 route, so one must be chosen.</p>
+
+                <label class="block text-xs font-semibold text-gray-300 mb-1 uppercase">Scopes</label>
+                <div class="space-y-1 mb-3">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="apikey-scope rounded bg-gray-800 border-gray-600 text-indigo-500 w-3 h-3" value="read" checked><span class="text-xs">read &mdash; query data</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="apikey-scope rounded bg-gray-800 border-gray-600 text-indigo-500 w-3 h-3" value="write"><span class="text-xs">write &mdash; add and change targets</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="apikey-scope rounded bg-gray-800 border-gray-600 text-indigo-500 w-3 h-3" value="scan_execute"><span class="text-xs">scan_execute &mdash; start scans</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="apikey-scope rounded bg-gray-800 border-gray-600 text-red-500 w-3 h-3" value="destructive"><span class="text-xs text-red-300">destructive &mdash; purge the queue, delete targets</span></label>
+                </div>
+
+                <label class="block text-xs font-semibold text-gray-300 mb-1 uppercase">Expires in (days)</label>
+                <input type="number" id="apikey-expires" min="1" placeholder="empty = never"
+                       class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-xs mb-4">
+
+                <button type="button" onclick="createApiKey()"
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded text-xs transition-colors">
+                    Create Key
+                </button>
+
+                <div id="apikey-result" class="hidden mt-4 p-3 rounded bg-emerald-900/20 border border-emerald-700/40">
+                    <p class="text-[10px] text-emerald-300 uppercase font-bold mb-1">Shown only once</p>
+                    <code id="apikey-plain" class="block break-all text-xs text-white bg-gray-900 p-2 rounded mb-2"></code>
+                    <button type="button" onclick="copyApiKey()" class="text-[10px] text-emerald-300 hover:text-white border border-emerald-500/30 rounded px-2 py-1">Copy</button>
+                </div>
+                <div id="apikey-error" class="hidden mt-4 p-3 rounded bg-red-900/20 border border-red-700/40 text-xs text-red-300"></div>
+            </div>
+
+            <script>
+            async function loadApiKeys() {
+                const tbody = document.getElementById('api-keys-rows');
+                try {
+                    const keys = await (await fetch('/api-keys/', {credentials: 'same-origin'})).json();
+                    if (!keys.length) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-gray-500">No keys yet.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = keys.map(k => `
+                        <tr class="border-b border-gray-700/40">
+                            <td class="py-2 pr-3 text-white">${escapeHtml(k.name)}</td>
+                            <td class="py-2 pr-3">${escapeHtml(k.tenant_name || '—')}</td>
+                            <td class="py-2 pr-3 font-mono text-gray-400">${escapeHtml(k.prefix)}</td>
+                            <td class="py-2 pr-3">${(k.scopes || []).map(s =>
+                                `<span class="inline-block px-1.5 py-0.5 mr-1 rounded text-[10px] ${s === 'destructive' ? 'bg-red-900/40 text-red-300' : 'bg-gray-700 text-gray-300'}">${escapeHtml(s)}</span>`
+                              ).join('')}</td>
+                            <td class="py-2 pr-3 text-gray-400">${k.last_used_at ? escapeHtml(k.last_used_at.slice(0, 16).replace('T', ' ')) : 'never'}</td>
+                            <td class="py-2 pr-3 text-gray-400">${k.expires_at ? escapeHtml(k.expires_at.slice(0, 10)) : 'never'}</td>
+                            <td class="py-2 text-right"><button type="button" data-key-id="${k.id}" data-key-name="${escapeHtml(k.name)}" class="revoke-key-btn text-red-400 hover:text-red-300 text-[10px] border border-red-500/30 rounded px-2 py-0.5">Revoke</button></td>
+                        </tr>`).join('');
+                    // Handler nachtraeglich binden statt ihn als String zu bauen:
+                    // escapeHtml macht aus ' ein &#39;, das der HTML-Parser vor dem
+                    // JS-Parser wieder zu ' dekodiert -- ein Key-Name koennte damit
+                    // aus dem onclick-String ausbrechen.
+                    tbody.querySelectorAll('.revoke-key-btn').forEach(b =>
+                        b.addEventListener('click', () =>
+                            deleteApiKey(Number(b.dataset.keyId), b.dataset.keyName)));
+                } catch (e) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-red-400">Could not load keys.</td></tr>';
+                }
+            }
+
+            function escapeHtml(s) {
+                return String(s ?? '').replace(/[&<>"']/g, c =>
+                    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+            }
+
+            async function createApiKey() {
+                const fehler = document.getElementById('apikey-error');
+                const ergebnis = document.getElementById('apikey-result');
+                fehler.classList.add('hidden');
+                ergebnis.classList.add('hidden');
+
+                const name = document.getElementById('apikey-name').value.trim();
+                if (!name) { fehler.textContent = 'A name is required.'; fehler.classList.remove('hidden'); return; }
+
+                const scopes = Array.from(document.querySelectorAll('.apikey-scope:checked')).map(c => c.value);
+                if (!scopes.length) { fehler.textContent = 'At least one scope is required.'; fehler.classList.remove('hidden'); return; }
+
+                const q = new URLSearchParams();
+                q.append('name', name);
+                q.append('tenant_id', document.getElementById('apikey-tenant').value);
+                scopes.forEach(s => q.append('scopes', s));
+                const tage = document.getElementById('apikey-expires').value;
+                if (tage) q.append('expires_in_days', tage);
+
+                const r = await fetch('/api-keys/?' + q.toString(), {
+                    method: 'POST',
+                    headers: {'X-CSRF-Token': _csrfToken()},
+                    credentials: 'same-origin'
+                });
+                const body = await r.json();
+                if (!r.ok) {
+                    fehler.textContent = body.detail || 'Creation failed.';
+                    fehler.classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('apikey-plain').textContent = body.api_key;
+                ergebnis.classList.remove('hidden');
+                document.getElementById('apikey-name').value = '';
+                loadApiKeys();
+            }
+
+            function copyApiKey() {
+                navigator.clipboard.writeText(document.getElementById('apikey-plain').textContent);
+            }
+
+            async function deleteApiKey(id, name) {
+                if (!confirm('Revoke the key "' + name + '"? Anything using it stops working immediately.')) return;
+                await fetch('/api-keys/' + id, {
+                    method: 'DELETE',
+                    headers: {'X-CSRF-Token': _csrfToken()},
+                    credentials: 'same-origin'
+                });
+                loadApiKeys();
+            }
+
+            document.addEventListener('DOMContentLoaded', loadApiKeys);
+            </script>
+
+        </div><!-- /api-keys tab -->
 
         <!-- Floating Save Bar -->
         <div class="sticky bottom-4 z-40 mt-6">
