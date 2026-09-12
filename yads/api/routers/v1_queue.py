@@ -4,7 +4,6 @@ queue.py routes -- see docs/superpowers/specs/2026-08-24-yads-mcp-foundation-des
 section 5.1.
 """
 
-import base64
 import json
 import uuid as _uuid
 from typing import Annotated, Optional
@@ -20,6 +19,7 @@ from yads.api.routers.queue import (
     prettify_task_name,
 )
 from yads.auth.deps import RequireScope, require_tenant_scoped_key
+from yads.config import settings
 from yads.core.module_status import get_rate_limited_module_count
 from yads.database import get_session, redis_client
 from yads.models import APIKey, SystemConfig, Target
@@ -64,6 +64,14 @@ async def queue_status(
     except Exception:
         pass
 
+    # The authoritative pending-scan count lives in the broker, not in the DB:
+    # queued_count only sees targets this tenant marked 'queued', while the
+    # messages actually waiting for a worker sit in RabbitMQ. Fleet-wide and
+    # not tenant-scoped (a broker queue carries every tenant's messages), same
+    # as the depth the cookie-session queue page shows.
+    from yads.core.broker_ops import get_broker_queue_depth
+    broker_depth = get_broker_queue_depth(settings.BROKER_URL)
+
     return {
         "queue_active": queue_active,
         "queued_count": queued_count,
@@ -71,6 +79,8 @@ async def queue_status(
         "active_tasks": active_tasks,
         "reserved_tasks": reserved_tasks,
         "rate_limited_module_count": get_rate_limited_module_count(),
+        "broker_depth": broker_depth,
+        "broker_pending": sum(broker_depth.values()),
     }
 
 
@@ -96,12 +106,23 @@ async def queue_control(
     # spec section 6, item 1. A key with only "write" (not "destructive")
     # can pause every tenant's scans; this is an inherited inconsistency,
     # not a new one introduced here.
+    broker_purged = 0
     if payload.action == "pause":
         conf.value = "false"
         session.add(conf)
         session.commit()
         celery_app.control.cancel_consumer("celery", reply=False)
         celery_app.control.cancel_consumer("discovery", reply=False)
+
+        # Cancelling the consumers only stops workers from fetching; the
+        # already-published messages stay in RabbitMQ and drain on the next
+        # resume, re-running modules never selected for the newer targets.
+        # The cookie-session handler (queue.py) has purged them since the
+        # 2026-08-25 broker-backlog incident -- this path never did, so an
+        # API-driven pause left the backlog behind. Resume rebuilds the
+        # working set from the DB 'queued' status, so discarding it is safe.
+        from yads.core.broker_ops import purge_broker_queues
+        broker_purged = purge_broker_queues(settings.BROKER_URL)
     else:
         conf.value = "true"
         session.add(conf)
@@ -109,7 +130,10 @@ async def queue_control(
         celery_app.control.add_consumer("celery", reply=False)
         celery_app.control.add_consumer("discovery", reply=False)
 
-    return {"queue_active": payload.action == "resume"}
+    return {
+        "queue_active": payload.action == "resume",
+        "broker_purged_count": broker_purged,
+    }
 
 
 @router.post("/queue/tasks/{task_id}/cancel", dependencies=[Depends(RequireScope("write"))])
@@ -171,43 +195,18 @@ async def purge_queue(
     if not payload.confirm:
         raise HTTPException(status_code=400, detail="Set confirm=true to purge the queue")
 
-    purged_count = 0
-    undo_tasks = []
-    queue_len = redis_client.llen("celery")
-    if queue_len > 0:
-        all_items = redis_client.lrange("celery", 0, -1)
-        items_to_keep = []
-        for raw in all_items:
-            try:
-                item_data = json.loads(raw)
-                task_tenant_id = None
-                task_args = None
-                body_b64 = item_data.get("body")
-                if body_b64:
-                    body_json = json.loads(base64.b64decode(body_b64).decode("utf-8"))
-                    if isinstance(body_json, list) and body_json:
-                        args = body_json[0]
-                        task_args = args
-                        if len(args) > 3:
-                            task_tenant_id = args[3]
-                if task_tenant_id != api_key.tenant_id:
-                    items_to_keep.append(raw)
-                else:
-                    purged_count += 1
-                    if task_args and len(task_args) >= 3:
-                        undo_tasks.append({
-                            "target_id": task_args[0], "domain": task_args[1],
-                            "scan_types": task_args[2], "tenant_id": task_tenant_id,
-                        })
-            except Exception:
-                items_to_keep.append(raw)
-
-        if purged_count > 0:
-            pipe = redis_client.pipeline()
-            pipe.delete("celery")
-            for item in items_to_keep:
-                pipe.rpush("celery", item)
-            pipe.execute()
+    # Selectively remove this tenant's pending tasks from the real broker.
+    # This used to walk a Redis list named "celery", which is a no-op against
+    # the RabbitMQ broker actually in use -- so an API purge never cleared the
+    # backlog and it drained on the next resume (the 2026-08-25 broker-backlog
+    # incident, fixed in the cookie-session handler but not here).
+    # purge_broker_queue_for_tenant drains the ready messages, drops this
+    # tenant's and requeues the rest; undo_tasks mirrors the dropped tasks'
+    # args for the 60s undo window.
+    from yads.core.broker_ops import purge_broker_queue_for_tenant
+    purged_count, undo_tasks = purge_broker_queue_for_tenant(
+        settings.BROKER_URL, api_key.tenant_id
+    )
 
     revoked_count = 0
     i = celery_app.control.inspect(timeout=5.0)
