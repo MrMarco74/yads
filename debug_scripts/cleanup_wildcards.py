@@ -9,7 +9,7 @@ from sqlmodel import select, Session, text
 # Add project root to path
 sys.path.insert(0, os.getcwd())
 
-from yads.database import SessionLocal, engine
+from yads.database import engine
 from yads.models import Target, ScanResult
 
 # Setup Logging
@@ -30,12 +30,9 @@ def detect_wildcard(domain: str) -> set[str]:
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
         pass 
     except Exception as e:
-        logger.debug(f"Wildcard check error for {domain}: {e}")
+        logger.debug("Wildcard check error for %s: %s", domain, e)
         
     return wildcard_ips
-
-def get_session():
-    return SessionLocal()
 
 def run_cleanup():
     logger.info("Starting Wildcard Cleanup (TARGET DELETION MODE)...")
@@ -54,7 +51,7 @@ def run_cleanup():
         # Optimization: dynamic cache of wildecard IPs per parent domain level.
         
         targets = session.exec(select(Target)).all()
-        logger.info(f"Checking {len(targets)} targets...")
+        logger.info("Checking %s targets...", len(targets))
         
         deleted_count = 0
         cleaned_results_count = 0
@@ -65,7 +62,7 @@ def run_cleanup():
         
         for i, target in enumerate(targets):
             if i % 100 == 0:
-                logger.info(f"Processed {i}/{len(targets)} (Deleted: {deleted_count})...")
+                logger.info("Processed %s/%s (Deleted: %s)...", i, len(targets), deleted_count)
                 
             # Heuristic: If target has NO results or ONLY results that match its own IP...
             # But simpler: If the target ITSELF resolves to a Wildcard IP.
@@ -101,7 +98,7 @@ def run_cleanup():
             
             if is_wildcard_target:
                 # DELETE TARGET
-                logger.info(f"Deleting Wildcard Target: {target.domain} (IPs: {target_ips})")
+                logger.info("Deleting Wildcard Target: %s (IPs: %s)", target.domain, target_ips)
                 
                 # Delete dependencies — parameterized to avoid f-string SQL
                 session.exec(text("DELETE FROM scanresult WHERE target_id = :tid"), {"tid": target.id})
@@ -167,10 +164,10 @@ def run_cleanup():
                 cleaned_results_count += 1
                 
         session.commit()
-        logger.info(f"Cleanup Finished. Deleted Targets: {deleted_count}, Cleaned Results: {cleaned_results_count}")
+        logger.info("Cleanup Finished. Deleted Targets: %s, Cleaned Results: %s", deleted_count, cleaned_results_count)
                 
     except Exception as e:
-        logger.error(f"Cleanup failed: {e}")
+        logger.error("Cleanup failed: %s", e)
     finally:
         session.close()
 
