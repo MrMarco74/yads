@@ -14,20 +14,24 @@ try:
     # We need to re-import the logger to ensure we get the (potentially updated) one
     # or mock it directly in the test.
     from debug_scripts import cleanup_wildcards
-except ImportError:
-    # Fallback for environments where debug_scripts might be treated differently
-    # Or if the module is not found, provide a clear error.
-    print("Error: Could not import cleanup_wildcards. Make sure debug_scripts is accessible.")
-    sys.exit(1)
+except ImportError as exc:
+    # Skip this module, never sys.exit: pytest imports test modules during
+    # collection, so exiting here aborted the ENTIRE run -- every other test
+    # in the suite went uncollected because one optional debug script could
+    # not be imported. That is how `make test` stayed broken unnoticed.
+    pytest.skip(f"debug_scripts.cleanup_wildcards not importable: {exc}",
+                allow_module_level=True)
 
 
 @pytest.fixture
 def mock_session():
-    with patch('yads.database.SessionLocal') as mock_session_local:
-        with patch('yads.database.engine') as mock_engine:
-            mock_session_obj = MagicMock()
-            mock_session_local.return_value = mock_session_obj
-            yield mock_session_obj
+    # run_cleanup() baut seine Session mit Session(engine) -- gepatcht wird der
+    # Name, den das Skript benutzt. Die alte Fixture patchte
+    # yads.database.SessionLocal, das es dort nicht mehr gibt.
+    with patch('debug_scripts.cleanup_wildcards.Session') as mock_session_cls:
+        mock_session_obj = MagicMock()
+        mock_session_cls.return_value = mock_session_obj
+        yield mock_session_obj
 
 @pytest.fixture
 def mock_targets():
@@ -65,28 +69,29 @@ def test_cleanup_logging_security(mock_session, mock_targets, caplog):
             # Assertions for secure logging
             # The key is to check if the message in the log record is the format string
             # and the parameters are passed separately.
-            # This test will PASS only after steps 2 and 3 are applied to cleanup_wildcards.py
-            # Otherwise, if f-strings are still used, the 'malicious' part would be in the message directly.
+            # Mit f-Strings landete die Domain im Format-String, und eine Domain
+            # mit \n konnte sich eigene Logzeilen erfinden. Mit %-Lazy-Logging
+            # steht sie in record.args, der Format-String bleibt konstant.
             
             # Search for the specific log entry for processing targets
             found_log_entry = False
             for record in caplog.records:
-                if "Processed {}/{} (Deleted: {})" in record.message:
+                if "Processed %s/%s (Deleted: %s)" in record.msg:
                     found_log_entry = True
                     assert record.args == (0, len(mock_targets), 0) # Initial values
                     # More robust check: ensure no unexpected newlines in the raw message field if it was an f-string
-                    assert '\n' not in record.message # The raw format string should not contain newlines
+                    assert '\n' not in record.msg # The raw format string should not contain newlines
                 
                 # Check that malicious input from target.domain is handled as data, not as part of the format string
-                if "Deleting Wildcard Target:" in record.message and "malicious.com\nCRITICAL: ATTACK DETECTED!" in record.args:
-                     # If SecureLogger is used, the malicious string will be in args, not the format string
+                if "Deleting Wildcard Target:" in record.msg and "malicious.com\nCRITICAL: ATTACK DETECTED!" in record.args:
+                     # Die praeparierte Domain steht in args, nicht im Format-String
                      assert '\n' in record.args[0] # The domain itself can contain a newline
-                     assert '\n' not in record.message # But the format string should not
+                     assert '\n' not in record.msg # But the format string should not
                      
-            assert found_log_entry, "Expected log entry 'Processed {}/{} (Deleted: {})' not found"
+            assert found_log_entry, "Expected log entry 'Processed %s/%s (Deleted: %s)' not found"
 
             # Additionally, verify that the 'malicious' domain did not cause any log injection
             # This check is more effective if the logger is fully replaced
             # The default logging setup often sanitizes newlines, but explicit parameterized logging is safer.
             # For now, we check the raw message and args if available.
-            assert not any("CRITICAL: ATTACK DETECTED!" in record.message for record in caplog.records if "Processed" not in record.message)
+            assert not any("CRITICAL: ATTACK DETECTED!" in record.msg for record in caplog.records if "Processed" not in record.msg)

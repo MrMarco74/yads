@@ -17,6 +17,14 @@ def owned_target(db_session, test_tenant):
         )
     ).first()
     if existing:
+        # Ohne Zuruecksetzen traegt das Ziel die Tags des letzten Laufs noch,
+        # und die Endpunkte zaehlen nur, was sie wirklich aendern -- "updated"
+        # kam dann als 0 zurueck. Die Test-DB ueberlebt den Lauf.
+        existing.tags = []
+        existing.is_archived = False
+        db_session.add(existing)
+        db_session.commit()
+        db_session.refresh(existing)
         return existing
     target = Target(domain="v1-tags-fixture.example.com", tenant_id=test_tenant.id, tags=[])
     db_session.add(target)

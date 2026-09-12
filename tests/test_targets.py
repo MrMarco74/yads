@@ -9,11 +9,11 @@ import pytest
 @pytest.mark.targets
 class TestTargetList:
     def test_targets_page_loads(self, admin_client):
-        r = admin_client.get("/targets", follow_redirects=True)
+        r = admin_client.get("/targets/table", follow_redirects=True)
         assert r.status_code == 200
 
     def test_targets_page_contains_html(self, admin_client):
-        r = admin_client.get("/targets", follow_redirects=True)
+        r = admin_client.get("/targets/table", follow_redirects=True)
         assert "text/html" in r.headers["content-type"]
 
 
@@ -89,7 +89,7 @@ class TestTargetScan:
 @pytest.mark.targets
 class TestTargetArchive:
     def test_archived_page_loads(self, admin_client):
-        r = admin_client.get("/archived", follow_redirects=True)
+        r = admin_client.get("/reports/archived", follow_redirects=True)
         assert r.status_code == 200
 
 

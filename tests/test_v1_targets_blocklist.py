@@ -10,8 +10,22 @@ def blocklistable_target(db_session, test_tenant):
     from sqlmodel import select
 
     domain = "v1-blocklist-fixture.example.com"
+    from yads.models import DiscoveryDomainBlocklist
+
+    # Aufraeumen, was ein frueherer Lauf hinterlassen hat: das Ziel war dann
+    # schon archiviert und das Muster schon eingetragen, also zaehlten
+    # archived_count und blocklisted_count 0 statt 1.
+    db_session.query(DiscoveryDomainBlocklist).filter(
+        DiscoveryDomainBlocklist.pattern == domain
+    ).delete()
+    db_session.commit()
+
     existing = db_session.exec(select(Target).where(Target.domain == domain, Target.tenant_id == test_tenant.id)).first()
     if existing:
+        existing.is_archived = False
+        db_session.add(existing)
+        db_session.commit()
+        db_session.refresh(existing)
         return existing
     t = Target(domain=domain, tenant_id=test_tenant.id, tags=[])
     db_session.add(t)

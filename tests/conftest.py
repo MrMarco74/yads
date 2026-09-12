@@ -64,27 +64,151 @@ def _auth_cookies(username: str) -> dict:
 
 # ── Per-role client fixtures ──────────────────────────────────────────────────
 
+@pytest.fixture
+def admin_password(client, db_session) -> str:
+    """Setzt das Admin-Passwort auf einen bekannten Wert und gibt ihn zurueck.
+
+    Annehmen laesst es sich nicht: YADS_ADMIN_PASS greift nur beim Seeden
+    einer leeren DB, und die Test-DB ueberlebt den Lauf -- der Hash stammt
+    also aus einem beliebig alten Lauf.
+
+    Tests loggten sich mit "admin" ein, was immer fehlschlug. Aufgefallen ist
+    es nie, weil admin_client den geteilten `client` ohnehin authentifiziert
+    hatte und der fehlgeschlagene Login damit folgenlos blieb.
+
+    Bewusst pro Test und nicht pro Session: test_users setzt beim Aufraeumen
+    ein Passwort auf "admin" zurueck, was einen einmalig gesetzten Wert
+    wieder ueberschreibt -- je nach Reihenfolge der Testdateien.
+    """
+    from yads.models import User
+    from yads.auth.security import get_password_hash
+    from sqlmodel import select
+
+    pw = os.environ["YADS_ADMIN_PASS"]
+    admin = db_session.exec(select(User).where(User.username == "admin")).first()
+    if admin:
+        admin.password_hash = get_password_hash(pw)
+        admin.force_password_change = False
+        admin.is_active = True
+        # mfa_enabled mit zuruecksetzen: mit aktiviertem MFA liefert der
+        # Formular-Login die TOTP-Abfrage statt einer Session. Die MFA-Tests
+        # setzten das Flag und nahmen es nie zurueck, und die Test-DB
+        # ueberlebt den Lauf -- ein einziger alter Lauf machte jeden
+        # Login-Test dauerhaft unbrauchbar.
+        admin.mfa_enabled = False
+        db_session.add(admin)
+        db_session.commit()
+    return pw
+
+
 @pytest.fixture(scope="session")
 def admin_cookies():
     return _auth_cookies("admin")
 
 
 @pytest.fixture(scope="session")
-def admin_client(client, admin_cookies):
+def admin_client(app, client, admin_cookies):
     """TestClient pre-loaded with admin credentials.
 
     Also attaches a valid signed CSRF cookie + matching X-CSRF-Token header
     to every request, so POST/PUT/PATCH/DELETE calls pass CSRFMiddleware
     (yads/api/middleware/csrf_middleware.py) — required since that
     middleware was added after this fixture was originally written.
+
+    A SEPARATE TestClient bound to the same running app, for the reason
+    api_key_client documents: this used to set the admin cookie on the shared
+    session-scoped `client`, which permanently authenticated it. Every later
+    test that asked `client` for an unauthenticated response then got an
+    authenticated one — so "must redirect without a token" assertions passed
+    against a logged-in session and proved nothing, and whether they passed
+    depended on test file order. Depending on `client` keeps the ordering
+    (its lifespan runs migrations and the admin seed first).
     """
+    from starlette.testclient import TestClient
     from yads.core.csrf import generate_csrf_token, CSRF_COOKIE, CSRF_HEADER
 
-    client.cookies.set("access_token", admin_cookies["access_token"])
+    admin = TestClient(app, raise_server_exceptions=False)
+    admin.cookies.set("access_token", admin_cookies["access_token"])
     csrf_token = generate_csrf_token()
-    client.cookies.set(CSRF_COOKIE, csrf_token)
-    client.headers.update({CSRF_HEADER: csrf_token})
-    return client
+    admin.cookies.set(CSRF_COOKIE, csrf_token)
+    admin.headers.update({CSRF_HEADER: csrf_token})
+    return admin
+
+
+@pytest.fixture
+def browser_client(app, client):
+    """Fresh, unauthenticated TestClient that carries a valid CSRF pair, the
+    way a browser gets one: a GET receives the cookie, the header echoes it.
+
+    Login POSTs need this. They used to pass only because admin_client set a
+    CSRF token on the shared `client` -- so whether a login test worked
+    depended on another test file having run first.
+    """
+    from starlette.testclient import TestClient
+    from yads.core.csrf import CSRF_COOKIE, CSRF_HEADER
+    from yads.database import redis_client
+
+    # Login-Drosselung zuruecksetzen: der Handler erlaubt 10 Versuche pro IP
+    # in 5 Minuten (yads/api/routers/auth.py), alle Tests kommen von
+    # derselben "IP", und der Zaehler liegt in Redis -- er ueberlebt also
+    # Testdateien und ganze Laeufe. Ohne das Zuruecksetzen scheitern
+    # Login-Tests je nach Reihenfolge und je nachdem, wie oft die Suite in
+    # den letzten fuenf Minuten lief, mit der Login-Seite statt einer
+    # Session -- ohne erkennbaren Zusammenhang zum getesteten Verhalten.
+    try:
+        for key in redis_client.scan_iter("yads:login_rate:*"):
+            redis_client.delete(key)
+        for key in redis_client.scan_iter("yads:mfa_rate:*"):
+            redis_client.delete(key)
+    except Exception:
+        pass
+
+    c = TestClient(app, raise_server_exceptions=False)
+    c.get("/login")  # setzt das CSRF-Cookie
+    token = c.cookies.get(CSRF_COOKIE, "")
+    if token:
+        c.headers.update({CSRF_HEADER: token})
+    return c
+
+
+@pytest.fixture
+def tenant_admin_client(app, client, db_session, test_tenant):
+    """Angemeldeter tenant_admin von test_tenant.
+
+    Fuer alles, was einen aufgeloesten Tenant braucht. Ein Platform Admin hat
+    keinen (tenant_id ist NULL), und Code, der dann auf "genau ein Tenant
+    existiert" zurueckfaellt -- etwa _effective_tenant_id im Compliance-Wizard
+    -- haengt damit am globalen DB-Zustand: sobald irgendein anderer Test
+    einen zweiten Tenant anlegt (mehrere tun das zu Recht, um
+    Mandantentrennung zu beweisen), schlaegt er fehl.
+    """
+    from starlette.testclient import TestClient
+    from sqlmodel import select
+    from yads.models import User
+    from yads.auth.security import create_access_token, get_password_hash
+    from yads.core.csrf import generate_csrf_token, CSRF_COOKIE, CSRF_HEADER
+
+    username = "pytest-tenant-admin"
+    user = db_session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        user = User(username=username, password_hash=get_password_hash("unused-token-auth"))
+        db_session.add(user)
+    # Immer setzen, nicht nur beim Anlegen: die Test-DB ueberlebt den Lauf,
+    # und eine alte Zeile mit tenant_id=NULL waere still ein Platform Admin.
+    user.role = "tenant_admin"
+    user.tenant_id = test_tenant.id
+    user.is_active = True
+    user.force_password_change = False
+    user.mfa_enabled = False
+    db_session.add(user)
+    db_session.commit()
+
+    c = TestClient(app, raise_server_exceptions=False)
+    c.cookies.set("access_token", create_access_token(username))
+    token = generate_csrf_token()
+    c.cookies.set(CSRF_COOKIE, token)
+    c.headers.update({CSRF_HEADER: token})
+    return c
 
 
 # ── Database session helper (for setup/teardown inside tests) ─────────────────

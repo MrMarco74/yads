@@ -74,8 +74,13 @@ def validate_target_safety(domain: str) -> bool:
 
         return True
     except Exception as e:
-        logger.warning(f"[Worker] Could not verify target safety for {domain}: {e} — allowing")
-        return True
+        # Fail closed. An unexpected error means the SSRF check did not run --
+        # allowing the target then turns any error into a way past the control,
+        # and whoever can trigger the error chooses the target. The NXDOMAIN
+        # case above is deliberately separate: it is a known, harmless outcome
+        # and stays permissive.
+        logger.warning(f"[Worker] Could not verify target safety for {domain}: {e} — blocking")
+        return False
 
 
 def _run_parallel_module(module_cls, target_id: int, domain: str):

@@ -91,12 +91,19 @@ class TestWizardStep1:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
 
-    def test_start_creates_run_and_advances_to_step_2(self, admin_client, test_tenant, db_session):
+    def test_start_creates_run_and_advances_to_step_2(self, tenant_admin_client, test_tenant, db_session):
         from yads.models import Target, ComplianceScanRun
         from sqlmodel import select
 
+        # Nicht-archiviert: der Wizard sammelt nur aktive Ziele ein, ein
+        # beliebiges erstes Ziel kann aber laengst archiviert sein (der
+        # Blocklist-Test tut genau das). Dann stand es nicht in run.target_ids
+        # und der Test kippte -- je nach Reihenfolge der Testdateien.
         target = db_session.exec(
-            select(Target).where(Target.tenant_id == test_tenant.id)
+            select(Target).where(
+                Target.tenant_id == test_tenant.id,
+                Target.is_archived == False,
+            )
         ).first()
         created_target = None
         if not target:
@@ -108,7 +115,7 @@ class TestWizardStep1:
 
         run = None
         try:
-            r = admin_client.post(
+            r = tenant_admin_client.post(
                 "/compliance-wizard/start",
                 data={"criteria": "all"},
                 follow_redirects=True,
@@ -168,7 +175,7 @@ class TestWizardStep1:
 
 @pytest.mark.compliance_wizard
 class TestWizardStep2:
-    def test_step2_dispatch_advances_run_and_queues_scans(self, admin_client, test_tenant, db_session):
+    def test_step2_dispatch_advances_run_and_queues_scans(self, tenant_admin_client, test_tenant, db_session):
         from yads.models import Target, ComplianceScanRun
         from sqlmodel import select
 
@@ -186,7 +193,7 @@ class TestWizardStep2:
         db_session.refresh(run)
 
         try:
-            r = admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
+            r = tenant_admin_client.post(f"/compliance-wizard/{run.id}/step2", follow_redirects=True)
             assert r.status_code < 500
 
             db_session.refresh(run)
@@ -199,7 +206,7 @@ class TestWizardStep2:
 
 @pytest.mark.compliance_wizard
 class TestWizardStep3Progress:
-    def test_targets_crawled_computed_on_dashboard_load(self, admin_client, test_tenant, db_session):
+    def test_targets_crawled_computed_on_dashboard_load(self, tenant_admin_client, test_tenant, db_session):
         """Finding #3: targets_crawled was never computed, so the dashboard
         permanently showed 0 even after crawler ScanResults existed."""
         from yads.models import Target, ComplianceScanRun, ScanResult
@@ -228,7 +235,7 @@ class TestWizardStep3Progress:
         db_session.refresh(run)
 
         try:
-            r = admin_client.get("/compliance-wizard", follow_redirects=True)
+            r = tenant_admin_client.get("/compliance-wizard", follow_redirects=True)
             assert r.status_code == 200
 
             db_session.refresh(run)
@@ -243,7 +250,7 @@ class TestWizardStep3Progress:
 
 @pytest.mark.compliance_wizard
 class TestWizardStep3:
-    def test_step3_dispatch_only_targets_webserver_confirmed_subset(self, admin_client, test_tenant, db_session, monkeypatch):
+    def test_step3_dispatch_only_targets_webserver_confirmed_subset(self, tenant_admin_client, test_tenant, db_session, monkeypatch):
         from yads.models import Target, ComplianceScanRun, ScanResult
         from yads.api.routers import targets as targets_module
         from sqlmodel import select
@@ -278,7 +285,7 @@ class TestWizardStep3:
         db_session.refresh(run)
 
         try:
-            r = admin_client.post(f"/compliance-wizard/{run.id}/step3", follow_redirects=True)
+            r = tenant_admin_client.post(f"/compliance-wizard/{run.id}/step3", follow_redirects=True)
             assert r.status_code < 500
 
             db_session.refresh(run)
@@ -304,7 +311,7 @@ class TestWizardStep3:
 
 @pytest.mark.compliance_wizard
 class TestNewRunAfterStep3:
-    def test_new_run_button_visible_once_step3_completed(self, admin_client, test_tenant, db_session):
+    def test_new_run_button_visible_once_step3_completed(self, tenant_admin_client, test_tenant, db_session):
         """Finding #6: spec requires a way to start a new run once the
         existing run's step 3 has finished (e.g. quarterly re-scan)."""
         from datetime import datetime
@@ -319,7 +326,7 @@ class TestNewRunAfterStep3:
         db_session.refresh(run)
 
         try:
-            r = admin_client.get("/compliance-wizard", follow_redirects=True)
+            r = tenant_admin_client.get("/compliance-wizard", follow_redirects=True)
             assert r.status_code == 200
             assert "/compliance-wizard/start" in r.text
             assert "Start a new run" in r.text
@@ -330,7 +337,7 @@ class TestNewRunAfterStep3:
 
 @pytest.mark.compliance_wizard
 class TestWizardStep4:
-    def test_step4_creates_brand_watch(self, admin_client, test_tenant, db_session):
+    def test_step4_creates_brand_watch(self, tenant_admin_client, test_tenant, db_session):
         from yads.models import ComplianceScanRun, BrandWatch
         from sqlmodel import select
 
@@ -340,7 +347,7 @@ class TestWizardStep4:
         db_session.refresh(run)
 
         try:
-            r = admin_client.post(
+            r = tenant_admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
                 data={"keyword": "acmecorp"},
                 follow_redirects=True,
@@ -363,7 +370,7 @@ class TestWizardStep4:
             db_session.delete(run)
             db_session.commit()
 
-    def test_step4_double_submit_does_not_create_duplicate_brand_watch(self, admin_client, test_tenant, db_session):
+    def test_step4_double_submit_does_not_create_duplicate_brand_watch(self, tenant_admin_client, test_tenant, db_session):
         """Finding #7: double-submitting step 4 (double-click, retry) must not
         create a second BrandWatch with the same (tenant_id, keyword), and the
         run must reach a terminal state so the form stops re-rendering."""
@@ -376,7 +383,7 @@ class TestWizardStep4:
         db_session.refresh(run)
 
         try:
-            r1 = admin_client.post(
+            r1 = tenant_admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
                 data={"keyword": "acmecorp-dupe-test"},
                 follow_redirects=True,
@@ -386,7 +393,7 @@ class TestWizardStep4:
             db_session.refresh(run)
             assert run.current_step >= 5  # terminal marker past step 4
 
-            r2 = admin_client.post(
+            r2 = tenant_admin_client.post(
                 f"/compliance-wizard/{run.id}/step4",
                 data={"keyword": "acmecorp-dupe-test"},
                 follow_redirects=True,
@@ -414,14 +421,14 @@ class TestWizardStep4:
             db_session.delete(run)
             db_session.commit()
 
-    def test_step4_nonexistent_run_does_not_create_brand_watch(self, admin_client, test_tenant, db_session):
+    def test_step4_nonexistent_run_does_not_create_brand_watch(self, tenant_admin_client, test_tenant, db_session):
         from yads.models import BrandWatch
         from sqlmodel import select
 
         nonexistent_run_id = 999_999
 
         try:
-            r = admin_client.post(
+            r = tenant_admin_client.post(
                 f"/compliance-wizard/{nonexistent_run_id}/step4",
                 data={"keyword": "acmecorp-nonexistent-run"},
                 follow_redirects=True,
@@ -615,14 +622,14 @@ class TestTriage:
         db_session.refresh(candidate)
         return watch, candidate
 
-    def test_confirm_creates_target_and_updates_status(self, admin_client, test_tenant, db_session):
+    def test_confirm_creates_target_and_updates_status(self, tenant_admin_client, test_tenant, db_session):
         from yads.models import ShadowDomainCandidate, Target
         from sqlmodel import select
 
         watch, candidate = self._make_candidate(db_session, test_tenant)
 
         try:
-            r = admin_client.post(f"/compliance-wizard/shadow-domains/{candidate.id}/confirm", follow_redirects=True)
+            r = tenant_admin_client.post(f"/compliance-wizard/shadow-domains/{candidate.id}/confirm", follow_redirects=True)
             assert r.status_code == 200
 
             db_session.refresh(candidate)
@@ -711,11 +718,11 @@ class TestTriage:
             db_session.delete(other_tenant)
             db_session.commit()
 
-    def test_dismiss_sets_reason_and_status(self, admin_client, test_tenant, db_session):
+    def test_dismiss_sets_reason_and_status(self, tenant_admin_client, test_tenant, db_session):
         watch, candidate = self._make_candidate(db_session, test_tenant, domain="acmecorp-dismiss-test.example.net")
 
         try:
-            r = admin_client.post(
+            r = tenant_admin_client.post(
                 f"/compliance-wizard/shadow-domains/{candidate.id}/dismiss",
                 data={"reason": "unrelated third party, false positive substring match"},
                 follow_redirects=True,

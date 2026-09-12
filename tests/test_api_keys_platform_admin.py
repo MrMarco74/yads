@@ -115,21 +115,18 @@ def test_platform_admin_may_delete_a_tenants_key(admin_client, test_tenant):
 
 def test_tenant_admin_cannot_create_for_another_tenant(app, db_session, test_tenant):
     """Sonst waere der Parameter eine Rechteausweitung: ein tenant_admin
-    koennte sich einen Key fuer fremde Daten ausstellen."""
-    from yads.models import Tenant
+    koennte sich einen Key fuer fremde Daten ausstellen.
 
-    from sqlmodel import select
-
-    fremd = db_session.exec(select(Tenant).where(Tenant.name == "pytest-fremdtenant")).first()
-    if not fremd:
-        fremd = Tenant(name="pytest-fremdtenant", slug="pytest-fremdtenant")
-        db_session.add(fremd)
-        db_session.commit()
-        db_session.refresh(fremd)
-
+    Die fremde tenant_id ist bewusst synthetisch und wird nicht angelegt: der
+    Zweig lehnt schon beim ID-Vergleich ab, bevor irgendwas nachgeschlagen
+    wird. Eine echte zweite Tenant-Zeile bliebe in der Test-DB stehen und
+    wuerde den Compliance-Wizard lahmlegen -- _effective_tenant_id loest fuer
+    einen Platform-Admin nur auf, wenn genau ein Tenant existiert.
+    """
     c = _tenant_admin_client(app, db_session, test_tenant.id)
     r = c.post("/api-keys/", params={
-        "name": _name("pytest-escalation"), "scopes": ["read"], "tenant_id": fremd.id,
+        "name": _name("pytest-escalation"), "scopes": ["read"],
+        "tenant_id": test_tenant.id + 99999,
     })
     assert r.status_code == 403
 

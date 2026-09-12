@@ -17,15 +17,27 @@ def test_login_page_loads(client):
 @pytest.mark.smoke
 def test_unauthenticated_dashboard_redirects(client):
     """Accessing / without a token must redirect to /login."""
+    # 307 statt 302/303: der Login-Redirect nutzt Starlettes
+    # RedirectResponse-Vorgabe, die die Methode erhaelt.
     r = client.get("/", follow_redirects=False)
-    assert r.status_code in (302, 303)
+    assert r.status_code in (302, 303, 307)
     assert "/login" in r.headers.get("location", "")
 
 
 @pytest.mark.smoke
 def test_unauthenticated_targets_redirects(client):
-    r = client.get("/targets", follow_redirects=False)
-    assert r.status_code in (302, 303)
+    # /targets gibt es nicht -- die Ziel-Liste liegt unter /targets/table.
+    # Der Test lief gegen einen 404 und haette einen fehlenden Auth-Schutz
+    # nie bemerkt; geprueft wird jetzt, dass die Seite ueberhaupt schuetzt.
+    #
+    # 401 statt Redirect ist bewusst mit abgedeckt, nicht gutgeheissen: die
+    # Startseite schickt Unangemeldete auf /login, diese Seite antwortet dem
+    # Browser mit einem rohen 401. Das anzugleichen waere eine Verhaltens-
+    # aenderung und gehoert nicht in ein Testaufraeumen.
+    r = client.get("/targets/table", follow_redirects=False)
+    assert r.status_code in (302, 303, 307, 401)
+    if r.status_code != 401:
+        assert "/login" in r.headers.get("location", "")
 
 
 @pytest.mark.smoke
