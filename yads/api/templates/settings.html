@@ -276,6 +276,12 @@
                             placeholder="nuclei (auto-detect on PATH)">
                         <p class="text-[10px] text-gray-500 mt-1">Full path to the nuclei binary on the worker node, if it's not on its PATH. Save settings, then click Update above.</p>
                     </div>
+                    <div class="p-3 bg-gray-900/50 rounded border border-gray-700">
+                        <label class="block text-xs font-medium text-gray-400 mb-1">Nuclei Rate Limit (requests/sec)</label>
+                        <input type="number" name="nuclei_rate_limit" value="{{ nuclei_rate_limit }}" min="0" max="10000"
+                            class="w-full bg-gray-900 border border-gray-700 text-white rounded px-3 py-2 text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 font-mono">
+                        <p class="text-[10px] text-gray-500 mt-1">Passed to nuclei as <code>-rl</code>. Each request leaves a connection-tracking entry behind for a minute or two, so the router's NAT table fills to roughly <em>rate &times; lifetime</em> &mdash; nuclei's own default of 150/s measured ~6,900 entries against a single target and exhausts a consumer router. <strong>0</strong> drops the flag and restores that default. Lower is also the politer way to scan someone else's domain.</p>
+                    </div>
 
                     <div class="flex items-center justify-between gap-4 p-3 bg-gray-900/50 rounded border border-gray-700">
                         <div>

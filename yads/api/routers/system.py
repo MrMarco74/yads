@@ -443,6 +443,12 @@ async def view_settings(request: Request, session: Session = Depends(get_session
     if nbp_conf:
         nuclei_binary_path = nbp_conf.value
 
+    from yads.modules.nuclei_scanner import NUCLEI_RATE_LIMIT_DEFAULT, NUCLEI_RATE_LIMIT_KEY
+    nuclei_rate_limit = str(NUCLEI_RATE_LIMIT_DEFAULT)
+    nrl_conf = session.get(SystemConfig, NUCLEI_RATE_LIMIT_KEY)
+    if nrl_conf:
+        nuclei_rate_limit = nrl_conf.value
+
     # Splunk Config
     splunk_hec_url = ""
     splunk_hec_token = ""
@@ -612,6 +618,7 @@ async def view_settings(request: Request, session: Session = Depends(get_session
         "default_wordlist_count": default_wordlist_count,
         "nuclei_last_updated": nuclei_last_updated,
         "nuclei_binary_path": nuclei_binary_path,
+        "nuclei_rate_limit": nuclei_rate_limit,
         # TLS/SSL Settings
         "https_only": https_only,
         "https_only_env_override": https_only_env_override,
@@ -660,6 +667,7 @@ async def update_settings(
     base_url: Optional[str] = Form(None, max_length=500),
     data_retention_days: int = Form(90),
     nuclei_binary_path: Optional[str] = Form(None, max_length=500),
+    nuclei_rate_limit: Optional[str] = Form(None, max_length=10),
 
     # Distributed Worker Settings
     global_max_concurrent_scans: int = Form(50),
@@ -792,6 +800,16 @@ async def update_settings(
     if nuclei_binary_path is not None:
         nuclei_binary_path = nuclei_binary_path.strip()
         set_conf("NUCLEI_BINARY_PATH", nuclei_binary_path)
+
+    if nuclei_rate_limit is not None:
+        # Nur uebernehmen, wenn es eine Zahl ist -- ein Tippfehler wuerde sonst
+        # stillschweigend auf nucleis eigene 150/s zurueckfallen.
+        try:
+            wert = int(nuclei_rate_limit.strip())
+            if wert >= 0:
+                set_conf("NUCLEI_RATE_LIMIT", str(wert))
+        except (ValueError, AttributeError):
+            pass
 
     if client_key_path is not None:
         client_key_path = client_key_path.strip()

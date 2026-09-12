@@ -7,6 +7,16 @@ import os
 from typing import Any, Dict, List, Optional
 from yads.core.base import BaseScannerModule
 
+# Requests per second passed to nuclei as -rl. Nuclei's own default is 150,
+# which is what filled a home router's NAT table: every request leaves a
+# conntrack entry that lingers a minute or two after the connection closes,
+# so the table settles at roughly rate x lifetime (~6,900 entries measured
+# against one target on 2026-09-12). Overridable via the SystemConfig key
+# NUCLEI_RATE_LIMIT; 0 there drops the flag and restores nuclei's default.
+NUCLEI_RATE_LIMIT_DEFAULT = 20
+NUCLEI_RATE_LIMIT_KEY = "NUCLEI_RATE_LIMIT"
+
+
 class NucleiScanner(BaseScannerModule):
     """
     Active Vulnerability Scanner using Nuclei.
@@ -19,6 +29,37 @@ class NucleiScanner(BaseScannerModule):
     def __init__(self, db_session=None):
         super().__init__(db_session)
         self.logger = logging.getLogger("yads-worker")
+
+    def _rate_limit(self) -> int:
+        """Requests/s for nuclei. Falls back to the default on anything
+        unusable -- a typo in the setting must not silently unleash 150/s."""
+        if not self.db:
+            return NUCLEI_RATE_LIMIT_DEFAULT
+        try:
+            from yads.models import SystemConfig
+            conf = self.db.get(SystemConfig, NUCLEI_RATE_LIMIT_KEY)
+            if not conf:
+                return NUCLEI_RATE_LIMIT_DEFAULT
+            wert = int(str(conf.value).strip())
+            if wert == 0:
+                return 0          # bewusst abgeschaltet
+            if wert < 0:
+                return NUCLEI_RATE_LIMIT_DEFAULT
+            return wert
+        except (ValueError, TypeError, AttributeError):
+            return NUCLEI_RATE_LIMIT_DEFAULT
+        except Exception as exc:   # DB nicht erreichbar o.ae. -- nie den Scan daran aufhaengen
+            self.logger.warning(f"[Nuclei] Could not read {NUCLEI_RATE_LIMIT_KEY}: {exc}")
+            return NUCLEI_RATE_LIMIT_DEFAULT
+
+    def _build_command(self, target_url: str) -> List[str]:
+        """The nuclei argv. Separate from run_scan so the rate limit is
+        testable without spawning the binary."""
+        cmd = ["nuclei", "-u", target_url, "-j", "-silent", "-nc"]
+        rate = self._rate_limit()
+        if rate > 0:
+            cmd.extend(["-rl", str(rate)])
+        return cmd
 
     def run_scan(self, target: str, target_id: Optional[int] = None) -> Dict[str, Any]:
         results = {
@@ -75,8 +116,8 @@ class NucleiScanner(BaseScannerModule):
         # -json: JSON output line by line
         # -silent: No banner
         # -nc: No colors (easier to parse if strict)
-        cmd = ["nuclei", "-u", target_url, "-j", "-silent", "-nc"]
-        
+        cmd = self._build_command(target_url)
+
         # Inject Key if present
         env_vars = os.environ.copy()
         if nuclei_key:
