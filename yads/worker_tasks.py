@@ -1154,7 +1154,11 @@ def _dispatch_module_chord(target_id, domain, tenant_id, scan_types, has_http, h
 
     logger.info(f"[Worker] Dispatching {len(module_names)} modules as a chord: {module_names}")
     module_tasks = [run_scan_module.s(target_id, domain, name, tenant_id) for name in module_names]
-    chord(module_tasks)(finalize_scan.s(target_id, domain, tenant_id, scan_types, scan_start_time))
+    # .si(), not .s(): a chord prepends the group's result list to a mutable
+    # callback signature, which shifts every argument by one and hands
+    # finalize_scan the tenant id where it expects scan_types. It has no use
+    # for the group results, so the signature must be immutable.
+    chord(module_tasks)(finalize_scan.si(target_id, domain, tenant_id, scan_types, scan_start_time))
 
 
 # ── Main Scan Task ────────────────────────────────────────────────────────────
