@@ -595,3 +595,32 @@
 **Einfachster Einstieg:** Wayback Machine Integration (Low Effort, interessante OSINT-Daten)
 **Meiste visuelle Impact:** Visual Regression / Defacement Monitor
 **Meiste Security-Relevanz:** AI Executive Reporting oder Cloud Asset Enumeration
+
+---
+
+## 🔧 yads-mcp / API-Key-Zugang (2026-09-21)
+
+- **`get_api_key` verlangt TLS — gelöst, aber dokumentationspflichtig.**
+  `yads/auth/deps.py` lehnt jeden API-Key ab, wenn weder `request.url.scheme ==
+  "https"` noch `X-Forwarded-Proto: https` gesetzt ist
+  (`{"detail":"SSL/TLS Required for API Key authentication"}`). Der MCP-Client
+  (`yads_mcp/client.py`) setzt nur `X-API-Key` und keine Proto-Angabe — `YADS_URL`
+  muss deshalb zwingend auf den **HTTPS-Endpunkt** zeigen:
+  `https://yads.internal.familie-frischkorn.de` (Reverse Proxy auf 192.168.10.48).
+  Über `http://yads.fritz.box:8085` (uvicorn direkt auf der Prod-VM 192.168.10.52)
+  funktioniert der MCP **nicht** — dort ist 443 zu. Das hat beim ersten
+  Registrierungsversuch am 2026-09-21 eine halbe Stunde gekostet.
+  **Zu tun:** den HTTPS-Endpunkt im yads-mcp-README als *die* `YADS_URL`
+  dokumentieren, statt nur `https://yads.example.com` als Platzhalter zu zeigen —
+  und die Fehlermeldung so erweitern, dass sie auf die Ursache hinweist
+  ("use the HTTPS endpoint, not the uvicorn port").
+- **Security-Smell nebenbei:** `X-Forwarded-Proto` wird ungeprüft vertraut. Wer die
+  API direkt auf `8085` erreicht (im LAN jeder), hängt den Header einfach an und
+  umgeht die TLS-Pflicht vollständig. Der Header sollte nur von bekannten
+  Proxy-IPs akzeptiert werden.
+- **API-Keys sind zwingend tenant-gebunden.** Ein Key ohne Tenant-Bindung für
+  tenant-übergreifende Auswertungen existiert nicht. `APIKey.tenant_id` ist seit dem
+  Cleanup-Pass zwar nullable, ein solcher Key "fails closed" und matcht keine
+  Targets (siehe Eintrag oben). Echtes plattformweites API-Key-Scoping ist damit
+  weiterhin offen und wäre die Voraussetzung, um den MCP über mehr als einen
+  Tenant zu nutzen.
