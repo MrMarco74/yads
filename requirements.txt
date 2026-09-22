@@ -4,7 +4,13 @@ uvicorn
 httpx
 celery
 redis
-sqlmodel
+# Pinned below 0.0.40: from there on a bare `datetime` field maps to SQLModel's
+# UTCDateTime, which refuses naive values on write. This codebase stores naive
+# UTC throughout (datetime.utcnow()) against `timestamp without time zone`
+# columns, so an unpinned upgrade breaks every timestamp write -- it took prod
+# down on 2026-09-22. Lifting this pin means migrating the models and the
+# columns to timezone-aware datetimes first; see tests/test_naive_datetime_persistence.py.
+sqlmodel<0.0.40
 psycopg2-binary
 pydantic-settings
 requests
