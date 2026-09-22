@@ -37,6 +37,7 @@ from yads.core.metrics import get_metrics
 from yads.core.dns_resolver import make_resolver
 from urllib.parse import quote
 from yads.modules._shared_osint_utils import RateLimitedClient
+from yads.modules.infrastructure_scanner import InfrastructureScanner
 from yads.modules.tld_scanner import get_tld_list
 from yads.core.module_registry import get_module, get_simple_dispatch_modules
 from yads.core.module_status import mark_rate_limited, clear_rate_limited
@@ -645,6 +646,76 @@ def check_nmap_available():
     return {"available": bool(resolved), "path": resolved}
 
 
+def handle_api_block(exc: ApiBlockedError, target_id: int, domain: str,
+                     module_name: str, tenant_id: int, attempt: int = 0) -> None:
+    """
+    React to a provider block: mark the module rate-limited for this target
+    and, unless the retry budget is spent, schedule exactly one independent
+    follow-up run_scan_module call with jittered backoff.
+
+    Shared by the chord-dispatched path (run_scan_module) and the inline
+    custom_dispatch steps in run_all_scans. Those inline steps used to let
+    ApiBlockedError fall into their generic `except Exception`, which left no
+    rate-limited marker and no retry -- the target was finalized as if the
+    module had simply found nothing. With ipinfo's breaker tripped for hours
+    on 2026-09-21 that silently cost ~590 targets their infrastructure data.
+    """
+    cooldown = exc.retry_after or DEFAULT_BLOCKED_COOLDOWN
+    mark_rate_limited(target_id, module_name, ttl_seconds=cooldown + RATE_LIMITED_STATUS_TTL_BUFFER)
+    logger.warning(
+        f"[Worker] '{module_name}' blocked by '{exc.service}' for target {target_id} "
+        f"(attempt {attempt}); cooldown={cooldown}s"
+    )
+    if attempt < MAX_BLOCKED_RETRIES:
+        jitter = random.uniform(1.0, 1.5)
+        run_scan_module.apply_async(
+            args=[target_id, domain, module_name, tenant_id],
+            kwargs={"attempt": attempt + 1},
+            countdown=cooldown * jitter,
+        )
+    else:
+        logger.warning(
+            f"[Worker] '{module_name}' for target {target_id} gave up after "
+            f"{MAX_BLOCKED_RETRIES} blocked attempts; will retry on next scheduled scan."
+        )
+
+
+def _run_infrastructure_scanner(session, target_id: int, domain: str, tenant_id: int) -> None:
+    """
+    Inline (custom_dispatch) step 2b of run_all_scans. Extracted so the block
+    handling has a seam to test against -- see handle_api_block above for why
+    ApiBlockedError must not share the generic `except Exception` here.
+    """
+    t = session.get(Target, target_id)
+    if t:
+        t.scan_progress = "Running Infrastructure Scanner..."
+        session.add(t)
+        session.commit()
+
+    infra = InfrastructureScanner(db_session=session)
+    logger.info(f"[Worker] Step 2b: Running {infra.module_name}...")
+    try:
+        with LogCapture() as logs:
+            logger.info(f"Starting {infra.module_name} for {domain}")
+            result = infra.process(target_id, domain)
+            captured_logs = logs.get_logs()
+
+        if result and hasattr(result, 'log_content'):
+            result.log_content = sanitize_null_bytes(captured_logs)
+            session.add(result)
+            session.commit()
+            logger.info(f"[Worker] {infra.module_name} found changes/new data.")
+        else:
+            logger.info(f"[Worker] {infra.module_name} no change.")
+        clear_rate_limited(target_id, "infrastructure_scanner")
+    except ApiBlockedError as e:
+        session.rollback()
+        handle_api_block(e, target_id, domain, "infrastructure_scanner", tenant_id)
+    except Exception as e:
+        logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
+        session.rollback()
+
+
 @celery_app.task(name="yads.worker.run_scan_module", bind=False, acks_late=True, reject_on_worker_lost=True)
 def run_scan_module(target_id: int, domain: str, module_name: str, tenant_id: int, attempt: int = 0):
     """
@@ -672,24 +743,7 @@ def run_scan_module(target_id: int, domain: str, module_name: str, tenant_id: in
         _run_parallel_module(module_cls, target_id, domain)
         clear_rate_limited(target_id, module_name)
     except ApiBlockedError as e:
-        cooldown = e.retry_after or DEFAULT_BLOCKED_COOLDOWN
-        mark_rate_limited(target_id, module_name, ttl_seconds=cooldown + RATE_LIMITED_STATUS_TTL_BUFFER)
-        logger.warning(
-            f"[Worker] '{module_name}' blocked by '{e.service}' for target {target_id} "
-            f"(attempt {attempt}); cooldown={cooldown}s"
-        )
-        if attempt < MAX_BLOCKED_RETRIES:
-            jitter = random.uniform(1.0, 1.5)
-            run_scan_module.apply_async(
-                args=[target_id, domain, module_name, tenant_id],
-                kwargs={"attempt": attempt + 1},
-                countdown=cooldown * jitter,
-            )
-        else:
-            logger.warning(
-                f"[Worker] '{module_name}' for target {target_id} gave up after "
-                f"{MAX_BLOCKED_RETRIES} blocked attempts; will retry on next scheduled scan."
-            )
+        handle_api_block(e, target_id, domain, module_name, tenant_id, attempt=attempt)
 
 
 @celery_app.task(name="yads.worker.finalize_scan", bind=False)
@@ -1171,7 +1225,9 @@ def run_all_scans(
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 req = urllib.request.Request(f"https://{host}", method="HEAD")
-                with urllib.request.urlopen(req, timeout=4, context=ctx):
+                # Scheme is the literal "https://" here and host is a hostname,
+                # so no caller-controlled file:/ or custom scheme reaches this.
+                with urllib.request.urlopen(req, timeout=4, context=ctx):  # nosec B310
                     has_https = True
             except Exception:
                 pass
@@ -1179,7 +1235,8 @@ def run_all_scans(
             try:
                 import urllib.request
                 req = urllib.request.Request(f"http://{host}", method="HEAD")
-                with urllib.request.urlopen(req, timeout=4):
+                # Literal "http://" scheme, same reasoning as the HTTPS probe above.
+                with urllib.request.urlopen(req, timeout=4):  # nosec B310
                     has_http = True
             except Exception:
                 pass
@@ -1337,6 +1394,11 @@ def run_all_scans(
                         duration_seconds=module_duration,
                         status="success"
                     )
+                except ApiBlockedError as e:
+                    # SubdomainScanner falls back to hackertarget/crt.sh, both of
+                    # which trip the breaker. Same reasoning as step 2b below.
+                    session.rollback()
+                    handle_api_block(e, target_id, domain, "subdomain_scanner", parent_tenant_id)
                 except Exception as e:
                     logger.error(f"[Worker] Error in Subdomain Scanner: {e}")
                     session.rollback()
@@ -1452,37 +1514,17 @@ def run_all_scans(
                     try:
                         _ga_fut.result(timeout=120)
                         logger.info(f"[Worker] [Group A] {_ga_name} completed.")
+                    except ApiBlockedError as _ga_err:
+                        # dns_scanner's hackertarget fallback can trip the
+                        # breaker; reschedule instead of losing the module.
+                        handle_api_block(_ga_err, target_id, domain, _ga_name, parent_tenant_id)
                     except Exception as _ga_err:
                         logger.error(f"[Worker] [Group A] {_ga_name} error: {_ga_err}")
                 _group_a_executor.shutdown(wait=False)
 
             # 2b. Infrastructure Scanner
             if "infrastructure_scanner" in scan_types:
-                try:
-                    t = session.get(Target, target_id)
-                    if t:
-                        t.scan_progress = "Running Infrastructure Scanner..."
-                        session.add(t)
-                        session.commit()
-
-                    from yads.modules.infrastructure_scanner import InfrastructureScanner
-                    infra = InfrastructureScanner(db_session=session)
-                    logger.info(f"[Worker] Step 2b: Running {infra.module_name}...")
-                    with LogCapture() as logs:
-                        logger.info(f"Starting {infra.module_name} for {domain}")
-                        result = infra.process(target_id, domain)
-                        captured_logs = logs.get_logs()
-
-                    if result and hasattr(result, 'log_content'):
-                        result.log_content = sanitize_null_bytes(captured_logs)
-                        session.add(result)
-                        session.commit()
-                        print(f"[Worker] {infra.module_name} found changes/new data.")
-                    else:
-                        print(f"[Worker] {infra.module_name} no change.")
-                except Exception as e:
-                    logger.error(f"[Worker] Error in Infrastructure Scanner: {e}")
-                    session.rollback()
+                _run_infrastructure_scanner(session, target_id, domain, parent_tenant_id)
 
             # 2c. Nuclei Scanner
             if "nuclei_scanner" in scan_types and not is_parked:
